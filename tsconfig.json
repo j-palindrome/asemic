@@ -1,0 +1,7 @@
+{
+  "include": ["."],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM"]
+  }
+}

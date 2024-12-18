@@ -4,11 +4,9 @@ import * as THREE from 'three'
 import { Vector2 } from 'three'
 import { bezierPoint, multiBezierProgress } from '../../util/src/shaders/bezier'
 import { rotate2d } from '../../util/src/shaders/manipulation'
-import { useEventListener } from '../utilities/react'
 import Builder from './drawingSystem/Builder'
 import { useFrame } from '@react-three/fiber'
-import { useInterval } from '@/util/src/dom'
-import { Group } from 'pts'
+import { useEventListener } from '../util/src/dom'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -20,132 +18,13 @@ export type Jitter = {
   rotation?: number
 }
 
-const packToTexture = (keyframes: Group[], resolution: Vector2) => {
-  this.keyframe.groups = this.keyframe.groups
-    .map(x => ({
-      ...x,
-      curves: x.curves
-        .filter(x => x.length)
-        .map(x => {
-          if (x.length == 2) this.interpolateCurve(x, 3)
-          return x
-        })
-    }))
-    .filter(x => x.curves.length)
-  const hypotenuse = resolution.length()
+export default function Brush({
+  render
+}: {
+  render: ConstructorParameters<typeof Builder>[0]
+}) {
+  const keyframes = new Builder(render)
 
-  this.reset(true)
-
-  const width = max(
-    this.keyframe.groups.flatMap(x => x.curves.flatMap(x => x.length))
-  )!
-  const height = sum(this.keyframe.groups.map(x => x.curves.length))
-  const dimensions = new Vector2(width, height)
-  let curveIndex = 0
-
-  const groups = this.keyframe.groups.map((group, groupIndex) => {
-    const curveEnds = new Float32Array(group.curves.length)
-    const curveIndexes = new Float32Array(group.curves.length)
-    const controlPointCounts = new Float32Array(group.curves.length)
-    let totalCurveLength = 0
-    group.curves.forEach((curve, i) => {
-      // shortcut for Bezier lengths
-      let curveLength = 0
-      for (let i = 1; i < curve.length; i++) {
-        curveLength += curve[i - 1].distanceTo(curve[i])
-      }
-
-      curveLength *=
-        (hypotenuse / 1.414) * (group.transform.scale.length() / 1.414)
-      totalCurveLength += curveLength
-      curveEnds[i] = totalCurveLength
-      curveIndexes[i] = curveIndex
-      controlPointCounts[i] = curve.length
-      curveIndex++
-    })
-    return {
-      transform: this.keyframe.groups[groupIndex].transform,
-      curveEnds,
-      curveIndexes,
-      controlPointCounts,
-      totalCurveLength
-    }
-  })
-
-  const createTexture = (array: Float32Array, format: AnyPixelFormat) => {
-    const tex = new DataTexture(array, width, height)
-    tex.format = format
-    tex.type = FloatType
-    tex.minFilter = tex.magFilter = NearestFilter
-    tex.wrapS = tex.wrapT = ClampToEdgeWrapping
-    tex.needsUpdate = true
-    return tex
-  }
-
-  const keyframesTex = createTexture(
-    new Float32Array(
-      this.keyframe.groups.flatMap(x =>
-        x.curves.flatMap(c =>
-          range(width).flatMap(i => {
-            return c[i]
-              ? [c[i].x, c[i].y, c[i].strength ?? this.settings.strength, 1]
-              : [0, 0, 0, 0]
-          })
-        )
-      )
-    ),
-    RGBAFormat
-  )
-
-  const colorTex = createTexture(
-    new Float32Array(
-      this.keyframe.groups.flatMap(group =>
-        group.curves.flatMap(c =>
-          range(width).flatMap(i => {
-            const point = c[i]
-
-            return point
-              ? [
-                  ...this.colorToArray(point.color ?? this.settings.color),
-                  point.alpha ?? this.settings.alpha
-                ]
-              : [0, 0, 0, 0]
-          })
-        )
-      )
-    ),
-    RGBAFormat
-  )
-
-  const thicknessTex = createTexture(
-    new Float32Array(
-      this.keyframe.groups.flatMap(group =>
-        group.curves.flatMap(c =>
-          range(width).flatMap(i => {
-            const point = c[i]
-            return point ? [point.thickness ?? this.settings.thickness] : [0]
-          })
-        )
-      )
-    ),
-    RedFormat
-  )
-
-  const curveCounts = groups.map(x => x.curveIndexes.length)
-
-  return {
-    keyframesTex,
-    colorTex,
-    thicknessTex,
-    transform: this.keyframe.transform,
-    groups,
-    dimensions,
-    curveCounts,
-    settings: this.settings
-  }
-}
-
-export default function Brush({ keyframe }: { keyframe: Group[] }) {
   useEventListener(
     'resize',
     () => {
@@ -158,7 +37,7 @@ export default function Brush({ keyframe }: { keyframe: Group[] }) {
     window.innerHeight * window.devicePixelRatio
   )
 
-  const [lastData, setLastData] = useState(packToTexture())
+  const [lastData, setLastData] = useState(keyframes.reInitialize(resolution))
   const {
     keyframesTex,
     colorTex,
@@ -207,12 +86,27 @@ export default function Brush({ keyframe }: { keyframe: Group[] }) {
     })
   }
 
+  const reInitialize = useCallback(() => {
+    const resolution = new Vector2(
+      window.innerWidth * window.devicePixelRatio,
+      window.innerHeight * window.devicePixelRatio
+    )
+    const newData = keyframes.reInitialize(resolution)
+    if (!isEqual(newData.curveCounts, lastData.curveCounts)) {
+      console.log('reinit')
+
+      setLastData(newData)
+    } else {
+      updateChildren(newData)
+    }
+  }, [lastData])
+
   useEffect(() => {
     updateChildren(lastData)
   }, [lastData])
 
   useEffect(() => {
-    let timeout
+    let timeout: number
     const reinit = () => {
       reInitialize()
       timeout = window.setTimeout(reinit, Math.random() ** 2 * 300)

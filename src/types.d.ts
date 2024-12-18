@@ -1,6 +1,20 @@
 import { Color, Vector2 } from 'three'
 import { PointBuilder } from './drawingSystem/PointBuilder'
 import Builder from './drawingSystem/Builder'
+import { PtBuilder } from './ptsSystem/PtBuilder'
+import { GroupBuilder } from './ptsSystem/GroupBuilder'
+
+declare module './ptsSystem/PtBuilder' {
+  interface PtBuilder {
+    $add(...args: any[]): PtBuilder
+  }
+}
+
+declare module './ptsSystem/GroupBuilder' {
+  interface GroupBuilder {
+    at(i: number): PtBuilder
+  }
+}
 
 declare global {
   type Coordinate = [number, number, CoordinateData] | [number, number]

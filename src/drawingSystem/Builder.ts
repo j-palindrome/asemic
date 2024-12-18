@@ -1,4 +1,4 @@
-import { lerp } from '@/util/src/math'
+import { lerp } from '../../util/src/math'
 import { last, max, min, range, sum } from 'lodash'
 import {
   AnyPixelFormat,
@@ -766,6 +766,7 @@ ${g.curves
   }
 
   text(str: string, warp?: CoordinateData) {
+    return this
     let lineCount = 0
     if (warp) this.setWarp(warp)
     for (let letter of str) {

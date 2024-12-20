@@ -18,7 +18,6 @@ import {
   vec2,
   vec4,
   workgroupArray,
-  equals,
   wgslFn
 } from 'three/tsl'
 import {
@@ -96,43 +95,107 @@ function App() {
     const knotVector = uniformArray([0, 0, 0, 1, 2, 3, 3, 3])
 
     const processText = Fn(() => {
-      const rationalBezierCurve = ({ t }) => {
+      const rationalBezierCurve = Fn(({ t }) => {
         let numerator = vec2(0, 0).toVar()
         let denominator = float(0).toVar()
 
-        const degree = length.sub(1).toVar()
+        const degree = 3
 
-        // @ts-ignore
-        const basisFunction = ({ cpIndex, t, degree }) => {
-          return select(
-            degree.equal(0),
-            0,
-            t
+        const basisFunction = Fn(({ cpIndex, t }) => {
+          let N0 = select(
+            t.greaterThanEqual(knotVector.element(cpIndex)) &&
+              t.lessThan(knotVector.element(cpIndex.add(1))),
+            float(1),
+            float(0)
+          ).toVar()
+
+          let N1 = select(
+            t.greaterThanEqual(knotVector.element(cpIndex.add(1))) &&
+              t.lessThan(knotVector.element(cpIndex.add(2))),
+            float(1),
+            float(0)
+          ).toVar()
+
+          let N2 = select(
+            t.greaterThanEqual(knotVector.element(cpIndex.add(2))) &&
+              t.lessThan(knotVector.element(cpIndex.add(3))),
+            float(1),
+            float(0)
+          ).toVar()
+
+          let N3 = select(
+            t.greaterThanEqual(knotVector.element(cpIndex.add(3))) &&
+              t.lessThan(knotVector.element(cpIndex.add(4))),
+            float(1),
+            float(0)
+          ).toVar()
+
+          Loop({ start: 1, end: degree + 1 }, ({ i: k }) => {
+            const left0 = t
               .sub(knotVector.element(cpIndex))
               .div(
                 knotVector
-                  .element(cpIndex.add(degree))
+                  .element(cpIndex.add(k))
                   .sub(knotVector.element(cpIndex))
               )
-              .mul(
-                basisFunction({
-                  cpIndex: cpIndex.add(1),
-                  degree: degree.sub(1),
-                  t
-                })
-              )
-              .add(knotVector.element(cpIndex.add(degree).add(1)).sub(t))
+              .mul(N0)
+              .toVar()
+            const right0 = knotVector
+              .element(cpIndex.add(k).add(1))
+              .sub(t)
               .div(
                 knotVector
-                  .element(cpIndex.add(degree).add(1))
-                  .sub(knotVector.element(cpIndex))
+                  .element(cpIndex.add(k).add(1))
+                  .sub(knotVector.element(cpIndex.add(1)))
               )
-              .mul(basisFunction({ cpIndex, degree: degree.sub(1), t }))
-          )
-        }
+              .mul(N1)
+              .toVar()
+            N0.assign(left0.add(right0))
+
+            const left1 = t
+              .sub(knotVector.element(cpIndex.add(1)))
+              .div(
+                knotVector
+                  .element(cpIndex.add(1).add(k))
+                  .sub(knotVector.element(cpIndex.add(1)))
+              )
+              .mul(N1)
+            const right1 = knotVector
+              .element(cpIndex.add(1).add(k).add(1))
+              .sub(t)
+              .div(
+                knotVector
+                  .element(cpIndex.add(1).add(k).add(1))
+                  .sub(knotVector.element(cpIndex.add(1).add(1)))
+              )
+              .mul(N2)
+            N1.assign(left1.add(right1))
+
+            const left2 = t
+              .sub(knotVector.element(cpIndex.add(2)))
+              .div(
+                knotVector
+                  .element(cpIndex.add(2).add(k))
+                  .sub(knotVector.element(cpIndex.add(2)))
+              )
+              .mul(N2)
+            const right2 = knotVector
+              .element(cpIndex.add(2).add(k).add(1))
+              .sub(t)
+              .div(
+                knotVector
+                  .element(cpIndex.add(2).add(k).add(1))
+                  .sub(knotVector.element(cpIndex.add(2).add(1)))
+              )
+              .mul(N3)
+            N2.assign(left2.add(right2))
+          })
+
+          return N0
+        })
 
         Loop({ start: 0, end: length }, ({ i }) => {
-          const N = basisFunction({ cpIndex: i, t, degree })
+          const N = basisFunction({ cpIndex: i, t })
           numerator.addAssign(
             mul(N, weights.element(i), controlPoints.element(i))
           )
@@ -140,13 +203,11 @@ function App() {
         })
 
         return numerator.div(denominator)
-      }
+      })
 
       let position = vec4(0, 0, 0, 1).toVar()
-      If(instanceIndex.lessThan(300), () => {
-        const t = int(300).sub(instanceIndex).toFloat().div(300)
-        position.xyz.assign(rationalBezierCurve({ t }))
-      }).ElseIf(instanceIndex.lessThan(600), () => {})
+      const t = int(300).sub(instanceIndex).toFloat().div(300).toVar()
+      position.xyz.assign(rationalBezierCurve({ t }))
       return position
     })
 

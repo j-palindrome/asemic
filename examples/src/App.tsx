@@ -18,7 +18,8 @@ import {
   uv,
   uvec2,
   vec3,
-  vec4
+  vec4,
+  wgslFn
 } from 'three/tsl'
 import {
   SpriteNodeMaterial,

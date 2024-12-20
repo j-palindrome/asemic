@@ -1,7 +1,6 @@
-import { OrbitControls } from '@react-three/drei'
 import { Canvas, extend } from '@react-three/fiber'
-import { useEffect, useMemo, useState } from 'react'
-import { AdditiveBlending, Color, PerspectiveCamera, Vector3 } from 'three'
+import { useMemo, useState } from 'react'
+import { AdditiveBlending, Color, Vector2 } from 'three'
 import {
   float,
   Fn,
@@ -10,15 +9,16 @@ import {
   int,
   Loop,
   mul,
-  pow,
-  range,
+  select,
   textureStore,
   uniform,
   uniformArray,
   uv,
   uvec2,
-  vec3,
+  vec2,
   vec4,
+  workgroupArray,
+  equals,
   wgslFn
 } from 'three/tsl'
 import {
@@ -26,7 +26,6 @@ import {
   StorageTexture,
   WebGPURenderer
 } from 'three/webgpu'
-import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
 
 extend(SpriteNodeMaterial)
 
@@ -87,30 +86,57 @@ function App() {
     material.scaleNode = size
 
     const controlPoints = uniformArray([
-      new Vector3(0, 0, 0),
-      new Vector3(1, 1, 0),
-      new Vector3(-1, 0, 0),
-      new Vector3(1, -1, 0)
+      new Vector2(0, 0),
+      new Vector2(1, 1),
+      new Vector2(-1, 0),
+      new Vector2(1, -1)
     ])
-    const weights = uniformArray([1, 3, 5, 1])
-    const length = uniform(4)
+    const weights = uniformArray([1, 1, 1, 1])
+    const length = uniform(4, 'int')
+    const knotVector = uniformArray([0, 0, 0, 1, 2, 3, 3, 3])
 
     const processText = Fn(() => {
-      const rationalBezierCurve = ({ t }: { t: ReturnType<typeof float> }) => {
-        let numerator = vec3(0, 0, 0).toVar()
+      const rationalBezierCurve = ({ t }) => {
+        let numerator = vec2(0, 0).toVar()
         let denominator = float(0).toVar()
 
-        Loop({ start: 0, end: length }, ({ i }: { i: number }) => {
-          const binomialCoeff = float(1).toVar()
-          const term = mul(
-            binomialCoeff,
-            pow(t, float(i)),
-            pow(t.oneMinus(), length.sub(i))
+        const degree = length.sub(1).toVar()
+
+        // @ts-ignore
+        const basisFunction = ({ cpIndex, t, degree }) => {
+          return select(
+            degree.equal(0),
+            0,
+            t
+              .sub(knotVector.element(cpIndex))
+              .div(
+                knotVector
+                  .element(cpIndex.add(degree))
+                  .sub(knotVector.element(cpIndex))
+              )
+              .mul(
+                basisFunction({
+                  cpIndex: cpIndex.add(1),
+                  degree: degree.sub(1),
+                  t
+                })
+              )
+              .add(knotVector.element(cpIndex.add(degree).add(1)).sub(t))
+              .div(
+                knotVector
+                  .element(cpIndex.add(degree).add(1))
+                  .sub(knotVector.element(cpIndex))
+              )
+              .mul(basisFunction({ cpIndex, degree: degree.sub(1), t }))
           )
+        }
+
+        Loop({ start: 0, end: length }, ({ i }) => {
+          const N = basisFunction({ cpIndex: i, t, degree })
           numerator.addAssign(
-            mul(term, weights.element(i), controlPoints.element(i))
+            mul(N, weights.element(i), controlPoints.element(i))
           )
-          denominator.addAssign(mul(term, weights.element(i)))
+          denominator.addAssign(mul(N, weights.element(i)))
         })
 
         return numerator.div(denominator)
@@ -119,11 +145,11 @@ function App() {
       let position = vec4(0, 0, 0, 1).toVar()
       If(instanceIndex.lessThan(300), () => {
         const t = int(300).sub(instanceIndex).toFloat().div(300)
-
         position.xyz.assign(rationalBezierCurve({ t }))
       }).ElseIf(instanceIndex.lessThan(600), () => {})
       return position
     })
+
     material.positionNode = processText()
 
     const alpha = float(0.1).sub(uv().sub(0.5).length())

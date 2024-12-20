@@ -2,6 +2,7 @@
   "include": ["."],
   "compilerOptions": {
     "jsx": "react-jsx",
-    "lib": ["ESNext", "DOM"]
+    "lib": ["ESNext", "DOM"],
+    "noImplicitAny": false
   }
 }

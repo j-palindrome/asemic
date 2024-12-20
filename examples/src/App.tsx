@@ -74,6 +74,8 @@ function App() {
     width * height
   )
 
+  const pointCount = 100
+
   const material = useMemo(() => {
     const material = new SpriteNodeMaterial({
       transparent: true,
@@ -87,12 +89,13 @@ function App() {
     const points = [
       new Vector2(0, 0),
       new Vector2(1, 1),
-      new Vector2(-1, 0),
-      new Vector2(1, -1)
+      new Vector2(1, -1),
+      new Vector2(-1, -1)
     ]
     const controlPoints = uniformArray(points)
     const weights = uniformArray([1, 1, 1, 1], 'float')
     const length = uniform(4, 'int')
+    const count = uniform(pointCount, 'float')
     // const knots = [0, 0, 0, 1, 2, 3, 3, 3]
     // const knotVector = uniformArray(knots, 'float')
 
@@ -105,7 +108,7 @@ function App() {
 fn basisFunction(i:i32, t:f32) -> f32 {
   var N : array<f32, 8>;
   let knotVector = array<f32, 8>(0., 0., 0., 1., 2., 3., 3., 3.);
-  let degree : i32 = 3;
+  let degree : i32 = 2;
 
   for (var j : i32 = 0; j <= degree; j = j + 1)
   {
@@ -146,7 +149,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
       })
 
       let position = vec4(0, 0, 0, 1).toVar()
-      const t = int(300).sub(instanceIndex).toFloat().div(300).toVar()
+      const t = instanceIndex.toFloat().div(count).mul(length.sub(1)).toVar()
       position.xyz.assign(rationalBezierCurve({ t }))
       return position
     })
@@ -211,7 +214,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
           })
           return renderer
         }}>
-        <instancedMesh material={material} count={20000}>
+        <instancedMesh material={material} count={pointCount}>
           <planeGeometry attach='geometry' />
         </instancedMesh>
       </Canvas>

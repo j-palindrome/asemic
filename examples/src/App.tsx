@@ -1,15 +1,13 @@
 import { Canvas, extend } from '@react-three/fiber'
+import _ from 'lodash'
 import { useMemo, useState } from 'react'
 import { AdditiveBlending, Color, Vector2 } from 'three'
 import {
   float,
   Fn,
-  If,
   instanceIndex,
-  int,
   Loop,
   mul,
-  select,
   textureStore,
   uniform,
   uniformArray,
@@ -17,7 +15,6 @@ import {
   uvec2,
   vec2,
   vec4,
-  workgroupArray,
   wgslFn
 } from 'three/tsl'
 import {
@@ -74,7 +71,20 @@ function App() {
     width * height
   )
 
-  const pointCount = 100
+  const points = [
+    new Vector2(0, 0),
+    new Vector2(1, 1),
+    new Vector2(1, -1),
+    new Vector2(-1, -1),
+    new Vector2(-1, 1)
+  ]
+
+  let arcLength = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    arcLength += points[i].distanceTo(points[i + 1])
+  }
+  const pointCount =
+    (arcLength / 10) * (window.innerWidth ** 2 + window.innerHeight ** 2) ** 0.5
 
   const material = useMemo(() => {
     const material = new SpriteNodeMaterial({
@@ -86,18 +96,22 @@ function App() {
     const size = uniform(0.08)
     material.scaleNode = size
 
-    const points = [
-      new Vector2(0, 0),
-      new Vector2(1, 1),
-      new Vector2(1, -1),
-      new Vector2(-1, -1)
-    ]
-    const controlPoints = uniformArray(points)
-    const weights = uniformArray([1, 1, 1, 1], 'float')
-    const length = uniform(4, 'int')
+    const controlPoints = uniformArray(points, 'vec2')
+    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
     const count = uniform(pointCount, 'float')
-    // const knots = [0, 0, 0, 1, 2, 3, 3, 3]
-    // const knotVector = uniformArray(knots, 'float')
+    const length = uniform(points.length, 'int')
+    const degree = 2
+    const knotLength = points.length + degree + 1
+    const generateKnotVector = () => {
+      return _.range(degree + 1)
+        .map(x => 0)
+        .concat(
+          _.range(1, points.length - degree).map(
+            i => i / (points.length - degree)
+          )
+        )
+        .concat(_.range(degree + 1).map(x => 1))
+    }
 
     const processText = Fn(() => {
       const rationalBezierCurve = Fn(({ t }) => {
@@ -106,9 +120,9 @@ function App() {
 
         const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32) -> f32 {
-  var N : array<f32, 8>;
-  let knotVector = array<f32, 8>(0., 0., 0., 1., 2., 3., 3., 3.);
-  let degree : i32 = 2;
+  var N : array<f32, ${knotLength}>;
+  let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
+  let degree : i32 = ${degree};
 
   for (var j : i32 = 0; j <= degree; j = j + 1)
   {
@@ -149,7 +163,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
       })
 
       let position = vec4(0, 0, 0, 1).toVar()
-      const t = instanceIndex.toFloat().div(count).mul(length.sub(1)).toVar()
+      const t = instanceIndex.toFloat().div(count).toVar()
       position.xyz.assign(rationalBezierCurve({ t }))
       return position
     })
@@ -160,26 +174,6 @@ fn basisFunction(i:i32, t:f32) -> f32 {
     material.colorNode = vec4(1, 1, 1, alpha)
     return material
   }, [])
-
-  // debug
-
-  // const gui = new GUI()
-
-  // gui.add(size, 'value', 0, 1, 0.001).name('size')
-
-  // gui
-  //   .addColor({ color: colorInside.value.getHex(SRGBColorSpace) }, 'color')
-  //   .name('colorInside')
-  //   .onChange(function (value) {
-  //     colorInside.value.set(value)
-  //   })
-
-  // gui
-  //   .addColor({ color: colorOutside.value.getHex(SRGBColorSpace) }, 'color')
-  //   .name('colorOutside')
-  //   .onChange(function (value) {
-  //     colorOutside.value.set(value)
-  //   })
 
   const [frameloop, setFrameloop] = useState<
     'never' | 'always' | 'demand' | undefined

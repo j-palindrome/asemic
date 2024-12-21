@@ -2,18 +2,25 @@ import { extend, useThree } from '@react-three/fiber'
 import _ from 'lodash'
 import { Pt } from 'pts'
 import { useMemo } from 'react'
-import { AdditiveBlending, FloatType } from 'three'
+import {
+  AdditiveBlending,
+  ClampToEdgeWrapping,
+  FloatType,
+  NearestFilter
+} from 'three'
 import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
 import {
   float,
   Fn,
   hash,
+  If,
   instanceIndex,
   Loop,
   mul,
   mx_noise_float,
   rand,
   range,
+  select,
   ShaderNodeObject,
   texture,
   textureStore,
@@ -27,12 +34,15 @@ import {
   wgslFn
 } from 'three/tsl'
 import {
+  Node,
   SpriteNodeMaterial,
+  StackNode,
   StorageTexture,
   VarNode,
   WebGPURenderer
 } from 'three/webgpu'
 import { useInterval } from '../../util/src/dom'
+import { bezierPoint } from '../../util/src/shaders/bezier'
 
 extend(SpriteNodeMaterial)
 
@@ -59,13 +69,16 @@ function Scene({
   }: {
     pointI: ShaderNodeObject<OperatorNode>
     curveI: ShaderNodeObject<OperatorNode>
-  }) => ReturnType<typeof vec3>
+  }) => Node
 }) {
   // @ts-ignore
   const gl = useThree(({ gl }) => gl as WebGPURenderer)
 
   const storageTexture = new StorageTexture(points, curves)
   storageTexture.type = FloatType
+  storageTexture.wrapS = storageTexture.wrapT = ClampToEdgeWrapping
+  // storageTexture.minFilter = NearestFilter
+  // storageTexture.magFilter = NearestFilter
   // storageTexture.format = RGBFormat
 
   const advanceControlPoints = Fn(
@@ -102,77 +115,52 @@ function Scene({
       (1 / window.innerWidth / devicePixelRatio) * size
     )
 
-    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-    const length = uniform(points, 'int')
-    const degree = 2
-    const knotLength = points + degree + 1
-    const generateKnotVector = () => {
-      return _.range(degree + 1)
-        .map(x => 0)
-        .concat(_.range(1, points - degree).map(i => i / (points - degree)))
-        .concat(_.range(degree + 1).map(x => 1))
-    }
-
     const processText = Fn(() => {
-      const rationalBezierCurve = Fn(
-        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
-          let numerator = vec3(0, 0, 0).toVar()
-          let denominator = float(0).toVar()
-
-          const basisFunction = wgslFn(/*wgsl*/ `
-fn basisFunction(i:i32, t:f32) -> f32 {
-  var N : array<f32, ${knotLength}>;
-  let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
-  let degree : i32 = ${degree};
-
-  for (var j : i32 = 0; j <= degree; j = j + 1)
-  {
-    N[j] = select(0.0, 1.0, 
-      t >= knotVector[i + j] && t < knotVector[i + j + 1]);
-  }
-
-  //Compute higher-degree basis functions iteratively
-  for (var k : i32 = 1; k <= degree; k = k + 1)
-  {
-    for (var j : i32 = 0; j <= degree - k; j = j + 1)
-    {
-      let d1 = knotVector[i + j + k] - knotVector[i + j];
-      let d2 = knotVector[i + j + k + 1] - knotVector[i + j + 1];
-
-      let term1 = select(0.0, 
-        (t - knotVector[i + j]) / d1 * N[j], d1 > 0.0);
-      let term2 = select(0.0, 
-        (knotVector[i + j + k + 1] - t) / d2 * N[j + 1], d2 > 0.0);
-
-      N[j] = term1 + term2;
-    }
-  }
-
-  return N[0];
-}
-        `)
-
-          Loop({ start: 0, end: length }, ({ i }) => {
-            const N = basisFunction({ i, t })
-            numerator.addAssign(
-              mul(
-                N,
-                weights.element(i),
-                texture(storageTexture, vec2(i.toFloat().div(points), curveI))
-              )
-            )
-            denominator.addAssign(mul(N, weights.element(i)))
-          })
-
-          return numerator.div(denominator)
+      const bezier2 = Fn(
+        ({
+          t,
+          p0,
+          p1,
+          p2
+        }: {
+          t: ReturnType<typeof float>
+          p0: ReturnType<typeof vec3>
+          p1: ReturnType<typeof vec3>
+          p2: ReturnType<typeof vec3>
+        }): ReturnType<typeof vec2> => {
+          //         float tInverse = 1. - t;
+          // return tInverse * tInverse * p0
+          //   + 2. * tInverse * t * p1
+          //   + t * t * p2;
+          const tInverse = t.oneMinus().toVar()
+          return p0
+            .mul(tInverse.pow(2))
+            .add(p1.mul(tInverse.mul(t).mul(2)))
+            .add(p2.mul(t.pow(2)))
         }
       )
-
       const curveI = instanceIndex.toFloat().div(arcLength).floor().div(curves)
       const t = instanceIndex.toFloat().mod(arcLength).div(arcLength).toVar()
-      let position = vec4(0, 0, 0, 1).toVar()
-      position.xy.assign(rationalBezierCurve({ t }))
-      return position
+      //     int start = int(floor(t * subdivisions));
+      // float cycle = fract(t * subdivisions);
+      const bezierStart = t.mul(points - 2).floor()
+      const bezierT = t.mul(points - 2).fract()
+      const p0 = texture(
+        storageTexture,
+        vec2(bezierStart.div(points), curveI)
+      ).xy
+      const p1 = texture(
+        storageTexture,
+        vec2(bezierStart.add(1).div(points), curveI)
+      ).xy
+      const p2 = texture(
+        storageTexture,
+        vec2(bezierStart.add(2).div(points), curveI)
+      ).xy
+      // p0.assign(p0.mix(p1, 0.5))
+      // p2.assign(p2.mix(p1, 0.5))
+      return vec4(bezier2({ t: bezierT, p0, p1, p2 }), 0, 1)
+      // return vec4(0, 0, 0, 1)
     })
 
     material.positionNode = processText()
@@ -196,8 +184,8 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
 
 export default function Text() {
-  const points = 3,
-    curves = 100,
+  const points = 5,
+    curves = 1,
     size = 1,
     spacing = 2
   return (
@@ -210,19 +198,19 @@ export default function Text() {
         pointI: ShaderNodeObject<OperatorNode>
         curveI: ShaderNodeObject<OperatorNode>
       }) => {
-        return vec3(
-          mx_noise_float(
-            vec3(pointI, curveI, time.mul(0.3).add(hash(instanceIndex)))
-          ),
-          mx_noise_float(
-            vec3(
-              pointI.add(19),
-              curveI.add(73),
-              time.mul(0.3).add(hash(instanceIndex))
+        return select(
+          pointI.lessThan(1),
+          vec3(0, 0, 0),
+          select(
+            pointI.lessThan(2),
+            vec3(1, 1, 0),
+            select(
+              pointI.lessThan(3),
+              vec3(1, -1, 0),
+              select(pointI.lessThan(4), vec3(-1, -1, 0), vec3(-1, 1, 0))
             )
-          ),
-          0
-        ).mul(6)
+          )
+        )
       }}
     />
   )

@@ -7,14 +7,17 @@ import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
 import {
   float,
   Fn,
+  hash,
   instanceIndex,
   Loop,
   mul,
+  mx_noise_float,
   rand,
   range,
   ShaderNodeObject,
   texture,
   textureStore,
+  time,
   uniform,
   uniformArray,
   uvec2,
@@ -71,8 +74,8 @@ function Scene({
       const curveI = instanceIndex.div(points)
       const indexUV = uvec2(pointI, curveI)
 
-      const xyz = vec3(rand(1), rand(0), 0)
-      return textureStore(storageTexture, indexUV, xyz).toWriteOnly()
+      const xyz = controlPoint({ pointI, curveI })
+      return textureStore(storageTexture, indexUV, vec4(xyz, 1)).toWriteOnly()
     }
   )
 
@@ -100,7 +103,6 @@ function Scene({
     )
 
     const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-    const count = uniform(arcLength, 'float')
     const length = uniform(points, 'int')
     const degree = 2
     const knotLength = points + degree + 1
@@ -197,12 +199,30 @@ export default function Text() {
   const points = 3,
     curves = 100,
     size = 1,
-    spacing = 5
+    spacing = 2
   return (
     <Scene
       {...{ points, curves, size, spacing }}
-      controlPoint={() => {
-        return vec3(0, 0, 0)
+      controlPoint={({
+        pointI,
+        curveI
+      }: {
+        pointI: ShaderNodeObject<OperatorNode>
+        curveI: ShaderNodeObject<OperatorNode>
+      }) => {
+        return vec3(
+          mx_noise_float(
+            vec3(pointI, curveI, time.mul(0.3).add(hash(instanceIndex)))
+          ),
+          mx_noise_float(
+            vec3(
+              pointI.add(19),
+              curveI.add(73),
+              time.mul(0.3).add(hash(instanceIndex))
+            )
+          ),
+          0
+        ).mul(6)
       }}
     />
   )

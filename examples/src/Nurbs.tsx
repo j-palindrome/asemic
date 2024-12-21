@@ -8,20 +8,15 @@ import {
   instanceIndex,
   Loop,
   mul,
-  textureStore,
+  ShaderNodeObject,
   uniform,
   uniformArray,
   uv,
-  uvec2,
   vec2,
   vec4,
   wgslFn
 } from 'three/tsl'
-import {
-  SpriteNodeMaterial,
-  StorageTexture,
-  WebGPURenderer
-} from 'three/webgpu'
+import { SpriteNodeMaterial, VarNode, WebGPURenderer } from 'three/webgpu'
 
 extend(SpriteNodeMaterial)
 
@@ -32,45 +27,6 @@ declare module '@react-three/fiber' {
 }
 
 function App() {
-  // compute beginning of curves, then
-
-  const width = 10,
-    height = 1
-
-  const storageTexture = new StorageTexture(width, height)
-  // create function
-
-  // @ts-ignore
-  const pointProgress = Fn(({ storageTexture }) => {
-    const posX = instanceIndex.modInt(width)
-    const posY = instanceIndex.div(width)
-    const indexUV = uvec2(posX, posY)
-
-    // https://www.shadertoy.com/view/Xst3zN
-
-    const x = float(posX).div(50.0)
-    const y = float(posY).div(50.0)
-
-    const v1 = x.sin()
-    const v2 = y.sin()
-    const v3 = x.add(y).sin()
-    const v4 = x.mul(x).add(y.mul(y)).sqrt().add(5.0).sin()
-    const v = v1.add(v2, v3, v4)
-
-    const r = v.sin()
-    const g = v.add(Math.PI).sin()
-    const b = v.add(Math.PI).sub(0.5).sin()
-
-    textureStore(storageTexture, indexUV, vec4(r, g, b, 1)).toWriteOnly()
-  })
-
-  // compute
-
-  // @ts-ignore
-  const pointProgressNode = pointProgress({ storageTexture }).compute(
-    width * height
-  )
-
   const points = [
     new Vector2(0, 0),
     new Vector2(1, 1),
@@ -114,11 +70,12 @@ function App() {
     }
 
     const processText = Fn(() => {
-      const rationalBezierCurve = Fn(({ t }) => {
-        let numerator = vec2(0, 0).toVar()
-        let denominator = float(0).toVar()
+      const rationalBezierCurve = Fn(
+        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
+          let numerator = vec2(0, 0).toVar()
+          let denominator = float(0).toVar()
 
-        const basisFunction = wgslFn(/*wgsl*/ `
+          const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32) -> f32 {
   var N : array<f32, ${knotLength}>;
   let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
@@ -151,16 +108,17 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
         `)
 
-        Loop({ start: 0, end: length }, ({ i }) => {
-          const N = basisFunction({ i, t })
-          numerator.addAssign(
-            mul(N, weights.element(i), controlPoints.element(i))
-          )
-          denominator.addAssign(mul(N, weights.element(i)))
-        })
+          Loop({ start: 0, end: length }, ({ i }) => {
+            const N = basisFunction({ i, t })
+            numerator.addAssign(
+              mul(N, weights.element(i), controlPoints.element(i))
+            )
+            denominator.addAssign(mul(N, weights.element(i)))
+          })
 
-        return numerator.div(denominator)
-      })
+          return numerator.div(denominator)
+        }
+      )
 
       let position = vec4(0, 0, 0, 1).toVar()
       const t = instanceIndex.toFloat().div(count).toVar()
@@ -203,7 +161,6 @@ fn basisFunction(i:i32, t:f32) -> f32 {
             alpha: true
           })
           renderer.init().then(() => {
-            renderer.computeAsync(pointProgressNode)
             setFrameloop('always')
           })
           return renderer

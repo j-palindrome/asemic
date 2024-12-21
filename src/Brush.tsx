@@ -2,11 +2,11 @@ import { isEqual, now } from 'lodash'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Vector2 } from 'three'
-import { bezierPoint, multiBezierProgress } from '../../util/src/shaders/bezier'
 import { rotate2d } from '../../util/src/shaders/manipulation'
 import Builder from './drawingSystem/Builder'
 import { useFrame } from '@react-three/fiber'
 import { useEventListener } from '../util/src/dom'
+import { bezierPoint, multiBezierProgress } from '../util/src/shaders/bezier'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -24,6 +24,7 @@ export default function Brush({
   render: ConstructorParameters<typeof Builder>[0]
 }) {
   const keyframes = new Builder(render)
+  console.log(keyframes)
 
   useEventListener(
     'resize',

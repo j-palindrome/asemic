@@ -1,5 +1,5 @@
 import { Font, Form, GroupLike, PtLike, Space, VisualForm } from 'pts'
-import { PtBuilder } from './ptsSystem/PtBuilder'
+import { PtBuilder } from './PtBuilder'
 
 export default class AsemicSpace extends Space {
   resize() {

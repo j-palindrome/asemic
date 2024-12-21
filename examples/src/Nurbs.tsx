@@ -17,6 +17,9 @@ import {
   wgslFn
 } from 'three/tsl'
 import { SpriteNodeMaterial, VarNode, WebGPURenderer } from 'three/webgpu'
+import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
+import Drawing from '../../src/ptsSystem/Drawing'
+import { Pt } from 'pts'
 
 extend(SpriteNodeMaterial)
 
@@ -27,55 +30,64 @@ declare module '@react-three/fiber' {
 }
 
 function App() {
-  const points = [
-    new Vector2(0, 0),
-    new Vector2(1, 1),
-    new Vector2(1, -1),
-    new Vector2(-1, -1),
-    new Vector2(-1, 1)
-  ]
+  const groups = new Drawing(b => [
+    [
+      [0, 0],
+      [1, 1],
+      [1, -1],
+      [-1, -1],
+      [-1, 1]
+    ],
+    [
+      [0, 0],
+      [1, 1],
+      [1, -1],
+      [-1, -1]
+    ],
+    new GroupBuilder([0, 0], [-1, -1], [-1, 1], [1, 1]).scale(0.3).add(0.2, 0.3)
+  ]).groups
 
-  let arcLength = 0
-  for (let i = 0; i < points.length - 1; i++) {
-    arcLength += points[i].distanceTo(points[i + 1])
-  }
-  const pointCount =
-    (arcLength / 10) * (window.innerWidth ** 2 + window.innerHeight ** 2) ** 0.5
+  let arcLengths: number[] = groups.map(
+    x =>
+      (x.getArcLength() / 10) *
+      new Pt(window.innerWidth, window.innerHeight).magnitude()
+  )
 
-  const material = useMemo(() => {
-    const material = new SpriteNodeMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending
-    })
+  const materials = useMemo(() => {
+    return groups.map((points, i) => {
+      const material = new SpriteNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending
+      })
 
-    const size = uniform(0.08)
-    material.scaleNode = size
+      const size = uniform(0.08)
+      material.scaleNode = size
 
-    const controlPoints = uniformArray(points, 'vec2')
-    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-    const count = uniform(pointCount, 'float')
-    const length = uniform(points.length, 'int')
-    const degree = 2
-    const knotLength = points.length + degree + 1
-    const generateKnotVector = () => {
-      return _.range(degree + 1)
-        .map(x => 0)
-        .concat(
-          _.range(1, points.length - degree).map(
-            i => i / (points.length - degree)
+      const controlPoints = uniformArray(points, 'vec2')
+      const weights = uniformArray([1, 1, 1, 1, 1], 'float')
+      const count = uniform(arcLengths[i], 'float')
+      const length = uniform(points.length, 'int')
+      const degree = 2
+      const knotLength = points.length + degree + 1
+      const generateKnotVector = () => {
+        return _.range(degree + 1)
+          .map(x => 0)
+          .concat(
+            _.range(1, points.length - degree).map(
+              i => i / (points.length - degree)
+            )
           )
-        )
-        .concat(_.range(degree + 1).map(x => 1))
-    }
+          .concat(_.range(degree + 1).map(x => 1))
+      }
 
-    const processText = Fn(() => {
-      const rationalBezierCurve = Fn(
-        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
-          let numerator = vec2(0, 0).toVar()
-          let denominator = float(0).toVar()
+      const processText = Fn(() => {
+        const rationalBezierCurve = Fn(
+          ({ t }: { t: ShaderNodeObject<VarNode> }) => {
+            let numerator = vec2(0, 0).toVar()
+            let denominator = float(0).toVar()
 
-          const basisFunction = wgslFn(/*wgsl*/ `
+            const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32) -> f32 {
   var N : array<f32, ${knotLength}>;
   let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
@@ -108,29 +120,30 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
         `)
 
-          Loop({ start: 0, end: length }, ({ i }) => {
-            const N = basisFunction({ i, t })
-            numerator.addAssign(
-              mul(N, weights.element(i), controlPoints.element(i))
-            )
-            denominator.addAssign(mul(N, weights.element(i)))
-          })
+            Loop({ start: 0, end: length }, ({ i }) => {
+              const N = basisFunction({ i, t })
+              numerator.addAssign(
+                mul(N, weights.element(i), controlPoints.element(i))
+              )
+              denominator.addAssign(mul(N, weights.element(i)))
+            })
 
-          return numerator.div(denominator)
-        }
-      )
+            return numerator.div(denominator)
+          }
+        )
 
-      let position = vec4(0, 0, 0, 1).toVar()
-      const t = instanceIndex.toFloat().div(count).toVar()
-      position.xyz.assign(rationalBezierCurve({ t }))
-      return position
+        let position = vec4(0, 0, 0, 1).toVar()
+        const t = instanceIndex.toFloat().div(count).toVar()
+        position.xyz.assign(rationalBezierCurve({ t }))
+        return position
+      })
+
+      material.positionNode = processText()
+
+      const alpha = float(0.1).sub(uv().sub(0.5).length())
+      material.colorNode = vec4(1, 1, 1, alpha)
+      return material
     })
-
-    material.positionNode = processText()
-
-    const alpha = float(0.1).sub(uv().sub(0.5).length())
-    material.colorNode = vec4(1, 1, 1, alpha)
-    return material
   }, [])
 
   const [frameloop, setFrameloop] = useState<
@@ -165,9 +178,11 @@ fn basisFunction(i:i32, t:f32) -> f32 {
           })
           return renderer
         }}>
-        <instancedMesh material={material} count={pointCount}>
-          <planeGeometry attach='geometry' />
-        </instancedMesh>
+        {_.range(groups.length).map(i => (
+          <instancedMesh key={i} material={materials[i]} count={arcLengths[i]}>
+            <planeGeometry attach='geometry' />
+          </instancedMesh>
+        ))}
       </Canvas>
     </>
   )

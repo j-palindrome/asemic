@@ -31,6 +31,19 @@ const settings: {
 
 export class GroupBuilder extends Group {
   curvePath?: CurvePath<Vector2>
+  settings: {
+    degree: 2 | 1
+  } = { degree: 1 }
+
+  getArcLength() {
+    let arcLength = 0
+    for (let i = 0; i < this.length - 1; i++) {
+      arcLength += this.at(i)
+        .$subtract(this.at(i + 1))
+        .magnitude()
+    }
+    return arcLength
+  }
 
   protected toCurvePath(): CurvePath<Vector2> {
     // NOTE: will only run once, if the curve is changed do I need to recompute?
@@ -95,7 +108,12 @@ export class GroupBuilder extends Group {
     }
   }
 
-  constructor() {
-    super()
+  set(settings: Partial<GroupBuilder['settings']>) {
+    Object.assign(this.settings, settings)
+    return this
+  }
+
+  constructor(...args: ([number, number] | PtBuilder)[]) {
+    super(...args.map(x => new PtBuilder(x)))
   }
 }

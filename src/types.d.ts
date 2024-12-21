@@ -1,8 +1,7 @@
 import { Color, Vector2 } from 'three'
 import { PointBuilder } from './drawingSystem/PointBuilder'
-import Builder from './drawingSystem/Builder'
+import './ptsSystem/GroupBuilder'
 import { PtBuilder } from './ptsSystem/PtBuilder'
-import { GroupBuilder } from './ptsSystem/GroupBuilder'
 
 declare module './ptsSystem/PtBuilder' {
   interface PtBuilder {

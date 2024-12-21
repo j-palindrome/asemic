@@ -155,36 +155,37 @@ function Scene() {
       2) /
     size
 
-  const material = useMemo(() => {
-    const material = new SpriteNodeMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending
-    })
+  const materials = useMemo(() => {
+    return _.range(curves).map(curveI => {
+      const material = new SpriteNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending
+      })
 
-    material.scaleNode = uniform((1 / window.innerWidth) * size)
+      material.scaleNode = uniform(
+        (1 / window.innerWidth / devicePixelRatio) * size
+      )
 
-    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-    const count = uniform(arcLength, 'float')
-    const length = uniform(points, 'int')
-    const degree = 2
-    const knotLength = points + degree + 1
-    const generateKnotVector = () => {
-      return _.range(degree + 1)
-        .map(x => 0)
-        .concat(_.range(1, points - degree).map(i => i / (points - degree)))
-        .concat(_.range(degree + 1).map(x => 1))
-    }
+      const weights = uniformArray([1, 1, 1, 1, 1], 'float')
+      const count = uniform(arcLength, 'float')
+      const length = uniform(points, 'int')
+      const degree = 2
+      const knotLength = points + degree + 1
+      const generateKnotVector = () => {
+        return _.range(degree + 1)
+          .map(x => 0)
+          .concat(_.range(1, points - degree).map(i => i / (points - degree)))
+          .concat(_.range(degree + 1).map(x => 1))
+      }
 
-    const processText = Fn(() => {
-      const curveI = instanceIndex.toFloat().div(arcLength)
+      const processText = Fn(() => {
+        const rationalBezierCurve = Fn(
+          ({ t }: { t: ShaderNodeObject<VarNode> }) => {
+            let numerator = vec3(0, 0, 0).toVar()
+            let denominator = float(0).toVar()
 
-      const rationalBezierCurve = Fn(
-        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
-          let numerator = vec3(0, 0, 0).toVar()
-          let denominator = float(0).toVar()
-
-          const basisFunction = wgslFn(/*wgsl*/ `
+            const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32) -> f32 {
   var N : array<f32, ${knotLength}>;
   let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
@@ -217,33 +218,37 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
         `)
 
-          Loop({ start: 0, end: length }, ({ i }) => {
-            const N = basisFunction({ i, t })
-            numerator.addAssign(
-              mul(
-                N,
-                weights.element(i),
-                texture(storageTexture, vec2(i.toFloat().div(points), curveI))
+            Loop({ start: 0, end: length }, ({ i }) => {
+              const N = basisFunction({ i, t })
+              numerator.addAssign(
+                mul(
+                  N,
+                  weights.element(i),
+                  texture(
+                    storageTexture,
+                    vec2(i.toFloat().div(points), curveI / curves)
+                  )
+                )
               )
-            )
-            denominator.addAssign(mul(N, weights.element(i)))
-          })
+              denominator.addAssign(mul(N, weights.element(i)))
+            })
 
-          return numerator.div(denominator)
-        }
-      )
+            return numerator.div(denominator)
+          }
+        )
 
-      let position = vec4(0, 0, 0, 1).toVar()
-      const t = instanceIndex.toFloat().div(count).toVar()
-      position.xy.assign(rationalBezierCurve({ t }))
-      return position
+        let position = vec4(0, 0, 0, 1).toVar()
+        const t = instanceIndex.toFloat().div(count).toVar()
+        position.xy.assign(rationalBezierCurve({ t }))
+        return position
+      })
+
+      material.positionNode = processText()
+
+      // const alpha = float(0.1).sub(uv().sub(0.5).length())
+      material.colorNode = vec4(1, 1, 1, 1)
+      return material
     })
-
-    material.positionNode = processText()
-
-    // const alpha = float(0.1).sub(uv().sub(0.5).length())
-    material.colorNode = vec4(1, 1, 1, 1)
-    return material
   }, [])
 
   useInterval(() => {
@@ -252,9 +257,11 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 
   return (
     <>
-      <instancedMesh material={material} count={arcLength * curves}>
-        <planeGeometry attach='geometry' />
-      </instancedMesh>
+      {_.range(curves).map(i => (
+        <instancedMesh key={i} material={materials[i]} count={arcLength}>
+          <planeGeometry attach='geometry' />
+        </instancedMesh>
+      ))}
     </>
   )
 }

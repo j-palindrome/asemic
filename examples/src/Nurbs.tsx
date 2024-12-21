@@ -5,18 +5,26 @@ import { AdditiveBlending, Color, Vector2 } from 'three'
 import {
   float,
   Fn,
+  If,
   instanceIndex,
   Loop,
   mul,
   ShaderNodeObject,
+  textureStore,
   uniform,
   uniformArray,
   uv,
+  uvec2,
   vec2,
   vec4,
   wgslFn
 } from 'three/tsl'
-import { SpriteNodeMaterial, VarNode, WebGPURenderer } from 'three/webgpu'
+import {
+  SpriteNodeMaterial,
+  StorageTexture,
+  VarNode,
+  WebGPURenderer
+} from 'three/webgpu'
 import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
 import Drawing from '../../src/ptsSystem/Drawing'
 import { Pt } from 'pts'
@@ -30,7 +38,28 @@ declare module '@react-three/fiber' {
 }
 
 function App() {
-  const groups = new Drawing(b => [
+  const width = 10,
+    height = 1
+
+  const storageTexture = new StorageTexture(width, height)
+
+  // @ts-ignore
+  const pointProgress = Fn(({ storageTexture }) => {
+    const posX = instanceIndex.modInt(width)
+    const posY = instanceIndex.div(width)
+    const indexUV = uvec2(posX, posY)
+
+    const processIndex = wgslFn(/*wgsl*/ `
+fn processIndex(posX: i32, posY: i32) -> vec2<f32> {
+  
+}
+`)
+    const xy = processIndex(posX, posY)
+
+    textureStore(storageTexture, indexUV, vec4(xy, 0, 1)).toWriteOnly()
+  })
+
+  const groups = new Drawing(d => [
     [
       [0, 0],
       [1, 1],

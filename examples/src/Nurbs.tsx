@@ -99,9 +99,10 @@ function Scene() {
   // @ts-ignore
   const gl = useThree(({ gl }) => gl as WebGPURenderer)
 
-  const points = 5,
-    curves = 100,
-    size = 1
+  const points = 3,
+    curves = 5000,
+    size = 1,
+    spacing = 5
 
   const storageTexture = new StorageTexture(points, curves)
   storageTexture.type = FloatType
@@ -119,22 +120,18 @@ function Scene() {
         pointI: ShaderNodeObject<OperatorNode>
         curveI: ShaderNodeObject<OperatorNode>
       }) => {
-        return select(
-          pointI.lessThan(1),
-          0,
-          vec2(
-            mx_noise_float(
-              vec3(pointI, curveI, time.mul(0.3).add(hash(instanceIndex)))
-            ),
-            mx_noise_float(
-              vec3(
-                pointI.add(19),
-                curveI.add(73),
-                time.mul(0.3).add(hash(instanceIndex))
-              )
+        return vec2(
+          mx_noise_float(
+            vec3(pointI, curveI, time.mul(0.3).add(hash(instanceIndex)))
+          ),
+          mx_noise_float(
+            vec3(
+              pointI.add(19),
+              curveI.add(73),
+              time.mul(0.3).add(hash(instanceIndex))
             )
-          ).mul(2)
-        )
+          )
+        ).mul(6)
       }
 
       const xy = processIndex({ pointI, curveI })
@@ -148,44 +145,42 @@ function Scene() {
   )
 
   let arcLength =
-    (new Pt(
+    new Pt(
       window.innerWidth * devicePixelRatio,
       window.innerHeight * devicePixelRatio
-    ).magnitude() *
-      2) /
-    size
+    ).magnitude() /
+    (size * spacing)
 
-  const materials = useMemo(() => {
-    return _.range(curves).map(curveI => {
-      const material = new SpriteNodeMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending
-      })
+  const material = useMemo(() => {
+    const material = new SpriteNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending
+    })
 
-      material.scaleNode = uniform(
-        (1 / window.innerWidth / devicePixelRatio) * size
-      )
+    material.scaleNode = uniform(
+      (1 / window.innerWidth / devicePixelRatio) * size
+    )
 
-      const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-      const count = uniform(arcLength, 'float')
-      const length = uniform(points, 'int')
-      const degree = 2
-      const knotLength = points + degree + 1
-      const generateKnotVector = () => {
-        return _.range(degree + 1)
-          .map(x => 0)
-          .concat(_.range(1, points - degree).map(i => i / (points - degree)))
-          .concat(_.range(degree + 1).map(x => 1))
-      }
+    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
+    const count = uniform(arcLength, 'float')
+    const length = uniform(points, 'int')
+    const degree = 2
+    const knotLength = points + degree + 1
+    const generateKnotVector = () => {
+      return _.range(degree + 1)
+        .map(x => 0)
+        .concat(_.range(1, points - degree).map(i => i / (points - degree)))
+        .concat(_.range(degree + 1).map(x => 1))
+    }
 
-      const processText = Fn(() => {
-        const rationalBezierCurve = Fn(
-          ({ t }: { t: ShaderNodeObject<VarNode> }) => {
-            let numerator = vec3(0, 0, 0).toVar()
-            let denominator = float(0).toVar()
+    const processText = Fn(() => {
+      const rationalBezierCurve = Fn(
+        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
+          let numerator = vec3(0, 0, 0).toVar()
+          let denominator = float(0).toVar()
 
-            const basisFunction = wgslFn(/*wgsl*/ `
+          const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32) -> f32 {
   var N : array<f32, ${knotLength}>;
   let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
@@ -218,37 +213,34 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
         `)
 
-            Loop({ start: 0, end: length }, ({ i }) => {
-              const N = basisFunction({ i, t })
-              numerator.addAssign(
-                mul(
-                  N,
-                  weights.element(i),
-                  texture(
-                    storageTexture,
-                    vec2(i.toFloat().div(points), curveI / curves)
-                  )
-                )
+          Loop({ start: 0, end: length }, ({ i }) => {
+            const N = basisFunction({ i, t })
+            numerator.addAssign(
+              mul(
+                N,
+                weights.element(i),
+                texture(storageTexture, vec2(i.toFloat().div(points), curveI))
               )
-              denominator.addAssign(mul(N, weights.element(i)))
-            })
+            )
+            denominator.addAssign(mul(N, weights.element(i)))
+          })
 
-            return numerator.div(denominator)
-          }
-        )
+          return numerator.div(denominator)
+        }
+      )
 
-        let position = vec4(0, 0, 0, 1).toVar()
-        const t = instanceIndex.toFloat().div(count).toVar()
-        position.xy.assign(rationalBezierCurve({ t }))
-        return position
-      })
-
-      material.positionNode = processText()
-
-      // const alpha = float(0.1).sub(uv().sub(0.5).length())
-      material.colorNode = vec4(1, 1, 1, 1)
-      return material
+      const curveI = instanceIndex.toFloat().div(arcLength).floor().div(curves)
+      const t = instanceIndex.toFloat().mod(arcLength).div(arcLength).toVar()
+      let position = vec4(0, 0, 0, 1).toVar()
+      position.xy.assign(rationalBezierCurve({ t }))
+      return position
     })
+
+    material.positionNode = processText()
+
+    // const alpha = float(0.1).sub(uv().sub(0.5).length())
+    material.colorNode = vec4(1, 1, 1, 1)
+    return material
   }, [])
 
   useInterval(() => {
@@ -257,11 +249,9 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 
   return (
     <>
-      {_.range(curves).map(i => (
-        <instancedMesh key={i} material={materials[i]} count={arcLength}>
-          <planeGeometry attach='geometry' />
-        </instancedMesh>
-      ))}
+      <instancedMesh material={material} count={arcLength * curves}>
+        <planeGeometry attach='geometry' />
+      </instancedMesh>
     </>
   )
 }

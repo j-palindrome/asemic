@@ -76,15 +76,13 @@ const shape = (points: 2 | 3 | 4 | 5 | 8, midPointScale: number = 0.5) => {
 function Scene({
   controlPoint,
   points,
-  curves,
   size = 1,
   spacing = 2
 }: {
-  points: number
-  curves: number
+  points: number[]
   size: number
   spacing: number
-  controlPoint?: ({
+  controlPoint: ({
     pointI,
     curveI
   }: {
@@ -92,52 +90,22 @@ function Scene({
     curveI: ShaderNodeObject<OperatorNode>
   }) => ReturnType<typeof vec3>
 }) {
-  const textureFont: GroupBuilder[][] = [
-    [
-      shape(5, 0.2).scale([1, -1]).rad(-0.25).add([0.5, 0.5]),
-      shape(3)
-        .scale([1, -0.2])
-        .rad(-0.25)
-        .add([0.5, 0.5])
-        .concat([
-          [0, 0],
-          [0, 0]
-        ])
-    ]
-  ]
-  const fontWidth = _.max(textureFont.flat().map(x => x.length))
-  const fontHeight = _.max(textureFont.map(x => x.length))
-  const fontDepth = textureFont.length
-  const texturePack = new Array(fontWidth * fontHeight * fontDepth)
-  for (let letterI = 0; letterI < fontDepth; letterI++) {
-    for (let curveI = 0; curveI < fontHeight; curveI++) {
-      for (let pointI = 0; pointI < fontWidth; pointI++) {
-        texturePack[
-          letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
-        ] =
-          new Vector2(...textureFont[letterI][curveI]?.[pointI]) ??
-          new Vector2(0, 0)
-      }
-    }
-  }
-
-  const letters = uniformArray(texturePack)
-  const letterIndexes = uniformArray([0, 1])
-  console.log(texturePack)
+  const maxPoints = _.max(points)!
+  const curves = points.length
+  const pointCounts = uniformArray(points, 'int')
 
   // @ts-ignore
   const gl = useThree(({ gl }) => gl as WebGPURenderer)
 
-  const storageTexture = new StorageTexture(points, curves)
+  const storageTexture = new StorageTexture(maxPoints, curves)
   storageTexture.type = FloatType
   // storageTexture.format = RGBFormat
 
   const advanceControlPoints = Fn(
     ({ storageTexture }: { storageTexture: StorageTexture }) => {
-      const pointI = instanceIndex.modInt(points)
-      const curveI = instanceIndex.div(points)
-      const fontCurveIndex = letterIndexes.element(curveI)
-      const xyz = letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
+      const pointI = instanceIndex.modInt(maxPoints)
+      const curveI = instanceIndex.div(maxPoints)
+      const xyz = controlPoint({ pointI, curveI })
 
       return textureStore(
         storageTexture,
@@ -150,7 +118,8 @@ function Scene({
   // @ts-ignore
   const computeNode = advanceControlPoints({
     storageTexture
-  }).compute(points * curves)
+    // @ts-ignore
+  }).compute(maxPoints * curves)
 
   let arcLength =
     new Pt(
@@ -171,13 +140,15 @@ function Scene({
     )
 
     const weights = uniformArray([1, 1, 1, 1, 1], 'float')
-    const length = uniform(points, 'int')
+    const length = uniform(maxPoints, 'int')
     const degree = 2
-    const knotLength = points + degree + 1
+    const knotLength = maxPoints + degree + 1
     const generateKnotVector = () => {
       return _.range(degree + 1)
         .map(x => 0)
-        .concat(_.range(1, points - degree).map(i => i / (points - degree)))
+        .concat(
+          _.range(1, maxPoints - degree).map(i => i / (maxPoints - degree))
+        )
         .concat(_.range(degree + 1).map(x => 1))
     }
 
@@ -188,10 +159,19 @@ function Scene({
           let denominator = float(0).toVar()
 
           const basisFunction = wgslFn(/*wgsl*/ `
-fn basisFunction(i:i32, t:f32) -> f32 {
-  var N : array<f32, ${knotLength}>;
-  let knotVector = array<f32, ${knotLength}>(${generateKnotVector()});
-  let degree : i32 = ${degree};
+fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
+  let degree: i32 = ${degree};
+  var N: array<f32, ${maxPoints}>;
+  var knotVector: array<f32, ${maxPoints}>;
+  for (var j:i32 = 0; j <= degree; j++) {
+    knotVector[j] = 0.;
+  }
+  for (var j:i32 = 1; j <= pointCount - degree; j++) {
+    knotVector[j + degree] = f32(j) / f32(pointCount - degree);
+  }
+  for (var j:i32 = 0; j <= degree; j++) {
+    knotVector[j + pointCount - degree + 1] = 1.;
+  }
 
   for (var j : i32 = 0; j <= degree; j = j + 1)
   {
@@ -221,7 +201,11 @@ fn basisFunction(i:i32, t:f32) -> f32 {
         `)
 
           Loop({ start: 0, end: length }, ({ i }) => {
-            const N = basisFunction({ i, t })
+            const N = basisFunction({
+              i,
+              t,
+              pointCount: pointCounts.element(i)
+            })
             numerator.addAssign(
               mul(
                 N,
@@ -231,8 +215,8 @@ fn basisFunction(i:i32, t:f32) -> f32 {
                   vec2(
                     i
                       .toFloat()
-                      .div(points)
-                      .add(0.5 / points),
+                      .div(maxPoints)
+                      .add(0.5 / maxPoints),
                     curveI.add(0.5 / curves)
                   )
                 )
@@ -265,7 +249,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 
   return (
     <>
-      <instancedMesh material={material} count={arcLength * curves}>
+      <instancedMesh material={material} count={arcLength * points.length}>
         <planeGeometry attach='geometry' />
       </instancedMesh>
     </>
@@ -273,9 +257,50 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
 
 export default function Text() {
-  const points = 5,
-    curves = 2,
+  const points = [5],
     size = 10,
     spacing = 0.25
-  return <Scene {...{ points, curves, size, spacing }} />
+
+  const textureFont: GroupBuilder[][] = [
+    [
+      shape(5, 0).add([-0.5, -0.5]),
+      // @ts-ignore
+      shape(3)
+        .scale([1, -0.2])
+        .rad(-0.25)
+        .add([0.5, 0.5])
+        // @ts-ignore
+        .concat([
+          [0, 0],
+          [0, 0]
+        ])
+    ]
+  ]
+  const fontWidth = _.max(textureFont.flat().map(x => x.length))
+  const fontHeight = _.max(textureFont.map(x => x.length))
+  const fontDepth = textureFont.length
+  const texturePack = new Array(fontWidth * fontHeight * fontDepth)
+  for (let letterI = 0; letterI < fontDepth; letterI++) {
+    for (let curveI = 0; curveI < fontHeight; curveI++) {
+      for (let pointI = 0; pointI < fontWidth; pointI++) {
+        texturePack[
+          letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
+        ] =
+          new Vector2(...textureFont[letterI][curveI]?.[pointI]) ??
+          new Vector2(0, 0)
+      }
+    }
+  }
+
+  const letters = uniformArray(texturePack)
+  const letterIndexes = uniformArray([0, 1])
+  return (
+    <Scene
+      {...{ points, size, spacing }}
+      controlPoint={({ pointI, curveI }) => {
+        const fontCurveIndex = letterIndexes.element(curveI)
+        return letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
+      }}
+    />
+  )
 }

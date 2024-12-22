@@ -9,6 +9,7 @@ import {
   FloatType,
   RGBAFormat,
   RGFormat,
+  Vector2,
   Vector3
 } from 'three'
 import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
@@ -125,7 +126,7 @@ function Scene({
         [0, 0],
         [0, 1],
         [1, 1],
-        [1, 0]
+        [1, -1]
       ],
       [
         [0, 0],
@@ -138,28 +139,21 @@ function Scene({
   const fontWidth = _.max(textureFont.flat().map(x => x.length))
   const fontHeight = _.max(textureFont.map(x => x.length))
   const fontDepth = textureFont.length
-  const texturePack = new Float32Array(fontWidth * fontHeight * fontDepth * 4)
-  textureFont.forEach((letter, letterI) => {
-    letter.forEach((curve, curveI) => {
-      curve.forEach((point, pointI) => {
-        const index =
-          (letterI * fontHeight * fontWidth + curveI * fontWidth + pointI) * 4
-        texturePack[index] = point[0]
-        texturePack[index + 1] = point[1]
-      })
-    })
-  })
-  const fontPoints = new DataTexture(
-    texturePack,
-    fontWidth,
-    fontHeight * fontDepth,
-    RGBAFormat,
-    FloatType
-  )
-  fontPoints.needsUpdate = true
-  console.log(fontPoints.source.data)
-
-  const letterIndexes = uniformArray([0, 1 / (fontHeight * fontDepth)])
+  const texturePack = new Array(fontWidth * fontHeight * fontDepth)
+  for (let letterI = 0; letterI < fontDepth; letterI++) {
+    for (let curveI = 0; curveI < fontHeight; curveI++) {
+      for (let pointI = 0; pointI < fontWidth; pointI++) {
+        texturePack[
+          letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
+        ] =
+          new Vector2(...textureFont[letterI][curveI]?.[pointI]) ??
+          new Vector2()
+      }
+    }
+  }
+  const letters = uniformArray(texturePack)
+  const letterIndexes = uniformArray([0, 1])
+  console.log(texturePack)
 
   // @ts-ignore
   const gl = useThree(({ gl }) => gl as WebGPURenderer)
@@ -169,20 +163,12 @@ function Scene({
   // storageTexture.format = RGBFormat
 
   const advanceControlPoints = Fn(
-    ({
-      storageTexture,
-      fontPoints
-    }: {
-      storageTexture: StorageTexture
-      fontPoints: DataTexture
-    }) => {
+    ({ storageTexture }: { storageTexture: StorageTexture }) => {
       const pointI = instanceIndex.modInt(points)
       const curveI = instanceIndex.div(points)
       const fontCurveIndex = letterIndexes.element(curveI)
-      const xyz = texture(
-        fontPoints,
-        vec2(pointI.div(points), fontCurveIndex)
-      ).xyz
+      const xyz = letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
+
       // const xyz = select(
       //   pointI.lessThan(1),
       //   vec3(0, 0, 0),
@@ -195,15 +181,14 @@ function Scene({
       return textureStore(
         storageTexture,
         uvec2(pointI, curveI),
-        vec4(xyz, 1)
+        vec4(xyz, 1, 1)
       ).toWriteOnly()
     }
   )
 
   // @ts-ignore
   const computeNode = advanceControlPoints({
-    storageTexture,
-    fontPoints
+    storageTexture
   }).compute(points * curves)
 
   let arcLength =

@@ -39,70 +39,35 @@ declare module '@react-three/fiber' {
 }
 
 const shape = (
-  points: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
-  midPointScale: number = 0.5,
-  width = 1,
-  height = 1
+  points: 2 | 3 | 4 | 5 | 6,
+  { mid = 0.5, width = 1, height = 1 } = {}
 ) => {
   let group =
     points === 2
       ? new GroupBuilder([0, 0], [width, height])
       : points === 3
-      ? new GroupBuilder([0, 0], [midPointScale, height * 2], [width, 0])
+      ? new GroupBuilder([0, 0], [mid, height * 2], [width, 0])
       : points === 4
       ? new GroupBuilder(
           [0, 0],
-          [width / 2 - midPointScale, height],
-          [width / 2 + midPointScale, height],
+          [width / 2 - mid, height],
+          [width / 2 + mid, height],
           [width, 0]
         )
       : points === 5
       ? new GroupBuilder(
           [0, 0],
-          [-midPointScale, height / 2],
+          [-mid, height / 2],
           [width / 2, height],
-          [width + midPointScale, height / 2],
-          [width, 0]
-        )
-      : points === 6
-      ? new GroupBuilder(
-          [0, 0],
-          [-midPointScale, 0],
-          [-midPointScale, height],
-          [width + midPointScale, height],
-          [width + midPointScale, 0],
-          [width, 0]
-        )
-      : points === 7
-      ? new GroupBuilder(
-          [0, 0],
-          [-midPointScale, height / 3],
-          [-midPointScale, height / 3],
-          [width / 2, height],
-          [width + midPointScale, (2 * height) / 3],
-          [width + midPointScale, height / 3],
-          [width, 0]
-        )
-      : points === 8
-      ? new GroupBuilder(
-          [0, 0],
-          [-midPointScale, height / 3],
-          [-midPointScale, (2 * height) / 3],
-          [width / 3, height],
-          [(2 * width) / 3, height],
-          [width + midPointScale, (2 * height) / 3],
-          [width + midPointScale, height / 3],
+          [width + mid, height / 2],
           [width, 0]
         )
       : new GroupBuilder(
           [0, 0],
-          [-midPointScale, 0],
-          [-midPointScale, height / 2],
-          [-midPointScale, height],
-          [width / 2, height],
-          [width + midPointScale, height],
-          [width + midPointScale, height / 2],
-          [width + midPointScale, 0],
+          [-mid, 0],
+          [-mid, height],
+          [width + mid, height],
+          [width + mid, 0],
           [width, 0]
         )
 
@@ -240,7 +205,7 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
             const N = basisFunction({
               i,
               t,
-              pointCount: pointCounts.element(i)
+              pointCount: pointCounts.element(curveI)
             })
             numerator.addAssign(
               mul(
@@ -253,7 +218,7 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
                       .toFloat()
                       .div(maxPoints)
                       .add(0.5 / maxPoints),
-                    curveI.add(0.5 / curves)
+                    curveI.div(curves).add(0.5 / curves)
                   )
                 )
               )
@@ -265,7 +230,7 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
         }
       )
 
-      const curveI = instanceIndex.div(arcLength).toFloat().div(curves)
+      const curveI = instanceIndex.div(arcLength).toFloat()
       const t = instanceIndex.toFloat().mod(arcLength).div(arcLength).toVar()
       let position = vec4(0, 0, 0, 1).toVar()
       position.xy.assign(rationalBezierCurve({ t }))
@@ -293,13 +258,16 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
 }
 
 export default function Text() {
-  const letterIndexes = uniformArray([1]),
-    points = [3],
+  const letterIndexes = uniformArray([0, 1]),
+    points = [5, 3],
     size = 10,
     spacing = 0.25
 
   const textureFont: GroupBuilder[][] = [
-    [shape(5, 0.2).add([-0.5, -0.5]), shape(3)]
+    [
+      shape(5, { mid: 0.2 }).rad(0.25).add([0.5, -0.5]),
+      shape(3, { height: 0.1 }).rad(0.25).add([0.5, -0.5])
+    ]
   ]
 
   const fontWidth = _.max(textureFont.flat().map(x => x.length))

@@ -35,6 +35,10 @@ export class GroupBuilder extends Group {
     degree: 2 | 1
   } = { degree: 1 }
 
+  rad(rotation: number) {
+    return this.rotate2D(rotation * Math.PI * 2)
+  }
+
   getArcLength() {
     let arcLength = 0
     for (let i = 0; i < this.length - 1; i++) {

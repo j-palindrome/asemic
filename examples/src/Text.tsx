@@ -2,20 +2,35 @@ import { extend, useThree } from '@react-three/fiber'
 import _ from 'lodash'
 import { Pt } from 'pts'
 import { useMemo } from 'react'
-import { AdditiveBlending, FloatType } from 'three'
+import {
+  AdditiveBlending,
+  Data3DTexture,
+  DataTexture,
+  FloatType,
+  RGBAFormat,
+  RGFormat,
+  Vector3
+} from 'three'
 import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
 import {
+  Break,
   float,
   Fn,
   hash,
+  If,
   instanceIndex,
+  int,
+  ivec2,
   Loop,
   mul,
   mx_noise_float,
   rand,
   range,
+  select,
   ShaderNodeObject,
   texture,
+  texture3D,
+  textureLoad,
   textureStore,
   time,
   uniform,
@@ -33,6 +48,7 @@ import {
   WebGPURenderer
 } from 'three/webgpu'
 import { useInterval } from '../../util/src/dom'
+import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
 
 extend(SpriteNodeMaterial)
 
@@ -40,6 +56,41 @@ declare module '@react-three/fiber' {
   interface ThreeElements {
     spriteNodeMaterial: SpriteNodeMaterial
   }
+}
+
+const shape = (points: 2 | 3 | 4 | 5 | 8, midPointScale: number = 0.5) => {
+  let group =
+    points === 2
+      ? new GroupBuilder([0, 0], [1, 0])
+      : points === 3
+      ? new GroupBuilder([0, 0], [midPointScale, 1], [1, 1])
+      : points === 4
+      ? new GroupBuilder(
+          [0, 0],
+          [0.5 - midPointScale, 1],
+          [0.5 + midPointScale, 1],
+          [1, 0]
+        )
+      : points === 5
+      ? new GroupBuilder(
+          [0, 0],
+          [-midPointScale, 0.5],
+          [0.5, 1],
+          [1 + midPointScale, 0.5],
+          [0, 11]
+        )
+      : new GroupBuilder(
+          [0, 0],
+          [-0.5, 0],
+          [-0.5, 0.5],
+          [-0.5, 1],
+          [0, 1],
+          [0.5, 1],
+          [0.5, 0.5],
+          [0, 0]
+        )
+
+  return group
 }
 
 function Scene({
@@ -53,7 +104,7 @@ function Scene({
   curves: number
   size: number
   spacing: number
-  controlPoint: ({
+  controlPoint?: ({
     pointI,
     curveI
   }: {
@@ -61,6 +112,55 @@ function Scene({
     curveI: ShaderNodeObject<OperatorNode>
   }) => ReturnType<typeof vec3>
 }) {
+  // const textureFont = new StorageTexture(points, curves)
+  // const textureFont: GroupBuilder[][] = [
+  //   [
+  //     shape(5, 0.2).scale([1, -1]).rad(-0.25),
+  //     shape(3).scale([1, -0.2]).rad(-0.25).add([1, 1])
+  //   ]
+  // ]
+  const textureFont: [number, number][][][] = [
+    [
+      [
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0]
+      ],
+      [
+        [0, 0],
+        [0, -1],
+        [-1, -1],
+        [-1, 0]
+      ]
+    ]
+  ]
+  const fontWidth = _.max(textureFont.flat().map(x => x.length))
+  const fontHeight = _.max(textureFont.map(x => x.length))
+  const fontDepth = textureFont.length
+  const texturePack = new Float32Array(fontWidth * fontHeight * fontDepth * 4)
+  textureFont.forEach((letter, letterI) => {
+    letter.forEach((curve, curveI) => {
+      curve.forEach((point, pointI) => {
+        const index =
+          (letterI * fontHeight * fontWidth + curveI * fontWidth + pointI) * 4
+        texturePack[index] = point[0]
+        texturePack[index + 1] = point[1]
+      })
+    })
+  })
+  const fontPoints = new DataTexture(
+    texturePack,
+    fontWidth,
+    fontHeight * fontDepth,
+    RGBAFormat,
+    FloatType
+  )
+  fontPoints.needsUpdate = true
+  console.log(fontPoints.source.data)
+
+  const letterIndexes = uniformArray([0, 1 / (fontHeight * fontDepth)])
+
   // @ts-ignore
   const gl = useThree(({ gl }) => gl as WebGPURenderer)
 
@@ -69,20 +169,42 @@ function Scene({
   // storageTexture.format = RGBFormat
 
   const advanceControlPoints = Fn(
-    ({ storageTexture }: { storageTexture: StorageTexture }) => {
+    ({
+      storageTexture,
+      fontPoints
+    }: {
+      storageTexture: StorageTexture
+      fontPoints: DataTexture
+    }) => {
       const pointI = instanceIndex.modInt(points)
       const curveI = instanceIndex.div(points)
-      const indexUV = uvec2(pointI, curveI)
-
-      const xyz = controlPoint({ pointI, curveI })
-      return textureStore(storageTexture, indexUV, vec4(xyz, 1)).toWriteOnly()
+      const fontCurveIndex = letterIndexes.element(curveI)
+      const xyz = texture(
+        fontPoints,
+        vec2(pointI.div(points), fontCurveIndex)
+      ).xyz
+      // const xyz = select(
+      //   pointI.lessThan(1),
+      //   vec3(0, 0, 0),
+      //   select(
+      //     pointI.lessThan(2),
+      //     vec3(0, 1, 0),
+      //     select(pointI.lessThan(3), vec3(1, 1, 0), vec3(1, 0, 0))
+      //   )
+      // )
+      return textureStore(
+        storageTexture,
+        uvec2(pointI, curveI),
+        vec4(xyz, 1)
+      ).toWriteOnly()
     }
   )
 
   // @ts-ignore
-  const computeNode = advanceControlPoints({ storageTexture }).compute(
-    points * curves
-  )
+  const computeNode = advanceControlPoints({
+    storageTexture,
+    fontPoints
+  }).compute(points * curves)
 
   let arcLength =
     new Pt(
@@ -196,34 +318,9 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
 
 export default function Text() {
-  const points = 3,
-    curves = 100,
+  const points = 5,
+    curves = 2,
     size = 1,
     spacing = 2
-  return (
-    <Scene
-      {...{ points, curves, size, spacing }}
-      controlPoint={({
-        pointI,
-        curveI
-      }: {
-        pointI: ShaderNodeObject<OperatorNode>
-        curveI: ShaderNodeObject<OperatorNode>
-      }) => {
-        return vec3(
-          mx_noise_float(
-            vec3(pointI, curveI, time.mul(0.3).add(hash(instanceIndex)))
-          ),
-          mx_noise_float(
-            vec3(
-              pointI.add(19),
-              curveI.add(73),
-              time.mul(0.3).add(hash(instanceIndex))
-            )
-          ),
-          0
-        ).mul(6)
-      }}
-    />
-  )
+  return <Scene {...{ points, curves, size, spacing }} />
 }

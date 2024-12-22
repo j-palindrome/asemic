@@ -57,7 +57,7 @@ const shape = (points: 2 | 3 | 4 | 5 | 8, midPointScale: number = 0.5) => {
           [-midPointScale, 0.5],
           [0.5, 1],
           [1 + midPointScale, 0.5],
-          [0, 11]
+          [1, 0]
         )
       : new GroupBuilder(
           [0, 0],
@@ -92,25 +92,17 @@ function Scene({
     curveI: ShaderNodeObject<OperatorNode>
   }) => ReturnType<typeof vec3>
 }) {
-  // const textureFont = new StorageTexture(points, curves)
-  // const textureFont: GroupBuilder[][] = [
-  //   [
-  //     shape(5, 0.2).scale([1, -1]).rad(-0.25),
-  //     shape(3).scale([1, -0.2]).rad(-0.25).add([1, 1])
-  //   ]
-  // ]
-  const textureFont: [number, number][][][] = [
+  const textureFont: GroupBuilder[][] = [
     [
-      [
-        [0, 0],
-        [-1, 1],
-        [-1, -1]
-      ],
-      [
-        [0, 0],
-        [0, -1],
-        [-1, -1]
-      ]
+      shape(5, 0.2).scale([1, -1]).rad(-0.25).add([0.5, 0.5]),
+      shape(3)
+        .scale([1, -0.2])
+        .rad(-0.25)
+        .add([0.5, 0.5])
+        .concat([
+          [0, 0],
+          [0, 0]
+        ])
     ]
   ]
   const fontWidth = _.max(textureFont.flat().map(x => x.length))
@@ -124,10 +116,11 @@ function Scene({
           letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
         ] =
           new Vector2(...textureFont[letterI][curveI]?.[pointI]) ??
-          new Vector2()
+          new Vector2(0, 0)
       }
     }
   }
+
   const letters = uniformArray(texturePack)
   const letterIndexes = uniformArray([0, 1])
   console.log(texturePack)
@@ -280,7 +273,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
 
 export default function Text() {
-  const points = 3,
+  const points = 5,
     curves = 2,
     size = 10,
     spacing = 0.25

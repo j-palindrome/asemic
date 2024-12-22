@@ -38,36 +38,72 @@ declare module '@react-three/fiber' {
   }
 }
 
-const shape = (points: 2 | 3 | 4 | 5 | 8, midPointScale: number = 0.5) => {
+const shape = (
+  points: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
+  midPointScale: number = 0.5,
+  width = 1,
+  height = 1
+) => {
   let group =
     points === 2
-      ? new GroupBuilder([0, 0], [1, 0])
+      ? new GroupBuilder([0, 0], [width, height])
       : points === 3
-      ? new GroupBuilder([0, 0], [midPointScale, 1], [1, 1])
+      ? new GroupBuilder([0, 0], [midPointScale, height * 2], [width, 0])
       : points === 4
       ? new GroupBuilder(
           [0, 0],
-          [0.5 - midPointScale, 1],
-          [0.5 + midPointScale, 1],
-          [1, 0]
+          [width / 2 - midPointScale, height],
+          [width / 2 + midPointScale, height],
+          [width, 0]
         )
       : points === 5
       ? new GroupBuilder(
           [0, 0],
-          [-midPointScale, 0.5],
-          [0.5, 1],
-          [1 + midPointScale, 0.5],
-          [1, 0]
+          [-midPointScale, height / 2],
+          [width / 2, height],
+          [width + midPointScale, height / 2],
+          [width, 0]
+        )
+      : points === 6
+      ? new GroupBuilder(
+          [0, 0],
+          [-midPointScale, 0],
+          [-midPointScale, height],
+          [width + midPointScale, height],
+          [width + midPointScale, 0],
+          [width, 0]
+        )
+      : points === 7
+      ? new GroupBuilder(
+          [0, 0],
+          [-midPointScale, height / 3],
+          [-midPointScale, height / 3],
+          [width / 2, height],
+          [width + midPointScale, (2 * height) / 3],
+          [width + midPointScale, height / 3],
+          [width, 0]
+        )
+      : points === 8
+      ? new GroupBuilder(
+          [0, 0],
+          [-midPointScale, height / 3],
+          [-midPointScale, (2 * height) / 3],
+          [width / 3, height],
+          [(2 * width) / 3, height],
+          [width + midPointScale, (2 * height) / 3],
+          [width + midPointScale, height / 3],
+          [width, 0]
         )
       : new GroupBuilder(
           [0, 0],
-          [-0.5, 0],
-          [-0.5, 0.5],
-          [-0.5, 1],
-          [0, 1],
-          [0.5, 1],
-          [0.5, 0.5],
-          [0, 0]
+          [-midPointScale, 0],
+          [-midPointScale, height / 2],
+          [-midPointScale, height],
+          [width / 2, height],
+          [width + midPointScale, height],
+          [width + midPointScale, height / 2],
+          [width + midPointScale, 0],
+          [width, 0]
         )
 
   return group
@@ -161,16 +197,16 @@ function Scene({
           const basisFunction = wgslFn(/*wgsl*/ `
 fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
   let degree: i32 = ${degree};
-  var N: array<f32, ${maxPoints}>;
-  var knotVector: array<f32, ${maxPoints}>;
+  var N: array<f32, ${maxPoints + degree + 1}>;
+  var knotVector: array<f32, ${maxPoints + degree + 1}>;
   for (var j:i32 = 0; j <= degree; j++) {
     knotVector[j] = 0.;
   }
-  for (var j:i32 = 1; j <= pointCount - degree; j++) {
+  for (var j:i32 = 1; j < pointCount - degree; j++) {
     knotVector[j + degree] = f32(j) / f32(pointCount - degree);
   }
   for (var j:i32 = 0; j <= degree; j++) {
-    knotVector[j + pointCount - degree + 1] = 1.;
+    knotVector[j + pointCount] = 1.;
   }
 
   for (var j : i32 = 0; j <= degree; j = j + 1)
@@ -257,25 +293,15 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
 }
 
 export default function Text() {
-  const points = [5],
+  const letterIndexes = uniformArray([1]),
+    points = [3],
     size = 10,
     spacing = 0.25
 
   const textureFont: GroupBuilder[][] = [
-    [
-      shape(5, 0).add([-0.5, -0.5]),
-      // @ts-ignore
-      shape(3)
-        .scale([1, -0.2])
-        .rad(-0.25)
-        .add([0.5, 0.5])
-        // @ts-ignore
-        .concat([
-          [0, 0],
-          [0, 0]
-        ])
-    ]
+    [shape(5, 0.2).add([-0.5, -0.5]), shape(3)]
   ]
+
   const fontWidth = _.max(textureFont.flat().map(x => x.length))
   const fontHeight = _.max(textureFont.map(x => x.length))
   const fontDepth = textureFont.length
@@ -285,15 +311,12 @@ export default function Text() {
       for (let pointI = 0; pointI < fontWidth; pointI++) {
         texturePack[
           letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
-        ] =
-          new Vector2(...textureFont[letterI][curveI]?.[pointI]) ??
-          new Vector2(0, 0)
+        ] = new Vector2(...(textureFont[letterI][curveI]?.[pointI] ?? [0, 0]))
       }
     }
   }
-
   const letters = uniformArray(texturePack)
-  const letterIndexes = uniformArray([0, 1])
+
   return (
     <Scene
       {...{ points, size, spacing }}

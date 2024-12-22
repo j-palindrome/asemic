@@ -2,38 +2,17 @@ import { extend, useThree } from '@react-three/fiber'
 import _ from 'lodash'
 import { Pt } from 'pts'
 import { useMemo } from 'react'
-import {
-  AdditiveBlending,
-  Data3DTexture,
-  DataTexture,
-  FloatType,
-  RGBAFormat,
-  RGFormat,
-  Vector2,
-  Vector3
-} from 'three'
+import { AdditiveBlending, FloatType, Vector2 } from 'three'
 import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
 import {
-  Break,
   float,
   Fn,
-  hash,
-  If,
   instanceIndex,
-  int,
-  ivec2,
   Loop,
   mul,
-  mx_noise_float,
-  rand,
-  range,
-  select,
   ShaderNodeObject,
   texture,
-  texture3D,
-  textureLoad,
   textureStore,
-  time,
   uniform,
   uniformArray,
   uvec2,
@@ -48,8 +27,8 @@ import {
   VarNode,
   WebGPURenderer
 } from 'three/webgpu'
-import { useInterval } from '../../util/src/dom'
 import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
+import { useInterval } from '../../util/src/dom'
 
 extend(SpriteNodeMaterial)
 
@@ -124,15 +103,13 @@ function Scene({
     [
       [
         [0, 0],
-        [0, 1],
-        [1, 1],
-        [1, -1]
+        [-1, 1],
+        [-1, -1]
       ],
       [
         [0, 0],
         [0, -1],
-        [-1, -1],
-        [-1, 0]
+        [-1, -1]
       ]
     ]
   ]
@@ -169,15 +146,6 @@ function Scene({
       const fontCurveIndex = letterIndexes.element(curveI)
       const xyz = letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
 
-      // const xyz = select(
-      //   pointI.lessThan(1),
-      //   vec3(0, 0, 0),
-      //   select(
-      //     pointI.lessThan(2),
-      //     vec3(0, 1, 0),
-      //     select(pointI.lessThan(3), vec3(1, 1, 0), vec3(1, 0, 0))
-      //   )
-      // )
       return textureStore(
         storageTexture,
         uvec2(pointI, curveI),
@@ -265,7 +233,16 @@ fn basisFunction(i:i32, t:f32) -> f32 {
               mul(
                 N,
                 weights.element(i),
-                texture(storageTexture, vec2(i.toFloat().div(points), curveI))
+                texture(
+                  storageTexture,
+                  vec2(
+                    i
+                      .toFloat()
+                      .div(points)
+                      .add(0.5 / points),
+                    curveI.add(0.5 / curves)
+                  )
+                )
               )
             )
             denominator.addAssign(mul(N, weights.element(i)))
@@ -275,7 +252,7 @@ fn basisFunction(i:i32, t:f32) -> f32 {
         }
       )
 
-      const curveI = instanceIndex.toFloat().div(arcLength).floor().div(curves)
+      const curveI = instanceIndex.div(arcLength).toFloat().div(curves)
       const t = instanceIndex.toFloat().mod(arcLength).div(arcLength).toVar()
       let position = vec4(0, 0, 0, 1).toVar()
       position.xy.assign(rationalBezierCurve({ t }))
@@ -303,9 +280,9 @@ fn basisFunction(i:i32, t:f32) -> f32 {
 }
 
 export default function Text() {
-  const points = 5,
+  const points = 3,
     curves = 2,
-    size = 1,
-    spacing = 2
+    size = 10,
+    spacing = 0.25
   return <Scene {...{ points, curves, size, spacing }} />
 }

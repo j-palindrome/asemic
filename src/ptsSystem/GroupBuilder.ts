@@ -1,4 +1,4 @@
-import { Group } from 'pts'
+import { Group, Pt } from 'pts'
 import { PtBuilder } from './PtBuilder'
 import { CurvePath, LineCurve, QuadraticBezierCurve, Vector2 } from 'three'
 import { Jitter } from '../Brush'
@@ -115,6 +115,20 @@ export class GroupBuilder extends Group {
   set(settings: Partial<GroupBuilder['settings']>) {
     Object.assign(this.settings, settings)
     return this
+  }
+
+  within(origin: [number, number], bounds: [number, number]) {
+    const bound = this.boundingBox()
+    const size = bound[1].$subtract(bound[0])
+    const center = bound[0].$add(bound[1]).divide(0.5)
+
+    const scaled = this.scale(new Pt(bounds).divide(size), bound[0])
+    // .subtract(
+    //   new Pt(origin).subtract(bound[0])
+    // )
+    console.log(scaled)
+
+    return scaled
   }
 
   constructor(...args: ([number, number] | PtBuilder)[]) {

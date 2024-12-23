@@ -29,6 +29,7 @@ import {
 } from 'three/webgpu'
 import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
 import { useInterval } from '../../util/src/dom'
+import { sum } from 'lodash'
 
 extend(SpriteNodeMaterial)
 
@@ -40,34 +41,34 @@ declare module '@react-three/fiber' {
 
 const shape = (
   points: 2 | 3 | 4 | 5 | 6,
-  { mid = 0.5, width = 1, height = 1 } = {}
+  { out = 0.5, width = 1, height = 1, up = 0, into = 0 } = {}
 ) => {
   let group =
     points === 2
       ? new GroupBuilder([0, 0], [width, height])
       : points === 3
-      ? new GroupBuilder([0, 0], [mid, height * 2], [width, 0])
+      ? new GroupBuilder([0, 0], [out, height * 2], [width, up])
       : points === 4
       ? new GroupBuilder(
           [0, 0],
-          [width / 2 - mid, height],
-          [width / 2 + mid, height],
+          [width / 2 - out, height - up],
+          [width / 2 + out, height],
           [width, 0]
         )
       : points === 5
       ? new GroupBuilder(
           [0, 0],
-          [-mid, height / 2],
+          [-out, up + height / 2],
           [width / 2, height],
-          [width + mid, height / 2],
+          [width + out, up + height / 2],
           [width, 0]
         )
       : new GroupBuilder(
           [0, 0],
-          [-mid, 0],
-          [-mid, height],
-          [width + mid, height],
-          [width + mid, 0],
+          [-out, up],
+          [-out + into, height],
+          [width + out - into, height],
+          [width + out, up],
           [width, 0]
         )
 
@@ -143,15 +144,6 @@ function Scene({
     const weights = uniformArray([1, 1, 1, 1, 1], 'float')
     const length = uniform(maxPoints, 'int')
     const degree = 2
-    const knotLength = maxPoints + degree + 1
-    const generateKnotVector = () => {
-      return _.range(degree + 1)
-        .map(x => 0)
-        .concat(
-          _.range(1, maxPoints - degree).map(i => i / (maxPoints - degree))
-        )
-        .concat(_.range(degree + 1).map(x => 1))
-    }
 
     const processText = Fn(() => {
       const rationalBezierCurve = Fn(
@@ -258,17 +250,28 @@ fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
 }
 
 export default function Text() {
-  const letterIndexes = uniformArray([0, 1]),
-    points = [5, 3],
-    size = 10,
+  const size = 10,
     spacing = 0.25
 
-  const textureFont: GroupBuilder[][] = [
-    [
-      shape(5, { mid: 0.2 }).rad(0.25).add([0.5, -0.5]),
-      shape(3, { height: 0.1 }).rad(0.25).add([0.5, -0.5])
-    ]
+  const textureFont: Record<string, (b: ) = [
+    b => 
+      b.shape(6, { up: 0.3, out: 0.2, into: 0.2 }).rad(0.25).add([0.5, -0.5]).shape(3, { height: 0.1 }).rad(0.25).add([0.5, -0.5])
+    ,
+    b => 
+      b.shape(2, { width: 0, height: 1 }).shape(4).scale(0.5).rad(-0.25).add([0, 0.5])
+    ,
+    b => b.shape(6, { height: -1 }).rad(-0.25).within([0, 0], [1, 1])
   ]
+
+  let sum = 0
+  const textureLengths = textureFont.map(
+    (_, i) => (sum += textureFont[i - 1]?.length ?? 0)
+  )
+  const letterIndexes = [[2, 0]]
+  const letterIndexesFlat = letterIndexes.map(x => textureLengths[x[0]] + x[1])
+  const points = letterIndexes.map(i => textureFont[i[0]][i[1]].length)
+  const letterIndexesU = uniformArray(letterIndexesFlat)
+  console.log(letterIndexes.map(x => textureLengths[x[0]] + x[1]))
 
   const fontWidth = _.max(textureFont.flat().map(x => x.length))
   const fontHeight = _.max(textureFont.map(x => x.length))
@@ -289,7 +292,7 @@ export default function Text() {
     <Scene
       {...{ points, size, spacing }}
       controlPoint={({ pointI, curveI }) => {
-        const fontCurveIndex = letterIndexes.element(curveI)
+        const fontCurveIndex = letterIndexesU.element(curveI)
         return letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
       }}
     />

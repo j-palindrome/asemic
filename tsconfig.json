@@ -4,6 +4,6 @@
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM"],
     "noImplicitAny": false,
-    "paths": { "@util/**/*": ["./util/src/**/*"] }
+    "paths": { "@util/*": ["./util/src/*"] }
   }
 }

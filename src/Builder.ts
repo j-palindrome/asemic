@@ -1,4 +1,4 @@
-import { lerp } from '../../util/src/math'
+import { lerp } from '../util/src/math'
 import { last, max, min, range, sum } from 'lodash'
 import {
   AnyPixelFormat,
@@ -15,7 +15,7 @@ import {
   Vector2
 } from 'three'
 import invariant from 'tiny-invariant'
-import { Jitter } from '../Brush'
+import { Jitter } from './Brush'
 import { PointBuilder } from './PointBuilder'
 
 const letters = 'abcdefghijklmnopqrstuvyxyz'.split('')
@@ -136,23 +136,23 @@ export default class Builder {
   protected toTransform(transform?: PreTransformData): TransformData {
     if (!transform) {
       return {
-        scale: new PointBuilder([1, 1]),
+        scale: new Vector2(1, 1),
         rotate: 0,
-        translate: new PointBuilder()
+        translate: new Vector2()
       }
     }
     return {
       scale:
         typeof transform.scale === 'number'
-          ? new PointBuilder([transform.scale, transform.scale])
+          ? new Vector2(transform.scale, transform.scale)
           : transform.scale instanceof Array
-          ? new PointBuilder(transform.scale)
-          : transform.scale ?? new PointBuilder([1, 1]),
+          ? new Vector2(...transform.scale)
+          : transform.scale ?? new Vector2(1, 1),
       rotate: this.toRad(transform.rotate ?? 0),
       translate:
-        transform.translate instanceof PointBuilder
-          ? transform.translate
-          : new PointBuilder(transform.translate)
+        transform.translate instanceof Array
+          ? new Vector2(...transform.translate)
+          : transform.translate ?? new Vector2()
     }
   }
 
@@ -766,7 +766,6 @@ ${g.curves
   }
 
   text(str: string, warp?: CoordinateData) {
-    return this
     let lineCount = 0
     if (warp) this.setWarp(warp)
     for (let letter of str) {

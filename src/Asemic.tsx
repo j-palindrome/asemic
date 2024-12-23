@@ -2,7 +2,10 @@ import { Canvas } from '@react-three/fiber'
 import { useRef } from 'react'
 import Brush from './Brush'
 
-export default function Asemic({ source }: { source: string }) {
+export default function Asemic({
+  source,
+  children
+}: { source?: string } & React.PropsWithChildren) {
   const points = useRef<[number, number][]>([])
 
   return (
@@ -35,11 +38,12 @@ export default function Asemic({ source }: { source: string }) {
         window.navigator.clipboard.writeText(text)
       }}>
       {source
-        .split('\n')
+        ?.split('\n')
         .filter(x => x)
         .map((x, i) => (
           <Brush key={i} render={b => b.parse(x)} />
         ))}
+      {children}
     </Canvas>
   )
 }

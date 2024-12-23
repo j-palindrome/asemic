@@ -4,17 +4,20 @@ const vector = new Vector2()
 const vector2 = new Vector2()
 
 export class PointBuilder extends Vector2 {
-  strength: TransformData['strength'] = 1
-  color: TransformData['color'] = [1, 1, 1]
-  alpha: TransformData['alpha'] = 1
-  thickness: TransformData['thickness'] = 1
+  strength?: CoordinateSettings['strength']
+  color?: CoordinateSettings['color']
+  alpha?: CoordinateSettings['alpha']
+  thickness?: CoordinateSettings['thickness']
 
   constructor(
-    x: number,
-    y: number,
-    { strength, color, alpha, thickness }: Partial<CoordinateData>
+    point: [number, number] = [0, 0],
+    { strength, color, alpha, thickness }: Partial<CoordinateSettings> = {}
   ) {
-    super(x, y)
+    super(point[0], point[1])
+    this.strength = strength
+    this.color = color
+    this.alpha = alpha
+    this.thickness = thickness
   }
 
   lerpRandom(point: Vector2) {
@@ -32,15 +35,6 @@ export class PointBuilder extends Vector2 {
   }
 
   override clone() {
-    return new PointBuilder([
-      this.x,
-      this.y,
-      {
-        strength: this.strength,
-        color: this.color,
-        alpha: this.alpha,
-        thickness: this.thickness
-      }
-    ]) as this
+    return new PointBuilder([this.x, this.y]) as this
   }
 }

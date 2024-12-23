@@ -30,8 +30,6 @@ import {
 import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
 import { useInterval } from '../../util/src/dom'
 import { sum } from 'lodash'
-import Drawing from '../../src/ptsSystem/Drawing'
-import { rad } from '../../util/src/shaders/manipulation'
 
 extend(SpriteNodeMaterial)
 
@@ -39,6 +37,42 @@ declare module '@react-three/fiber' {
   interface ThreeElements {
     spriteNodeMaterial: SpriteNodeMaterial
   }
+}
+
+const shape = (
+  points: 2 | 3 | 4 | 5 | 6,
+  { out = 0.5, width = 1, height = 1, up = 0, into = 0 } = {}
+) => {
+  let group =
+    points === 2
+      ? new GroupBuilder([0, 0], [width, height])
+      : points === 3
+      ? new GroupBuilder([0, 0], [out, height * 2], [width, up])
+      : points === 4
+      ? new GroupBuilder(
+          [0, 0],
+          [width / 2 - out, height - up],
+          [width / 2 + out, height],
+          [width, 0]
+        )
+      : points === 5
+      ? new GroupBuilder(
+          [0, 0],
+          [-out, up + height / 2],
+          [width / 2, height],
+          [width + out, up + height / 2],
+          [width, 0]
+        )
+      : new GroupBuilder(
+          [0, 0],
+          [-out, up],
+          [-out + into, height],
+          [width + out - into, height],
+          [width + out, up],
+          [width, 0]
+        )
+
+  return group
 }
 
 function Scene({
@@ -219,26 +253,44 @@ export default function Text() {
   const size = 10,
     spacing = 0.25
 
-  const textureFont: Record<string, (b: Drawing) => Drawing> = {
-    a: b =>
-      b
-        .shape(6, { up: 0.3, out: 0.2, into: 0.2 })
-        .shape(3, { height: 0.1 })
-        .rad(0.25)
-        .add([0.5, -0.5]),
-    b: b =>
-      b
-        .shape(2, { width: 0, height: 1 })
-        .shape(4)
-        .scale(0.5)
-        .rad(-0.25)
-        .add([0, 0.5]),
-    c: b => b.shape(6, { height: -1 }).rad(-0.25).within([0, 0], [1, 1])
+  const textureFont: Record<string, (b: ) = [
+    b => 
+      b.shape(6, { up: 0.3, out: 0.2, into: 0.2 }).rad(0.25).add([0.5, -0.5]).shape(3, { height: 0.1 }).rad(0.25).add([0.5, -0.5])
+    ,
+    b => 
+      b.shape(2, { width: 0, height: 1 }).shape(4).scale(0.5).rad(-0.25).add([0, 0.5])
+    ,
+    b => b.shape(6, { height: -1 }).rad(-0.25).within([0, 0], [1, 1])
+  ]
+
+  let sum = 0
+  const textureLengths = textureFont.map(
+    (_, i) => (sum += textureFont[i - 1]?.length ?? 0)
+  )
+  const letterIndexes = [[2, 0]]
+  const letterIndexesFlat = letterIndexes.map(x => textureLengths[x[0]] + x[1])
+  const points = letterIndexes.map(i => textureFont[i[0]][i[1]].length)
+  const letterIndexesU = uniformArray(letterIndexesFlat)
+  console.log(letterIndexes.map(x => textureLengths[x[0]] + x[1]))
+
+  const fontWidth = _.max(textureFont.flat().map(x => x.length))
+  const fontHeight = _.max(textureFont.map(x => x.length))
+  const fontDepth = textureFont.length
+  const texturePack = new Array(fontWidth * fontHeight * fontDepth)
+  for (let letterI = 0; letterI < fontDepth; letterI++) {
+    for (let curveI = 0; curveI < fontHeight; curveI++) {
+      for (let pointI = 0; pointI < fontWidth; pointI++) {
+        texturePack[
+          letterI * fontHeight * fontWidth + curveI * fontWidth + pointI
+        ] = new Vector2(...(textureFont[letterI][curveI]?.[pointI] ?? [0, 0]))
+      }
+    }
   }
+  const letters = uniformArray(texturePack)
 
   return (
     <Scene
-      {...{ size, spacing }}
+      {...{ points, size, spacing }}
       controlPoint={({ pointI, curveI }) => {
         const fontCurveIndex = letterIndexesU.element(curveI)
         return letters.element(fontCurveIndex.mul(fontWidth).add(pointI))

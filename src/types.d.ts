@@ -1,19 +1,5 @@
 import { Color, Vector2 } from 'three'
 import { PointBuilder } from './drawingSystem/PointBuilder'
-import './ptsSystem/GroupBuilder'
-import { PtBuilder } from './ptsSystem/PtBuilder'
-
-declare module './ptsSystem/PtBuilder' {
-  interface PtBuilder {
-    $add(...args: any[]): PtBuilder
-  }
-}
-
-declare module './ptsSystem/GroupBuilder' {
-  interface GroupBuilder {
-    at(i: number): PtBuilder
-  }
-}
 
 declare global {
   type Coordinate = [number, number, CoordinateData] | [number, number]
@@ -22,9 +8,13 @@ declare global {
     translate: Vector2
     scale: Vector2
     rotate: number
+    strength: number
+    thickness: number
+    color: [number, number, number]
+    alpha: number
   }
 
-  type PreTransformData = {
+  type CoordinateData = {
     push?: true
     reset?: true | 'last' | 'pop' | 'group'
     translate?: [number, number] | PointBuilder
@@ -32,16 +22,11 @@ declare global {
     rotate?: number
     remap?: [[number, number] | PointBuilder, [number, number] | PointBuilder]
     new?: 'group' | 'curve'
+    strength?: number
+    thickness?: number
+    color?: [number, number, number] | Color
+    alpha?: number
   }
-
-  type CoordinateSettings = {
-    strength: number
-    thickness: number
-    color: [number, number, number] | Color
-    alpha: number
-  }
-
-  type CoordinateData = PreTransformData & Partial<CoordinateSettings>
 
   type GroupData = {
     curves: PointBuilder[][]

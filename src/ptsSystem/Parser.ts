@@ -1,204 +1,248 @@
-import { CurvePath, LineCurve, QuadraticBezierCurve, Vector2 } from 'three'
-import invariant from 'tiny-invariant'
-import { PtBuilder } from './PtBuilder'
-import { GroupBuilder } from './GroupBuilder'
+import { extend, useThree } from '@react-three/fiber'
+import _ from 'lodash'
+import { Pt } from 'pts'
+import { useMemo } from 'react'
+import { AdditiveBlending, FloatType, Vector2 } from 'three'
+import OperatorNode from 'three/src/nodes/math/OperatorNode.js'
+import {
+  float,
+  Fn,
+  instanceIndex,
+  Loop,
+  mul,
+  ShaderNodeObject,
+  texture,
+  textureStore,
+  uniform,
+  uniformArray,
+  uvec2,
+  vec2,
+  vec3,
+  vec4,
+  wgslFn
+} from 'three/tsl'
+import {
+  SpriteNodeMaterial,
+  StorageTexture,
+  VarNode,
+  WebGPURenderer
+} from 'three/webgpu'
+import { GroupBuilder } from '../../src/ptsSystem/GroupBuilder'
+import { useInterval } from '../../util/src/dom'
+import { sum } from 'lodash'
+import Drawing from '../../src/ptsSystem/Drawing'
+import { rad } from '../../util/src/shaders/manipulation'
 
-export default class Parser {
-  protected makeCurvePath(curve: GroupBuilder): CurvePath<Vector2> {
-    const path: CurvePath<Vector2> = new CurvePath()
-    if (curve.length <= 1) {
-      throw new Error(`Curve length is ${curve.length}`)
-    }
-    if (curve.length == 2) {
-      path.add(new LineCurve(curve[0], curve[1]))
-      return path
-    }
-    for (let i = 0; i < curve.length - 2; i++) {
-      if ((curve[i + 1].strength ?? this.settings.strength) > 0.5) {
-        path.add(
-          new LineCurve(
-            i === 0 ? curve[i] : curve[i].clone().lerp(curve[i + 1], 0.5),
-            curve[i + 1]
-          )
-        )
-        path.add(
-          new LineCurve(
-            curve[i + 1],
-            i === curve.length - 3
-              ? curve[i + 2]
-              : curve[i + 1].clone().lerp(curve[i + 2], 0.5)
-          )
-        )
-      } else {
-        path.add(
-          new QuadraticBezierCurve(
-            i === 0 ? curve[i] : curve[i].clone().lerp(curve[i + 1], 0.5),
-            curve[i + 1],
-            i === curve.length - 3
-              ? curve[i + 2]
-              : curve[i + 1].clone().lerp(curve[i + 2], 0.5)
-          )
-        )
-      }
-    }
-    return path
+extend(SpriteNodeMaterial)
+
+declare module '@react-three/fiber' {
+  interface ThreeElements {
+    spriteNodeMaterial: SpriteNodeMaterial
   }
+}
 
-  detectRange = <T extends number | Coordinate>(
-    range: string,
-    callback: (string: string) => T
-  ): T => {
-    if (range.includes('~')) {
-      const p = range.split('~')
-      let r = p.map(c => callback(c))
-      if (r[0] instanceof Array) {
-        invariant(r instanceof Array)
-        const points = r.map(x => this.toPoint(x as Coordinate))
-        if (points.length === 2) {
-          return new Vector2()
-            .lerpVectors(points[0], points[1], Math.random())
-            .toArray() as T
-        } else {
-          return this.makeCurvePath(points)
-            .getPoint(Math.random())
-            .toArray() as T
-        }
-      } else if (typeof r[0] === 'number') {
-        if (r.length === 2) {
-          return lerp(r[0], r[1] as number, Math.random()) as T
-        } else {
-          return this.makeCurvePath(
-            r.map(x => this.toPoint([x as number, 0]))
-          ).getPoint(Math.random()).x as T
-        }
-      }
+function Scene({
+  controlPoint,
+  points,
+  size = 1,
+  spacing = 2
+}: {
+  points: number[]
+  size: number
+  spacing: number
+  controlPoint: ({
+    pointI,
+    curveI
+  }: {
+    pointI: ShaderNodeObject<OperatorNode>
+    curveI: ShaderNodeObject<OperatorNode>
+  }) => ReturnType<typeof vec3>
+}) {
+  const maxPoints = _.max(points)!
+  const curves = points.length
+  const pointCounts = uniformArray(points, 'int')
+
+  // @ts-ignore
+  const gl = useThree(({ gl }) => gl as WebGPURenderer)
+
+  const storageTexture = new StorageTexture(maxPoints, curves)
+  storageTexture.type = FloatType
+  // storageTexture.format = RGBFormat
+
+  const advanceControlPoints = Fn(
+    ({ storageTexture }: { storageTexture: StorageTexture }) => {
+      const pointI = instanceIndex.modInt(maxPoints)
+      const curveI = instanceIndex.div(maxPoints)
+      const xyz = controlPoint({ pointI, curveI })
+
+      return textureStore(
+        storageTexture,
+        uvec2(pointI, curveI),
+        vec4(xyz, 1, 1)
+      ).toWriteOnly()
     }
-    return callback(range)
-  }
+  )
 
-  parseCoordinate = (
-    c: string,
-    defaultArg: 'same' | number = 'same'
-  ): Coordinate | undefined => {
-    if (!c) return undefined
-    return detectRange(c, c => {
-      if (!c.includes(',')) {
-        return [
-          parseNumber(c)!,
-          defaultArg === 'same' ? parseNumber(c)! : defaultArg
-        ] as [number, number]
-      } else {
-        // if (c[2]) {
-        //   const translate = parseCoordinate(
-        //     matchString(/\+([\-\d\.,\/~]+)/, c[2])
-        //   )
-        //   const scale = parseCoordinate(
-        //     matchString(/\*([\-\d\.,\/~]+)/, c[2])
-        //   )
-        //   const rotate = parseNumber(matchString(/@([\-\d\.\/~]+)/, c[2]))
-        // }
-        return c.split(',', 2).map(x => this.parseNumber(x)) as [number, number]
-      }
+  // @ts-ignore
+  const computeNode = advanceControlPoints({
+    storageTexture
+    // @ts-ignore
+  }).compute(maxPoints * curves)
+
+  let arcLength =
+    new Pt(
+      window.innerWidth * devicePixelRatio,
+      window.innerHeight * devicePixelRatio
+    ).magnitude() /
+    (size * spacing)
+
+  const material = useMemo(() => {
+    const material = new SpriteNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending
     })
+
+    material.scaleNode = uniform(
+      (1 / window.innerWidth / devicePixelRatio) * size
+    )
+
+    const weights = uniformArray([1, 1, 1, 1, 1], 'float')
+    const length = uniform(maxPoints, 'int')
+    const degree = 2
+
+    const processText = Fn(() => {
+      const rationalBezierCurve = Fn(
+        ({ t }: { t: ShaderNodeObject<VarNode> }) => {
+          let numerator = vec3(0, 0, 0).toVar()
+          let denominator = float(0).toVar()
+
+          const basisFunction = wgslFn(/*wgsl*/ `
+fn basisFunction(i:i32, t:f32, pointCount:i32) -> f32 {
+  let degree: i32 = ${degree};
+  var N: array<f32, ${maxPoints + degree + 1}>;
+  var knotVector: array<f32, ${maxPoints + degree + 1}>;
+  for (var j:i32 = 0; j <= degree; j++) {
+    knotVector[j] = 0.;
+  }
+  for (var j:i32 = 1; j < pointCount - degree; j++) {
+    knotVector[j + degree] = f32(j) / f32(pointCount - degree);
+  }
+  for (var j:i32 = 0; j <= degree; j++) {
+    knotVector[j + pointCount] = 1.;
   }
 
-  parseNumber = (coordinate: string): number | undefined => {
-    if (!coordinate) return undefined
-    return this.detectRange(coordinate, c => {
-      if (c.includes('/')) {
-        const split = c.split('/')
-        return Number(split[0]) / Number(split[1])
-      }
-      return Number(c)
-    })
+  for (var j : i32 = 0; j <= degree; j = j + 1)
+  {
+    N[j] = select(0.0, 1.0, 
+      t >= knotVector[i + j] && t < knotVector[i + j + 1]);
   }
 
-  parseArgs = (name: string, argString: string) => {
-    const args = argString.split(' ')
-  }
+  //Compute higher-degree basis functions iteratively
+  for (var k : i32 = 1; k <= degree; k = k + 1)
+  {
+    for (var j : i32 = 0; j <= degree - k; j = j + 1)
+    {
+      let d1 = knotVector[i + j + k] - knotVector[i + j];
+      let d2 = knotVector[i + j + k + 1] - knotVector[i + j + 1];
 
-  parseCoordinateList = (
-    argString: string,
-    defaultArg: 'same' | number = 'same'
-  ) =>
-    !argString
-      ? undefined
-      : argString.split(' ').map(x => parseCoordinate(x, defaultArg)!)
+      let term1 = select(0.0, 
+        (t - knotVector[i + j]) / d1 * N[j], d1 > 0.0);
+      let term2 = select(0.0, 
+        (knotVector[i + j + k + 1] - t) / d2 * N[j + 1], d2 > 0.0);
 
-  parse(value: string) {
-    let parsed = value
-    const matchString = (match: RegExp, string: string) => {
-      const find = string.match(match)?.[1] ?? ''
-      return find
+      N[j] = term1 + term2;
     }
+  }
 
-    const text = matchString(/(.*?)( [\+\-*@]|$|\{)/, parsed)
-    parsed = parsed.replace(text, '')
-    this.text(text)
+  return N[0];
+}
+        `)
 
-    const translate = parseCoordinate(
-      matchString(/ \+([\-\d\.,\/~]+)/, parsed)
-    ) as [number, number]
-    const scale = parseCoordinate(
-      matchString(/ \*([\-\d\.,\/~]+)/, parsed)
-    ) as [number, number]
-    const rotate = parseNumber(matchString(/ @([\-\d\.\/~]+)/, parsed))
-    const thickness = parseNumber(
-      matchString(/ (?:t|thickness):([\-\d\.\/~]+)/, parsed)
-    )
-
-    this.setWarp({ translate, scale, rotate, thickness }, -1)
-
-    const groupTranslate = parseCoordinateList(
-      matchString(/ \+\[([\-\d\.\/ ]+)\]/, parsed)
-    )
-    const groupScale = parseCoordinateList(
-      matchString(/ \*\[([\-\d\.\/ ]+)\]/, parsed)
-    )
-    const groupRotate = parseCoordinateList(
-      matchString(/ @\[([\-\d\.\/ ]+)\]/, parsed),
-      0
-    )
-
-    if (groupTranslate || groupScale || groupRotate) {
-      const translationPath = groupTranslate
-        ? this.makeCurvePath(groupTranslate.map(x => this.toPoint(x)))
-        : undefined
-      const rotationPath = groupRotate
-        ? this.makeCurvePath(
-            groupRotate.map(x => new PointBuilder([this.toRad(x[0]), 0]))
-          )
-        : undefined
-      const scalePath = groupScale
-        ? this.makeCurvePath(groupScale.map(x => this.toPoint(x)))
-        : undefined
-      this.groups(
-        (g, { groupProgress }) => {
-          this.combineTransforms(g.transform, {
-            translate: new PointBuilder().copy(
-              translationPath?.getPoint(groupProgress) ?? new Vector2(0, 0)
-            ),
-            scale: new PointBuilder().copy(
-              scalePath?.getPoint(groupProgress) ?? new Vector2(1, 1)
-            ),
-            rotate: rotationPath?.getPoint(groupProgress).x ?? 0
+          Loop({ start: 0, end: length }, ({ i }) => {
+            const N = basisFunction({
+              i,
+              t,
+              pointCount: pointCounts.element(curveI)
+            })
+            numerator.addAssign(
+              mul(
+                N,
+                weights.element(i),
+                texture(
+                  storageTexture,
+                  vec2(
+                    i
+                      .toFloat()
+                      .div(maxPoints)
+                      .add(0.5 / maxPoints),
+                    curveI.div(curves).add(0.5 / curves)
+                  )
+                )
+              )
+            )
+            denominator.addAssign(mul(N, weights.element(i)))
           })
-        },
-        [0, -1]
+
+          return numerator.div(denominator)
+        }
       )
-    }
 
-    const functionMatch = /\\(\w+) ([^\\]*?)/
-    let thisCall = parsed.match(functionMatch)
-    while (thisCall) {
-      // TODO: create a function to parse arguments
-      let name = thisCall[1]
-      let args = thisCall[2]
-      // if (!parseArgs[name]) throw new Error(`Unknown function ${name}`)
-      parsed = parsed.replace(functionMatch, '')
-      thisCall = parsed.match(functionMatch)
-    }
+      const curveI = instanceIndex.div(arcLength).toFloat()
+      const t = instanceIndex.toFloat().mod(arcLength).div(arcLength).toVar()
+      let position = vec4(0, 0, 0, 1).toVar()
+      position.xy.assign(rationalBezierCurve({ t }))
+      return position
+    })
 
-    return this
+    material.positionNode = processText()
+
+    // const alpha = float(0.1).sub(uv().sub(0.5).length())
+    material.colorNode = vec4(1, 1, 1, 1)
+    return material
+  }, [])
+
+  useInterval(() => {
+    gl.computeAsync(computeNode)
+  }, 1000)
+
+  return (
+    <>
+      <instancedMesh material={material} count={arcLength * points.length}>
+        <planeGeometry attach='geometry' />
+      </instancedMesh>
+    </>
+  )
+}
+
+export default function Text() {
+  const size = 10,
+    spacing = 0.25
+
+  const textureFont: Record<string, (b: Drawing) => Drawing> = {
+    a: b =>
+      b
+        .shape(6, { up: 0.3, out: 0.2, into: 0.2 })
+        .shape(3, { height: 0.1 })
+        .rad(0.25)
+        .add([0.5, -0.5]),
+    b: b =>
+      b
+        .shape(2, { width: 0, height: 1 })
+        .shape(4)
+        .scale(0.5)
+        .rad(-0.25)
+        .add([0, 0.5]),
+    c: b => b.shape(6, { height: -1 }).rad(-0.25).within([0, 0], [1, 1])
   }
+
+  return (
+    <Scene
+      {...{ size, spacing }}
+      controlPoint={({ pointI, curveI }) => {
+        const fontCurveIndex = letterIndexesU.element(curveI)
+        return letters.element(fontCurveIndex.mul(fontWidth).add(pointI))
+      }}
+    />
+  )
 }

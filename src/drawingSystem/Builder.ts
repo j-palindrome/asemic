@@ -133,7 +133,7 @@ export default class Builder {
     }
   }
 
-  protected toTransform(transform?: PreTransformData): TransformData {
+  protected toTransform(transform?: CoordinateData): TransformData {
     if (!transform) {
       return {
         scale: new PointBuilder([1, 1]),
@@ -835,7 +835,7 @@ ${g.curves
     return this
   }
 
-  newShape(type: keyof typeof SHAPES, transform?: PreTransformData) {
+  newShape(type: keyof typeof SHAPES, transform?: CoordinateData) {
     if (transform) this.transform(transform)
     return this.lastCurve(c => {
       c.push(...SHAPES[type].map(x => this.toPoint(x)))
@@ -1073,7 +1073,7 @@ ${g.curves
   }
 
   setWarp(
-    frame: PreTransformData & Partial<CoordinateSettings>,
+    frame: CoordinateData & Partial<CoordinateSettings>,
     target?: TargetInfo
   ) {
     this.target(target)
@@ -1083,7 +1083,7 @@ ${g.curves
   }
 
   setWarpGroups(
-    groups: (PreTransformData & CoordinateSettings)[],
+    groups: (CoordinateData & CoordinateSettings)[],
     target?: TargetInfo
   ) {
     this.target(target)

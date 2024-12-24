@@ -3,10 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Vector2 } from 'three'
 import { rotate2d } from '../../util/src/shaders/manipulation'
-import Builder from './Builder'
-import { useFrame } from '@react-three/fiber'
 import { useEventListener } from '../util/src/dom'
 import { bezierPoint, multiBezierProgress } from '../util/src/shaders/bezier'
+import Builder from './Builder'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -119,9 +118,9 @@ export default function Brush({
   return (
     <group
       ref={meshRef}
+      position={[...transform.translate.toArray(), 0]}
       scale={[...transform.scale.toArray(), 1]}
-      rotation={[0, 0, transform.rotate]}
-      position={[...transform.translate.toArray(), 0]}>
+      rotation={[0, 0, transform.rotate]}>
       {groups.map((group, i) => (
         <instancedMesh
           position={[...group.transform.translate.toArray(), 0]}

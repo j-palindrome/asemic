@@ -1,41 +1,41 @@
 import { Canvas } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useState } from 'react'
+import { WebGPURenderer } from 'three/webgpu'
 import Brush from './Brush'
 
 export default function Asemic({
   source,
   children
 }: { source?: string } & React.PropsWithChildren) {
-  const points = useRef<[number, number][]>([])
+  const [frameloop, setFrameloop] = useState<
+    'never' | 'always' | 'demand' | undefined
+  >('never')
 
   return (
     <Canvas
-      style={{ height: '100%', width: '100%' }}
-      gl={{ antialias: true, alpha: true }}
+      frameloop={frameloop}
+      style={{ height: '100vh', width: '100vw' }}
       orthographic
       camera={{
-        position: [0, 0, 0],
         near: 0,
         far: 1,
-        left: 0,
-        top: 1,
+        left: -1,
         right: 1,
-        bottom: 0
+        top: 1,
+        bottom: -1,
+        position: [0, 0, 0]
       }}
-      onClick={ev => {
-        if (ev.shiftKey) {
-          points.current = []
-        }
-        const point = [
-          ev.clientX / window.innerWidth,
-          (window.innerHeight - ev.clientY) / window.innerHeight
-        ] as [number, number]
-        points.current.push(point)
-        const text = points.current
-          .map(x => `[${x[0].toFixed(2)}, ${x[1].toFixed(2)}]`)
-          .join(', ')
-        console.log(point.map(x => x.toFixed(2)))
-        window.navigator.clipboard.writeText(text)
+      gl={canvas => {
+        const renderer = new WebGPURenderer({
+          canvas: canvas as HTMLCanvasElement,
+          powerPreference: 'high-performance',
+          antialias: true,
+          alpha: true
+        })
+        renderer.init().then(() => {
+          setFrameloop('always')
+        })
+        return renderer
       }}>
       {source
         ?.split('\n')

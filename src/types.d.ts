@@ -1,5 +1,4 @@
 import { Color, Vector2 } from 'three'
-import './ptsSystem/GroupBuilder'
 import { PointBuilder } from './PointBuilder'
 
 declare global {

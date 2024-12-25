@@ -158,7 +158,7 @@ export default function Brush({
     return () => window.clearTimeout(timeout)
   }, [])
 
-  const size = 5
+  const size = 1
   const materials = useMemo(
     () =>
       groups.map(group => {
@@ -223,13 +223,6 @@ export default function Brush({
           return vec2(start, cycle)
         }
 
-        // const modifyPosition = Fn(
-        //   ({ position, progress, pointProgress, curveProgress }) => {
-        //     // Add your custom modifications here
-        //     return position
-        //   }
-        // )
-
         const main = Fn(() => {
           const id = instanceIndex
           let curveIndex = int(0).toVar()
@@ -245,9 +238,9 @@ export default function Brush({
             })
           })
 
-          const curveProgress = float(curveIndexes.element(curveIndex)).div(
-            dimensionsU.y
-          )
+          const curveProgress = float(curveIndexes.element(curveIndex))
+            .add(0.5)
+            .div(dimensionsU.y)
           const controlPointsCount = controlPointCounts.element(curveIndex)
 
           let pointProgress = float(0).toVar()
@@ -271,27 +264,27 @@ export default function Brush({
             position: vec2(0, 0).toVar(),
             rotation: float(0).toVar()
           }
-          const pointCurveProgress = multiBezierProgress({
-            t: pointProgress,
-            controlPointsCount
-          })
-          If(false, () => {
-            point.position.assign(vec2(0, 0))
-          }).Else(() => {
-            // If(controlPointsCount.equal(int(2)), () => {
-            //   const p0 = texture(keyframesTex, vec2(0, curveProgress)).xy
-            //   const p1 = texture(
-            //     keyframesTex,
-            //     vec2(float(1).div(dimensionsU.x), curveProgress)
-            //   ).xy
-            //   const progressPoint = mix(p0, p1, pointProgress)
-            //   point.position.assign(progressPoint)
-            //   point.rotation.assign(atan2(progressPoint.y, progressPoint.x))
-            // }).Else(() => {
 
+          If(controlPointsCount.equal(int(2)), () => {
+            const p0 = texture(
+              keyframesTex,
+              vec2(float(0.5).div(dimensionsU.x), curveProgress)
+            ).xy
+            const p1 = texture(
+              keyframesTex,
+              vec2(float(1).add(0.5).div(dimensionsU.x), curveProgress)
+            ).xy
+            const progressPoint = mix(p0, p1, pointProgress)
+            point.position.assign(progressPoint)
+            point.rotation.assign(atan2(progressPoint.y, progressPoint.x))
+          }).Else(() => {
+            const pointCurveProgress = multiBezierProgress({
+              t: pointProgress,
+              controlPointsCount
+            })
             const getTex = Fn(({ i }: { i: number }) => {
               const textureVec = vec2(
-                pointCurveProgress.x.add(i).div(dimensionsU.x),
+                pointCurveProgress.x.add(i).add(0.5).div(dimensionsU.x),
                 curveProgress
               )
               const samp = texture(keyframesTex, textureVec)
@@ -321,14 +314,13 @@ export default function Brush({
             })
             point.position.assign(thisPoint.position)
             point.rotation.assign(thisPoint.rotation)
-            // })
           })
           return vec4(point.position, 0, 1)
         })
 
         material.colorNode = vec4(
-          instanceIndex.div(group.totalCurveLength),
-          instanceIndex.div(group.totalCurveLength),
+          instanceIndex.toFloat().div(group.totalCurveLength),
+          1,
           1,
           1
         )
@@ -337,6 +329,7 @@ export default function Brush({
       }),
     []
   )
+  console.log(lastData)
 
   // const resolution = uniform(vec2(0, 0))
   // const scaleCorrection = uniform(vec2(0, 0))
@@ -370,7 +363,7 @@ export default function Brush({
           scale={[...group.transform.scale.toArray(), 1]}
           rotation={[0, 0, group.transform.rotate]}
           key={i + now()}
-          args={[undefined, undefined, group.totalCurveLength]}
+          args={[undefined, undefined, maxCurveLength]}
           material={materials[i]}>
           <planeGeometry args={lastData.settings.defaults.size} />
         </instancedMesh>

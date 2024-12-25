@@ -1,4 +1,4 @@
-import Builder from '../../../asemic/src/drawingSystem/Builder'
+import Builder from '../../../src/Builder'
 
 export const slides: {
   asemic?: ((b: Builder) => Builder)[]
@@ -6,6 +6,15 @@ export const slides: {
 }[] = [
   {},
   // Rich Text, Poor Image
+  {
+    asemic: [
+      b =>
+        b.text('tree', {
+          translate: [0.6, 0.5],
+          scale: 0.5
+        })
+    ]
+  },
   {
     asemic: [
       b =>

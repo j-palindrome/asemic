@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { useState } from 'react'
 import { WebGPURenderer } from 'three/webgpu'
 import Brush from './Brush'
+import { now } from 'three/examples/jsm/libs/tween.module.js'
 
 export default function Asemic({
   source,
@@ -19,10 +20,10 @@ export default function Asemic({
       camera={{
         near: 0,
         far: 1,
-        left: -1,
+        left: 0,
         right: 1,
         top: 1,
-        bottom: -1,
+        bottom: 0,
         position: [0, 0, 0]
       }}
       gl={canvas => {
@@ -41,7 +42,7 @@ export default function Asemic({
         ?.split('\n')
         .filter(x => x)
         .map((x, i) => (
-          <Brush key={i} render={b => b.parse(x)} />
+          <Brush key={i + now()} render={b => b.parse(x)} />
         ))}
       {children}
     </Canvas>

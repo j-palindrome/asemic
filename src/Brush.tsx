@@ -320,13 +320,9 @@ export default function Brush({
             })
             point.position.assign(thisPoint.position)
             point.rotation.assign(thisPoint.rotation)
-            // color = mix(colors[0], colors[1], colors[2])
           })
 
-          // positionLocal.assign()
-          return cameraProjectionMatrix
-            .mul(modelViewMatrix)
-            .mul(vec4(point.position, 0, 1))
+          return vec4(point.position, 0, 1)
         })
 
         material.positionNode = main()

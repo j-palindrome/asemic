@@ -159,7 +159,6 @@ export default function Brush({
   // }, [])
 
   const size = 3
-  const arcLength = 1000
   const materials = useMemo(
     () =>
       groups.map(group => {
@@ -176,7 +175,7 @@ export default function Brush({
         const aspectRatio = uniform(
           vec2(1, window.innerHeight / window.innerWidth)
         )
-        const curveEnds = uniformArray(group.curveEnds as any, 'int')
+        const curveEnds = uniformArray(group.curveEnds as any, 'float')
         const controlPointCounts = uniformArray(
           group.controlPointCounts as any,
           'int'
@@ -227,15 +226,32 @@ export default function Brush({
         }
 
         const main = Fn(() => {
-          const i = instanceIndex.div(arcLength)
-          const curveI = curveIndexes.element(i)
+          const index = int(0).toVar()
+          Loop(curveEnds.getElementLength(), ({ i }) => {
+            If(instanceIndex.greaterThan(curveEnds.element(i)), () => {
+              Break()
+            })
+            index.addAssign(1)
+          })
+          const curveI = curveIndexes.element(index)
           const curveProgress = float(curveI).add(0.5).div(dimensionsU.y)
-          const t = instanceIndex
-            .toFloat()
-            .mod(arcLength)
-            .div(arcLength)
-            .toVar()
-          const controlPointsCount = controlPointCounts.element(i)
+          const t = select(
+            index.equal(0),
+            instanceIndex.toFloat().div(curveEnds.element(index).toFloat()),
+            instanceIndex.toFloat().sub(
+              curveEnds
+                .element(index.sub(1))
+                .toFloat()
+                .div(
+                  curveEnds
+                    .element(index)
+                    .sub(curveEnds.element(index.sub(1)))
+                    .toFloat()
+                )
+            )
+          )
+          // const t = float(0)
+          const controlPointsCount = controlPointCounts.element(index)
 
           let point = {
             position: vec2(0, 0).toVar(),
@@ -343,7 +359,7 @@ export default function Brush({
           scale={[...group.transform.scale.toArray(), 1]}
           rotation={[0, 0, group.transform.rotate]}
           key={i + now()}
-          count={arcLength * group.controlPointCounts.length}
+          count={group.totalCurveLength}
           material={materials[i]}>
           <planeGeometry args={lastData.settings.defaults.size} />
         </instancedMesh>

@@ -8,12 +8,12 @@ export default function SimpleTest() {
       <Brush
         key={now()}
         render={
-          // b => b.text('e')
-          b =>
-            b
-              .newGroup()
-              .newCurve([0.2, 0.2], [0.8, 0.8])
-              .newCurve([1, 0], [0, 1])
+          b => b.text('efghijk')
+          // b =>
+          //   b
+          //     .newGroup()
+          //     .newCurve([0.2, 0.2], [0.8, 0.8])
+          //     .newCurve([1, 0], [0, 1])
         }
       />
     </Asemic>

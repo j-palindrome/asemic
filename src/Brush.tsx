@@ -227,14 +227,15 @@ export default function Brush({
         }
 
         const main = Fn(() => {
-          const curveI = curveIndexes.element(instanceIndex.div(arcLength))
-          const curveProgress = float(curveI).div(group.curveIndexes.length)
-          const pointProgress = instanceIndex
+          const i = instanceIndex.div(arcLength)
+          const curveI = curveIndexes.element(i)
+          const curveProgress = float(curveI).add(0.5).div(dimensionsU.y)
+          const t = instanceIndex
             .toFloat()
             .mod(arcLength)
             .div(arcLength)
             .toVar()
-          const controlPointsCount = controlPointCounts.element(curveI)
+          const controlPointsCount = controlPointCounts.element(i)
 
           let point = {
             position: vec2(0, 0).toVar(),
@@ -250,17 +251,17 @@ export default function Brush({
                 keyframesTex,
                 vec2(float(1).div(dimensionsU.x), curveProgress)
               ).xy
-              const progressPoint = mix(p0, p1, pointProgress)
+              const progressPoint = mix(p0, p1, t)
               point.position.assign(progressPoint)
               point.rotation.assign(atan2(progressPoint.y, progressPoint.x))
             }).Else(() => {
-              const pointCurveProgress = multiBezierProgress({
-                t: pointProgress,
+              const pointProgress = multiBezierProgress({
+                t,
                 controlPointsCount
               })
               const getTex = Fn(({ i }: { i: number }) => {
                 const textureVec = vec2(
-                  pointCurveProgress.x.add(i).add(0.5).div(dimensionsU.x),
+                  pointProgress.x.add(i).add(0.5).div(dimensionsU.x),
                   curveProgress
                 )
                 const samp = texture(keyframesTex, textureVec)
@@ -271,17 +272,17 @@ export default function Brush({
               const p2 = getTex({ i: 2 }).xy.toVar()
               let strength = float(0)
 
-              If(pointCurveProgress.x.greaterThan(float(0)), () => {
+              If(pointProgress.x.greaterThan(float(0)), () => {
                 p0.assign(mix(p0, p1, float(0.5)))
               })
               If(
-                pointCurveProgress.x.lessThan(float(controlPointsCount).sub(3)),
+                pointProgress.x.lessThan(float(controlPointsCount).sub(3)),
                 () => {
                   p2.assign(mix(p1, p2, 0.5))
                 }
               )
               const thisPoint = bezierPoint({
-                t: pointCurveProgress.y,
+                t: pointProgress.y,
                 p0,
                 p1,
                 p2,

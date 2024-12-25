@@ -28,6 +28,7 @@ import {
   positionLocal,
   pow,
   range,
+  Return,
   select,
   ShaderNodeObject,
   sin,
@@ -66,7 +67,6 @@ export default function Brush({
   render: ConstructorParameters<typeof Builder>[0]
 }) {
   const keyframes = new Builder(render)
-  console.log(keyframes)
 
   useEventListener(
     'resize',
@@ -158,7 +158,7 @@ export default function Brush({
     return () => window.clearTimeout(timeout)
   }, [])
 
-  const size = 1
+  const size = 5
   const materials = useMemo(
     () =>
       groups.map(group => {
@@ -181,7 +181,7 @@ export default function Brush({
           'int'
         )
         const curveIndexes = uniformArray(group.curveIndexes as any, 'int')
-        const dimensions = uniform(vec2(0, 0))
+        const dimensionsU = uniform(dimensions, 'vec2')
 
         // Define the Bezier functions
         const bezier2 = ({ t, p0, p1, p2 }) => {
@@ -217,12 +217,10 @@ export default function Brush({
         }
 
         const multiBezierProgress = ({ t, controlPointsCount }) => {
-          const segment = float(1)
-            .div(float(controlPointsCount).sub(float(1)))
-            .toVar()
-          const index = t.div(segment).floor()
-          const localT = t.sub(index.mul(segment)).div(segment)
-          return { x: index, y: localT }
+          const subdivisions = float(controlPointsCount).sub(2)
+          const start = t.mul(subdivisions).toInt()
+          const cycle = t.mul(subdivisions).fract()
+          return vec2(start, cycle)
         }
 
         // const modifyPosition = Fn(
@@ -248,7 +246,7 @@ export default function Brush({
           })
 
           const curveProgress = float(curveIndexes.element(curveIndex)).div(
-            dimensions.y
+            dimensionsU.y
           )
           const controlPointsCount = controlPointCounts.element(curveIndex)
 
@@ -273,27 +271,30 @@ export default function Brush({
             position: vec2(0, 0).toVar(),
             rotation: float(0).toVar()
           }
-          If(controlPointsCount.equal(int(2)), () => {
-            const p0 = texture(keyframesTex, vec2(0, curveProgress)).xy
-            const p1 = texture(
-              keyframesTex,
-              vec2(float(1).div(dimensions.x), curveProgress)
-            ).xy
-            const progressPoint = mix(p0, p1, pointProgress)
-            point.position.assign(progressPoint)
-            point.rotation.assign(atan2(progressPoint.y, progressPoint.x))
+          const pointCurveProgress = multiBezierProgress({
+            t: pointProgress,
+            controlPointsCount
+          })
+          If(false, () => {
+            point.position.assign(vec2(0, 0))
           }).Else(() => {
-            const pointCurveProgress = multiBezierProgress({
-              t: pointProgress,
-              controlPointsCount
-            })
+            // If(controlPointsCount.equal(int(2)), () => {
+            //   const p0 = texture(keyframesTex, vec2(0, curveProgress)).xy
+            //   const p1 = texture(
+            //     keyframesTex,
+            //     vec2(float(1).div(dimensionsU.x), curveProgress)
+            //   ).xy
+            //   const progressPoint = mix(p0, p1, pointProgress)
+            //   point.position.assign(progressPoint)
+            //   point.rotation.assign(atan2(progressPoint.y, progressPoint.x))
+            // }).Else(() => {
 
             const getTex = Fn(({ i }: { i: number }) => {
               const textureVec = vec2(
-                pointCurveProgress.x.add(float(i)).div(dimensions.x),
+                pointCurveProgress.x.add(i).div(dimensionsU.x),
                 curveProgress
               )
-              const samp = texture(keyframesTex, textureVec).toVar()
+              const samp = texture(keyframesTex, textureVec)
               return samp
             })
             const p0 = getTex({ i: 0 }).toVar()
@@ -320,11 +321,17 @@ export default function Brush({
             })
             point.position.assign(thisPoint.position)
             point.rotation.assign(thisPoint.rotation)
+            // })
           })
-
           return vec4(point.position, 0, 1)
         })
 
+        material.colorNode = vec4(
+          instanceIndex.div(group.totalCurveLength),
+          instanceIndex.div(group.totalCurveLength),
+          1,
+          1
+        )
         material.positionNode = main()
         return material
       }),
@@ -363,7 +370,7 @@ export default function Brush({
           scale={[...group.transform.scale.toArray(), 1]}
           rotation={[0, 0, group.transform.rotate]}
           key={i + now()}
-          args={[undefined, undefined, maxCurveLength]}
+          args={[undefined, undefined, group.totalCurveLength]}
           material={materials[i]}>
           <planeGeometry args={lastData.settings.defaults.size} />
         </instancedMesh>

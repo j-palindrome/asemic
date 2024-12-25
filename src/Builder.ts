@@ -259,12 +259,7 @@ export default class Builder {
     this.keyframe.groups = this.keyframe.groups
       .map(x => ({
         ...x,
-        curves: x.curves
-          .filter(x => x.length)
-          .map(x => {
-            if (x.length == 2) this.interpolateCurve(x, 3)
-            return x
-          })
+        curves: x.curves.filter(x => x.length)
       }))
       .filter(x => x.curves.length)
     const hypotenuse = resolution.length()
@@ -298,6 +293,7 @@ export default class Builder {
         controlPointCounts[i] = curve.length
         curveIndex++
       })
+
       return {
         transform: this.keyframe.groups[groupIndex].transform,
         curveEnds,

@@ -1,11 +1,53 @@
 import { isEqual, now } from 'lodash'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Vector2 } from 'three'
 import { rotate2d } from '../../util/src/shaders/manipulation'
 import { useEventListener } from '../util/src/dom'
 import { bezierPoint, multiBezierProgress } from '../util/src/shaders/bezier'
 import Builder from './Builder'
+import _ from 'lodash'
+import {
+  atan,
+  atan2,
+  Break,
+  cameraProjectionMatrix,
+  cos,
+  float,
+  Fn,
+  hash,
+  If,
+  instanceIndex,
+  int,
+  Loop,
+  mix,
+  modelViewMatrix,
+  mul,
+  mx_noise_float,
+  mx_worley_noise_vec2,
+  pow,
+  range,
+  select,
+  ShaderNodeObject,
+  sin,
+  texture,
+  textureStore,
+  time,
+  uniform,
+  uniformArray,
+  uv,
+  uvec2,
+  vec2,
+  vec3,
+  vec4,
+  wgslFn
+} from 'three/tsl'
+import {
+  SpriteNodeMaterial,
+  StorageTexture,
+  VarNode,
+  WebGPURenderer
+} from 'three/webgpu'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -115,6 +157,226 @@ export default function Brush({
     return () => window.clearTimeout(timeout)
   }, [])
 
+  const size = 1
+  const materials = useMemo(() => {
+    groups.map(group => {
+      const material = new SpriteNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      })
+
+      material.scaleNode = uniform(
+        (1 / window.innerWidth / devicePixelRatio) * size
+      )
+
+      const curveEnds = uniformArray(group.curveEnds, 'int')
+      const controlPointCounts = uniformArray(group.controlPointCounts, 'int')
+      const curveIndexes = uniformArray(group.curveIndexes, 'int')
+      const dimensions = uniform(vec2(0, 0))
+
+      // Define the Bezier functions
+      const bezier2 = ({ t, p0, p1, p2 }) => {
+        const u = float(1).sub(t)
+        const tt = t.mul(t)
+        const uu = u.mul(u)
+        return p0
+          .mul(uu)
+          .add(p1.mul(u.mul(t).mul(float(2))))
+          .add(p2.mul(tt))
+      }
+
+      const bezier2Tangent = ({ t, p0, p1, p2 }) => {
+        const u = float(1).sub(t)
+        return p1
+          .sub(p0)
+          .mul(float(2).mul(u))
+          .add(p2.sub(p1).mul(float(2).mul(t)))
+      }
+
+      const polyLine = ({ t, p0, p1, p2 }) => {
+        const u = float(1).sub(t)
+        return p0.mul(u).add(p2.mul(t))
+      }
+
+      // Function to calculate a point on a Bezier curve
+      const bezierPoint = ({ t, p0, p1, p2, strength, aspectRatio }) => {
+        const positionCurve = bezier2({ t, p0, p1, p2 })
+        const positionStraight = polyLine({ t, p0, p1, p2 })
+        const position = mix(
+          positionCurve,
+          positionStraight,
+          pow(strength, float(2))
+        )
+        const tangent = bezier2Tangent({ t, p0, p1, p2 }).mul(aspectRatio)
+        const rotation = atan2(tangent.y, tangent.x)
+        return { position, rotation }
+      }
+
+      const multiBezierProgress = ({
+        t,
+        controlPointsCount
+      }: {
+        t: ReturnType<typeof float>
+        controlPointsCount: ReturnType<typeof int>
+      }) => {
+        const segment = float(1).div(float(controlPointsCount).sub(float(1)))
+        const index = t.div(segment).floor()
+        const localT = t.sub(index.mul(segment)).div(segment)
+        return { x: index, y: localT }
+      }
+
+      // const modifyPosition = Fn(
+      //   ({ position, progress, pointProgress, curveProgress }) => {
+      //     // Add your custom modifications here
+      //     return position
+      //   }
+      // )
+
+      const main = Fn(() => {
+        const id = instanceIndex
+        let curveIndex = int(0)
+        Loop(curveEnds.length, ({ i }) => {
+          If(id.greaterThan(curveEnds.element(curveIndex)), () => {
+            If(curveIndex.greaterThanEqual(curveEnds.length()), () => {
+              Break()
+            })
+            curveIndex.addAssign(int(1))
+          })
+        })
+
+        const curveProgress = float(curveIndexes.element(curveIndex)).div(
+          dimensions.y
+        )
+        const controlPointsCount = controlPointCounts.element(curveIndex)
+
+        let pointProgress = float(0).toVar()
+        If(curveIndex.greaterThan(int(0)), () => {
+          pointProgress.assign(
+            float(id.sub(curveEnds.element(curveIndex.sub(int(1))))).div(
+              float(
+                curveEnds
+                  .element(curveIndex)
+                  .sub(curveEnds.element(curveIndex.sub(int(1))))
+              )
+            )
+          )
+        }).Else(() => {
+          pointProgress.assign(
+            float(id).div(float(curveEnds.element(curveIndex)))
+          )
+        })
+
+        let point = { position: vec2(0, 0), rotation: float(0) }
+        let thickness = float(0)
+        let color = vec4(0, 0, 0, 0)
+        If(controlPointsCount.equal(int(2)), () => {
+          const p0 = texture(keyframesTex, vec2(0, curveProgress)).xy
+          const p1 = texture(
+            keyframesTex,
+            vec2(float(1).div(dimensions.x), curveProgress)
+          ).xy
+          const progressPoint = mix(p0, p1, pointProgress)
+          point = {
+            position: progressPoint,
+            rotation: atan2(progressPoint.y, progressPoint.x)
+          }
+          const t0 = texture(thicknessTex, vec2(0, curveProgress)).x
+          const t1 = texture(
+            thicknessTex,
+            vec2(float(1).div(dimensions.x), curveProgress)
+          ).x
+          thickness = mix(t0, t1, pointProgress)
+          const c0 = texture(colorTex, vec2(0, curveProgress))
+          const c1 = texture(
+            colorTex,
+            vec2(float(1).div(dimensions.x), curveProgress)
+          )
+          color = mix(c0, c1, pointProgress)
+        }).Else(() => {
+          const pointCurveProgress = multiBezierProgress({
+            t: pointProgress,
+            controlPointsCount
+          })
+          const points = [vec2(0, 0), vec2(0, 0), vec2(0, 0)]
+          // const colors = [vec4(0, 0, 0, 0), vec4(0, 0, 0, 0), vec4(0, 0, 0, 0)]
+          let strength = float(0)
+
+          Loop(3, ({ pointI }) => {
+            const textureVec = vec2(
+              pointCurveProgress.x.add(float(pointI)).div(dimensions.x),
+              curveProgress
+            )
+            const samp = texture(keyframesTex, textureVec)
+            If(pointI.equal(int(1)), () => {
+              strength = samp.z
+              thickness = texture(thicknessTex, textureVec).x
+            })
+            points[pointI] = samp.xy
+            // colors[pointI] = texture(colorTex, textureVec)
+          })
+
+          If(pointCurveProgress.x.greaterThan(float(0)), () => {
+            points[0] = mix(points[0], points[1], float(0.5))
+          })
+          If(
+            pointCurveProgress.x.lessThan(
+              float(controlPointsCount).sub(float(3))
+            ),
+            () => {
+              points[2] = mix(points[1], points[2], float(0.5))
+            }
+          )
+          point = bezierPoint({
+            t: pointCurveProgress.y,
+            p0: points[0],
+            p1: points[1],
+            p2: points[2],
+            strength,
+            scale: vec2(1, 1)
+          })
+          // color = mix(colors[0], colors[1], colors[2])
+        })
+
+        return cameraProjectionMatrix.mul(modelViewMatrix).mul(
+          vec4(
+            point.position,
+            // modifyPosition({
+            //   position: point.position,
+            //   progress,
+            //   pointProgress,
+            //   curveProgress
+            // })
+            0,
+            1
+          )
+        )
+      })
+
+      material.positionNode = main()
+    })
+  }, [])
+
+  // const resolution = uniform(vec2(0, 0))
+  // const scaleCorrection = uniform(vec2(0, 0))
+  // const progress = uniform(float(0))
+  // const aspectRatio = vec2(1, resolution.y.div(resolution.x))
+  // const pixel = vec2(1).div(resolution)
+  // const rotate2d = Fn(({ v, angle }) => {
+  //   const c = cos(angle)
+  //   const s = sin(angle)
+  //   return vec2(v.x.mul(c).sub(v.y.mul(s)), v.x.mul(s).add(v.y.mul(c)))
+  // })
+  // ROTATION
+  // .add(
+  //   rotate2d({
+  //     v: position.xy.mul(pixel).mul(vec2(thickness)),
+  //     angle: point.rotation.add(float(1.5707))
+  //   })
+  // )
+  // .div(aspectRatio)
+  // .div(scaleCorrection)
+
   return (
     <group
       ref={meshRef}
@@ -127,7 +389,8 @@ export default function Brush({
           scale={[...group.transform.scale.toArray(), 1]}
           rotation={[0, 0, group.transform.rotate]}
           key={i + now()}
-          args={[undefined, undefined, maxCurveLength]}>
+          args={[undefined, undefined, maxCurveLength]}
+          material={materials[i]}>
           <planeGeometry args={lastData.settings.defaults.size} />
           <shaderMaterial
             transparent

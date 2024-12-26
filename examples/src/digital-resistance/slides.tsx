@@ -233,7 +233,7 @@ via digital remix`,
     asemic: [
       b =>
         b
-          .setWarp({
+          .set({
             rotate: 0.25,
             translate: [1, 0]
           })

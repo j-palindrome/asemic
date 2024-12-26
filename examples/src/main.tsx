@@ -7,6 +7,6 @@ import SimpleTest from './SimpleTest'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <DigiRis />
+    <SimpleTest />
   </StrictMode>
 )

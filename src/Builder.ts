@@ -763,7 +763,7 @@ ${g.curves
 
   text(str: string, warp?: CoordinateData) {
     let lineCount = 0
-    if (warp) this.setWarp(warp)
+    if (warp) this.setting(warp)
     for (let letter of str) {
       let pickedLetter = letter
       if (this.letters[letter]) {
@@ -1067,7 +1067,7 @@ ${g.curves
     return this
   }
 
-  setWarp(
+  setting(
     frame: PreTransformData & Partial<CoordinateSettings>,
     target?: TargetInfo
   ) {
@@ -1194,7 +1194,7 @@ ${g.curves
       matchString(/ (?:t|thickness):([\-\d\.\/~]+)/, parsed)
     )
 
-    this.setWarp({ translate, scale, rotate, thickness }, -1)
+    this.setting({ translate, scale, rotate, thickness }, -1)
 
     const groupTranslate = parseCoordinateList(
       matchString(/ \+\[([\-\d\.\/ ]+)\]/, parsed)

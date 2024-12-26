@@ -30,7 +30,7 @@ export default function DigiRis() {
 
   const defaultFunc = (b: Builder) =>
     // @ts-ignore
-    b.setWarp({ thickness: 2, color: new Color('pink') })
+    b.set({ thickness: 2, color: new Color('pink') })
 
   // useEffect(() => {
   //   const hydra = hydraRef.current.synth

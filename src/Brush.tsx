@@ -41,6 +41,7 @@ import {
   uv,
   uvec2,
   varying,
+  varyingProperty,
   vec2,
   vec3,
   vec4,
@@ -160,7 +161,6 @@ export default function Brush({
   //   return () => window.clearTimeout(timeout)
   // }, [])
 
-  const size = lastData.settings.thickness
   const arcLength = 1000 / lastData.settings.spacing
   const materials = useMemo(
     () =>
@@ -172,11 +172,6 @@ export default function Brush({
         })
 
         const aspectRatio = screenSize.div(screenSize.x).toVar('screenSize')
-        material.scaleNode = float(
-          (1.414 / resolution.length() / devicePixelRatio) *
-            size *
-            (1.414 / group.transform.scale.length())
-        )
 
         const curveEnds = uniformArray(group.curveEnds as any, 'int')
         const controlPointCounts = uniformArray(
@@ -227,7 +222,8 @@ export default function Brush({
           return vec2(start, cycle)
         }
 
-        const rotation = varying(float(0), 'rotation').toVar()
+        const rotation = float(0).toVar('rotation')
+        const thickness = float(10).toVar('thickness')
         const main = Fn(() => {
           const i = instanceIndex.div(arcLength)
           const curveI = curveIndexes.element(i)
@@ -253,23 +249,42 @@ export default function Brush({
             const progressPoint = mix(p0, p1, t)
             point.position.assign(progressPoint)
             point.rotation.assign(atan(p1.sub(p0)))
+            const textureVector = vec2(
+              t.add(0.5).div(dimensionsU.x),
+              curveProgress
+            )
+            varyingProperty('vec4', 'colorV').assign(
+              texture(colorTex, textureVector)
+            )
+            thickness.assign(texture(thicknessTex, textureVector))
           }).Else(() => {
             const pointProgress = multiBezierProgress({
               t,
               controlPointsCount
             })
-            const getTex = Fn(({ i }: { i: number }) => {
-              const textureVec = vec2(
-                pointProgress.x.add(i).add(0.5).div(dimensionsU.x),
+            const t0 = vec2(
+                pointProgress.x.add(0).add(0.5).div(dimensionsU.x),
+                curveProgress
+              ),
+              t1 = vec2(
+                pointProgress.x.add(1).add(0.5).div(dimensionsU.x),
+                curveProgress
+              ),
+              t2 = vec2(
+                pointProgress.x.add(2).add(0.5).div(dimensionsU.x),
+                curveProgress
+              ),
+              tt = vec2(
+                t.mul(controlPointsCount.sub(1)).add(0.5).div(dimensionsU.x),
                 curveProgress
               )
-              const samp = texture(keyframesTex, textureVec)
-              return samp
-            })
-            const p0 = getTex({ i: 0 }).xy.toVar()
-            const p1 = getTex({ i: 1 }).xy.toVar()
-            const p2 = getTex({ i: 2 }).xy.toVar()
+            const p0 = texture(keyframesTex, t0).xy.toVar('p0')
+            const p1 = texture(keyframesTex, t1).xy.toVar('p1')
+            const p2 = texture(keyframesTex, t2).xy.toVar('p2')
             let strength = float(p1.z)
+
+            varyingProperty('vec4', 'colorV').assign(texture(colorTex, tt))
+            thickness.assign(texture(thicknessTex, tt))
 
             If(pointProgress.x.greaterThan(float(0)), () => {
               p0.assign(mix(p0, p1, float(0.5)))
@@ -298,15 +313,13 @@ export default function Brush({
 
         material.positionNode = main()
         material.rotationNode = rotation
+        material.scaleNode = thickness.mul(
+          (1.414 / resolution.length() / devicePixelRatio) *
+            (1.414 / group.transform.scale.length())
+        )
 
-        material.colorNode = Fn(() => {
-          return vec4(
-            instanceIndex.toFloat().div(group.totalCurveLength),
-            1,
-            1,
-            1
-          )
-        })()
+        const vDirection = varying(vec4(), 'colorV')
+        material.colorNode = vDirection
 
         return material
       }),

@@ -7,7 +7,9 @@ import {
   CurvePath,
   DataTexture,
   FloatType,
+  LinearFilter,
   LineCurve,
+  MagnificationTextureFilter,
   NearestFilter,
   QuadraticBezierCurve,
   RedFormat,
@@ -246,15 +248,6 @@ export default class Builder {
     return vector
   }
 
-  protected colorToArray(
-    color: CoordinateData['color']
-  ): [number, number, number] {
-    if (color instanceof Array) return color as [number, number, number]
-    else if (color instanceof Color)
-      return color.toArray() as [number, number, number]
-    else return [1, 1, 1]
-  }
-
   protected packToTexture(resolution: Vector2) {
     this.keyframe.groups = this.keyframe.groups
       .map(x => ({
@@ -303,11 +296,15 @@ export default class Builder {
       }
     })
 
-    const createTexture = (array: Float32Array, format: AnyPixelFormat) => {
+    const createTexture = (
+      array: Float32Array,
+      format: AnyPixelFormat,
+      filter: MagnificationTextureFilter = NearestFilter
+    ) => {
       const tex = new DataTexture(array, width, height)
       tex.format = format
       tex.type = FloatType
-      tex.minFilter = tex.magFilter = NearestFilter
+      tex.minFilter = tex.magFilter = filter
       tex.wrapS = tex.wrapT = ClampToEdgeWrapping
       tex.needsUpdate = true
       return tex
@@ -334,10 +331,9 @@ export default class Builder {
           group.curves.flatMap(c =>
             range(width).flatMap(i => {
               const point = c[i]
-
               return point
                 ? [
-                    ...this.colorToArray(point.color ?? this.settings.color),
+                    ...(point.color ?? this.settings.color),
                     point.alpha ?? this.settings.alpha
                   ]
                 : [0, 0, 0, 0]
@@ -345,7 +341,8 @@ export default class Builder {
           )
         )
       ),
-      RGBAFormat
+      RGBAFormat,
+      LinearFilter
     )
 
     const thicknessTex = createTexture(
@@ -359,7 +356,8 @@ export default class Builder {
           )
         )
       ),
-      RedFormat
+      RedFormat,
+      LinearFilter
     )
 
     const curveCounts = groups.map(x => x.curveIndexes.length)

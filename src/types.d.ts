@@ -23,7 +23,7 @@ declare global {
   type CoordinateSettings = {
     strength: number
     thickness: number
-    color: [number, number, number] | Color
+    color: [number, number, number]
     alpha: number
   }
 

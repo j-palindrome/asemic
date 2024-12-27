@@ -21,10 +21,21 @@ export default function SimpleTest() {
           //             )
           b =>
             b
-              .setting({ thickness: 10, spacing: 20 })
+              .setting({
+                thickness: 1,
+                color: [1, 1, 1],
+                alpha: 0.05
+              })
               .newGroup()
-              .newCurve([0.2, 0.2], [0.8, 0.8])
-              .newCurve([1, 0], [0, 1])
+              .newCurve(
+                [0.2, 0.2, { color: [0, 1, 0] }],
+                [0.8, 0.8, { color: [1, 0, 1], thickness: 50 }]
+              )
+              .newCurve(
+                [1, 0, { thickness: 10 }],
+                [0.5, 0.5, { thickness: 1 }],
+                [0, 1, { thickness: 30 }]
+              )
         }
       />
     </Asemic>

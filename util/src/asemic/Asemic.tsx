@@ -1,9 +1,7 @@
-import { lerp } from '../util/src/math'
 import { last, max, min, range, sum } from 'lodash'
 import {
   AnyPixelFormat,
   ClampToEdgeWrapping,
-  Color,
   CurvePath,
   DataTexture,
   FloatType,
@@ -17,12 +15,10 @@ import {
   Vector2
 } from 'three'
 import invariant from 'tiny-invariant'
+import { lerp } from '../math'
 import { Jitter } from './Brush'
 import { PointBuilder } from './PointBuilder'
 
-const letters = 'abcdefghijklmnopqrstuvyxyz'.split('')
-const twoLines = 'abdfhjpqrtxy'.split('')
-const oneLine = 'clnos'.split('')
 const SHAPES: Record<string, Coordinate[]> = {
   circle: [
     [1, 0],
@@ -38,9 +34,6 @@ const SHAPES: Record<string, Coordinate[]> = {
     [1, 0]
   ]
 }
-
-const v1 = new Vector2(),
-  v2 = new Vector2()
 
 type TargetInfo = [number, number] | number
 export default class Builder {
@@ -384,26 +377,7 @@ export default class Builder {
       t: (progress * (transforms.length - 1)) % 1
     }
 
-    const curveInterpolate = <T extends Vector2 | number>(
-      groups: T[]
-      // { isStart, isEnd }: { isStart: boolean; isEnd: boolean }
-    ) => {
-      // if (groups[0] instanceof Vector2) {
-      //   invariant(groups[1] instanceof Vector2 && groups[2] instanceof Vector2)
-      //   curveCache.v0.copy(groups[0])
-      //   curveCache.v1.copy(groups[1])
-      //   curveCache.v2.copy(groups[2])
-      //   if (!isStart) curveCache.v0.lerp(curveCache.v1, 0.5)
-      //   if (!isEnd) curveCache.v2.lerp(curveCache.v1, 0.5)
-      //   return curveCache.getPoint(t)
-      // } else if (typeof groups[0] === 'number') {
-      //   curveCache.v0.set(0, groups[0])
-      //   curveCache.v1.set(0, groups[1] as number)
-      //   curveCache.v2.set(0, groups[2] as number)
-      //   if (!isStart) curveCache.v0.lerp(curveCache.v1, 0.5)
-      //   if (!isEnd) curveCache.v2.lerp(curveCache.v1, 0.5)
-      //   return curveCache.getPoint(t).y
-      // }
+    const curveInterpolate = <T extends Vector2 | number>(groups: T[]) => {
       if (groups[0] instanceof Vector2) {
         invariant(groups[1] instanceof Vector2)
         return groups[0].clone().lerp(groups[1], t)
@@ -413,21 +387,7 @@ export default class Builder {
       }
     }
 
-    // const { t, start } = multiBezierProgressJS(
-    //   progress,
-    //   loop ? this.keyframes.length + 2 : this.keyframes.length
-    // )
-
     const makeBezier = <T extends keyof TransformData>(key: T) => {
-      // const groups = range(3).map(
-      //   i => transforms[(start + i) % transforms.length][key]
-      // )
-
-      // return curveInterpolate(groups, t, {
-      //   isStart: !loop && t === 0,
-      //   isEnd: !loop && t === this.keyframes.length - 3
-      // })
-
       const groups = range(2).map(
         i => transforms[(start + i) % transforms.length][key]
       )
@@ -755,19 +715,17 @@ ${g.curves
     )
   }
 
-  private letter(type: keyof Builder['letters']) {
-    return this.letters[type]()
-  }
-
   text(str: string, warp?: CoordinateData) {
     let lineCount = 0
     if (warp) this.setting(warp)
     for (let letter of str) {
       let pickedLetter = letter
       if (this.letters[letter]) {
-        this.transform({ translate: [0.1, 0], push: true })
-          .newGroup()
-          .letter(pickedLetter)
+        this.setTransform({
+          scale: [window.innerHeight / window.innerWidth, 1]
+        })
+        this.transform({ translate: [0.1, 0], push: true }).newGroup()
+        this.letters[letter]()
       } else if (letter === '\n') {
         lineCount++
 
@@ -791,6 +749,15 @@ ${g.curves
       },
       [0, -1]
     )
+    return this
+  }
+
+  setTransform(transform: CoordinateData) {
+    const transformed = this.toTransform(transform)
+    if (transform.scale) this.transformData.scale = transformed.scale
+    if (transform.rotate) this.transformData.rotate = transformed.rotate
+    if (transform.translate)
+      this.transformData.translate = transformed.translate
     return this
   }
 
@@ -1057,7 +1024,7 @@ ${g.curves
       ).transform({ translate: [0.5, 0], reset: 'last' })
   }
 
-  eval(func: (g: this, progress: number) => void, runCount = 1) {
+  repeat(func: (g: this, progress: number) => void, runCount = 1) {
     for (let i = 0; i < runCount; i++) {
       func(this, i)
     }

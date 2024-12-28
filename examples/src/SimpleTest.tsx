@@ -1,7 +1,6 @@
 import { now } from 'three/examples/jsm/libs/tween.module.js'
-import Asemic from '../../src/Asemic'
-import Brush from '../../src/Brush'
-import { thickness } from 'three/tsl'
+import Asemic from '../../util/src/asemic/Asemic'
+import Brush from '../../util/src/asemic/Brush'
 
 export default function SimpleTest() {
   return (
@@ -22,20 +21,13 @@ export default function SimpleTest() {
           b =>
             b
               .setting({
-                thickness: 1,
+                thickness: 10,
                 color: [1, 1, 1],
-                alpha: 0.05
+                alpha: 1,
+                spacing: 100,
+                translate: [0, 0.5]
               })
-              .newGroup()
-              .newCurve(
-                [0.2, 0.2, { color: [0, 1, 0] }],
-                [0.8, 0.8, { color: [1, 0, 1], thickness: 50 }]
-              )
-              .newCurve(
-                [1, 0, { thickness: 10 }],
-                [0.5, 0.5, { thickness: 1 }],
-                [0, 1, { thickness: 30 }]
-              )
+              .text('trying')
         }
       />
     </Asemic>

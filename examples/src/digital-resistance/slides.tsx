@@ -1,4 +1,4 @@
-import Builder from '../../../src/Builder'
+import Builder from '../../../util/src/asemic/Builder'
 
 export const slides: {
   asemic?: ((b: Builder) => Builder)[]
@@ -24,7 +24,7 @@ export const slides: {
           rotate: -0.25
         }),
       b =>
-        b.eval(
+        b.repeat(
           b =>
             b
               .newGroup({
@@ -50,7 +50,7 @@ export const slides: {
           rotate: 0.25
         }),
       b =>
-        b.transform({ translate: [0, 1], scale: [1, -1], push: true }).eval(
+        b.transform({ translate: [0, 1], scale: [1, -1], push: true }).repeat(
           b =>
             b
               .newGroup({
@@ -87,7 +87,10 @@ export const slides: {
             translate: [0.15, 0.15]
           })
           .newCurve()
-          .eval(b => b.newPoints(b.getRandomWithin([0.5, 0.5], [0.5, 0.5])), 30)
+          .repeat(
+            b => b.newPoints(b.getRandomWithin([0.5, 0.5], [0.5, 0.5])),
+            30
+          )
           .set({ strength: 1 })
     ]
   },
@@ -110,7 +113,7 @@ export const slides: {
       b =>
         b
           .transform({ translate: [0.5, 0.5] })
-          .eval(
+          .repeat(
             () =>
               b
                 .newGroup({ scale: b.getRandomWithin(0.8, 0.1) })
@@ -133,7 +136,7 @@ export const slides: {
         }),
       b => b.text('transparency', { translate: [0, 0.5] }),
       b =>
-        b.eval(
+        b.repeat(
           () =>
             b
               .newGroup({ translate: [0, 0.05 * Math.random()] })
@@ -168,7 +171,7 @@ signals
           { translate: [0.1, 0.8], scale: 0.9 }
         ),
       b =>
-        b.eval(
+        b.repeat(
           () =>
             b
               .newGroup()
@@ -193,7 +196,7 @@ signals
     // was not enough.”
     asemic: [
       b =>
-        b.eval(
+        b.repeat(
           () =>
             b
               .newGroup()
@@ -237,7 +240,7 @@ via digital remix`,
             rotate: 0.25,
             translate: [1, 0]
           })
-          .eval(
+          .repeat(
             () =>
               b
                 .newGroup()
@@ -274,7 +277,7 @@ early cyberfeminists`,
   {
     asemic: [
       b =>
-        b.eval(
+        b.repeat(
           b =>
             b
               .newGroup({ reset: true })
@@ -322,7 +325,7 @@ so that more than a certain count
           { translate: [0.2, 0.9], scale: 0.8 }
         ),
       b =>
-        b.eval(
+        b.repeat(
           b =>
             b
               .newGroup({ reset: true, translate: [0, Math.random()] })
@@ -334,7 +337,7 @@ so that more than a certain count
   {
     asemic: [
       b =>
-        b.eval(
+        b.repeat(
           () =>
             b
               .newGroup({

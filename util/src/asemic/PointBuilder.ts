@@ -1,7 +1,4 @@
 import { Vector2 } from 'three'
-import Builder from './Builder'
-const vector = new Vector2()
-const vector2 = new Vector2()
 
 export class PointBuilder extends Vector2 {
   strength?: CoordinateSettings['strength']

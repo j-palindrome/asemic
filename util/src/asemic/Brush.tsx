@@ -1,58 +1,32 @@
 import { isEqual, now } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Vector2 } from 'three'
-import { rotate2d } from '../../util/src/shaders/manipulation'
-import { useEventListener } from '../util/src/dom'
-import { bezierPoint, multiBezierProgress } from '../util/src/shaders/bezier'
-import Builder from './Builder'
-import _ from 'lodash'
 import {
-  atan,
   atan2,
-  Break,
-  cameraProjectionMatrix,
   cos,
   float,
   Fn,
-  hash,
   If,
   instanceIndex,
-  int,
-  Loop,
+  mat2,
   mix,
-  modelViewMatrix,
-  mul,
-  mx_noise_float,
-  mx_worley_noise_vec2,
-  positionLocal,
+  PI2,
   pow,
-  range,
-  Return,
   screenSize,
-  select,
-  ShaderNodeObject,
   sin,
   texture,
-  textureStore,
-  time,
   uniform,
   uniformArray,
-  uv,
-  uvec2,
   varying,
   varyingProperty,
   vec2,
   vec3,
-  vec4,
-  wgslFn
+  vec4
 } from 'three/tsl'
-import {
-  SpriteNodeMaterial,
-  StorageTexture,
-  VarNode,
-  WebGPURenderer
-} from 'three/webgpu'
+import { SpriteNodeMaterial } from 'three/webgpu'
+import { useEventListener } from '../dom'
+import Builder from './Builder'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -94,7 +68,6 @@ export default function Brush({
     settings
   } = lastData
 
-  const { modifyIncludes, modifyPosition, modifyColor } = settings
   const meshRef = useRef<THREE.Group>(null!)
   const maxCurveLength = resolution.length() * 2
 
@@ -190,11 +163,41 @@ export default function Brush({
             .add(p2.mul(t.pow(2)))
         }
 
-        const bezier2Tangent = ({ t, p0, p1, p2 }) => {
-          return p1
-            .sub(p0)
-            .mul(float(2).mul(t.oneMinus()))
-            .add(p2.sub(p1).mul(float(2).mul(t)))
+        const rotate2d = (
+          v: ReturnType<typeof vec2>,
+          a: number | ReturnType<typeof float>
+        ) => {
+          const s = sin(PI2.mul(a))
+          const c = cos(PI2.mul(a))
+          const m = mat2(c, s.mul(-1), s, c)
+          return m.mul(v)
+        }
+
+        const lineTangent = (
+          p0: ReturnType<typeof vec2>,
+          p1: ReturnType<typeof vec2>
+        ) => {
+          return rotate2d(p0.sub(p1).mul(aspectRatio), 0.25)
+        }
+
+        const bezier2Tangent = ({
+          t,
+          p0,
+          p1,
+          p2
+        }: {
+          t: ReturnType<typeof float>
+          p0: ReturnType<typeof vec2>
+          p1: ReturnType<typeof vec2>
+          p2: ReturnType<typeof vec2>
+        }) => {
+          return rotate2d(
+            p1
+              .sub(p0)
+              .mul(float(2).mul(t.oneMinus()))
+              .add(p2.sub(p1).mul(float(2).mul(t))),
+            float(0.25)
+          ).mul(aspectRatio)
         }
 
         const polyLine = ({ t, p0, p1, p2 }) => {
@@ -210,7 +213,7 @@ export default function Brush({
             positionStraight,
             pow(strength, 2)
           )
-          const tangent = bezier2Tangent({ t, p0, p1, p2 }).mul(aspectRatio)
+          const tangent = bezier2Tangent({ t, p0, p1, p2 })
           const rotation = atan2(tangent.y, tangent.x)
           return { position, rotation }
         }
@@ -248,7 +251,8 @@ export default function Brush({
             ).xy
             const progressPoint = mix(p0, p1, t)
             point.position.assign(progressPoint)
-            point.rotation.assign(atan(p1.sub(p0)))
+            const rotation = lineTangent(p0, p1)
+            point.rotation.assign(atan2(rotation.y, rotation.x))
             const textureVector = vec2(
               t.add(0.5).div(dimensionsU.x),
               curveProgress
@@ -307,16 +311,17 @@ export default function Brush({
             point.rotation.assign(thisPoint.rotation)
           })
 
-          rotation.assign(vec3(point.rotation, 0, 0)).div(aspectRatio.y)
+          rotation.assign(vec3(point.rotation, 0, 0))
           return vec4(point.position, 0, 1)
         })
 
         material.positionNode = main()
         material.rotationNode = rotation
-        material.scaleNode = thickness.mul(
-          (1.414 / resolution.length() / devicePixelRatio) *
-            (1.414 / group.transform.scale.length())
-        )
+        const pixel = float(1.414)
+          .mul(2)
+          .div(resolution.length())
+          .mul(float(1.414).div(group.transform.scale.length()))
+        material.scaleNode = vec2(thickness.mul(pixel), pixel)
 
         const vDirection = varying(vec4(), 'colorV')
         material.colorNode = vDirection

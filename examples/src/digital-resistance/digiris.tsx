@@ -4,9 +4,9 @@ import { now } from 'lodash'
 import { Color } from 'three'
 import { slides } from './slides'
 import { useEventListener } from '../../../util/src/dom'
-import Builder from '../../../src/Builder'
-import Brush from '../../../src/Brush'
-import Asemic from '../../../src/Asemic'
+import Builder from '../../../util/src/asemic/Builder'
+import Brush from '../../../util/src/asemic/Brush'
+import Asemic from '../../../util/src/asemic/Asemic'
 
 export default function DigiRis() {
   const [currentChild, setCurrentChild] = useState(0)

@@ -12,11 +12,20 @@
     "tiny-invariant": "^1.3.3"
   },
   "workspaces": [
-    "examples",
-    "util",
-    "src"
+    "examples"
   ],
   "scripts": {
     "dev": "pnpm --filter examples dev"
-  }
+  },
+  "name": "asemic",
+  "version": "1.0.0",
+  "description": "Asemic project for experimental audio-visual compositions",
+  "main": "src/index.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/j-palindrome/asemic.git"
+  },
+  "author": "jreinier",
+  "license": "MIT",
+  "homepage": "https://github.com/j-palindrome/asemic.git"
 }

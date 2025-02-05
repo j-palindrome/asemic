@@ -6,18 +6,13 @@ import {
   useFrame,
   useThree
 } from '@react-three/fiber'
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { HalfFloatType, OrthographicCamera, RenderTarget, Vector2 } from 'three'
-import { Fn, mrt, output, pass, texture, velocity } from 'three/tsl'
+import { Fn, pass, texture } from 'three/tsl'
 import { PostProcessing, QuadMesh, WebGPURenderer } from 'three/webgpu'
-import ParticlesBrush from './ParticlesBrush'
 import SceneBuilder from './Builder'
-import MeshBrush from './LineBrush'
-import DashBrush from './DashBrush'
 import { AsemicContext } from './util/asemicContext'
 import { SettingsInput, useBuilderEvents, useEvents } from './util/useEvents'
-import { traaPass } from 'three/addons/tsl/display/TRAAPassNode.js'
-import { useHeight } from './util'
 
 extend({
   QuadMesh

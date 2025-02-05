@@ -6,11 +6,11 @@ import { CurvePath, LineCurve, QuadraticBezierCurve, Vector2 } from 'three'
 import { mrt, output, pass, ShaderNodeObject, texture } from 'three/tsl'
 import { Node, PassNode, PostProcessing, TextureNode } from 'three/webgpu'
 import invariant from 'tiny-invariant'
-import { lerp } from '../math'
-import { multiBezierJS } from '../shaders/bezier'
+import { multiBezierJS } from './util/bezier'
 import { PointBuilder } from './PointBuilder'
 import { isTransformData } from './typeGuards'
 import { Settings, SettingsInput } from './util/useEvents'
+import { lerp } from 'three/src/math/MathUtils.js'
 
 export const defaultCoordinateSettings: CoordinateSettings = {
   strength: 0,
@@ -210,8 +210,8 @@ abstract class Builder {
         typeof transform.scale === 'number'
           ? new Vector2(transform.scale, transform.scale)
           : transform.scale instanceof Array
-            ? new Vector2(...transform.scale)
-            : transform.scale ?? new Vector2(1, 1),
+          ? new Vector2(...transform.scale)
+          : transform.scale ?? new Vector2(1, 1),
       rotate: this.toRad(transform.rotate ?? 0),
       translate:
         transform.translate instanceof Array

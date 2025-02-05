@@ -1,11 +1,5 @@
 import WebAudioRenderer from '@elemaudio/web-renderer'
-import {
-  Canvas,
-  extend,
-  Object3DNode,
-  useFrame,
-  useThree
-} from '@react-three/fiber'
+import { Canvas, extend, useFrame, useThree } from '@react-three/fiber'
 import { useContext, useEffect, useRef, useState } from 'react'
 import { HalfFloatType, OrthographicCamera, RenderTarget, Vector2 } from 'three'
 import { Fn, pass, texture } from 'three/tsl'
@@ -73,7 +67,7 @@ export function AsemicCanvas({
           )
         }}
         ref={canvasRef}
-        style={{ height: height ?? '100%', width: width ?? '100%', ...style }}
+        style={{ height, width, ...style }}
         frameloop={frameloop}
         className={className}
         orthographic

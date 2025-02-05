@@ -1,4 +1,4 @@
-import { extend, Object3DNode, useThree } from '@react-three/fiber'
+import { extend, useThree } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import {
@@ -45,8 +45,6 @@ export default function LineBrush<K extends Record<string, any>>({
   ...settings
 }: { params?: K } & Partial<GroupBuilder<'line', K>['settings']>) {
   const builder = new GroupBuilder('line', settings, params)
-  // @ts-ignore
-  const gl = useThree(({ gl }) => gl as WebGPURenderer)
 
   const { getBezier, instancesPerCurve } = useCurve(builder)
   const { material, geometry } = useMemo(() => {
@@ -120,13 +118,14 @@ export default function LineBrush<K extends Record<string, any>>({
         )
       )
 
+      // thickness.assign(0.1)
       position.addAssign(
         rotateUV(
           vec2(
             thickness.mul(select(vertexIndex.modInt(2).equal(0), -0.5, 0.5)),
             0
           ),
-          rotation,
+          rotation.add(PI2.mul(0.25)),
           vec2(0, 0)
         )
       )

@@ -1,8 +1,9 @@
-import { extend, Object3DNode } from '@react-three/fiber'
-import { MeshBasicNodeMaterial } from 'three/webgpu'
-import { useAsemic } from './Asemic'
-import { useHeight } from './util'
+import React, { JSX } from 'react'
+import { extend } from '@react-three/fiber'
+
 import { useEffect, useRef } from 'react'
+import { MeshBasicNodeMaterial } from 'three/webgpu'
+import { useHeight } from './util'
 
 extend({ MeshBasicNodeMaterial })
 declare module '@react-three/fiber' {

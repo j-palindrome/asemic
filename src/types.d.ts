@@ -1,12 +1,9 @@
 import { Texture, TypedArray, Vector2 } from 'three'
-import { float, mrt, varying, vec2, vec4 } from 'three/tsl'
-import { GroupBuilder } from './Builder'
-import { PointBuilder } from './PointBuilder'
 import Backend from 'three/src/renderers/common/Backend.js'
-import { StorageBufferNode } from 'three/webgpu'
-import type { ShaderNodeObject } from 'three/tsl'
+import { float, mrt, varying, vec2, vec4 } from 'three/tsl'
+import 'three/webgpu'
+import { GroupBuilder } from './Builder'
 
-const defaultFn = (input: ReturnType<typeof vec4>) => input
 declare global {
   type Coordinate = [number, number] | [number, number, CoordinateData]
 
@@ -40,7 +37,7 @@ declare global {
 
   type ParticleInfo<T extends BrushTypes> = {
     progress: ReturnType<typeof float | typeof varying>
-    builder: GroupBuilder<T>
+    builder: GroupBuilder<T, any>
   }
 
   type ProcessData<T extends BrushTypes, K extends Record<string, any>> = {
@@ -54,15 +51,21 @@ declare global {
     maxLength: number
     maxCurves: number
     maxPoints: number
-    renderTargets: ReturnTypeq<typeof mrt>
+    renderTargets: ReturnType<typeof mrt>
     adjustEnds: boolean | 'loop'
     squareAspect: boolean
-    pointPosition: (input: ReturnType<typeof vec2>, info: ParticleInfo) => input
+    pointPosition: (
+      input: ReturnType<typeof vec2>,
+      info: ParticleInfo<T>
+    ) => typeof input
     pointThickness: (
       input: ReturnType<typeof float>,
       info: ParticleInfo<T>
-    ) => input
-    pointRotate: (input: ReturnType<typeof float>, info: ParticleInfo) => input
+    ) => typeof input
+    pointRotate: (
+      input: ReturnType<typeof float>,
+      info: ParticleInfo<T>
+    ) => typeof input
     /**
      * vec4(x, y, strength, thickness), {tPoint: 0-1, tCurve: 0-1}
      */
@@ -71,21 +74,21 @@ declare global {
       info: ParticleInfo<T> & {
         lastFrame: ReturnType<typeof vec4>
       }
-    ) => input
+    ) => typeof input
     pointColor: (
       input: ReturnType<typeof vec4>,
       info: ParticleInfo<T> & { uv: ReturnType<typeof float | typeof varying> }
-    ) => input
+    ) => typeof input
     pointProgress: (
       input: ReturnType<typeof float>,
       info: ParticleInfo<T>
-    ) => input
+    ) => typeof input
     curvePosition: (
       input: ReturnType<typeof vec4>,
       info: ParticleInfo<T> & {
         lastFrame: ReturnType<typeof vec4>
       }
-    ) => input
+    ) => typeof input
     onUpdate: (builder: GroupBuilder<T, K>) => void
     onInit: (builder: GroupBuilder<T, K>) => void
   }
@@ -97,29 +100,29 @@ declare global {
         dashSize: number
       }
     : T extends 'particles'
-      ? {
-          type: 'particles'
-          initialSpread: boolean
-          speedMax: number
-          speedMin: number
-          speedDamping: number
-          particleSize: number
-          attractorPull: number
-          attractorPush: number
-          particleCount: number
-          particleVelocity: (
-            velocity: ReturnType<typeof vec2>,
-            position: ReturnType<typeof vec2>,
-            info: ParticleInfo
-          ) => ReturnType<typeof vec2>
-          particlePosition: (
-            position: ReturnType<typeof vec2>,
-            info: ParticleInfo
-          ) => ReturnType<typeof vec2>
-        }
-      : T extends 'blob'
-        ? { type: T; centerMode: 'center' | 'first' | 'betweenEnds' }
-        : { type: T }
+    ? {
+        type: 'particles'
+        initialSpread: boolean
+        speedMax: number
+        speedMin: number
+        speedDamping: number
+        particleSize: number
+        attractorPull: number
+        attractorPush: number
+        particleCount: number
+        particleVelocity: (
+          velocity: ReturnType<typeof vec2>,
+          position: ReturnType<typeof vec2>,
+          info: ParticleInfo<T>
+        ) => ReturnType<typeof vec2>
+        particlePosition: (
+          position: ReturnType<typeof vec2>,
+          info: ParticleInfo<T>
+        ) => ReturnType<typeof vec2>
+      }
+    : T extends 'blob'
+    ? { type: T; centerMode: 'center' | 'first' | 'betweenEnds' }
+    : { type: T }
 
   type CoordinateData = PreTransformData &
     Partial<{
@@ -132,7 +135,7 @@ declare global {
 declare module 'three/webgpu' {
   interface WebGPUTextureUtils {
     _getBytesPerTexel: (format: any) => number
-    _getTypedArrayType: (format: any) => typeof TypedArray
+    _getTypedArrayType: (format: any) => TypedArray
   }
 
   interface WebGPURenderer {

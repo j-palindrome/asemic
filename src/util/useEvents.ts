@@ -1,14 +1,14 @@
+import { useThree } from '@react-three/fiber'
 import { useContext, useEffect, useRef } from 'react'
 import SceneBuilder from '../Builder'
-import { useThree } from '@react-three/fiber'
 
-import { Vector2 } from 'three'
-import { uniform } from 'three/tsl'
 import { ElemNode } from '@elemaudio/core'
 import WebAudioRenderer from '@elemaudio/web-renderer'
-import { AsemicContext } from './asemicContext'
 import { remove } from 'lodash'
+import { Vector2 } from 'three'
+import { uniform } from 'three/tsl'
 import { WebGPURenderer } from 'three/webgpu'
+import { AsemicContext } from './asemicContext'
 
 abstract class Control<T, K> {
   abstract value: T

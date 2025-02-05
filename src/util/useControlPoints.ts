@@ -21,8 +21,8 @@ import {
   vec4
 } from 'three/tsl'
 import { WebGPURenderer } from 'three/webgpu'
-import { bezierPosition, bezierRotation } from '../../tsl/curves'
 import { GroupBuilder } from '../Builder'
+import { bezierPosition, bezierRotation } from './bezier'
 
 function useControlPointArray(builder: GroupBuilder<any, any>) {
   // @ts-ignore
@@ -94,8 +94,8 @@ function useControlPointArray(builder: GroupBuilder<any, any>) {
           typeof r === 'boolean'
             ? state.clock.elapsedTime + 1 / 60
             : typeof r === 'number'
-              ? state.clock.elapsedTime + r / 1000
-              : state.clock.elapsedTime + r(nextTime.current * 1000) / 1000
+            ? state.clock.elapsedTime + r / 1000
+            : state.clock.elapsedTime + r(nextTime.current * 1000) / 1000
         reInitialize(state.clock.elapsedTime)
       }
     }
@@ -196,11 +196,11 @@ export function useCurve(builder: GroupBuilder<any, any>) {
       builder.settings.spacingType === 'pixel'
         ? (builder.settings.maxLength * size.width) / builder.settings.spacing
         : builder.settings.spacingType === 'width'
-          ? (builder.settings.maxLength * size.width) /
-            (builder.settings.spacing * size.width)
-          : builder.settings.spacingType === 'count'
-            ? builder.settings.spacing
-            : 0
+        ? (builder.settings.maxLength * size.width) /
+          (builder.settings.spacing * size.width)
+        : builder.settings.spacingType === 'count'
+        ? builder.settings.spacing
+        : 0
     )
   )
 

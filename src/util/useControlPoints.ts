@@ -258,7 +258,8 @@ export function useCurve(builder: GroupBuilder<any, any>) {
             const index = t.y.mul(builder.settings.maxPoints).add(t.x)
             extra.color?.assign(curveColorArray.element(index))
             extra.thickness?.assign(progressPoint.w)
-            extra.rotation?.assign(atan(p1.xy.sub(p0.xy).y, p1.xy.sub(p0.xy).x))
+            const rotationCalc = p1.xy.sub(p0.xy).toVar()
+            extra.rotation?.assign(atan(rotationCalc.y, rotationCalc.x))
           }
         }).Else(() => {
           const p0 = curvePositionArray.element(index).toVar()

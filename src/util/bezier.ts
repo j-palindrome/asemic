@@ -60,13 +60,10 @@ export const bezier2Tangent = ({
   p1: ReturnType<typeof vec2>
   p2: ReturnType<typeof vec2>
 }) => {
-  return rotate2d(
-    p1
-      .sub(p0)
-      .mul(float(2).mul(t.oneMinus()))
-      .add(p2.sub(p1).mul(float(2).mul(t))),
-    float(0.25)
-  )
+  return p1
+    .sub(p0)
+    .mul(float(2).mul(t.oneMinus()))
+    .add(p2.sub(p1).mul(float(2).mul(t)))
 }
 
 export const polyLine = ({

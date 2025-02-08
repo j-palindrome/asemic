@@ -1,7 +1,6 @@
 import { Texture, TypedArray, Vector2 } from 'three'
 import Backend from 'three/src/renderers/common/Backend.js'
 import { float, mrt, varying, vec2, vec4 } from 'three/tsl'
-import 'three/webgpu'
 import { GroupBuilder } from './Builder'
 
 declare global {

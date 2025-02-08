@@ -33,6 +33,7 @@ export type Jitter = {
 extend({ StorageInstancedBufferAttribute })
 declare module '@react-three/fiber' {
   interface ThreeElements {
+    // @ts-ignore
     storageInstancedBufferAttribute: Object3DNode<
       StorageInstancedBufferAttribute,
       typeof StorageInstancedBufferAttribute
@@ -41,10 +42,11 @@ declare module '@react-three/fiber' {
 }
 
 export default function LineBrush<K extends Record<string, any>>({
-  params = {} as any,
+  params = {} as K,
   ...settings
 }: { params?: K } & Partial<GroupBuilder<'line', K>['settings']>) {
   const builder = new GroupBuilder('line', settings, params)
+  console.log(builder)
 
   const { getBezier, instancesPerCurve } = useCurve(builder)
   const { material, geometry } = useMemo(() => {

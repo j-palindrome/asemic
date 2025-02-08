@@ -7,6 +7,7 @@ import { PostProcessing, QuadMesh, WebGPURenderer } from 'three/webgpu'
 import SceneBuilder from './Builder'
 import { AsemicContext } from './util/asemicContext'
 import { SettingsInput, useBuilderEvents, useEvents } from './util/useEvents'
+import { el } from '@elemaudio/core'
 
 extend({
   QuadMesh
@@ -23,6 +24,7 @@ export function AsemicCanvas({
   className,
   dimensions: [width, height] = ['100%', '100%'],
   style,
+  outputChannel = 0,
   useAudio = false,
   highBitDepth = true
 }: {
@@ -30,6 +32,7 @@ export function AsemicCanvas({
   dimensions?: [number | string, number | string]
   style?: React.CSSProperties
   useAudio?: boolean
+  outputChannel?: number
   highBitDepth?: boolean
 } & React.PropsWithChildren) {
   const [audio, setAudio] = useState<SceneBuilder<any>['audio']>(null)
@@ -92,14 +95,26 @@ export function AsemicCanvas({
 
           const initAudio = async () => {
             if (!useAudio) return null
+
             const audioContext = new AudioContext()
+
             const core = new WebAudioRenderer()
             const elNode = await core.initialize(audioContext, {
               numberOfInputs: 0,
-              numberOfOutputs: 1,
-              outputChannelCount: [2]
+              numberOfOutputs: 2,
+              outputChannelCount: [1, 1]
             })
-            elNode.connect(audioContext.destination)
+            const channelMerger = audioContext.createChannelMerger(
+              audioContext.destination.maxChannelCount
+            )
+            audioContext.destination.channelCount =
+              audioContext.destination.maxChannelCount
+            audioContext.destination.channelCountMode = 'explicit'
+            audioContext.destination.channelInterpretation = 'discrete'
+
+            channelMerger.connect(audioContext.destination)
+            elNode.connect(channelMerger, 0, outputChannel)
+            elNode.connect(channelMerger, 1, outputChannel + 1)
             return { ctx: audioContext, elCore: core, elNode }
           }
 
@@ -169,6 +184,16 @@ export function useAsemic<T extends SettingsInput>({
   const size = useThree(state => state.gl.getDrawingBufferSize(new Vector2()))
 
   const { audio } = useContext(AsemicContext)
+  useEffect(() => {
+    if (audio) {
+      const { elCore, elNode, ctx } = audio
+      elCore.render(el.cycle(440), el.cycle(445))
+      console.log(ctx.destination)
+
+      // elNode.connect(ctx.destination, 0, 18)
+      // console.log('this is run')
+    }
+  }, [audio])
   const renderTarget = new RenderTarget(size.width, size.height, {
     type: HalfFloatType
   })

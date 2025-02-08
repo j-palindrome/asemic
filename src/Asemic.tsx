@@ -15,6 +15,7 @@ extend({
 
 declare module '@react-three/fiber' {
   interface ThreeElements {
+    // @ts-ignore
     quadMesh: Object3DNode<QuadMesh, typeof QuadMesh>
   }
 }
@@ -32,7 +33,7 @@ export function AsemicCanvas({
   dimensions?: [number | string, number | string]
   style?: React.CSSProperties
   useAudio?: boolean
-  outputChannel?: number
+  outputChannel?: number | ((ctx: AudioContext) => number)
   highBitDepth?: boolean
 } & React.PropsWithChildren) {
   const [audio, setAudio] = useState<SceneBuilder<any>['audio']>(null)
@@ -113,8 +114,13 @@ export function AsemicCanvas({
             audioContext.destination.channelInterpretation = 'discrete'
 
             channelMerger.connect(audioContext.destination)
-            elNode.connect(channelMerger, 0, outputChannel)
-            elNode.connect(channelMerger, 1, outputChannel + 1)
+            const chan =
+              typeof outputChannel === 'function'
+                ? outputChannel(audioContext)
+                : outputChannel
+
+            elNode.connect(channelMerger, 0, chan)
+            elNode.connect(channelMerger, 1, chan + 1)
             return { ctx: audioContext, elCore: core, elNode }
           }
 
@@ -184,16 +190,6 @@ export function useAsemic<T extends SettingsInput>({
   const size = useThree(state => state.gl.getDrawingBufferSize(new Vector2()))
 
   const { audio } = useContext(AsemicContext)
-  useEffect(() => {
-    if (audio) {
-      const { elCore, elNode, ctx } = audio
-      elCore.render(el.cycle(440), el.cycle(445))
-      console.log(ctx.destination)
-
-      // elNode.connect(ctx.destination, 0, 18)
-      // console.log('this is run')
-    }
-  }, [audio])
   const renderTarget = new RenderTarget(size.width, size.height, {
     type: HalfFloatType
   })
@@ -256,7 +252,7 @@ export function useAsemic<T extends SettingsInput>({
 
   const renderAudio = () => {
     if (!b.audio || !b.sceneSettings.audio) return
-    const render = b.sceneSettings.audio()
+    const render = b.sceneSettings.audio(el)
     if (render instanceof Array) b.audio.elCore.render(...render)
     else b.audio.elCore.render(render, render)
   }

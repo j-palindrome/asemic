@@ -1,4 +1,4 @@
-import { ElemNode } from '@elemaudio/core'
+import { el as elementary, ElemNode } from '@elemaudio/core'
 import WebAudioRenderer from '@elemaudio/web-renderer'
 import _, { entries, keys, last, max, min, range, sum } from 'lodash'
 import { createNoise2D, createNoise3D, createNoise4D } from 'simplex-noise'
@@ -1236,7 +1236,7 @@ export default class SceneBuilder<T extends SettingsInput> extends Builder {
         readback: BuilderGlobals['postProcessing']['readback']
       }
     ) => ShaderNodeObject<any>
-    audio: (() => ElemNode | [ElemNode, ElemNode]) | null
+    audio: ((el: typeof elementary) => ElemNode | [ElemNode, ElemNode]) | null
     useReadback: boolean
   } = {
     postProcessing: input => input,

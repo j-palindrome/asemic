@@ -43,6 +43,12 @@ export function AsemicCanvas({
   const [frameloop, setFrameloop] = useState<'never' | 'always'>('never')
   const coords: [number, number][] = []
 
+  useEffect(() => {
+    return () => {
+      audio?.ctx.close()
+    }
+  }, [audio])
+
   return !started ? (
     <button className='text-white' onClick={() => setStarted(true)}>
       start

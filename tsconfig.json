@@ -5,7 +5,6 @@
     "lib": ["ESNext", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "noImplicitAny": false,
-    "paths": { "@util/*": ["./util/src/*"] }
+    "noImplicitAny": false
   }
 }

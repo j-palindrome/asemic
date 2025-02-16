@@ -290,14 +290,12 @@ abstract class Builder {
 
 export class GroupBuilder<
   T extends BrushTypes,
-  K extends Record<string, any>,
-  I extends SettingsInput
+  K extends Record<string, any>
 > extends Builder {
-  parent: SceneBuilder<I>
   time: number = performance.now() / 1000
   curves: PointBuilder[][] = []
   params: K
-  settings: ProcessData<T, K, I> & BrushData<T, I>
+  settings: ProcessData<T, K> & BrushData<T>
 
   getWave(
     frequency: number = 1,
@@ -874,7 +872,7 @@ ${this.curves
     return this
   }
 
-  protected letters: Record<string, () => GroupBuilder<T, K, I>> = {
+  protected letters: Record<string, () => GroupBuilder<T, K>> = {
     ' ': () => this.transform({ translate: [0.5, 0], reset: 'pop' }),
     '\t': () => this.transform({ translate: [2, 0], reset: 'pop' }),
     a: () =>
@@ -1138,13 +1136,12 @@ ${this.curves
 
   constructor(
     type: T,
-    settings: Partial<ProcessData<T, K, I>> & Partial<BrushData<T, I>>,
-    params: K,
-    parent: SceneBuilder<I>
+    settings: Partial<ProcessData<T, K>> & Partial<BrushData<T>>,
+    params: K
   ) {
     super()
-    this.parent = parent
-    const defaultBrushSettings: { [T in BrushTypes]: BrushData<T, I> } = {
+
+    const defaultBrushSettings: { [T in BrushTypes]: BrushData<T> } = {
       line: { type: 'line' },
       dash: {
         type: 'dash',
@@ -1167,7 +1164,7 @@ ${this.curves
       dot: { type: 'dot' },
       blob: { type: 'blob', centerMode: 'center' }
     }
-    const defaultSettings: ProcessData<T, K, I> = {
+    const defaultSettings: ProcessData<T, K> = {
       maxLength: 0,
       maxCurves: 0,
       maxPoints: 0,

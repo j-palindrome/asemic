@@ -1,14 +1,6 @@
 import WebAudioRenderer from '@elemaudio/web-renderer'
 import { Canvas, extend, useFrame, useThree } from '@react-three/fiber'
-import {
-  Children,
-  PropsWithChildren,
-  ReactNode,
-  useContext,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { HalfFloatType, OrthographicCamera, RenderTarget, Vector2 } from 'three'
 import { Fn, pass, texture } from 'three/tsl'
 import { PostProcessing, QuadMesh, WebGPURenderer } from 'three/webgpu'
@@ -57,18 +49,14 @@ export function AsemicCanvas({
     }
   }, [audio])
 
-  const [scene, setScene] = useState(0)
-
   return !started ? (
     <button className='text-white' onClick={() => setStarted(true)}>
       start
     </button>
   ) : (
     <>
-      {/* @ts-ignore */}
       <Canvas
         onClick={ev => {
-          setScene((scene + 1) % Children.count(children))
           if (ev.shiftKey) {
             coords.splice(0, coords.length - 1)
           } else if (ev.metaKey) {
@@ -164,7 +152,7 @@ export function AsemicCanvas({
         }}>
         {frameloop === 'always' && (audio || !useAudio) && (
           <AsemicContext.Provider value={{ audio }}>
-            {Children.toArray(children)[scene]}
+            {children}
           </AsemicContext.Provider>
         )}
         {frameloop === 'always' && <Adjust />}
@@ -278,13 +266,4 @@ export function useAsemic<T extends SettingsInput>({
   useEffect(renderAudio, [b])
 
   return b
-}
-
-export function Asemic<T extends SettingsInput>({
-  children,
-  ...props
-}: Parameters<typeof useAsemic<T>>[0] & PropsWithChildren) {
-  const builder = useAsemic(props)
-
-  return <>{children}</>
 }

@@ -2,7 +2,6 @@ import { Texture, TypedArray, Vector2 } from 'three'
 import Backend from 'three/src/renderers/common/Backend.js'
 import { float, mrt, varying, vec2, vec4 } from 'three/tsl'
 import { GroupBuilder } from './Builder'
-import { SettingsInput } from './util/useEvents'
 
 declare global {
   type Coordinate = [number, number] | [number, number, CoordinateData]
@@ -35,16 +34,12 @@ declare global {
     i: number
   }
 
-  type ParticleInfo<T extends BrushTypes, I extends SettingsInput> = {
+  type ParticleInfo<T extends BrushTypes> = {
     progress: ReturnType<typeof float | typeof varying>
-    builder: GroupBuilder<T, any, I>
+    builder: GroupBuilder<T, any>
   }
 
-  type ProcessData<
-    T extends BrushTypes,
-    K extends Record<string, any>,
-    I extends SettingsInput
-  > = {
+  type ProcessData<T extends BrushTypes, K extends Record<string, any>> = {
     renderInit: boolean | number | ((lastFrame: number) => number)
     renderStart: number | (() => number)
     renderClear: boolean
@@ -60,50 +55,45 @@ declare global {
     squareAspect: boolean
     pointPosition: (
       input: ReturnType<typeof vec2>,
-      info: ParticleInfo<T, I>
+      info: ParticleInfo<T>
     ) => typeof input
     pointThickness: (
       input: ReturnType<typeof float>,
-      info: ParticleInfo<T, I>
+      info: ParticleInfo<T>
     ) => typeof input
     pointRotate: (
       input: ReturnType<typeof float>,
-      info: ParticleInfo<T, I>
+      info: ParticleInfo<T>
     ) => typeof input
     /**
      * vec4(x, y, strength, thickness), {tPoint: 0-1, tCurve: 0-1}
      */
     curveColor: (
       input: ReturnType<typeof vec4>,
-      info: ParticleInfo<T, I> & {
+      info: ParticleInfo<T> & {
         lastFrame: ReturnType<typeof vec4>
       }
     ) => typeof input
     pointColor: (
       input: ReturnType<typeof vec4>,
-      info: ParticleInfo<T, I> & {
-        uv: ReturnType<typeof float | typeof varying>
-      }
+      info: ParticleInfo<T> & { uv: ReturnType<typeof float | typeof varying> }
     ) => typeof input
     pointProgress: (
       input: ReturnType<typeof float>,
-      info: ParticleInfo<T, I>
+      info: ParticleInfo<T>
     ) => typeof input
     curvePosition: (
       input: ReturnType<typeof vec4>,
-      info: ParticleInfo<T, I> & {
+      info: ParticleInfo<T> & {
         lastFrame: ReturnType<typeof vec4>
       }
     ) => typeof input
-    onUpdate: (builder: GroupBuilder<T, K, I>) => void
-    onInit: (builder: GroupBuilder<T, K, I>) => void
+    onUpdate: (builder: GroupBuilder<T, K>) => void
+    onInit: (builder: GroupBuilder<T, K>) => void
   }
 
   type BrushTypes = 'dash' | 'line' | 'particles' | 'stripe' | 'blob' | 'dot'
-  type BrushData<
-    T extends BrushTypes,
-    I extends SettingsInput
-  > = T extends 'dash'
+  type BrushData<T extends BrushTypes> = T extends 'dash'
     ? {
         type: 'dash'
         dashSize: number
@@ -122,11 +112,11 @@ declare global {
         particleVelocity: (
           velocity: ReturnType<typeof vec2>,
           position: ReturnType<typeof vec2>,
-          info: ParticleInfo<T, I>
+          info: ParticleInfo<T>
         ) => ReturnType<typeof vec2>
         particlePosition: (
           position: ReturnType<typeof vec2>,
-          info: ParticleInfo<T, I>
+          info: ParticleInfo<T>
         ) => ReturnType<typeof vec2>
       }
     : T extends 'blob'

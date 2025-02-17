@@ -1,6 +1,14 @@
 import WebAudioRenderer from '@elemaudio/web-renderer'
 import { Canvas, extend, useFrame, useThree } from '@react-three/fiber'
-import { useContext, useEffect, useRef, useState } from 'react'
+import {
+  Children,
+  PropsWithChildren,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 import { HalfFloatType, OrthographicCamera, RenderTarget, Vector2 } from 'three'
 import { Fn, pass, texture } from 'three/tsl'
 import { PostProcessing, QuadMesh, WebGPURenderer } from 'three/webgpu'
@@ -8,6 +16,7 @@ import SceneBuilder from './Builder'
 import { AsemicContext } from './util/asemicContext'
 import { SettingsInput, useBuilderEvents, useEvents } from './util/useEvents'
 import { el } from '@elemaudio/core'
+import Toggle from '../../oscPresets/components/Toggle'
 
 extend({
   QuadMesh
@@ -38,7 +47,7 @@ export function AsemicCanvas({
 } & React.PropsWithChildren) {
   const [audio, setAudio] = useState<SceneBuilder<any>['audio']>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null!)
-  const [started, setStarted] = useState(useAudio ? false : true)
+  const [started, setStarted] = useState(false)
   // const [recording, setRecording] = useState(false)
   const [frameloop, setFrameloop] = useState<'never' | 'always'>('never')
   const coords: [number, number][] = []
@@ -49,14 +58,57 @@ export function AsemicCanvas({
     }
   }, [audio])
 
-  return !started ? (
-    <button className='text-white' onClick={() => setStarted(true)}>
-      start
-    </button>
-  ) : (
+  useEffect(() => {
+    if (!started) {
+      audio?.ctx.suspend()
+    } else {
+      audio?.ctx.resume()
+    }
+  }, [started])
+
+  const [scene, setScene] = useState(0)
+
+  const initAudio = async () => {
+    const ctx = new AudioContext()
+
+    const elCore = new WebAudioRenderer()
+    const elNode = await elCore.initialize(ctx, {
+      numberOfInputs: 0,
+      numberOfOutputs: 2,
+      outputChannelCount: [1, 1]
+    })
+    const channelMerger = ctx.createChannelMerger(
+      ctx.destination.maxChannelCount
+    )
+    ctx.destination.channelCount = ctx.destination.maxChannelCount
+    ctx.destination.channelCountMode = 'explicit'
+    ctx.destination.channelInterpretation = 'discrete'
+
+    channelMerger.connect(ctx.destination)
+    const chan =
+      typeof outputChannel === 'function' ? outputChannel(ctx) : outputChannel
+
+    elNode.connect(channelMerger, 0, chan)
+    elNode.connect(channelMerger, 1, chan + 1)
+    setAudio({ ctx, elNode, elCore })
+    setStarted(true)
+  }
+
+  return (
     <>
+      <Toggle
+        label='pause'
+        cb={state => {
+          console.log('state;', state, 'audio', audio)
+
+          if (state && !audio) {
+            initAudio()
+          } else setStarted(state)
+        }}></Toggle>
+      {/* @ts-ignore */}
       <Canvas
         onClick={ev => {
+          setScene((scene + 1) % Children.count(children))
           if (ev.shiftKey) {
             coords.splice(0, coords.length - 1)
           } else if (ev.metaKey) {
@@ -100,43 +152,13 @@ export function AsemicCanvas({
             alpha: true
           })
 
-          const initAudio = async () => {
-            if (!useAudio) return null
-
-            const audioContext = new AudioContext()
-
-            const core = new WebAudioRenderer()
-            const elNode = await core.initialize(audioContext, {
-              numberOfInputs: 0,
-              numberOfOutputs: 2,
-              outputChannelCount: [1, 1]
-            })
-            const channelMerger = audioContext.createChannelMerger(
-              audioContext.destination.maxChannelCount
-            )
-            audioContext.destination.channelCount =
-              audioContext.destination.maxChannelCount
-            audioContext.destination.channelCountMode = 'explicit'
-            audioContext.destination.channelInterpretation = 'discrete'
-
-            channelMerger.connect(audioContext.destination)
-            const chan =
-              typeof outputChannel === 'function'
-                ? outputChannel(audioContext)
-                : outputChannel
-
-            elNode.connect(channelMerger, 0, chan)
-            elNode.connect(channelMerger, 1, chan + 1)
-            return { ctx: audioContext, elCore: core, elNode }
-          }
-
           if (highBitDepth) {
             renderer.backend.utils.getPreferredCanvasFormat = () => {
               return 'rgba16float'
             }
           }
 
-          Promise.all([renderer.init(), initAudio()]).then(async result => {
+          Promise.all([renderer.init()]).then(async result => {
             if (highBitDepth) {
               const context = renderer.getContext()
               context.configure({
@@ -144,15 +166,13 @@ export function AsemicCanvas({
                 format: renderer.backend.utils.getPreferredCanvasFormat()
               })
             }
-
-            setAudio(result[1])
             setFrameloop('always')
           })
           return renderer
         }}>
-        {frameloop === 'always' && (audio || !useAudio) && (
+        {started && frameloop === 'always' && (audio || !useAudio) && (
           <AsemicContext.Provider value={{ audio }}>
-            {children}
+            {Children.toArray(children)[scene]}
           </AsemicContext.Provider>
         )}
         {frameloop === 'always' && <Adjust />}
@@ -266,4 +286,14 @@ export function useAsemic<T extends SettingsInput>({
   useEffect(renderAudio, [b])
 
   return b
+}
+
+export function Asemic<T extends SettingsInput>({
+  children,
+  ...props
+}: Parameters<typeof useAsemic<T>>[0] & {
+  children: ((builder: SceneBuilder<T>) => ReactNode) | ReactNode
+}) {
+  const builder = useAsemic(props)
+  return <>{typeof children === 'function' ? children(builder) : children}</>
 }

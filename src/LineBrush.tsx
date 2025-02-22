@@ -46,7 +46,6 @@ export default function LineBrush<K extends Record<string, any>>({
   ...settings
 }: { params?: K } & Partial<GroupBuilder<'line', K>['settings']>) {
   const builder = new GroupBuilder('line', settings, params)
-  console.log(builder)
 
   const { getBezier, instancesPerCurve } = useCurve(builder)
   const { material, geometry } = useMemo(() => {

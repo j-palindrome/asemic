@@ -1,17 +1,14 @@
 import React, { JSX } from 'react'
-import { extend } from '@react-three/fiber'
+import { extend, ThreeElement } from '@react-three/fiber'
 
 import { useEffect, useRef } from 'react'
-import { MeshBasicNodeMaterial } from 'three/webgpu'
+import { MeshBasicNodeMaterial, Object3D } from 'three/webgpu'
 import { useHeight } from './util'
 
 extend({ MeshBasicNodeMaterial })
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    meshBasicNodeMaterial: Object3DNode<
-      MeshBasicNodeMaterial,
-      typeof MeshBasicNodeMaterial
-    >
+    meshBasicNodeMaterial: ThreeElement<typeof MeshBasicNodeMaterial>
   }
 }
 export default function Background(

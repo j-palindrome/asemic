@@ -1,4 +1,4 @@
-import { extend, Object3DNode, useThree } from '@react-three/fiber'
+import { extend, useThree } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import {
@@ -28,7 +28,7 @@ import {
 } from 'three/webgpu'
 import { GroupBuilder } from './Builder'
 import { useCurve, usePoints } from './util/useControlPoints'
-import { gaussian } from '../tsl/gaussian'
+import { gaussian } from './util/gaussian'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]

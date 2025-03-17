@@ -6,7 +6,7 @@ import {
   Scene,
   Vector2,
   Vector4,
-  WebGPURenderer,
+  WebGPURenderer
 } from 'three/webgpu'
 import { useFrame, useThree } from '@react-three/fiber'
 import { range } from 'lodash'
@@ -26,7 +26,7 @@ import {
   uniformArray,
   varying,
   vec2,
-  vec4,
+  vec4
 } from 'three/tsl'
 import { bezierPosition, bezierRotation } from '../util/bezier'
 import invariant from 'tiny-invariant'
@@ -61,12 +61,12 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
             ? elapsedTime + 1 / 60
             : Infinity
           : typeof r === 'number'
-            ? elapsedTime + r / 1000
-            : elapsedTime + r(this.nextTime * 1000) / 1000
+          ? elapsedTime + r / 1000
+          : elapsedTime + r(this.nextTime * 1000) / 1000
       if (this.settings.renderClear) this.group.clear()
       this.group.reInitialize(
         elapsedTime,
-        this.renderer.getDrawingBufferSize(this.size),
+        this.renderer.getDrawingBufferSize(this.size)
       )
       for (let i = 0; i < this.settings.maxCurves; i++) {
         this.info.controlPointCounts.array[i] = this.group.curves[i].length
@@ -82,13 +82,13 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
               point.x,
               point.y,
               point.strength,
-              point.thickness,
+              point.thickness
             )
             loadColorsArray[curveIndex + j].set(
               point.color[0],
               point.color[1],
               point.color[2],
-              point.alpha,
+              point.alpha
             )
           } else {
             loadPositionsArray[curveIndex + j].set(0, 0, 0, 0)
@@ -128,7 +128,7 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
         | ReturnType<typeof varying>
         | ReturnType<ReturnType<typeof float>['toVar']>
       progress?: ReturnType<typeof varying>
-    },
+    }
   ) {
     const progressVar = progress.toVar()
     If(progressVar.equal(-1), () => {
@@ -138,26 +138,26 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
         floor(progress).add(
           this.settings.pointProgress(progress.fract(), {
             builder: this.group,
-            progress,
-          }),
-        ),
+            progress
+          })
+        )
       )
       extra?.progress?.assign(progressVar)
       const controlPointsCount = this.info.controlPointCounts.element(
-        int(progressVar),
+        int(progressVar)
       )
       const subdivisions = select(
         controlPointsCount.equal(2),
         1,
         this.settings.adjustEnds === 'loop'
           ? controlPointsCount
-          : controlPointsCount.sub(2),
+          : controlPointsCount.sub(2)
       ).toVar()
 
       //4 points: 4-2 = 2 0->1 1->2 (if it goes to the last value then it starts interpolating another curve)
       const t = vec2(
         progressVar.fract().mul(0.999).mul(subdivisions),
-        floor(progressVar),
+        floor(progressVar)
       )
       const curveIndex = floor(progressVar).mul(this.settings.maxPoints)
       const pointIndex = progressVar.fract().mul(0.999).mul(subdivisions)
@@ -204,7 +204,7 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
           p0: p0.xy,
           p1: p1.xy,
           p2: p2.xy,
-          strength,
+          strength
         })
 
         position.assign(pos)
@@ -218,8 +218,8 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
               p0: vec2(0, p0.w),
               p1: vec2(0.5, p1.w),
               p2: vec2(1, p2.w),
-              strength,
-            }).y,
+              strength
+            }).y
           )
           extra.rotation?.assign(
             bezierRotation({
@@ -227,29 +227,29 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
               p0: p0.xy,
               p1: p1.xy,
               p2: p2.xy,
-              strength,
-            }),
+              strength
+            })
           )
         }
       })
     })
     position.assign(
-      this.settings.pointPosition(position, { builder: this.group, progress }),
+      this.settings.pointPosition(position, { builder: this.group, progress })
     )
     if (extra) {
       extra.thickness?.assign(
         this.settings
           .pointThickness(extra.thickness, {
             progress: progressVar,
-            builder: this.group,
+            builder: this.group
           })
-          .div(screenSize.x),
+          .div(screenSize.x)
       )
       extra.rotation?.assign(
         this.settings.pointRotate(extra.rotation!, {
           progress: extra.progress!,
-          builder: this.group,
-        }),
+          builder: this.group
+        })
       )
     }
   }
@@ -272,7 +272,6 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
   }
 
   onClick(ev: MouseEvent) {
-    console.log(this.screenToWorld(ev))
     if (this.group.getIsWithin(this.screenToWorld(ev)))
       this.settings.onClick(this)
   }
@@ -282,8 +281,8 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
     {
       renderer,
       group,
-      scene,
-    }: { renderer: WebGPURenderer; group: GroupBuilder; scene: Scene },
+      scene
+    }: { renderer: WebGPURenderer; group: GroupBuilder; scene: Scene }
   ) {
     this.renderer = renderer
     this.group = group
@@ -305,28 +304,28 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
       spacingType: 'pixel',
       adjustEnds: true,
       renderTargets: mrt({
-        output,
+        output
       }),
-      pointProgress: (input) => input,
-      pointPosition: (input) => input,
-      pointColor: (input) => input,
-      curvePosition: (input) => input,
-      curveColor: (input) => input,
-      pointRotate: (input) => input,
-      pointThickness: (input) => input,
+      pointProgress: input => input,
+      pointPosition: input => input,
+      pointColor: input => input,
+      curvePosition: input => input,
+      curveColor: input => input,
+      pointRotate: input => input,
+      pointThickness: input => input
     }
 
     this.settings = {
       ...defaultSettings,
       ...this.getDefaultBrushSettings(),
-      ...settings,
+      ...settings
     }
     if (this.settings.maxPoints === 0) {
-      this.settings.maxPoints = max(this.group.curves.flatMap((x) => x.length))!
+      this.settings.maxPoints = max(this.group.curves.flatMap(x => x.length))!
     }
     if (this.settings.maxLength === 0) {
       this.settings.maxLength = max(
-        this.group.curves.map((x) => this.group.getLength(x)),
+        this.group.curves.map(x => this.group.getLength(x))
       )!
     }
     if (this.settings.maxCurves === 0) {
@@ -340,37 +339,37 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
           this.settings.spacingType === 'pixel'
             ? (this.settings.maxLength * size.width) / this.settings.spacing
             : this.settings.spacingType === 'width'
-              ? (this.settings.maxLength * size.width) /
-                (this.settings.spacing * size.width)
-              : this.settings.spacingType === 'count'
-                ? this.settings.spacing
-                : 0,
-        ),
+            ? (this.settings.maxLength * size.width) /
+              (this.settings.spacing * size.width)
+            : this.settings.spacingType === 'count'
+            ? this.settings.spacing
+            : 0
+        )
       ),
       curvePositionArray: instancedArray(
         this.settings.maxPoints * this.settings.maxCurves,
-        'vec4',
+        'vec4'
       ),
       curveColorArray: instancedArray(
         this.settings.maxPoints * this.settings.maxCurves,
-        'vec4',
+        'vec4'
       ),
       loadPositions: uniformArray(
         range(this.settings.maxPoints * this.settings.maxCurves).map(
-          (x) => new Vector4(),
+          x => new Vector4()
         ),
-        'vec4',
+        'vec4'
       ),
       loadColors: uniformArray(
         range(this.settings.maxPoints * this.settings.maxCurves).map(
-          (x) => new Vector4(),
+          x => new Vector4()
         ),
-        'vec4',
+        'vec4'
       ),
       controlPointCounts: uniformArray(
-        this.group.curves.map((x) => x.length),
-        'int',
-      ),
+        this.group.curves.map(x => x.length),
+        'int'
+      )
     }
 
     this.advanceControlPoints = Fn(() => {
@@ -382,24 +381,24 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
           .add(
             pointI
               .toFloat()
-              .div(this.info.controlPointCounts.element(curveI).sub(1)),
+              .div(this.info.controlPointCounts.element(curveI).sub(1))
           ),
-        builder: this.group,
+        builder: this.group
       }
       const index = curveI.mul(this.settings.maxPoints).add(pointI)
       const thisPosition = this.info.loadPositions.element(index)
       this.info.curvePositionArray.element(index).assign(
         this.settings.curvePosition(thisPosition, {
           ...info,
-          lastFrame: this.info.curvePositionArray.element(index),
-        }),
+          lastFrame: this.info.curvePositionArray.element(index)
+        })
       )
       const thisColor = this.info.loadColors.element(index)
       this.info.curveColorArray.element(index).assign(
         this.settings.curveColor(thisColor, {
           ...info,
-          lastFrame: this.info.curveColorArray.element(index),
-        }),
+          lastFrame: this.info.curveColorArray.element(index)
+        })
       )
     })().compute(this.settings.maxPoints * this.settings.maxCurves)
 
@@ -423,27 +422,27 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
     if (this.settings.onClick) {
       this.renderer.domElement.addEventListener(
         'click',
-        this.onClick.bind(this),
+        this.onClick.bind(this)
       )
     }
     if (this.settings.onDrag) {
       this.renderer.domElement.addEventListener(
         'mousemove',
-        this.onDrag.bind(this),
+        this.onDrag.bind(this)
       )
     }
     if (this.settings.onOver) {
       this.renderer.domElement.addEventListener(
         'mousemove',
-        this.onOver.bind(this),
+        this.onOver.bind(this)
       )
     }
     if (this.settings.maxPoints === 0) {
-      this.settings.maxPoints = max(this.group.curves.flatMap((x) => x.length))!
+      this.settings.maxPoints = max(this.group.curves.flatMap(x => x.length))!
     }
     if (this.settings.maxLength === 0) {
       this.settings.maxLength = max(
-        this.group.curves.map((x) => this.group.getLength(x)),
+        this.group.curves.map(x => this.group.getLength(x))
       )!
     }
     if (this.settings.maxCurves === 0) {
@@ -456,37 +455,37 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
           this.settings.spacingType === 'pixel'
             ? (this.settings.maxLength * size.width) / this.settings.spacing
             : this.settings.spacingType === 'width'
-              ? (this.settings.maxLength * size.width) /
-                (this.settings.spacing * size.width)
-              : this.settings.spacingType === 'count'
-                ? this.settings.spacing
-                : 0,
-        ),
+            ? (this.settings.maxLength * size.width) /
+              (this.settings.spacing * size.width)
+            : this.settings.spacingType === 'count'
+            ? this.settings.spacing
+            : 0
+        )
       ),
       curvePositionArray: instancedArray(
         this.settings.maxPoints * this.settings.maxCurves,
-        'vec4',
+        'vec4'
       ),
       curveColorArray: instancedArray(
         this.settings.maxPoints * this.settings.maxCurves,
-        'vec4',
+        'vec4'
       ),
       loadPositions: uniformArray(
         range(this.settings.maxPoints * this.settings.maxCurves).map(
-          (x) => new Vector4(),
+          x => new Vector4()
         ),
-        'vec4',
+        'vec4'
       ),
       loadColors: uniformArray(
         range(this.settings.maxPoints * this.settings.maxCurves).map(
-          (x) => new Vector4(),
+          x => new Vector4()
         ),
-        'vec4',
+        'vec4'
       ),
       controlPointCounts: uniformArray(
-        this.group.curves.map((x) => x.length),
-        'int',
-      ),
+        this.group.curves.map(x => x.length),
+        'int'
+      )
     }
 
     this.advanceControlPoints = Fn(() => {
@@ -498,24 +497,24 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
           .add(
             pointI
               .toFloat()
-              .div(this.info.controlPointCounts.element(curveI).sub(1)),
+              .div(this.info.controlPointCounts.element(curveI).sub(1))
           ),
-        builder: this.group,
+        builder: this.group
       }
       const index = curveI.mul(this.settings.maxPoints).add(pointI)
       const thisPosition = this.info.loadPositions.element(index)
       this.info.curvePositionArray.element(index).assign(
         this.settings.curvePosition(thisPosition, {
           ...info,
-          lastFrame: this.info.curvePositionArray.element(index),
-        }),
+          lastFrame: this.info.curvePositionArray.element(index)
+        })
       )
       const thisColor = this.info.loadColors.element(index)
       this.info.curveColorArray.element(index).assign(
         this.settings.curveColor(thisColor, {
           ...info,
-          lastFrame: this.info.curveColorArray.element(index),
-        }),
+          lastFrame: this.info.curveColorArray.element(index)
+        })
       )
     })().compute(this.settings.maxPoints * this.settings.maxCurves)
 
@@ -539,19 +538,19 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
     if (this.settings.onClick) {
       this.renderer.domElement.addEventListener(
         'click',
-        this.onClick.bind(this),
+        this.onClick.bind(this)
       )
     }
     if (this.settings.onDrag) {
       this.renderer.domElement.addEventListener(
         'mousemove',
-        this.onDrag.bind(this),
+        this.onDrag.bind(this)
       )
     }
     if (this.settings.onOver) {
       this.renderer.domElement.addEventListener(
         'mousemove',
-        this.onOver.bind(this),
+        this.onOver.bind(this)
       )
     }
   }

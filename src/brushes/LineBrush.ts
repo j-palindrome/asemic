@@ -19,6 +19,7 @@ import {
 } from 'three/webgpu'
 import BrushBuilder from '../builders/BrushBuilder'
 import GroupBuilder from '../builders/GroupBuilder'
+import { gold2 } from '../../../../src/controls/cora/scene'
 
 type VectorList = [number, number]
 type Vector3List = [number, number, number]
@@ -75,8 +76,7 @@ export class LineBrush extends BrushBuilder<'line'> {
       transparent: true,
       depthWrite: false,
       blending: THREE.NormalBlending,
-      side: THREE.DoubleSide,
-      color: 'white'
+      side: THREE.DoubleSide
     })
     material.mrtNode = this.settings.renderTargets
 
@@ -124,7 +124,6 @@ export class LineBrush extends BrushBuilder<'line'> {
     })
 
     material.positionNode = main()
-
     material.colorNode = Fn(() =>
       this.settings.pointColor(varying(vec4(), 'color'), {
         progress,

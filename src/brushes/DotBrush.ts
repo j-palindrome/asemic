@@ -19,12 +19,12 @@ import {
   varying,
   vec2,
   vec4,
-  vertexIndex,
+  vertexIndex
 } from 'three/tsl'
 import {
   SpriteNodeMaterial,
   StorageInstancedBufferAttribute,
-  WebGPURenderer,
+  WebGPURenderer
 } from 'three/webgpu'
 import GroupBuilder from '../builders/GroupBuilder'
 import { gaussian } from '../util/gaussian'
@@ -61,13 +61,11 @@ export class DotBrush extends BrushBuilder<'dot'> {
     geometry.translate(this.settings.align - 0.5, 0.5, 0)
     const material = new SpriteNodeMaterial({
       transparent: true,
-      depthWrite: false,
+      depthWrite: false
       // blending: THREE.AdditiveBlending
     })
     material.mrtNode = this.settings.renderTargets
     const mesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCE_COUNT)
-
-    material.mrtNode = this.settings.renderTargets
 
     const thickness = float(0).toVar()
     const color = varying(vec4(), 'color')
@@ -78,17 +76,17 @@ export class DotBrush extends BrushBuilder<'dot'> {
       progress.assign(instanceIndex.toFloat().div(this.settings.maxPoints))
       position.assign(this.info.curvePositionArray.element(instanceIndex).xy)
       thickness.assign(
-        this.info.curvePositionArray.element(instanceIndex).w.div(screenSize.x),
+        this.info.curvePositionArray.element(instanceIndex).w.div(screenSize.x)
       )
       color.assign(this.info.curveColorArray.element(instanceIndex))
 
       return vec4(
         this.settings.pointPosition(position.sub(vec2(0, thickness.div(2))), {
           progress,
-          builder: this.group,
+          builder: this.group
         }),
         0,
-        1,
+        1
       )
     })()
 
@@ -98,8 +96,8 @@ export class DotBrush extends BrushBuilder<'dot'> {
       {
         progress,
         builder: this.group,
-        uv: varying(vec2(progress, 0.5), 'uv'),
-      },
+        uv: varying(vec2(progress, 0.5), 'uv')
+      }
     )
     material.needsUpdate = true
 

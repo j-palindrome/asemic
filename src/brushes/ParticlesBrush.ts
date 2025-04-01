@@ -23,12 +23,12 @@ import {
   varying,
   varyingProperty,
   vec2,
-  vec4,
+  vec4
 } from 'three/tsl'
 import {
   SpriteNodeMaterial,
   StorageBufferAttribute,
-  WebGPURenderer,
+  WebGPURenderer
 } from 'three/webgpu'
 import GroupBuilder from '../builders/GroupBuilder'
 import BrushBuilder from '../builders/BrushBuilder'
@@ -44,11 +44,11 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
       speedMin: 0.4,
       speedFrame: 1,
       particleSize: 1,
-      particleVelocity: (input) => input,
-      particlePosition: (input) => input,
+      particleVelocity: input => input,
+      particlePosition: input => input,
       attractorPull: 1,
       attractorPush: 0,
-      particleCount: 1e4,
+      particleCount: 1e4
     }
   }
   protected onFrame() {
@@ -62,7 +62,7 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
 
     const material = new SpriteNodeMaterial({
       transparent: true,
-      depthWrite: false,
+      depthWrite: false
     })
 
     const timeScale = uniform(this.settings.speedFrame)
@@ -76,7 +76,7 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
       if (!this.settings.initialSpread) {
         this.getBezier(
           instanceIndex.toFloat().div(this.info.instancesPerCurve),
-          position,
+          position
         )
         velocity.assign(
           vec2(
@@ -85,17 +85,17 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
               .sub(1),
             hash(instanceIndex.add(Math.random() * 100))
               .mul(2)
-              .sub(1),
-          ),
+              .sub(1)
+          )
         )
       } else {
         position.assign(
           vec2(
             hash(instanceIndex.add(Math.random() * 100)),
             hash(instanceIndex.add(Math.random() * 100)).mul(
-              screenSize.y.div(screenSize.x),
-            ),
-          ),
+              screenSize.y.div(screenSize.x)
+            )
+          )
         )
         velocity.assign(
           vec2(
@@ -104,8 +104,8 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
               .sub(1),
             hash(instanceIndex.add(Math.random() * 100))
               .mul(2)
-              .sub(1),
-          ),
+              .sub(1)
+          )
         )
       }
     })().compute(count)
@@ -130,8 +130,8 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
           {
             rotation,
             thickness,
-            color: thisColor,
-          },
+            color: thisColor
+          }
         )
 
         rotation.addAssign(PI2.mul(-0.25))
@@ -146,9 +146,14 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
           const gravityForce = direction
             .mul(gravityStrength)
             .mul(this.settings.attractorPull)
-          If(distance.greaterThan(float(1).div(screenSize.x)), () => {
-            force.addAssign(gravityForce)
-          })
+          If(
+            distance.greaterThan(
+              float(this.settings.particleSize * 2).div(screenSize.x)
+            ),
+            () => {
+              force.addAssign(gravityForce)
+            }
+          )
         }
         if (this.settings.attractorPush) {
           // spinning
@@ -161,12 +166,13 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
         }
 
         color.addAssign(
-          thisColor.mul(max(0, thickness.sub(distance).div(thickness))),
+          thisColor
+          // thisColor.mul(max(0, thickness.sub(distance).div(thickness))),
         )
         // color.addAssign(thisColor)
         // color.addAssign(vec4(1, 1, 1, 1).div(100))
       })
-
+      color.divAssign(this.settings.maxCurves * this.info.instancesPerCurve)
       colorBuffer.element(instanceIndex).assign(color)
       // colorBuffer.element(instanceIndex).assign(vec4(1, 1, 1, 1))
 
@@ -186,14 +192,14 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
       position.assign(
         this.settings.particlePosition(position, {
           builder: this.group,
-          progress: float(0),
-        }),
+          progress: float(0)
+        })
       )
       velocity.assign(
         this.settings.particleVelocity(velocity, position, {
           builder: this.group,
-          progress: float(0),
-        }),
+          progress: float(0)
+        })
       )
 
       position.addAssign(velocity.mul(delta))
@@ -206,8 +212,8 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
     material.positionNode = Fn(() =>
       this.settings.particlePosition(positionBuffer.element(instanceIndex), {
         progress: instanceIndex.toFloat().div(count),
-        builder: this.group,
-      }),
+        builder: this.group
+      })
     )()
 
     const vUv = vec2().toVar()
@@ -220,8 +226,8 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
         {
           progress: float(0),
           builder: this.group,
-          uv: vUv,
-        },
+          uv: vUv
+        }
       )
     })()
 
@@ -237,7 +243,7 @@ export class ParticlesBrush extends BrushBuilder<'particles'> {
       mesh,
       geometry,
       material,
-      update,
+      update
     })
   }
 

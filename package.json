@@ -1,0 +1,25 @@
+{
+  "name": "asemic",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node esbuild.config.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.10.0",
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "pts": "^0.12.9",
+    "simplex-noise": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.16",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.25.4",
+    "esbuild-plugin-inline-worker": "^0.1.1"
+  }
+}

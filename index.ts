@@ -1,0 +1,5 @@
+export { Parser } from './src/parse'
+export { default as Renderer } from './src/renderer'
+export { createWorker } from './src/worker'
+export * from './src/types'
+export { defaultSettings } from './src/settings'

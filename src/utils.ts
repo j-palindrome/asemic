@@ -1,6 +1,8 @@
 export const defaultPreProcess = () =>
-  ({ replacements: {} } as {
+  ({ replacements: {}, width: 1, height: 1 } as {
     replacements: Record<string, string>
+    width: number
+    height: number
   })
 
 export const splitArgs = (argsStr: string) => {

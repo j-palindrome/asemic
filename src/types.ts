@@ -3,23 +3,17 @@ import { Parser } from './parse'
 
 export type AsemicData = {
   source?: string
-  progress?: Partial<Parser['progress']>
-  settingsSource?: string
-
-  preProcess?: Parser['preProcessing']
+  preProcess?: Partial<Parser['preProcessing']>
   live: {
     keys?: string
     text?: string
     keysIndex?: number
     textIndex?: number
   }
-  error?: string
   play?: boolean | { scene: number }
+  offscreenCanvas?: OffscreenCanvas
 }
 export type AsemicDataBack = {
-  response?: 'editable'
-  bitmap?: ImageBitmap
-  errors?: string[]
   settings?: Parser['settings']
   lastTransform?: FlatTransform
 } & Partial<Parser['output']>

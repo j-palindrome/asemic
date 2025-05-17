@@ -53,8 +53,6 @@ export class Parser {
     point: 0,
     time: performance.now() / 1000,
     curve: 0,
-    height: 0,
-    width: 0,
     seed: 1,
     index: 0,
     countNum: 0,
@@ -75,7 +73,7 @@ export class Parser {
     I: () => this.progress.index.toString(),
     T: () => this.progress.time.toFixed(3),
     H: () => {
-      const height = this.progress.height / this.progress.width
+      const height = this.preProcessing.height / this.preProcessing.width
       return '*' + height.toFixed(4)
     },
     Sc: () => this.progress.scrub.toFixed(4),
@@ -84,7 +82,7 @@ export class Parser {
     C: () => this.progress.curve.toString(),
     L: () => this.progress.letter.toString(),
     px: () => {
-      const pixels = this.progress.width
+      const pixels = this.preProcessing.width
       return '*' + (1 / pixels).toFixed(5)
     }
   }
@@ -277,10 +275,11 @@ export class Parser {
     this.curves = []
     this.progress.time = performance.now() / 1000
     this.progress.progress += this.pauseAt !== false ? 0 : 1 / 60
-    if (this.progress.progress > this.totalLength) {
+    if (this.progress.progress >= this.totalLength) {
       this.pausedAt = []
       this.progress.progress = 0
     }
+
     this.output = defaultOutput()
     this.output.pauseAt = this.pauseAt
     this.resetTransform()
@@ -311,7 +310,6 @@ export class Parser {
         for (let i = 0; i < play.scene; i++) {
           // parse each scene until now to get OSC messages
           this.parse(this.scenes[i].source, { mode: 'blank', silent: true })
-          console.log('output:', this.output.osc)
         }
         this.progress.progress =
           this.scenes[play.scene].start + this.scenes[play.scene].offset
@@ -327,8 +325,8 @@ export class Parser {
 
     for (let object of this.scenes) {
       if (
-        this.progress.progress > object.start &&
-        this.progress.progress < object.start + object.length
+        this.progress.progress >= object.start &&
+        this.progress.progress <= object.start + object.length
       ) {
         this.resetTransform()
         this.progress.scrub =
@@ -336,6 +334,7 @@ export class Parser {
         this.progress.scrubTime = this.progress.progress - object.start
 
         this.parse(object.source)
+
         if (
           this.pauseAt === false &&
           object.pause !== false &&
@@ -372,7 +371,7 @@ export class Parser {
   }
 
   protected format() {
-    const w = this.progress.width
+    const w = this.preProcessing.width
     let newCurves: [number, number][][] = []
     for (let curve of this.curves) {
       // fake it with a gradient
@@ -519,6 +518,7 @@ export class Parser {
     }
 
     const scenes: Parser['scenes'] = []
+    this.totalLength = 0
     for (let scene of sceneList) {
       let [firstLine, drawScene] = splitString(scene, '\n')
 

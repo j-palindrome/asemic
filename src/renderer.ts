@@ -1,12 +1,14 @@
 export default class Renderer {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-  render(curves: [number, number][][]) {
+  render(curves: [number, number][][], { clear = true } = {}) {
     let { ctx } = this
     ctx.resetTransform()
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    ctx.globalAlpha = 1
+    if (clear) {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    }
     ctx.scale(ctx.canvas.width, ctx.canvas.width)
     ctx.fillStyle = 'white'
-    if (curves.length === 0 || !curves[0]) return
     for (let curve of curves) {
       if (curve.length === 0) continue
       ctx.beginPath()
@@ -38,6 +40,7 @@ export default class Renderer {
       }
       ctx.fill()
     }
+    ctx.resetTransform()
   }
 
   constructor(

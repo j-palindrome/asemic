@@ -1,5 +1,2 @@
-export { Parser } from './src/parse'
-export { default as Renderer } from './src/renderer'
-export { createWorker } from './src/worker'
+export { default } from './src/Asemic'
 export * from './src/types'
-export { defaultSettings } from './src/settings'

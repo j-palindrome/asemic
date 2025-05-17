@@ -36,6 +36,7 @@ export class Parser {
   debugged = new Map<string, { errors: string[] }>()
   curves: AsemicGroup[] = []
   settings = defaultSettings()
+  static defaultSettings = defaultSettings()
   currentCurve: AsemicGroup = new AsemicGroup()
   transform: Transform = defaultTransform()
   transforms: Transform[] = []

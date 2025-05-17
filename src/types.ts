@@ -1,14 +1,15 @@
 import { Pt } from 'pts'
 import { Parser } from './parse'
+export type { Parser } from './parse'
+export type { default as Renderer } from './renderer'
 
 export type AsemicData = {
   source?: string
   preProcess?: Partial<Parser['preProcessing']>
   live: {
-    keys?: string
-    text?: string
-    keysIndex?: number
-    textIndex?: number
+    keys: string[]
+    text: string[]
+    index: { type: 'keys' | 'text'; value: number }
   }
   play?: boolean | { scene: number }
   offscreenCanvas?: OffscreenCanvas

@@ -1,15 +1,15 @@
 import { flatMap, isUndefined, max } from 'lodash'
 import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
-import Renderer from './renderer'
+import CanvasRenderer from './canvasRenderer'
 
 let parser: Parser = new Parser()
-let renderer: Renderer
+let renderer: CanvasRenderer
 let offscreenCanvas: OffscreenCanvas
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
-    renderer = new Renderer(ev.data.offscreenCanvas.getContext('2d')!)
+    renderer = new CanvasRenderer(ev.data.offscreenCanvas.getContext('2d')!)
     offscreenCanvas = ev.data.offscreenCanvas
   }
   if (!renderer) return
@@ -52,7 +52,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
         // return
       }
     } else {
-      renderer.render(parser.output.curves)
+      renderer.render(parser.curves)
       // animationFrame.current = requestAnimationFrame(() => {
       //   worker.postMessage({
       //     source: scenesSourceRef.current

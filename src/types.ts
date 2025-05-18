@@ -1,7 +1,7 @@
 import { Pt } from 'pts'
 import { Parser } from './parse'
 export type { Parser } from './parse'
-export type { default as Renderer } from './renderer'
+export type { default as Renderer } from './canvasRenderer'
 
 export type AsemicData = {
   source?: string

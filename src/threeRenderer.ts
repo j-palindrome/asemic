@@ -7,7 +7,7 @@ import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
 
 export default class ThreeRenderer extends Renderer {
   protected scene: Scene
-  protected renderer: WebGPURenderer
+  renderer: WebGPURenderer
   protected camera: OrthographicCamera
   protected brushes: any[] = []
   protected inited = false
@@ -16,17 +16,17 @@ export default class ThreeRenderer extends Renderer {
   protected update(curves: AsemicGroup[]) {}
 
   protected init(curves: AsemicGroup[]) {
-    if (!this.ready) {
-      setTimeout(() => {
-        this.init(curves)
-      }, 100)
-      return
-    }
     this.inited = true
     this.brushes.push(new NewLineBrush(curves, this.scene))
   }
 
   render(curves: AsemicGroup[]): void {
+    if (!this.ready) {
+      setTimeout(() => {
+        this.render(curves)
+      }, 100)
+      return
+    }
     if (!this.inited) this.init(curves)
     else this.update(curves)
 

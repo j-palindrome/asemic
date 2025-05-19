@@ -14,12 +14,17 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     offscreenCanvas = ev.data.offscreenCanvas
   }
   if (!renderer) return
-  if (!isUndefined(ev.data.preProcess)) {
+  if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
-    if (!isUndefined(parser.preProcessing.width))
-      offscreenCanvas.width = parser.preProcessing.width
-    if (!isUndefined(parser.preProcessing.height))
-      offscreenCanvas.height = parser.preProcessing.height
+    // if (!isUndefined(parser.preProcessing.width))
+    //   offscreenCanvas.width = parser.preProcessing.width
+    // if (!isUndefined(parser.preProcessing.height))
+    //   offscreenCanvas.height = parser.preProcessing.height
+    renderer.renderer.setDrawingBufferSize(
+      parser.preProcessing.width / 2,
+      parser.preProcessing.height / 2,
+      2
+    )
   }
   if (!isUndefined(ev.data.live)) {
     Object.assign(parser.live, ev.data.live)

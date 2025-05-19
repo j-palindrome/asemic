@@ -2,14 +2,15 @@ import { flatMap, isUndefined, max } from 'lodash'
 import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import CanvasRenderer from './canvasRenderer'
+import ThreeRenderer from './threeRenderer'
 
 let parser: Parser = new Parser()
-let renderer: CanvasRenderer
+let renderer: ThreeRenderer
 let offscreenCanvas: OffscreenCanvas
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
-    renderer = new CanvasRenderer(ev.data.offscreenCanvas.getContext('2d')!)
+    renderer = new ThreeRenderer(ev.data.offscreenCanvas)
     offscreenCanvas = ev.data.offscreenCanvas
   }
   if (!renderer) return

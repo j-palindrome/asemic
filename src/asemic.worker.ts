@@ -3,28 +3,30 @@ import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import CanvasRenderer from './canvasRenderer'
 import ThreeRenderer from './threeRenderer'
+import { LineBrush } from './asemic-3d/src'
+import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
 
 let parser: Parser = new Parser()
-let renderer: ThreeRenderer
+let renderer: NewLineBrush
 let offscreenCanvas: OffscreenCanvas
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
-    renderer = new ThreeRenderer(ev.data.offscreenCanvas)
+    renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
     offscreenCanvas = ev.data.offscreenCanvas
   }
   if (!renderer) return
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
-    // if (!isUndefined(parser.preProcessing.width))
-    //   offscreenCanvas.width = parser.preProcessing.width
-    // if (!isUndefined(parser.preProcessing.height))
-    //   offscreenCanvas.height = parser.preProcessing.height
-    renderer.renderer.setDrawingBufferSize(
-      parser.preProcessing.width / 2,
-      parser.preProcessing.height / 2,
-      2
-    )
+    if (!isUndefined(parser.preProcessing.width))
+      offscreenCanvas.width = parser.preProcessing.width
+    if (!isUndefined(parser.preProcessing.height))
+      offscreenCanvas.height = parser.preProcessing.height
+    // renderer.renderer.setDrawingBufferSize(
+    //   parser.preProcessing.width / 2,
+    //   parser.preProcessing.height / 2,
+    //   2
+    // )
   }
   if (!isUndefined(ev.data.live)) {
     Object.assign(parser.live, ev.data.live)
@@ -58,7 +60,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
         // return
       }
     } else {
-      renderer.render(parser.curves)
+      // renderer.render(parser.curves)
       // animationFrame.current = requestAnimationFrame(() => {
       //   worker.postMessage({
       //     source: scenesSourceRef.current

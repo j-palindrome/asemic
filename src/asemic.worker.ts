@@ -5,17 +5,22 @@ import CanvasRenderer from './canvasRenderer'
 import ThreeRenderer from './threeRenderer'
 import { LineBrush } from './asemic-3d/src'
 import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
+import Asemic from './Asemic'
 
 let parser: Parser = new Parser()
 let renderer: NewLineBrush
 let offscreenCanvas: OffscreenCanvas
 
-self.onmessage = (ev: MessageEvent<AsemicData>) => {
+self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
-    renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
     offscreenCanvas = ev.data.offscreenCanvas
+    renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
+    await renderer.init()
+    postMessage({
+      ready: true
+    } as AsemicDataBack)
   }
-  if (!renderer) return
+  if (!renderer?.device || !offscreenCanvas) return
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
     if (!isUndefined(parser.preProcessing.width))
@@ -50,6 +55,10 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
       if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
         offscreenCanvas.height = offscreenCanvas.width * maxY
+        parser.preProcessing.height = offscreenCanvas.height
+        self.postMessage({
+          preProcessing: parser.preProcessing
+        } as AsemicDataBack)
         // onResize()
 
         // animationFrame.current = requestAnimationFrame(() => {
@@ -60,7 +69,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
         // return
       }
     } else {
-      // renderer.render(parser.curves)
+      renderer.render(parser.curves)
       // animationFrame.current = requestAnimationFrame(() => {
       //   worker.postMessage({
       //     source: scenesSourceRef.current

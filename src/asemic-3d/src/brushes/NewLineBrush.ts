@@ -1,31 +1,20 @@
+import { range } from 'lodash'
+import { AsemicGroup } from 'src/AsemicPt'
 import invariant from 'tiny-invariant'
 
 export default class NewLineBrush {
   ctx: GPUCanvasContext
-  async init() {
-    const adapter = await navigator.gpu.requestAdapter({
-      featureLevel: 'compatibility'
-    })
-    invariant(adapter)
-    const device = await adapter.requestDevice()
-    invariant(device)
-    this.ctx.configure({
-      device,
-      format: navigator.gpu.getPreferredCanvasFormat()
-    })
+  device: GPUDevice
 
+  async render(curves: AsemicGroup[]) {
     // Create vertex shader
     // Define the vertex data
     // Define the vertex data - just 4 corners of the line
-    const vertices = new Float32Array([
-      0.2,
-      0.5, // bottom left
-      0.8,
-      1
-    ])
+    const vertices = new Float32Array(curves[0].flatMap(x => [x.x, x.y]))
+    // console.log(vertices, 'vertices')
 
     // Create a buffer to store vertex data
-    const vertexBuffer = device.createBuffer({
+    const vertexBuffer = this.device.createBuffer({
       size: vertices.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true
@@ -35,9 +24,9 @@ export default class NewLineBrush {
     new Float32Array(vertexBuffer.getMappedRange()).set(vertices)
     vertexBuffer.unmap()
 
-    const widths = new Float32Array([0, 100])
+    const widths = new Float32Array(curves[0].map(x => x.width))
     // Create an index buffer
-    const widthsBuffer = device.createBuffer({
+    const widthsBuffer = this.device.createBuffer({
       size: widths.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true
@@ -46,17 +35,19 @@ export default class NewLineBrush {
     widthsBuffer.unmap()
 
     // Define indices to form two triangles
-    const indices = new Uint16Array([
-      0,
-      1,
-      2, // first triangle
-      1,
-      2,
-      3 // second triangle
-    ])
+    const indices = new Uint16Array(
+      range(curves[0].length - 1).flatMap(x => [
+        x * 2,
+        x * 2 + 1,
+        x * 2 + 2,
+        x * 2 + 1,
+        x * 2 + 2,
+        x * 2 + 3
+      ])
+    )
 
     // Create an index buffer
-    const indexBuffer = device.createBuffer({
+    const indexBuffer = this.device.createBuffer({
       size: indices.byteLength,
       usage: GPUBufferUsage.INDEX,
       mappedAtCreation: true
@@ -70,7 +61,7 @@ export default class NewLineBrush {
     const curveStarts = new Uint16Array([0, 0])
 
     // Create a buffer for curve starts
-    const curveStartsBuffer = device.createBuffer({
+    const curveStartsBuffer = this.device.createBuffer({
       size: curveStarts.byteLength,
       usage: GPUBufferUsage.STORAGE,
       mappedAtCreation: true
@@ -86,7 +77,7 @@ export default class NewLineBrush {
       this.ctx.canvas.height
     ])
 
-    const dimensionsBuffer = device.createBuffer({
+    const dimensionsBuffer = this.device.createBuffer({
       size: canvasDimensions.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true
@@ -96,7 +87,7 @@ export default class NewLineBrush {
     dimensionsBuffer.unmap()
 
     // Update bind group layout to include dimensions uniform
-    const bindGroupLayout = device.createBindGroupLayout({
+    const bindGroupLayout = this.device.createBindGroupLayout({
       entries: [
         {
           binding: 0,
@@ -116,7 +107,7 @@ export default class NewLineBrush {
       ]
     })
 
-    const bindGroup = device.createBindGroup({
+    const bindGroup = this.device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
         {
@@ -134,7 +125,7 @@ export default class NewLineBrush {
       ]
     })
 
-    const shaderModule = device.createShaderModule({
+    const shaderModule = this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
         @builtin(position) position: vec4<f32>,
@@ -151,7 +142,7 @@ export default class NewLineBrush {
 
       fn normalCoords(position: vec2<f32>) -> vec2<f32> {
         // Convert coordinates from [0, 1] to [-1, 1] on x
-        let x = (position.x) * 2.0 - 1.0;
+        let x = position.x * 2.0 - 1.0;
         // Convert coordinates from [0, 1] to [-(height/width), -(height/width)] on y
         let aspectRatio = canvasDimensions.y / canvasDimensions.x;
         let y = (1.0 - position.y * 2.0) / aspectRatio;
@@ -204,13 +195,20 @@ export default class NewLineBrush {
       `
     })
 
-    // Pipeline setup
-    const pipelineLayout = device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout]
+    const computeLayout = this.device.createComputePipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
+      compute: {
+        module: shaderModule,
+        entryPoint: 'computeMain'
+      }
     })
 
-    const pipeline = device.createRenderPipeline({
-      layout: pipelineLayout,
+    const pipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
       vertex: {
         module: shaderModule,
         entryPoint: 'vertexMain'
@@ -230,7 +228,7 @@ export default class NewLineBrush {
     })
 
     // Create a method to render the line
-    const commandEncoder = device.createCommandEncoder()
+    const commandEncoder = this.device.createCommandEncoder()
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -247,16 +245,29 @@ export default class NewLineBrush {
 
     // Set the index buffer and draw indexed
     renderPass.setIndexBuffer(indexBuffer, 'uint16')
-    renderPass.drawIndexed(6) // Draw 6 indices (2 triangles)
+    renderPass.drawIndexed(indices.length) // Draw 6 indices (2 triangles)
 
     renderPass.end()
     console.log('finishing')
 
-    device.queue.submit([commandEncoder.finish()])
+    this.device.queue.submit([commandEncoder.finish()])
+  }
+
+  async init() {
+    const adapter = await navigator.gpu.requestAdapter({
+      featureLevel: 'compatibility'
+    })
+    invariant(adapter)
+    const device = await adapter.requestDevice()
+    invariant(device)
+    this.device = device
+    this.ctx.configure({
+      device,
+      format: navigator.gpu.getPreferredCanvasFormat()
+    })
   }
 
   constructor(ctx: GPUCanvasContext) {
     this.ctx = ctx
-    this.init()
   }
 }

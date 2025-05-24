@@ -56,8 +56,9 @@ export default class NewLineBrush {
     // Write index data
     new Uint16Array(indexBuffer.getMappedRange()).set(indices)
     indexBuffer.unmap()
+
     // Define curve start indices
-    const curveStarts = new Uint16Array(curves.length + 1)
+    const curveStarts = new Int32Array(curves.length + 1)
     let total = 0
     for (let i = 0; i < curves.length; i++) {
       curveStarts[i] = total
@@ -68,12 +69,12 @@ export default class NewLineBrush {
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
       size: curveStarts.byteLength,
-      usage: GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
       mappedAtCreation: true
     })
 
     // Write curve starts data
-    new Uint16Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
+    new Int32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
     curveStartsBuffer.unmap()
 
     // Create a buffer for canvas dimensions
@@ -139,25 +140,7 @@ export default class NewLineBrush {
       ]
     })
 
-    const shaderModule = this.device.createShaderModule({
-      code: /*wgsl*/ `
-      struct VertexOutput {
-      @builtin(position) position: vec4<f32>,
-      @location(0) color: vec4<f32>,
-      };
-      
-      @group(0) @binding(0)
-      var<storage, read> vertices: array<vec2<f32>>;
-
-      @group(0) @binding(1)
-      var<storage, read> widths: array<f32>;
-
-      @group(0) @binding(2)
-      var<uniform> canvas_dimensions: vec2<f32>;
-
-      @group(0) @binding(3)
-      var<storage, read> curve_starts: array<u32>;
-
+    const wgslRequires = /*wgsl*/ `
       fn normalCoords(position: vec2<f32>) -> vec2<f32> {
       // Convert coordinates from [0, 1] to [-1, 1] on x
       let x = position.x * 2.0 - 1.0;
@@ -196,6 +179,28 @@ export default class NewLineBrush {
       
       return p;
       }
+    `
+
+    const shaderModule = this.device.createShaderModule({
+      code: /*wgsl*/ `
+      struct VertexOutput {
+      @builtin(position) position: vec4<f32>,
+      @location(0) color: vec4<f32>,
+      };
+      
+      @group(0) @binding(0)
+      var<storage, read> vertices: array<vec2<f32>>;
+
+      @group(0) @binding(1)
+      var<storage, read> widths: array<f32>;
+
+      @group(0) @binding(2)
+      var<uniform> canvas_dimensions: vec2<f32>;
+
+      @group(0) @binding(3)
+      var<storage, read> curve_starts: array<u32>;
+
+      ${wgslRequires}
 
       @vertex
       fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
@@ -205,16 +210,14 @@ export default class NewLineBrush {
       let side = vertex_index % 2u > 0;
       let curve = u32(point_progress);
       let curve_length = curve_starts[curve + 1] - curve_starts[curve];
-      let start_at_point = u32(fract(point_progress) * f32(curve_length));
+      let start_at_point = u32(fract(point_progress) * f32(curve_length - 2));
+      let t = fract(fract(point_progress) * f32(curve_length - 2));
 
       var p0: vec2<f32> = normalCoords(vertices[start_at_point]);
       var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
       var p2: vec2<f32> = normalCoords(vertices[start_at_point + 2]);
-      // var p0: vec2<f32> = vertices[0];
-      // var p1: vec2<f32> = vertices[1];
-      // var p2: vec2<f32> = vertices[2];
       
-      let bezier_vertex = bezierCurve(point_progress, p0, p1, p2, side);
+      let bezier_vertex = bezierCurve(t, p0, p1, p2, side);
       
       output.position = vec4<f32>(bezier_vertex, 0.0, 1.0);
       output.color = vec4<f32>(1.0, 1.0, 1.0, 1.0); // Set the color value
@@ -228,15 +231,225 @@ export default class NewLineBrush {
       `
     })
 
-    // const computeLayout = this.device.createComputePipeline({
-    //   layout: this.device.createPipelineLayout({
-    //     bindGroupLayouts: [bindGroupLayout]
-    //   }),
-    //   compute: {
-    //     module: shaderModule,
-    //     entryPoint: 'computeMain'
-    //   }
-    // })
+    const debug = () => {
+      console.log('Debug mode activated')
+
+      // Create a storage buffer to store debug values
+      const numVertices = 100
+      const debugBufferSize = numVertices * 4 * Float32Array.BYTES_PER_ELEMENT // 100 vec4 values
+      const debugBuffer = this.device.createBuffer({
+        size: debugBufferSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+        mappedAtCreation: false
+      })
+
+      // Create a staging buffer for reading back the data
+      const stagingBuffer = this.device.createBuffer({
+        size: debugBufferSize,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: false
+      })
+
+      console.log(curveStarts, 'curve starts')
+
+      // Create a debug compute shader
+      const debugShaderModule = this.device.createShaderModule({
+        code: /*wgsl*/ `
+          @group(0) @binding(0)
+          var<storage, read> vertices: array<vec2<f32>>;
+
+          @group(0) @binding(1)
+          var<storage, read> widths: array<f32>;
+          
+          @group(0) @binding(2)
+          var<uniform> canvas_dimensions: vec2<f32>;
+          
+          @group(0) @binding(3)
+          var<storage, read> curve_starts: array<i32>;
+
+          @group(0) @binding(4)
+          var<storage, read_write> debug_output: array<vec4<f32>>;
+
+          ${wgslRequires}
+
+          @compute @workgroup_size(1)
+          fn debugMain() {
+            // Generate 100 vertices along the curve (similar to vertex shader)
+            for (var vertex_index = 0u; vertex_index < 200u; vertex_index++) {
+              const VERTEXCOUNT = 100.;
+              let point_progress = f32(vertex_index / 2) / VERTEXCOUNT;
+              let side = vertex_index % 2u > 0;
+              let curve = 0u;  // Focus on first curve
+              let curve_length = curve_starts[curve + 1] - curve_starts[curve];
+              let start_at_point = i32(fract(point_progress) * f32(curve_length - 2));
+              let t = fract(fract(point_progress) * f32(curve_length - 2));
+
+              var p0: vec2<f32> = normalCoords(vertices[start_at_point]);
+              var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
+              var p2: vec2<f32> = normalCoords(vertices[start_at_point + 2]);
+              
+              let bezier_vertex = bezierCurve(t, p0, p1, p2, side);
+              
+              // curve = 0, curve_length = 0
+              // unsigned integers wrap around whenever they go negative
+              debug_output[vertex_index] = vec4<f32>(
+                t,
+                f32(i32(curve_length) - 2),
+                f32(curve_starts[curve]),
+                0.
+              );
+            }
+          }
+        `
+      })
+
+      // Create a compute pipeline
+      const debugComputePipeline = this.device.createComputePipeline({
+        layout: this.device.createPipelineLayout({
+          bindGroupLayouts: [
+            this.device.createBindGroupLayout({
+              entries: [
+                {
+                  binding: 0,
+                  visibility: GPUShaderStage.COMPUTE,
+                  buffer: { type: 'read-only-storage' }
+                },
+                {
+                  binding: 1,
+                  visibility: GPUShaderStage.COMPUTE,
+                  buffer: { type: 'read-only-storage' }
+                },
+                {
+                  binding: 2,
+                  visibility: GPUShaderStage.COMPUTE,
+                  buffer: { type: 'uniform' }
+                },
+                {
+                  binding: 3,
+                  visibility: GPUShaderStage.COMPUTE,
+                  buffer: { type: 'read-only-storage' }
+                },
+                {
+                  binding: 4,
+                  visibility: GPUShaderStage.COMPUTE,
+                  buffer: { type: 'storage' }
+                }
+              ]
+            })
+          ]
+        }),
+        compute: {
+          module: debugShaderModule,
+          entryPoint: 'debugMain'
+        }
+      })
+
+      // Create a debug bind group
+      const debugBindGroup = this.device.createBindGroup({
+        layout: debugComputePipeline.getBindGroupLayout(0),
+        entries: [
+          {
+            binding: 0,
+            resource: { buffer: vertexBuffer }
+          },
+          {
+            binding: 1,
+            resource: { buffer: widthsBuffer }
+          },
+          {
+            binding: 2,
+            resource: { buffer: dimensionsBuffer }
+          },
+          {
+            binding: 3,
+            resource: { buffer: curveStartsBuffer }
+          },
+          {
+            binding: 4,
+            resource: { buffer: debugBuffer }
+          }
+        ]
+      })
+
+      // Log curveStartsBuffer content
+      console.log('curveStartsBuffer content:')
+      ;(async () => {
+        // Create a temporary staging buffer for reading
+        const curveStartsStaging = this.device.createBuffer({
+          size: curveStarts.byteLength,
+          usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+          mappedAtCreation: false
+        })
+
+        // Create and submit a command to copy from curveStartsBuffer to staging
+        const copyEncoder = this.device.createCommandEncoder()
+        copyEncoder.copyBufferToBuffer(
+          curveStartsBuffer,
+          0,
+          curveStartsStaging,
+          0,
+          curveStarts.byteLength
+        )
+        this.device.queue.submit([copyEncoder.finish()])
+
+        // Wait for the GPU to finish then read the data
+        await curveStartsStaging.mapAsync(GPUMapMode.READ)
+        const mappedBuffer = curveStartsStaging.getMappedRange()
+        const curveStartsData = new Uint16Array(mappedBuffer)
+        console.log('Curve starts:', Array.from(curveStartsData))
+        curveStartsStaging.unmap()
+      })()
+
+      // Run the compute shader
+      const debugCommandEncoder = this.device.createCommandEncoder()
+      const computePass = debugCommandEncoder.beginComputePass()
+      computePass.setPipeline(debugComputePipeline)
+      computePass.setBindGroup(0, debugBindGroup)
+      computePass.dispatchWorkgroups(1)
+      computePass.end()
+
+      // Copy debug buffer to staging buffer for reading
+      debugCommandEncoder.copyBufferToBuffer(
+        debugBuffer,
+        0,
+        stagingBuffer,
+        0,
+        debugBufferSize
+      )
+
+      // Submit commands
+      this.device.queue.submit([debugCommandEncoder.finish()])
+
+      // Read back the data
+      setTimeout(async () => {
+        await stagingBuffer.mapAsync(GPUMapMode.READ)
+        const data = new Float32Array(stagingBuffer.getMappedRange())
+
+        console.log('Vertex positions along the curve:')
+
+        // Group by pairs (left/right sides of the line)
+        for (let i = 0; i < 3; i++) {
+          const left = {
+            x: data[i * 2 * 4],
+            y: data[i * 2 * 4 + 1],
+            side: data[i * 2 * 4 + 2],
+            index: data[i * 2 * 4 + 3]
+          }
+
+          const right = {
+            x: data[(i * 2 + 1) * 4],
+            y: data[(i * 2 + 1) * 4 + 1],
+            side: data[(i * 2 + 1) * 4 + 2],
+            index: data[(i * 2 + 1) * 4 + 3]
+          }
+
+          console.log(`${left.x} ${left.y} ${left.side}, ${left.index}`)
+        }
+
+        stagingBuffer.unmap()
+      }, 100)
+    }
+    debug()
 
     const pipeline = this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({

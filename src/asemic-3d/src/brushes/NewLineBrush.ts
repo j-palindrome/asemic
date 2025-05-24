@@ -58,7 +58,7 @@ export default class NewLineBrush {
     indexBuffer.unmap()
 
     // Define curve start indices
-    const curveStarts = new Int32Array(curves.length + 1)
+    const curveStarts = new Uint32Array(curves.length + 1)
     let total = 0
     for (let i = 0; i < curves.length; i++) {
       curveStarts[i] = total
@@ -74,7 +74,7 @@ export default class NewLineBrush {
     })
 
     // Write curve starts data
-    new Int32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
+    new Uint32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
     curveStartsBuffer.unmap()
 
     // Create a buffer for canvas dimensions
@@ -181,6 +181,28 @@ export default class NewLineBrush {
       }
     `
 
+    const calcPosition = /*wgsl*/ `
+    const VERTEXCOUNT = 100.;
+    let point_progress = (f32(vertex_index / 2u) / VERTEXCOUNT) * 0.999;
+    let side = vertex_index % 2u > 0;
+    let curve = 0u;  // Focus on first curve
+    let curve_length = curve_starts[curve + 1] - curve_starts[curve];
+    let start_at_point = u32(fract(point_progress) * f32(curve_length - 2));
+    let t = fract(fract(point_progress) * f32(curve_length - 2));
+
+    var p0: vec2<f32> = normalCoords(select(
+      vertices[start_at_point], 
+      (vertices[start_at_point] + vertices[start_at_point + 1]) / 2.,
+      start_at_point > 0));
+    var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
+    var p2: vec2<f32> = normalCoords(select(
+      vertices[start_at_point + 2],
+      (vertices[start_at_point + 1] + vertices[start_at_point + 2]) / 2.,
+      start_at_point < curve_length - 3));
+    
+    let bezier_position = bezierCurve(t, p0, p1, p2, side);
+  `
+
     const shaderModule = this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
@@ -205,21 +227,9 @@ export default class NewLineBrush {
       @vertex
       fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
       var output: VertexOutput;
-      const VERTEXCOUNT = 100.;
-      let point_progress = f32(vertex_index / 2u) / VERTEXCOUNT;
-      let side = vertex_index % 2u > 0;
-      let curve = u32(point_progress);
-      let curve_length = curve_starts[curve + 1] - curve_starts[curve];
-      let start_at_point = u32(fract(point_progress) * f32(curve_length - 2));
-      let t = fract(fract(point_progress) * f32(curve_length - 2));
-
-      var p0: vec2<f32> = normalCoords(vertices[start_at_point]);
-      var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
-      var p2: vec2<f32> = normalCoords(vertices[start_at_point + 2]);
+      ${calcPosition}
       
-      let bezier_vertex = bezierCurve(t, p0, p1, p2, side);
-      
-      output.position = vec4<f32>(bezier_vertex, 0.0, 1.0);
+      output.position = vec4<f32>(bezier_position, 0.0, 1.0);
       output.color = vec4<f32>(1.0, 1.0, 1.0, 1.0); // Set the color value
       return output;
       }
@@ -235,7 +245,7 @@ export default class NewLineBrush {
       console.log('Debug mode activated')
 
       // Create a storage buffer to store debug values
-      const numVertices = 100
+      const numVertices = 200
       const debugBufferSize = numVertices * 4 * Float32Array.BYTES_PER_ELEMENT // 100 vec4 values
       const debugBuffer = this.device.createBuffer({
         size: debugBufferSize,
@@ -250,8 +260,6 @@ export default class NewLineBrush {
         mappedAtCreation: false
       })
 
-      console.log(curveStarts, 'curve starts')
-
       // Create a debug compute shader
       const debugShaderModule = this.device.createShaderModule({
         code: /*wgsl*/ `
@@ -265,7 +273,7 @@ export default class NewLineBrush {
           var<uniform> canvas_dimensions: vec2<f32>;
           
           @group(0) @binding(3)
-          var<storage, read> curve_starts: array<i32>;
+          var<storage, read> curve_starts: array<u32>;
 
           @group(0) @binding(4)
           var<storage, read_write> debug_output: array<vec4<f32>>;
@@ -275,28 +283,14 @@ export default class NewLineBrush {
           @compute @workgroup_size(1)
           fn debugMain() {
             // Generate 100 vertices along the curve (similar to vertex shader)
-            for (var vertex_index = 0u; vertex_index < 200u; vertex_index++) {
-              const VERTEXCOUNT = 100.;
-              let point_progress = f32(vertex_index / 2) / VERTEXCOUNT;
-              let side = vertex_index % 2u > 0;
-              let curve = 0u;  // Focus on first curve
-              let curve_length = curve_starts[curve + 1] - curve_starts[curve];
-              let start_at_point = i32(fract(point_progress) * f32(curve_length - 2));
-              let t = fract(fract(point_progress) * f32(curve_length - 2));
-
-              var p0: vec2<f32> = normalCoords(vertices[start_at_point]);
-              var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
-              var p2: vec2<f32> = normalCoords(vertices[start_at_point + 2]);
-              
-              let bezier_vertex = bezierCurve(t, p0, p1, p2, side);
+            for (var vertex_index = 0u; vertex_index < ${numVertices}u; vertex_index++) {
+              ${calcPosition}
               
               // curve = 0, curve_length = 0
               // unsigned integers wrap around whenever they go negative
               debug_output[vertex_index] = vec4<f32>(
                 t,
-                f32(i32(curve_length) - 2),
-                f32(curve_starts[curve]),
-                0.
+                f32(start_at_point), bezier_position
               );
             }
           }
@@ -395,7 +389,7 @@ export default class NewLineBrush {
         // Wait for the GPU to finish then read the data
         await curveStartsStaging.mapAsync(GPUMapMode.READ)
         const mappedBuffer = curveStartsStaging.getMappedRange()
-        const curveStartsData = new Uint16Array(mappedBuffer)
+        const curveStartsData = new Uint32Array(mappedBuffer)
         console.log('Curve starts:', Array.from(curveStartsData))
         curveStartsStaging.unmap()
       })()
@@ -428,19 +422,12 @@ export default class NewLineBrush {
         console.log('Vertex positions along the curve:')
 
         // Group by pairs (left/right sides of the line)
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < numVertices; i++) {
           const left = {
-            x: data[i * 2 * 4],
-            y: data[i * 2 * 4 + 1],
-            side: data[i * 2 * 4 + 2],
-            index: data[i * 2 * 4 + 3]
-          }
-
-          const right = {
-            x: data[(i * 2 + 1) * 4],
-            y: data[(i * 2 + 1) * 4 + 1],
-            side: data[(i * 2 + 1) * 4 + 2],
-            index: data[(i * 2 + 1) * 4 + 3]
+            x: data[i * 4],
+            y: data[i * 4 + 1],
+            side: data[i * 4 + 2],
+            index: data[i * 4 + 3]
           }
 
           console.log(`${left.x} ${left.y} ${left.side}, ${left.index}`)

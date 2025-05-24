@@ -33,7 +33,7 @@ export default class NewLineBrush {
     // Create an index buffer
     const widthsBuffer = this.device.createBuffer({
       size: widths.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      usage: GPUBufferUsage.STORAGE,
       mappedAtCreation: true
     })
     new Float32Array(widthsBuffer.getMappedRange()).set(widths)
@@ -76,7 +76,7 @@ export default class NewLineBrush {
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
       size: curveStarts.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE,
       mappedAtCreation: true
     })
 
@@ -157,12 +157,10 @@ export default class NewLineBrush {
       return vec2<f32>(x, y);
       }
 
-      fn bezierCurve(t: f32, p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, side: bool) -> vec2<f32> {
+      fn bezierCurve(t: f32, p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, side: bool, width: f32) -> vec2<f32> {
       let u = 1.0 - t;
       let tt = t * t;
       let uu = u * u;
-
-      let width = 50. / canvas_dimensions.x;
       
       // Position on the curve
       var p = (uu * p0) + (2.0 * u * t * p1) + (tt * p2);
@@ -209,8 +207,26 @@ export default class NewLineBrush {
       (vertices[start_at_point + 1] + vertices[start_at_point + 2]) / 2.,
       start_at_point < curve_starts[curve] + curve_length - 3));
     
-    let bezier_position = bezierCurve(t, p0, p1, p2, side);
-  `
+    // Get the widths at the corresponding points
+    let width0 = select(
+      widths[start_at_point], 
+      (widths[start_at_point] + widths[start_at_point + 1]) / 2., 
+      start_at_point > curve_starts[curve]);
+    let width1 = widths[start_at_point + 1];
+    let width2 = select(
+      widths[start_at_point + 2],
+      (widths[start_at_point + 1] + widths[start_at_point + 2]) / 2.,
+      start_at_point < curve_starts[curve] + curve_length - 3);
+    
+    // Interpolate width using the same Bezier curve formula
+    var width = select(
+      mix(width0, width1, t * 2), 
+      mix(width1, width2, (t - 0.5) * 2), 
+      t > 0.5);
+    width /= canvas_dimensions.x / 2; // Normalize width to canvas dimensions
+    
+    let bezier_position = bezierCurve(t, p0, p1, p2, side, width);
+    `
 
     const shaderModule = this.device.createShaderModule({
       code: /*wgsl*/ `

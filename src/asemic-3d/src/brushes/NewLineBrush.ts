@@ -42,7 +42,7 @@ export default class NewLineBrush {
     // Define indices to form two triangles
     const indices = new Uint16Array(
       range(curves.length).flatMap(i =>
-        range(100).flatMap(x => [
+        range(99).flatMap(x => [
           i * 200 + x * 2,
           i * 200 + x * 2 + 1,
           i * 200 + x * 2 + 2,
@@ -190,7 +190,8 @@ export default class NewLineBrush {
 
     const calcPosition = /*wgsl*/ `
     const VERTEXCOUNT = 100.;
-    let point_progress = (f32(vertex_index / 2u) / VERTEXCOUNT) * 0.999;
+    let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
+    let point_progress = floor(progress) + fract(progress) * 0.99999;
     let side = vertex_index % 2u > 0;
     let curve = u32(point_progress);  // Focus on first curve
     let curve_length = curve_starts[curve + 1] - curve_starts[curve];
@@ -401,7 +402,7 @@ export default class NewLineBrush {
         console.log('Vertex positions along the curve:')
 
         // Group by pairs (left/right sides of the line)
-        for (let i = 200; i < numVertices; i++) {
+        for (let i = 195; i < 205; i++) {
           const left = {
             x: data[i * 4],
             y: data[i * 4 + 1],

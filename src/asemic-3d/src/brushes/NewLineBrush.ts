@@ -36,7 +36,7 @@ export default class NewLineBrush {
 
     // Define indices to form two triangles
     const indices = new Uint16Array(
-      range(curves[0].length - 1).flatMap(x => [
+      range(100).flatMap(x => [
         x * 2,
         x * 2 + 1,
         x * 2 + 2,
@@ -56,9 +56,14 @@ export default class NewLineBrush {
     // Write index data
     new Uint16Array(indexBuffer.getMappedRange()).set(indices)
     indexBuffer.unmap()
-
     // Define curve start indices
-    const curveStarts = new Uint16Array([0, 0])
+    const curveStarts = new Uint16Array(curves.length + 1)
+    let total = 0
+    for (let i = 0; i < curves.length; i++) {
+      curveStarts[i] = total
+      total += curves[i].length
+    }
+    curveStarts[curves.length] = total
 
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
@@ -103,6 +108,11 @@ export default class NewLineBrush {
           binding: 2,
           visibility: GPUShaderStage.VERTEX,
           buffer: { type: 'uniform' }
+        },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
         }
       ]
     })
@@ -121,6 +131,10 @@ export default class NewLineBrush {
         {
           binding: 2,
           resource: { buffer: dimensionsBuffer }
+        },
+        {
+          binding: 3,
+          resource: { buffer: curveStartsBuffer }
         }
       ]
     })
@@ -128,7 +142,8 @@ export default class NewLineBrush {
     const shaderModule = this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
-        @builtin(position) position: vec4<f32>,
+      @builtin(position) position: vec4<f32>,
+      @location(0) color: vec4<f32>,
       };
       
       @group(0) @binding(0)
@@ -138,72 +153,90 @@ export default class NewLineBrush {
       var<storage, read> widths: array<f32>;
 
       @group(0) @binding(2)
-      var<uniform> canvasDimensions: vec2<f32>;
+      var<uniform> canvas_dimensions: vec2<f32>;
+
+      @group(0) @binding(3)
+      var<storage, read> curve_starts: array<u32>;
 
       fn normalCoords(position: vec2<f32>) -> vec2<f32> {
-        // Convert coordinates from [0, 1] to [-1, 1] on x
-        let x = position.x * 2.0 - 1.0;
-        // Convert coordinates from [0, 1] to [-(height/width), -(height/width)] on y
-        let aspectRatio = canvasDimensions.y / canvasDimensions.x;
-        let y = (1.0 - position.y * 2.0) / aspectRatio;
-        return vec2<f32>(x, y);
+      // Convert coordinates from [0, 1] to [-1, 1] on x
+      let x = position.x * 2.0 - 1.0;
+      // Convert coordinates from [0, 1] to [-(height/width), -(height/width)] on y
+      let aspect_ratio = canvas_dimensions.y / canvas_dimensions.x;
+      let y = (1.0 - position.y * 2.0) / aspect_ratio;
+      return vec2<f32>(x, y);
+      }
+
+      fn bezierCurve(t: f32, p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, side: bool) -> vec2<f32> {
+      let u = 1.0 - t;
+      let tt = t * t;
+      let uu = u * u;
+
+      let width = 50. / canvas_dimensions.x;
+      
+      // Position on the curve
+      var p = (uu * p0) + (2.0 * u * t * p1) + (tt * p2);
+      
+      // Derivative (tangent) vector
+      let dx = 2.0 * (u * (p1.x - p0.x) + t * (p2.x - p1.x));
+      let dy = 2.0 * (u * (p1.y - p0.y) + t * (p2.y - p1.y));
+      
+      // Tangent vector
+      let tangent = vec2<f32>(dx, dy);
+      
+      // Normal vector (perpendicular to tangent)
+      // Rotate tangent 90 degrees to get normal
+      let normal = normalize(vec2<f32>(-tangent.y, tangent.x));
+
+      if (side) {
+      p = p + normal * width / 2.;
+      } else {
+      p = p - normal * width / 2.;
+      }
+      
+      return p;
       }
 
       @vertex
-      fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-        var output: VertexOutput;
-        let vertex = vertexIndex / 2u;
-        let side = vertexIndex % 2u;
-        let width = widths[vertex] / canvasDimensions.x;
-        var position = normalCoords(vertices[vertex]);
-        var nextPosition: vec2<f32>;
-        var backwards = false;
-        const PI = 3.14159265358979323846;
-        
-        // Check if vertex + 1u is within the bounds of the vertices array
-        if (vertex + 1u < arrayLength(&vertices)) {
-          nextPosition = normalCoords(vertices[vertex + 1u]);
-        } else {
-          // Use previous position if next one doesn't exist
-          nextPosition = normalCoords(vertices[vertex - 1u]);
-          backwards = true;
-        }
+      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+      var output: VertexOutput;
+      const VERTEXCOUNT = 100.;
+      let point_progress = f32(vertex_index / 2u) / VERTEXCOUNT;
+      let side = vertex_index % 2u > 0;
+      let curve = u32(point_progress);
+      let curve_length = curve_starts[curve + 1] - curve_starts[curve];
+      let start_at_point = u32(fract(point_progress) * f32(curve_length));
 
-        let direction = select(
-          vec2<f32>(nextPosition.x - position.x, nextPosition.y - position.y), 
-          vec2<f32>(position.x - nextPosition.x, position.y - nextPosition.y), 
-          backwards);
-        
-        // Normalize the direction vector
-        let normalizedDir = normalize(direction);
-        
-        // Create perpendicular vector by rotating 90 degrees
-        let perpVector = vec2<f32>(-normalizedDir.y, normalizedDir.x) * width;
-
-        if (side != 0u) {
-          // Apply offset for the second vertex of the triangle
-          position = position + perpVector;
-        }
-        output.position = vec4<f32>(position, 0.0, 1.0);
-        return output;
+      var p0: vec2<f32> = normalCoords(vertices[start_at_point]);
+      var p1: vec2<f32> = normalCoords(vertices[start_at_point + 1]);
+      var p2: vec2<f32> = normalCoords(vertices[start_at_point + 2]);
+      // var p0: vec2<f32> = vertices[0];
+      // var p1: vec2<f32> = vertices[1];
+      // var p2: vec2<f32> = vertices[2];
+      
+      let bezier_vertex = bezierCurve(point_progress, p0, p1, p2, side);
+      
+      output.position = vec4<f32>(bezier_vertex, 0.0, 1.0);
+      output.color = vec4<f32>(1.0, 1.0, 1.0, 1.0); // Set the color value
+      return output;
       }
 
       @fragment
-      fn fragmentMain() -> @location(0) vec4<f32> {
-        return vec4<f32>(1.0, 1.0, 1.0, 1.0); // White color
+      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+      return input.color; // Use the color passed from vertex shader
       }
       `
     })
 
-    const computeLayout = this.device.createComputePipeline({
-      layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout]
-      }),
-      compute: {
-        module: shaderModule,
-        entryPoint: 'computeMain'
-      }
-    })
+    // const computeLayout = this.device.createComputePipeline({
+    //   layout: this.device.createPipelineLayout({
+    //     bindGroupLayouts: [bindGroupLayout]
+    //   }),
+    //   compute: {
+    //     module: shaderModule,
+    //     entryPoint: 'computeMain'
+    //   }
+    // })
 
     const pipeline = this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({

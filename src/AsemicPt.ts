@@ -87,6 +87,13 @@ export class AsemicGroup extends Group {
     return super.map(callbackfn, thisArg)
   }
 
+  flatMap<U>(
+    callbackfn: (value: AsemicPt, index: number, array: AsemicPt[]) => U[] | U,
+    thisArg?: any
+  ): U[] {
+    return super.flatMap(callbackfn, thisArg)
+  }
+
   static fromArray(list: PtLikeIterable) {
     throw new Error('AsemicGroup: use fromPointArray.')
   }

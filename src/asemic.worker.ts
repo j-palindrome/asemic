@@ -59,22 +59,9 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
         self.postMessage({
           preProcessing: parser.preProcessing
         } as AsemicDataBack)
-        // onResize()
-
-        // animationFrame.current = requestAnimationFrame(() => {
-        //   worker.postMessage({
-        //     source: scenesSourceRef.current
-        //   })
-        // })
-        // return
       }
     } else {
       renderer.render(parser.curves)
-      // animationFrame.current = requestAnimationFrame(() => {
-      //   worker.postMessage({
-      //     source: scenesSourceRef.current
-      //   })
-      // })
     }
 
     self.postMessage({

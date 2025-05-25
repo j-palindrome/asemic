@@ -7,20 +7,17 @@ export default class NewLineBrush {
   device: GPUDevice
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
-  commandEncoder: GPUCommandEncoder
   shaderModule: GPUShaderModule
   dimensions: { buffer: GPUBuffer; size: number }
   widths: { buffer: GPUBuffer; size: number }
-  curveStarts: { buffer: GPUBuffer; size: number }
+  curveStarts: { buffer: GPUBuffer; size: number; array: Uint32Array }
   vertex: { buffer: GPUBuffer; size: number }
   index: { buffer: GPUBuffer; size: number }
 
   protected load(curves: AsemicGroup[]) {
-    // Create vertex shader
-    // Define the vertex data
-    // Define the vertex data - just 4 corners of the line
+    console.log('loading curves')
 
-    // console.log(vertices, 'vertices')
+    // Create vertex shader
 
     // Create a buffer to store vertex data
     const vertexBuffer = this.device.createBuffer({
@@ -194,7 +191,11 @@ export default class NewLineBrush {
       buffer: widthsBuffer,
       size: sumBy(curves, x => x.length * 2)
     }
-    this.curveStarts = { buffer: curveStartsBuffer, size: curveStarts.length }
+    this.curveStarts = {
+      buffer: curveStartsBuffer,
+      size: curveStarts.length,
+      array: curveStarts
+    }
     this.vertex = {
       buffer: vertexBuffer,
       size: sumBy(curves, x => x.length * 2)
@@ -221,13 +222,23 @@ export default class NewLineBrush {
   }
 
   render(curves: AsemicGroup[]) {
-    const sameLength =
-      this.vertex && sumBy(curves, x => x.length * 2) === this.vertex.size
-    if (!sameLength) {
+    if (!this.vertex) {
       this.load(curves)
+    } else if (this.curveStarts.size !== curves.length + 1) {
+      this.load(curves)
+    } else {
+      let total = 0
+      for (let i = 0; i < curves.length; i++) {
+        if (this.curveStarts.array[i] !== total) {
+          this.load(curves)
+          break
+        }
+        total += curves[i].length
+      }
     }
     this.reload(curves)
-    const renderPass = this.commandEncoder.beginRenderPass({
+    const commandEncoder = this.device.createCommandEncoder()
+    const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
           view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
@@ -245,7 +256,7 @@ export default class NewLineBrush {
     // This needs to stay in the render method
     renderPass.drawIndexed(this.index.size)
     renderPass.end()
-    this.device.queue.submit([this.commandEncoder.finish()])
+    this.device.queue.submit([commandEncoder.finish()])
   }
 
   async setupDevice() {
@@ -262,7 +273,6 @@ export default class NewLineBrush {
     })
     // Create a command encoder just for rendering
     // This could be done once during init
-    this.commandEncoder = this.device.createCommandEncoder()
 
     const wgslRequires = /*wgsl*/ `
       fn normalCoords(position: vec2<f32>) -> vec2<f32> {

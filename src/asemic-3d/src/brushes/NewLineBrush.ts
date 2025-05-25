@@ -1,43 +1,42 @@
-import { range } from 'lodash'
+import { range, sum, sumBy } from 'lodash'
 import { AsemicGroup } from 'src/AsemicPt'
 import invariant from 'tiny-invariant'
 
 export default class NewLineBrush {
   ctx: GPUCanvasContext
   device: GPUDevice
+  pipeline: GPURenderPipeline
+  bindGroup: GPUBindGroup
+  commandEncoder: GPUCommandEncoder
+  shaderModule: GPUShaderModule
+  dimensions: { buffer: GPUBuffer; size: number }
+  widths: { buffer: GPUBuffer; size: number }
+  curveStarts: { buffer: GPUBuffer; size: number }
+  vertex: { buffer: GPUBuffer; size: number }
+  index: { buffer: GPUBuffer; size: number }
 
-  async render(curves: AsemicGroup[]) {
+  protected load(curves: AsemicGroup[]) {
     // Create vertex shader
     // Define the vertex data
     // Define the vertex data - just 4 corners of the line
-    const vertices = new Float32Array(
-      curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
-    )
+
     // console.log(vertices, 'vertices')
 
     // Create a buffer to store vertex data
     const vertexBuffer = this.device.createBuffer({
-      size: vertices.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'vertex'
     })
-
-    // Write data to the buffer
-    new Float32Array(vertexBuffer.getMappedRange()).set(vertices)
-    vertexBuffer.unmap()
-
-    const widths = new Float32Array(
-      curves.flatMap(x => x.flatMap(x => x.width))
-    )
 
     // Create an index buffer
     const widthsBuffer = this.device.createBuffer({
-      size: widths.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'widths'
     })
-    new Float32Array(widthsBuffer.getMappedRange()).set(widths)
-    widthsBuffer.unmap()
 
     // Define indices to form two triangles
     const indices = new Uint16Array(
@@ -57,7 +56,8 @@ export default class NewLineBrush {
     const indexBuffer = this.device.createBuffer({
       size: indices.byteLength,
       usage: GPUBufferUsage.INDEX,
-      mappedAtCreation: true
+      mappedAtCreation: true,
+      label: 'index buffer'
     })
 
     // Write index data
@@ -76,28 +76,21 @@ export default class NewLineBrush {
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
       size: curveStarts.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+      label: 'curve starts'
     })
 
     // Write curve starts data
     new Uint32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
     curveStartsBuffer.unmap()
 
-    // Create a buffer for canvas dimensions
-    const canvasDimensions = new Float32Array([
-      this.ctx.canvas.width,
-      this.ctx.canvas.height
-    ])
-
     const dimensionsBuffer = this.device.createBuffer({
-      size: canvasDimensions.byteLength,
+      size: Float32Array.BYTES_PER_ELEMENT * 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true
+      mappedAtCreation: false,
+      label: 'canvas dimensions'
     })
-
-    new Float32Array(dimensionsBuffer.getMappedRange()).set(canvasDimensions)
-    dimensionsBuffer.unmap()
 
     // Update bind group layout to include dimensions uniform
     const bindGroupLayout = this.device.createBindGroupLayout({
@@ -146,6 +139,130 @@ export default class NewLineBrush {
         }
       ]
     })
+
+    const pipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
+      vertex: {
+        module: this.shaderModule,
+        entryPoint: 'vertexMain'
+      },
+      fragment: {
+        module: this.shaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: navigator.gpu.getPreferredCanvasFormat(),
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              }
+            }
+          }
+        ]
+      },
+      primitive: {
+        topology: 'triangle-list', // Using triangles instead of lines
+        cullMode: 'none' // Disables face culling to render both sides
+      },
+      multisample: {
+        count: 1
+      }
+    })
+
+    // Store pipeline and resources as instance properties
+    this.pipeline = pipeline
+    this.bindGroup = bindGroup
+    if (this.index) {
+      this.index.buffer.destroy()
+      this.dimensions.buffer.destroy()
+      this.widths.buffer.destroy()
+      this.curveStarts.buffer.destroy()
+      this.vertex.buffer.destroy()
+    }
+    this.index = { buffer: indexBuffer, size: indices.length }
+    this.dimensions = { buffer: dimensionsBuffer, size: 2 }
+    this.widths = {
+      buffer: widthsBuffer,
+      size: sumBy(curves, x => x.length * 2)
+    }
+    this.curveStarts = { buffer: curveStartsBuffer, size: curveStarts.length }
+    this.vertex = {
+      buffer: vertexBuffer,
+      size: sumBy(curves, x => x.length * 2)
+    }
+  }
+
+  protected reload(curves: AsemicGroup[]) {
+    const vertices = new Float32Array(
+      curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
+    )
+    this.device.queue.writeBuffer(this.vertex.buffer, 0, vertices)
+
+    const widths = new Float32Array(
+      curves.flatMap(x => x.flatMap(x => x.width))
+    )
+    this.device.queue.writeBuffer(this.widths.buffer, 0, widths)
+
+    // Create a buffer for canvas dimensions
+    const canvasDimensions = new Float32Array([
+      this.ctx.canvas.width,
+      this.ctx.canvas.height
+    ])
+    this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
+  }
+
+  render(curves: AsemicGroup[]) {
+    const sameLength =
+      this.vertex && sumBy(curves, x => x.length * 2) === this.vertex.size
+    if (!sameLength) {
+      this.load(curves)
+    }
+    this.reload(curves)
+    const renderPass = this.commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        }
+      ]
+    })
+
+    // These operations could all be done once during init
+    renderPass.setBindGroup(0, this.bindGroup)
+    renderPass.setPipeline(this.pipeline)
+    renderPass.setIndexBuffer(this.index.buffer, 'uint16')
+    // This needs to stay in the render method
+    renderPass.drawIndexed(this.index.size)
+    renderPass.end()
+    this.device.queue.submit([this.commandEncoder.finish()])
+  }
+
+  async setupDevice() {
+    const adapter = await navigator.gpu.requestAdapter({
+      featureLevel: 'compatibility'
+    })
+    invariant(adapter)
+    const device = await adapter.requestDevice()
+    invariant(device)
+    this.device = device
+    this.ctx.configure({
+      device,
+      format: navigator.gpu.getPreferredCanvasFormat()
+    })
+    // Create a command encoder just for rendering
+    // This could be done once during init
+    this.commandEncoder = this.device.createCommandEncoder()
 
     const wgslRequires = /*wgsl*/ `
       fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -230,7 +347,7 @@ export default class NewLineBrush {
     let uv = vec2<f32>(single_curve_progress, select(0., 1., side));
     `
 
-    const shaderModule = this.device.createShaderModule({
+    this.shaderModule = this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
       @builtin(position) position: vec4<f32>,
@@ -266,261 +383,16 @@ export default class NewLineBrush {
       @fragment
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
       // Gaussian function parameters
-      let mean = 0.5;
-      let sigma = 0.15;
-      let y = input.uv.y;
+      // let mean = 0.5;
+      // let sigma = 0.15;
+      // let y = input.uv.y;
       
-      // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
-      let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
+      // // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
+      // let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
       
-      return vec4<f32>(1.0, 1.0, 1.0, gaussian);
+      return vec4<f32>(1.0, 1.0, 1.0, 1.0);
       }
       `
-    })
-
-    // const debug = () => {
-    //   console.log('Debug mode activated')
-
-    //   // Create a storage buffer to store debug values
-    //   const numVertices = 200 * curves.length
-    //   const debugBufferSize = numVertices * 4 * Float32Array.BYTES_PER_ELEMENT // 100 vec4 values
-    //   const debugBuffer = this.device.createBuffer({
-    //     size: debugBufferSize,
-    //     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-    //     mappedAtCreation: false
-    //   })
-
-    //   // Create a staging buffer for reading back the data
-    //   const stagingBuffer = this.device.createBuffer({
-    //     size: debugBufferSize,
-    //     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    //     mappedAtCreation: false
-    //   })
-
-    //   // Create a debug compute shader
-    //   const debugShaderModule = this.device.createShaderModule({
-    //     code: /*wgsl*/ `
-    //       @group(0) @binding(0)
-    //       var<storage, read> vertices: array<vec2<f32>>;
-
-    //       @group(0) @binding(1)
-    //       var<storage, read> widths: array<f32>;
-
-    //       @group(0) @binding(2)
-    //       var<uniform> canvas_dimensions: vec2<f32>;
-
-    //       @group(0) @binding(3)
-    //       var<storage, read> curve_starts: array<u32>;
-
-    //       @group(0) @binding(4)
-    //       var<storage, read_write> debug_output: array<vec4<f32>>;
-
-    //       ${wgslRequires}
-
-    //       @compute @workgroup_size(1)
-    //       fn debugMain() {
-    //         // Generate 100 vertices along the curve (similar to vertex shader)
-    //         for (var vertex_index = 0u; vertex_index < ${numVertices}u; vertex_index++) {
-    //           ${calcPosition}
-
-    //           // curve = 0, curve_length = 0
-    //           // unsigned integers wrap around whenever they go negative
-    //           debug_output[vertex_index] = vec4<f32>(
-    //             t,
-    //             f32(start_at_point), bezier_position
-    //           );
-    //         }
-    //       }
-    //     `
-    //   })
-
-    //   // Create a compute pipeline
-    //   const debugComputePipeline = this.device.createComputePipeline({
-    //     layout: this.device.createPipelineLayout({
-    //       bindGroupLayouts: [
-    //         this.device.createBindGroupLayout({
-    //           entries: [
-    //             {
-    //               binding: 0,
-    //               visibility: GPUShaderStage.COMPUTE,
-    //               buffer: { type: 'read-only-storage' }
-    //             },
-    //             {
-    //               binding: 1,
-    //               visibility: GPUShaderStage.COMPUTE,
-    //               buffer: { type: 'read-only-storage' }
-    //             },
-    //             {
-    //               binding: 2,
-    //               visibility: GPUShaderStage.COMPUTE,
-    //               buffer: { type: 'uniform' }
-    //             },
-    //             {
-    //               binding: 3,
-    //               visibility: GPUShaderStage.COMPUTE,
-    //               buffer: { type: 'read-only-storage' }
-    //             },
-    //             {
-    //               binding: 4,
-    //               visibility: GPUShaderStage.COMPUTE,
-    //               buffer: { type: 'storage' }
-    //             }
-    //           ]
-    //         })
-    //       ]
-    //     }),
-    //     compute: {
-    //       module: debugShaderModule,
-    //       entryPoint: 'debugMain'
-    //     }
-    //   })
-
-    //   // Create a debug bind group
-    //   const debugBindGroup = this.device.createBindGroup({
-    //     layout: debugComputePipeline.getBindGroupLayout(0),
-    //     entries: [
-    //       {
-    //         binding: 0,
-    //         resource: { buffer: vertexBuffer }
-    //       },
-    //       {
-    //         binding: 1,
-    //         resource: { buffer: widthsBuffer }
-    //       },
-    //       {
-    //         binding: 2,
-    //         resource: { buffer: dimensionsBuffer }
-    //       },
-    //       {
-    //         binding: 3,
-    //         resource: { buffer: curveStartsBuffer }
-    //       },
-    //       {
-    //         binding: 4,
-    //         resource: { buffer: debugBuffer }
-    //       }
-    //     ]
-    //   })
-
-    //   // Run the compute shader
-    //   const debugCommandEncoder = this.device.createCommandEncoder()
-    //   const computePass = debugCommandEncoder.beginComputePass()
-    //   computePass.setPipeline(debugComputePipeline)
-    //   computePass.setBindGroup(0, debugBindGroup)
-    //   computePass.dispatchWorkgroups(1)
-    //   computePass.end()
-
-    //   // Copy debug buffer to staging buffer for reading
-    //   debugCommandEncoder.copyBufferToBuffer(
-    //     debugBuffer,
-    //     0,
-    //     stagingBuffer,
-    //     0,
-    //     debugBufferSize
-    //   )
-
-    //   // Submit commands
-    //   this.device.queue.submit([debugCommandEncoder.finish()])
-
-    //   // Read back the data
-    //   setTimeout(async () => {
-    //     await stagingBuffer.mapAsync(GPUMapMode.READ)
-    //     const data = new Float32Array(stagingBuffer.getMappedRange())
-
-    //     console.log('Vertex positions along the curve:')
-
-    //     // Group by pairs (left/right sides of the line)
-    //     for (let i = 195; i < 205; i++) {
-    //       const left = {
-    //         x: data[i * 4],
-    //         y: data[i * 4 + 1],
-    //         side: data[i * 4 + 2],
-    //         index: data[i * 4 + 3]
-    //       }
-
-    //       console.log(`${left.x} ${left.y} ${left.side}, ${left.index}`)
-    //     }
-
-    //     stagingBuffer.unmap()
-    //   }, 100)
-    // }
-    // debug()
-
-    const pipeline = this.device.createRenderPipeline({
-      layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout]
-      }),
-      vertex: {
-        module: shaderModule,
-        entryPoint: 'vertexMain'
-      },
-      fragment: {
-        module: shaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [
-          {
-            format: navigator.gpu.getPreferredCanvasFormat(),
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add'
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add'
-              }
-            }
-          }
-        ]
-      },
-      primitive: {
-        topology: 'triangle-list', // Using triangles instead of lines
-        cullMode: 'none' // Disables face culling to render both sides
-      },
-      multisample: {
-        count: 1
-      }
-    })
-
-    // Create a method to render the line
-    const commandEncoder = this.device.createCommandEncoder()
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: this.ctx.getCurrentTexture().createView(),
-          loadOp: 'clear',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          storeOp: 'store'
-        }
-      ]
-    })
-    // Set the bind group for rendering
-    renderPass.setBindGroup(0, bindGroup)
-    renderPass.setPipeline(pipeline)
-
-    // Set the index buffer and draw indexed
-    renderPass.setIndexBuffer(indexBuffer, 'uint16')
-    renderPass.drawIndexed(indices.length) // Draw 6 indices (2 triangles)
-
-    renderPass.end()
-    console.log('finishing')
-
-    this.device.queue.submit([commandEncoder.finish()])
-  }
-
-  async init() {
-    const adapter = await navigator.gpu.requestAdapter({
-      featureLevel: 'compatibility'
-    })
-    invariant(adapter)
-    const device = await adapter.requestDevice()
-    invariant(device)
-    this.device = device
-    this.ctx.configure({
-      device,
-      format: navigator.gpu.getPreferredCanvasFormat()
     })
   }
 

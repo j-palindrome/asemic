@@ -15,7 +15,7 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
     renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
-    await renderer.init()
+    await renderer.setupDevice()
     postMessage({
       ready: true
     } as AsemicDataBack)

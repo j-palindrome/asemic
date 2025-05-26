@@ -1,11 +1,7 @@
 import { flatMap, isUndefined, max } from 'lodash'
+import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
 import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
-import CanvasRenderer from './canvasRenderer'
-import ThreeRenderer from './threeRenderer'
-import { LineBrush } from './asemic-3d/src'
-import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
-import Asemic from './Asemic'
 
 let parser: Parser = new Parser()
 let renderer: NewLineBrush
@@ -27,11 +23,6 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
       offscreenCanvas.width = parser.preProcessing.width
     if (!isUndefined(parser.preProcessing.height))
       offscreenCanvas.height = parser.preProcessing.height
-    // renderer.renderer.setDrawingBufferSize(
-    //   parser.preProcessing.width / 2,
-    //   parser.preProcessing.height / 2,
-    //   2
-    // )
   }
   if (!isUndefined(ev.data.live)) {
     Object.assign(parser.live, ev.data.live)

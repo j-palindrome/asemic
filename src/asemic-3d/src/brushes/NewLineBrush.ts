@@ -1,4 +1,5 @@
 import { range, sum, sumBy } from 'lodash'
+import { Color } from 'pts'
 import { AsemicGroup } from 'src/AsemicPt'
 import invariant from 'tiny-invariant'
 
@@ -13,10 +14,9 @@ export default class NewLineBrush {
   curveStarts: { buffer: GPUBuffer; size: number; array: Uint32Array }
   vertex: { buffer: GPUBuffer; size: number }
   index: { buffer: GPUBuffer; size: number }
+  colors: { buffer: GPUBuffer; size: number }
 
   protected load(curves: AsemicGroup[]) {
-    console.log('loading curves')
-
     // Create vertex shader
 
     // Create a buffer to store vertex data
@@ -33,6 +33,13 @@ export default class NewLineBrush {
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'widths'
+    })
+
+    const colorsBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 4),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'colors'
     })
 
     // Define indices to form two triangles
@@ -111,6 +118,11 @@ export default class NewLineBrush {
           binding: 3,
           visibility: GPUShaderStage.VERTEX,
           buffer: { type: 'read-only-storage' }
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
         }
       ]
     })
@@ -133,6 +145,10 @@ export default class NewLineBrush {
         {
           binding: 3,
           resource: { buffer: curveStartsBuffer }
+        },
+        {
+          binding: 4,
+          resource: { buffer: colorsBuffer }
         }
       ]
     })
@@ -184,6 +200,11 @@ export default class NewLineBrush {
       this.widths.buffer.destroy()
       this.curveStarts.buffer.destroy()
       this.vertex.buffer.destroy()
+      this.colors.buffer.destroy()
+    }
+    this.colors = {
+      buffer: colorsBuffer,
+      size: sumBy(curves, x => x.length * 4)
     }
     this.index = { buffer: indexBuffer, size: indices.length }
     this.dimensions = { buffer: dimensionsBuffer, size: 2 }
@@ -212,6 +233,19 @@ export default class NewLineBrush {
       curves.flatMap(x => x.flatMap(x => x.width))
     )
     this.device.queue.writeBuffer(this.widths.buffer, 0, widths)
+
+    const colors = new Float32Array(
+      curves.flatMap(x =>
+        x.flatMap(x => [
+          x.color[0] ?? 1,
+          x.color[1] ?? 1,
+          x.color[2] ?? 1,
+          x.color[3] ?? 1
+        ])
+      )
+    )
+    this.device.queue.writeBuffer(this.colors.buffer, 0, colors)
+    console.log(curves[1].at(1).color)
 
     // Create a buffer for canvas dimensions
     const canvasDimensions = new Float32Array([
@@ -311,6 +345,47 @@ export default class NewLineBrush {
       
       return p;
       }
+
+      fn hueToRgb(p: f32, q: f32, t: f32) -> f32 {
+        var t_adj = t;
+        if (t_adj < 0.0) { t_adj += 1.0; }
+        if (t_adj > 1.0) { t_adj -= 1.0; }
+        if (t_adj < 1.0/6.0) { return p + (q - p) * 6.0 * t_adj; }
+        if (t_adj < 1.0/2.0) { return q; }
+        if (t_adj < 2.0/3.0) { return p + (q - p) * (2.0/3.0 - t_adj) * 6.0; }
+        return p;
+      }
+
+      fn hslaToRgba(hsla: vec4<f32>) -> vec4<f32> {
+        let h = hsla.x;
+        let s = hsla.y;
+        let l = hsla.z;
+        let a = hsla.w;
+        
+        var r: f32 = 0.0;
+        var g: f32 = 0.0;
+        var b: f32 = 0.0;
+        
+        if (s == 0.0) {
+          // Achromatic (gray)
+          r = l;
+          g = l;
+          b = l;
+        } else {
+          let q = select(
+            l * (1.0 + s),
+            l + s - l * s,
+            l < 0.5
+          );
+          let p = 2.0 * l - q;
+          
+          r = hueToRgb(p, q, h + 1.0/3.0);
+          g = hueToRgb(p, q, h);
+          b = hueToRgb(p, q, h - 1.0/3.0);
+        }
+        
+        return vec4<f32>(r, g, b, a);
+      }
     `
 
     const calcPosition = /*wgsl*/ `
@@ -355,6 +430,7 @@ export default class NewLineBrush {
     
     let bezier_position = bezierCurve(t, p0, p1, p2, side, width);
     let uv = vec2<f32>(single_curve_progress, select(0., 1., side));
+    let color = colors[start_at_point];
     `
 
     this.shaderModule = this.device.createShaderModule({
@@ -377,6 +453,9 @@ export default class NewLineBrush {
       @group(0) @binding(3)
       var<storage, read> curve_starts: array<u32>;
 
+      @group(0) @binding(4)
+      var<storage, read> colors: array<vec4<f32>>;
+
       ${wgslRequires}
 
       @vertex
@@ -385,8 +464,8 @@ export default class NewLineBrush {
       ${calcPosition}
       
       output.position = vec4<f32>(bezier_position, 0.0, 1.0);
-      output.color = vec4<f32>(1.0, 1.0, 1.0, 1.0); // Set the color value
       output.uv = uv; // Pass the UV coordinates to the fragment shader
+      output.color = hslaToRgba(color);
       return output;
       }
 
@@ -400,7 +479,7 @@ export default class NewLineBrush {
       // // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
       // let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
       
-      return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+      return input.color;
       }
       `
     })

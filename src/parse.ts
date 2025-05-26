@@ -1,5 +1,5 @@
 import _, { clamp, isUndefined, last, sortBy } from 'lodash'
-import { Group, Pt } from 'pts'
+import { Color, Group, Pt } from 'pts'
 import { createNoise2D } from 'simplex-noise'
 import { defaultSettings, splitString } from './settings'
 import { AsemicGroup, AsemicPt } from './AsemicPt'
@@ -19,7 +19,8 @@ const defaultTransform = () => ({
   scale: new Pt([1, 1]),
   width: 1,
   rotation: 0,
-  length: undefined
+  length: undefined,
+  hsla: new Pt(1, 1, 1, 1)
 })
 
 const defaultOutput = () =>
@@ -379,8 +380,8 @@ export class Parser {
       if (!token) return
       if (token.startsWith('!')) {
         this.settings[token.substring(1)] = false
-      } else if (token.includes(':')) {
-        const [key, value] = token.split(':')
+      } else if (token.includes('=')) {
+        const [key, value] = token.split('=')
         if (key === 'h' && (value === 'window' || value === 'auto')) {
           this.settings[key] = value
         } else {
@@ -411,7 +412,7 @@ export class Parser {
         pause: false as false | number
       }
       for (let token of firstLine.split(' ')) {
-        const [key, value] = token.split(':')
+        const [key, value] = token.split('=')
         settings[key] = parseFloat(value)
       }
       newScene.start = this.totalLength - settings.offset
@@ -727,11 +728,7 @@ export class Parser {
         defaultValue === true ? this.evalExpr(parts[0])! : defaultValue
       ])
     }
-    return new AsemicPt(
-      this,
-      this.evalExpr(parts[0])!,
-      this.evalExpr(parts[1])!
-    )
+    return new AsemicPt(this, ...parts.map(x => this.evalExpr(x)!))
   }
 
   protected applyTransform = (
@@ -924,7 +921,7 @@ export class Parser {
         )
       ) {
         // Rotation
-        const match = transform.match(
+        let match = transform.match(
           new RegExp(`^(${TransformAliases.rotation.join('|')})(.+)`)
         )
         if (match) {
@@ -947,7 +944,7 @@ export class Parser {
           )
         }
       } else {
-        const keyCall = transform.match(/(\w+)(\:|\=>)(.+)/)
+        const keyCall = transform.match(/(\w+)(\=>|\=)(.+)/)
         if (keyCall) {
           const key = keyCall[1]
           const equation = keyCall[2]
@@ -957,7 +954,7 @@ export class Parser {
             case 'w':
             case 'wid':
               this.transform.width =
-                equation === ':'
+                equation === '='
                   ? this.evalExpr(value)
                   : () => {
                       return this.evalExpr(value)
@@ -967,8 +964,7 @@ export class Parser {
               if (value.includes(',')) {
                 const list = value.split(',')
                 if (list.length > 2) {
-                  this.transform[key] = new AsemicPt(
-                    this,
+                  this.transform[key] = new Pt(
                     value.split(',').map(x => this.evalExpr(x)!)
                   )
                 } else {

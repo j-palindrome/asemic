@@ -110,6 +110,7 @@ export class AsemicGroup extends Group {
 export class AsemicPt extends Pt {
   width: number
   parent: Parser
+  color: Pt
 
   lerp(nextPt: AsemicPt, amount: number): this {
     this.add(nextPt.$subtract(this).scale(amount))
@@ -188,6 +189,10 @@ export class AsemicPt extends Pt {
       typeof parent.transform.width === 'function'
         ? parent.transform.width()
         : parent.transform.width
+    this.color =
+      typeof parent.transform.hsla === 'function'
+        ? parent.transform.hsla()
+        : parent.transform.hsla
     this.parent = parent
   }
 }

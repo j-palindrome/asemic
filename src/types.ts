@@ -1,4 +1,4 @@
-import { Pt } from 'pts'
+import { Color, Pt } from 'pts'
 import { Parser } from './parse'
 export type { Parser } from './parse'
 export type { default as Renderer } from './canvasRenderer'
@@ -28,6 +28,7 @@ export type Transform = {
   add?: string
   rotate?: string
   length?: number
+  hsla: Pt | (() => Pt)
 }
 export type FlatTransform = {
   scale: Pt

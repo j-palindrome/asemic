@@ -18,6 +18,7 @@ export type AsemicDataBack = {
   settings?: Parser['settings']
   lastTransform?: FlatTransform
   ready?: boolean
+  frameReady?: boolean
 } & Partial<Parser['output']>
 
 export type Transform = {

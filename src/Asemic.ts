@@ -12,30 +12,13 @@ export default class Asemic {
   ready = false
   messageQueue: Partial<AsemicData>[] = []
   animationFrame: number | null
-  source: string
-
-  animate() {
-    this.worker.postMessage({
-      source: this.source
-    })
-
-    this.animationFrame = requestAnimationFrame(this.animate)
-  }
 
   postMessage(data: Partial<AsemicData>) {
     if (!this.ready) {
       this.messageQueue.push(data)
       return
     }
-    if (data.source) {
-      this.source = data.source
-      if (this.animationFrame) {
-        cancelAnimationFrame(this.animationFrame)
-      }
-      this.animationFrame = requestAnimationFrame(this.animate)
-    } else {
-      this.worker.postMessage(data)
-    }
+    this.worker.postMessage(data)
   }
 
   dispose() {
@@ -50,7 +33,6 @@ export default class Asemic {
     canvas: HTMLCanvasElement,
     onmessage?: (data: AsemicDataBack) => void
   ) {
-    this.animate = this.animate.bind(this)
     this.offscreenCanvas = canvas.transferControlToOffscreen()
     this.worker.postMessage(
       {

@@ -2,21 +2,26 @@ import { flatMap, isUndefined, max } from 'lodash'
 import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
 import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
+import CanvasRenderer from './canvasRenderer'
+import Renderer from './renderer'
 
 let parser: Parser = new Parser()
-let renderer: NewLineBrush
+let renderer: Renderer
 let offscreenCanvas: OffscreenCanvas
+let animationFrame: number | null = null
 
 self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
     renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
     await renderer.setupDevice()
+    // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
     postMessage({
       ready: true
     } as AsemicDataBack)
   }
-  if (!renderer?.device || !offscreenCanvas) return
+  // if (!renderer?.device || !offscreenCanvas) return
+  if (!offscreenCanvas) return
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
     if (!isUndefined(parser.preProcessing.width))
@@ -32,13 +37,31 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
   }
   if (!isUndefined(ev.data.source)) {
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame)
+    }
     if (parser.rawSource !== ev.data.source) {
       parser.rawSource = ev.data.source
       parser.preProcess(ev.data.source)
       self.postMessage({ settings: parser.settings })
     }
 
-    parser.frame()
+    const animate = () => {
+      parser.frame()
+      renderer.render(parser.curves)
+      self.postMessage({
+        lastTransform: {
+          translation: parser.transform.translation,
+          rotation: parser.transform.rotation,
+          scale: parser.transform.scale,
+          width: parser.getDynamicValue(parser.transform.width)
+        } as FlatTransform,
+        ...parser.output
+      } as AsemicDataBack)
+      // animationFrame = requestAnimationFrame(animate)
+    }
+    animationFrame = requestAnimationFrame(animate)
+
     if (parser.settings.h === 'auto') {
       if (parser.curves.length === 0) return
 
@@ -51,18 +74,6 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
           preProcessing: parser.preProcessing
         } as AsemicDataBack)
       }
-    } else {
-      renderer.render(parser.curves)
     }
-
-    self.postMessage({
-      lastTransform: {
-        translation: parser.transform.translation,
-        rotation: parser.transform.rotation,
-        scale: parser.transform.scale,
-        width: parser.getDynamicValue(parser.transform.width)
-      } as FlatTransform,
-      ...parser.output
-    })
   }
 }

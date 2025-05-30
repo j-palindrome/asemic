@@ -193,6 +193,7 @@ export class AsemicPt extends Pt {
       typeof parent.transform.hsla === 'function'
         ? parent.transform.hsla()
         : parent.transform.hsla
+
     this.parent = parent
   }
 }

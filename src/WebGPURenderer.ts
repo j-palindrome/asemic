@@ -7,10 +7,9 @@ const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
   // Convert coordinates from [0, 1] to [-1, 1] on x
   let x = position.x * 2.0 - 1.0;
-  // Convert coordinates from [0, 1] to [-(height/width), -(height/width)] on y
   let aspect_ratio = canvas_dimensions.y / canvas_dimensions.x;
-  // let y = (1.0 - position.y * 2.0) / aspect_ratio;
-  let y = position.y * 2.0 - 1.0;
+  // Convert coordinates from [0, 0.5] to [1, -1] on y
+  let y = 1.0 - position.y * (2. / aspect_ratio);
   return vec2<f32>(x, y);
   }
 
@@ -134,7 +133,7 @@ const calcPosition = /*wgsl*/ `
   let color = colors[start_at_point];
   `
 
-export default class NewLineBrush {
+export default class WebGPURenderer {
   ctx: GPUCanvasContext
   device: GPUDevice
   pipeline: GPURenderPipeline
@@ -386,10 +385,28 @@ export default class NewLineBrush {
       this.ctx.canvas.width,
       this.ctx.canvas.height
     ])
+
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
   }
 
   render(curves: AsemicGroup[]) {
+    if (curves.length === 0) {
+      // If there are no curves, just clear the canvas and return
+      const commandEncoder = this.device.createCommandEncoder()
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.ctx.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            storeOp: 'store'
+          }
+        ]
+      })
+      renderPass.end()
+      this.device.queue.submit([commandEncoder.finish()])
+      return
+    }
     if (!this.vertex) {
       this.load(curves)
     } else if (this.curveStarts.size !== curves.length + 1) {
@@ -560,7 +577,7 @@ export default class NewLineBrush {
     readbackBuffer.unmap()
   }
 
-  async setupDevice() {
+  async setup() {
     const adapter = await navigator.gpu.requestAdapter({
       featureLevel: 'compatibility'
     })

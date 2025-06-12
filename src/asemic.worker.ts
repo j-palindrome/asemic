@@ -1,5 +1,5 @@
 import { flatMap, isUndefined, max } from 'lodash'
-import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
+import WebGPURenderer from './WebGPURenderer'
 import { Parser } from './parse'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import CanvasRenderer from './canvasRenderer'
@@ -13,8 +13,8 @@ let animationFrame: number | null = null
 self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
-    renderer = new NewLineBrush(ev.data.offscreenCanvas.getContext('webgpu')!)
-    await renderer.setupDevice()
+    renderer = new WebGPURenderer(ev.data.offscreenCanvas.getContext('webgpu')!)
+    await renderer.setup()
     // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
     postMessage({
       ready: true
@@ -58,7 +58,7 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
         } as FlatTransform,
         ...parser.output
       } as AsemicDataBack)
-      // animationFrame = requestAnimationFrame(animate)
+      animationFrame = requestAnimationFrame(animate)
     }
     animationFrame = requestAnimationFrame(animate)
 

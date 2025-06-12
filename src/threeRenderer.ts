@@ -3,7 +3,7 @@ import Renderer from './renderer'
 import { WebGPURenderer } from 'three/src/Three.WebGPU.js'
 import { AsemicGroup, AsemicPt } from './AsemicPt'
 import { LineBrush } from './asemic-3d/src'
-import NewLineBrush from './asemic-3d/src/brushes/NewLineBrush'
+import WebGPURenderer from './WebGPURenderer'
 
 export default class ThreeRenderer extends Renderer {
   protected scene: Scene
@@ -17,7 +17,7 @@ export default class ThreeRenderer extends Renderer {
 
   protected init(curves: AsemicGroup[]) {
     this.inited = true
-    this.brushes.push(new NewLineBrush(curves, this.scene))
+    this.brushes.push(new WebGPURenderer(curves, this.scene))
   }
 
   render(curves: AsemicGroup[]): void {

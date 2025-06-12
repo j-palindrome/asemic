@@ -14,13 +14,15 @@ const TransformAliases = {
   width: ['w', 'wid', 'width']
 }
 
+const ONE_FRAME = 1 / 60
+
 const defaultTransform = () => ({
   translation: new Pt([0, 0]),
   scale: new Pt([1, 1]),
   width: 1,
   rotation: 0,
   length: undefined,
-  hsla: new Pt(1, 1, 1, 1)
+  hsla: new Pt(0, 0, 1, 1)
 })
 
 const defaultOutput = () =>
@@ -173,7 +175,7 @@ export class Parser {
         end
       )
     },
-    penta: args => {
+    pen: args => {
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
         Group.fromArray([
@@ -190,7 +192,7 @@ export class Parser {
         end
       )
     },
-    hexa: args => {
+    hex: args => {
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
         Group.fromArray([
@@ -209,7 +211,7 @@ export class Parser {
         end
       )
     },
-    circle: args => {
+    cir: args => {
       const center = this.parsePoint(args[0])
       const [w, h] = this.evalPoint(args[1])
       const points = Group.fromArray([
@@ -276,8 +278,8 @@ export class Parser {
   protected reset() {
     this.curves = []
     this.progress.time = performance.now() / 1000
-    this.progress.progress += this.pauseAt !== false ? 0 : 1 / 60
-    if (this.progress.progress >= this.totalLength) {
+    this.progress.progress += this.pauseAt !== false ? 0 : ONE_FRAME
+    if (this.progress.progress >= this.totalLength - ONE_FRAME) {
       this.pausedAt = []
       this.progress.progress = 0
     }
@@ -328,7 +330,7 @@ export class Parser {
     for (let object of this.scenes) {
       if (
         this.progress.progress >= object.start &&
-        this.progress.progress <= object.start + object.length
+        this.progress.progress <= object.start + object.length + ONE_FRAME
       ) {
         this.resetTransform()
         this.progress.scrub =
@@ -426,6 +428,7 @@ export class Parser {
 
       scenes.push(newScene)
     }
+
     this.scenes = scenes
   }
 

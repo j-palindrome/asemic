@@ -26,7 +26,6 @@ export class LineBrush extends BrushBuilder<'line'> {
 
     let currentIndex = 0
     const indexes: number[] = []
-    console.log(this.settings, 'settings')
 
     for (let i = 0; i < this.settings.maxCurves; i++) {
       if (this.settings.adjustEnds === 'loop') {

@@ -390,8 +390,6 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
     })().compute(this.settings.maxPoints * this.settings.maxCurves)
 
     this.loadControlPoints = Fn(() => {
-      console.log(this.info)
-
       this.info.curvePositionArray
         .element(instanceIndex)
         .assign(this.info.loadPositions.element(instanceIndex))
@@ -490,7 +488,6 @@ export default abstract class BrushBuilder<T extends BrushTypes> {
       }
       const index = curveI.mul(this.settings.maxPoints).add(pointI)
       const thisPosition = this.info.loadPositions.element(index)
-      console.log(this.info.curvePositionArray)
 
       this.info.curvePositionArray.element(index).assign(
         this.settings.curvePosition(thisPosition, {

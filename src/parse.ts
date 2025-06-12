@@ -566,13 +566,6 @@ export class Parser {
 
       const functionCall = expr.match(/^(\w+)(?:$|\s)/)?.[1]
       if (functionCall && this.constants[functionCall]) {
-        // console.log(
-        //   'evaling',
-        //   expr,
-        //   this.evalFunction(expr),
-        //   this.evalExpr(this.evalFunction(expr))
-        // )
-
         return this.evalExpr(this.evalFunction(expr))
       }
 
@@ -1028,6 +1021,7 @@ export class Parser {
 
       // Parse function arguments
       if (!this.constants[functionName]) return
+
       const args = this.tokenize(argsStr)
 
       let funcText = this.constants[functionName](args)
@@ -1057,17 +1051,24 @@ export class Parser {
 
   parseToken(
     token: string,
-    { mode, silent = false }: { mode?: string; silent?: boolean } = {}
+    { mode, silent = false }: { mode?: 'blank'; silent?: boolean } = {}
   ) {
     try {
       token = token.trim()
       this.progress.isAdding = false
+      let hasParentheses = false
       while (token.startsWith('(') && token.endsWith(')')) {
+        hasParentheses = true
         token = token.substring(1, token.length - 1).trim()
+      }
+      if (hasParentheses && token.includes(' ')) {
+        this.parse(token, { silent, mode })
+        return
       }
 
       if (token.startsWith('+')) {
         token = token.substring(1)
+
         this.progress.isAdding = true
       } else {
         if (this.currentCurve.length > 0) {
@@ -1193,6 +1194,7 @@ export class Parser {
         if (this.reservedConstants.includes(key)) {
           throw new Error(`Reserved constant: ${key}`)
         }
+
         this.constants[key] = () => value
         return
       }
@@ -1221,6 +1223,7 @@ export class Parser {
       }
     } catch (e) {
       this.output.errors.push(`Parsing failed: ${token}; ${e}`)
+      console.error(`Parsing failed`, token, e)
       return
     }
   }

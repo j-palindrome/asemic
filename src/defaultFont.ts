@@ -18,7 +18,7 @@ export class AsemicFont {
 
     for (let i = 0; i < charList.length; i++) {
       const char = charList[i].trim()
-      // console.log(char.match(/^(.+?)(\:|\=>|!)(.*)$/))
+
       let [_, name, type, markup] = char.match(/^(.+?)(\:|\=>|!)(.*)$/)!
 
       if (name.includes(',')) {

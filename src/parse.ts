@@ -277,6 +277,7 @@ export class Parser {
 
   protected reset() {
     this.curves = []
+    this.transforms = []
     this.progress.time = performance.now() / 1000
     this.progress.progress += this.pauseAt !== false ? 0 : ONE_FRAME
     if (this.progress.progress >= this.totalLength - ONE_FRAME) {
@@ -845,7 +846,6 @@ export class Parser {
   }
 
   protected parseTransform(token: string) {
-    // { ...transforms }
     const transformStr = token.trim().substring(1, token.length - 1)
     const transforms = this.tokenize(transformStr)
 
@@ -1060,25 +1060,29 @@ export class Parser {
       token = token.trim()
       this.progress.isAdding = false
       let hasParentheses = false
-      while (token.startsWith('(') && token.endsWith(')')) {
-        hasParentheses = true
-        token = token.substring(1, token.length - 1).trim()
-      }
-      if (token.startsWith('repeat')) console.log('parsing repeat', token)
-
-      if (hasParentheses && token.includes(' ')) {
-        this.parse(token, { silent, mode })
-        return
-      }
 
       if (token.startsWith('+')) {
         token = token.substring(1)
-
         this.progress.isAdding = true
       } else {
         if (this.currentCurve.length > 0) {
           this.addCurve({ mode })
         }
+      }
+
+      while (token.startsWith('(') && token.endsWith(')')) {
+        hasParentheses = true
+        token = token.substring(1, token.length - 1).trim()
+      }
+
+      const functionCall = token.match(/^\w+/)
+      if (functionCall && this.constants[functionCall[0]]) {
+        // Parse function call
+        const returnText = this.evalFunction(token)
+        if (returnText) {
+          this.parse(returnText, { silent, mode })
+        }
+        return
       }
 
       if (token.includes('|')) {
@@ -1220,11 +1224,6 @@ export class Parser {
           this.currentCurve.push(point)
         })
         return
-      }
-      // Parse function call
-      const returnText = this.evalFunction(token)
-      if (returnText) {
-        this.parse(returnText, { silent, mode })
       }
     } catch (e) {
       this.output.errors.push(`Parsing failed: ${token}; ${e}`)

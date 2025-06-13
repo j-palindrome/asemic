@@ -50,7 +50,6 @@ export class AsemicInput<T extends SrcKey> {
 
   // TODO: figure out how to initialize a stream
   async initStream(streamName) {
-    //  console.log("initing stream!", streamName)
     let self = this
     // if (streamName && this.pb) {
     // this.pb.initSource(streamName)
@@ -120,25 +119,6 @@ export class AsemicInput<T extends SrcKey> {
     }
     return this.texture
   }
-
-  // tick (time) {
-  //   //  console.log(this.src, this.tex.width, this.tex.height)
-  //   if (this.src !== null && this.dynamic === true) {
-  //     if (this.src.videoWidth && this.src.videoWidth !== this.tex.width) {
-  //       this.tex.resize(this.src.videoWidth, this.src.videoHeight)
-  //     }
-
-  //     if (this.src.width && this.src.width !== this.tex.width) {
-  //       this.tex.resize(this.src.width, this.src.height)
-  //     }
-
-  //     this.tex.subimage(this.src)
-  //   }
-  // }
-
-  // getTexture () {
-  //   return this.tex
-  // }
 }
 
 export default AsemicInput

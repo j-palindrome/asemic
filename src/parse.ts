@@ -77,7 +77,7 @@ export class Parser {
     T: () => this.progress.time.toFixed(5),
     H: () => {
       const height = this.preProcessing.height / this.preProcessing.width
-      return '*' + height.toFixed(5)
+      return height.toFixed(5)
     },
     Sc: () => this.progress.scrub.toFixed(5),
     S: () => this.progress.scrubTime.toFixed(5),
@@ -86,7 +86,7 @@ export class Parser {
     L: () => this.progress.letter.toString(),
     px: () => {
       const pixels = this.preProcessing.width
-      return '*' + (1 / pixels).toFixed(5)
+      return (1 / pixels).toFixed(5)
     },
     log: args => {
       const slice = Number(args[0] || '0')
@@ -532,6 +532,9 @@ export class Parser {
 
   protected evalExpr(expr: string, replace = true): number {
     try {
+      if (!expr) {
+        throw new Error('undefined expression')
+      }
       if (expr.length === 0) throw new Error('Empty expression')
       this.progress.curve++
 
@@ -1061,6 +1064,8 @@ export class Parser {
         hasParentheses = true
         token = token.substring(1, token.length - 1).trim()
       }
+      if (token.startsWith('repeat')) console.log('parsing repeat', token)
+
       if (hasParentheses && token.includes(' ')) {
         this.parse(token, { silent, mode })
         return

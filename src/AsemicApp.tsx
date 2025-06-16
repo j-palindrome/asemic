@@ -2,14 +2,11 @@ import _, { flatMap, isEqual, isUndefined, max } from 'lodash'
 import { Pt } from 'pts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
-import { ArgumentType, Client } from 'node-osc'
+// import { ArgumentType, Client } from 'node-osc'
 import Asemic from './Asemic'
 import { AsemicData } from './types'
 import { FlatTransform } from './types'
 import { Parser } from './types'
-
-// @ts-ignore
-import readmeText from '../../README.md'
 import {
   Ellipsis,
   Info,
@@ -73,7 +70,7 @@ export default function AsemicApp({ source }: { source: string }) {
   const asemic = useRef<Asemic>(null)
   const setup = () => {
     const animationFrame = useRef(0)
-    const client = useMemo(() => new Client('localhost', 57120), [])
+    // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
     const onResize = () => {
       if (!canvas.current) return
@@ -94,38 +91,41 @@ export default function AsemicApp({ source }: { source: string }) {
 
     useEffect(() => {
       invariant(canvas.current)
-      asemic.current = new Asemic(canvas.current, data => {
-        if (!isUndefined(data.settings)) {
-          setSettings(settings => ({
-            ...settingsRef.current,
-            ...data.settings
-          }))
-        }
-        if (!isUndefined(data.pauseAt)) {
-          if (pauseAtRef.current !== data.pauseAt) {
-            setPauseAt(data.pauseAt)
+      if (!asemic.current) {
+        asemic.current = new Asemic(canvas.current, data => {
+          if (!isUndefined(data.settings)) {
+            setSettings(settings => ({
+              ...settingsRef.current,
+              ...data.settings
+            }))
           }
-        }
-        if (!isUndefined(data.lastTransform)) {
-          lastTransform.current = data.lastTransform
-        }
-        if (!isUndefined(data.eval)) {
-          for (let evalString of data.eval) {
-            const evalFunction = eval(`({_, sc}) => {
+          if (!isUndefined(data.pauseAt)) {
+            if (pauseAtRef.current !== data.pauseAt) {
+              setPauseAt(data.pauseAt)
+            }
+          }
+          if (!isUndefined(data.lastTransform)) {
+            lastTransform.current = data.lastTransform
+          }
+          if (!isUndefined(data.eval)) {
+            for (let evalString of data.eval) {
+              const evalFunction = eval(`({_, sc}) => {
               ${evalString}
             }`)
-            evalFunction({ _ })
+              evalFunction({ _ })
+            }
           }
-        }
-        if (!isUndefined(data.osc)) {
-          data.osc.forEach(({ path, args }) => {
-            client.send({ address: path, args: args as ArgumentType[] })
-          })
-        }
-        if (!isUndefined(data.errors)) {
-          setErrors(data.errors)
-        }
-      })
+          if (!isUndefined(data.osc)) {
+            data.osc.forEach(({ path, args }) => {
+              // client.send({ address: path, args: args as ArgumentType[] })
+            })
+          }
+          if (!isUndefined(data.errors)) {
+            setErrors(data.errors)
+          }
+        })
+      }
+
       const resizeObserver = new ResizeObserver(onResize)
       resizeObserver.observe(canvas.current)
 
@@ -133,10 +133,16 @@ export default function AsemicApp({ source }: { source: string }) {
 
       return () => {
         resizeObserver.disconnect()
-        asemic.current?.dispose()
+
         window.removeEventListener('resize', onResize)
       }
     }, [asemic])
+
+    // useEffect(() => {
+    //   return () => {
+    //     asemic.current?.dispose()
+    //   }
+    // }, [])
 
     useEffect(() => {
       onResize()
@@ -509,12 +515,6 @@ export default function AsemicApp({ source }: { source: string }) {
                 <div
                   ref={selectErrorsRef}
                   className='editor text-right !text-red-400 w-1/2'></div>
-              )}
-
-              {help && (
-                <div className='absolute top-0 left-0 h-full w-full overflow-auto !p-8 bg-black/50 backdrop-blur font-mono whitespace-pre-wrap'>
-                  <div>{readmeText}</div>
-                </div>
               )}
             </div>
           </div>

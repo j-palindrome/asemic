@@ -1,13 +1,14 @@
 import { isUndefined } from 'lodash'
-// @ts-ignore
-import AsemicWorker from './asemic.worker'
+// Import worker directly as a URL using Vite's ?worker syntax
+// Note: Vite automatically appends ?worker to .ts files in workers
+import AsemicWorker from './asemic.worker.ts?worker'
 import { Parser } from './parse'
 import CanvasRenderer from './canvasRenderer'
 import { AsemicData, AsemicDataBack } from './types'
 
 export default class Asemic {
   static defaultSettings = Parser.defaultSettings
-  worker = new AsemicWorker() as Worker
+  worker: Worker
   offscreenCanvas: OffscreenCanvas
   ready = false
   messageQueue: Partial<AsemicData>[] = []
@@ -33,6 +34,9 @@ export default class Asemic {
     canvas: HTMLCanvasElement,
     onmessage?: (data: AsemicDataBack) => void
   ) {
+    // Create worker using Vite's worker import
+    this.worker = new AsemicWorker({ name: 'asemic' })
+
     this.offscreenCanvas = canvas.transferControlToOffscreen()
     this.worker.postMessage(
       {

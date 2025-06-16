@@ -23,13 +23,15 @@ export type AsemicDataBack = {
 
 export type Transform = {
   scale: Pt
-  rotation: number
   translation: Pt
-  width: number | (() => number)
+  rotation: number
   add?: string
   rotate?: string
-  length?: number
-  hsla: Pt | (() => Pt)
+  width: string
+  h: string
+  s: string
+  l: string
+  a: string
 }
 export type FlatTransform = {
   scale: Pt

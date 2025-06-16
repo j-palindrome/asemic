@@ -54,11 +54,11 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
           translation: parser.transform.translation,
           rotation: parser.transform.rotation,
           scale: parser.transform.scale,
-          width: parser.getDynamicValue(parser.transform.width)
+          width: parser.evalExpr(parser.transform.width)
         } as FlatTransform,
         ...parser.output
       } as AsemicDataBack)
-      animationFrame = requestAnimationFrame(animate)
+      // animationFrame = requestAnimationFrame(animate)
     }
     animationFrame = requestAnimationFrame(animate)
 

@@ -185,14 +185,13 @@ export class AsemicPt extends Pt {
 
   constructor(parent: Parser, ...args: ConstructorParameters<typeof Pt>) {
     super(...args)
-    this.width =
-      typeof parent.transform.width === 'function'
-        ? parent.transform.width()
-        : parent.transform.width
-    this.color =
-      typeof parent.transform.hsla === 'function'
-        ? parent.transform.hsla()
-        : parent.transform.hsla
+    this.width = parent.evalExpr(parent.transform.width)
+    this.color = new Pt(
+      parent.evalExpr(parent.transform.h),
+      parent.evalExpr(parent.transform.s),
+      parent.evalExpr(parent.transform.l),
+      parent.evalExpr(parent.transform.a)
+    )
 
     this.parent = parent
   }

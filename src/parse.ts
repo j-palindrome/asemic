@@ -16,13 +16,15 @@ const TransformAliases = {
 
 const ONE_FRAME = 1 / 60
 
-const defaultTransform = () => ({
+const defaultTransform: () => Transform = () => ({
   translation: new Pt([0, 0]),
   scale: new Pt([1, 1]),
-  width: 1,
   rotation: 0,
-  length: undefined,
-  hsla: new Pt(0, 0, 1, 1)
+  width: '1',
+  h: '0',
+  s: '0',
+  l: '1',
+  a: '1'
 })
 
 const defaultOutput = () =>
@@ -62,7 +64,6 @@ export class Parser {
     accums: [] as number[],
     accumIndex: 0,
     letter: 0,
-    isAdding: false,
     scrub: 0,
     scrubTime: 0,
     progress: 0
@@ -71,7 +72,7 @@ export class Parser {
     keys: [''],
     text: ['']
   }
-  constants = {
+  constants: Record<string, (args: string[]) => string | void> = {
     N: () => this.progress.countNum.toString(),
     I: () => this.progress.index.toString(),
     T: () => this.progress.time.toFixed(5),
@@ -102,9 +103,7 @@ export class Parser {
       this.output.errors.push(text)
     },
     keys: args => {
-      this.parse(`"${this.live.keys[args[0] ? parseInt(args[0]) : 0] ?? ''}"`, {
-        silent: true
-      })
+      this.parse(`"${this.live.keys[args[0] ? parseInt(args[0]) : 0] ?? ''}"`)
     },
     within: args => {
       const point0 = this.parsePoint(args[0])
@@ -112,7 +111,7 @@ export class Parser {
       const rest = args.slice(2).join(' ')
       const withinStart = this.curves.length
 
-      this.parse(rest, { silent: true })
+      this.parse(rest)
 
       const bounds = new AsemicGroup(
         ...(this.curves.slice(withinStart).flat() as AsemicPt[])
@@ -235,7 +234,6 @@ export class Parser {
     },
     repeat: args => {
       const count = args[0]
-      const content = args.slice(1).join(' ')
       const countNum = this.evalExpr(count)
 
       const prevIndex = this.progress.index
@@ -243,14 +241,17 @@ export class Parser {
       this.progress.countNum = countNum
       for (let i = 0; i < countNum; i++) {
         this.progress.index = i
-
-        this.parse(content, { silent: true })
+        for (let i = 1; i < args.length; i++) {
+          // console.log('parsing level', i)
+          this.parseToken(args[i])
+        }
       }
       this.progress.index = prevIndex
       this.progress.countNum = prevCountNum
     },
-    sin: x => Math.sin(this.evalExpr(x, false) * Math.PI * 2) * 0.5 + 0.5,
-    acc: x => {
+    sin: ([x]) =>
+      (Math.sin(this.evalExpr(x, false) * Math.PI * 2) * 0.5 + 0.5).toFixed(4),
+    acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
         this.progress.accums.push(0)
       const value = this.evalExpr(x, false)
@@ -258,7 +259,7 @@ export class Parser {
       this.progress.accums[this.progress.accumIndex] += value / 60
       const currentAccum = this.progress.accums[this.progress.accumIndex]
       this.progress.accumIndex++
-      return currentAccum
+      return currentAccum.toFixed(4)
     }
   }
   reservedConstants = Object.keys(this.constants)
@@ -314,7 +315,7 @@ export class Parser {
         this.preProcess(this.rawSource)
         for (let i = 0; i < play.scene; i++) {
           // parse each scene until now to get OSC messages
-          this.parse(this.scenes[i].source, { mode: 'blank', silent: true })
+          this.parse(this.scenes[i].source, { mode: 'blank' })
         }
         this.progress.progress =
           this.scenes[play.scene].start + this.scenes[play.scene].offset
@@ -339,6 +340,9 @@ export class Parser {
         this.progress.scrubTime = this.progress.progress - object.start
 
         this.parse(object.source)
+        if (this.currentCurve.length > 0) {
+          this.addCurve()
+        }
 
         if (
           this.pauseAt === false &&
@@ -531,7 +535,7 @@ export class Parser {
     return [startPoint, endPoint, h, w] as [AsemicPt, AsemicPt, number, number]
   }
 
-  protected evalExpr(expr: string, replace = true): number {
+  evalExpr(expr: string, replace = true): number {
     try {
       if (!expr) {
         throw new Error('undefined expression')
@@ -568,9 +572,10 @@ export class Parser {
         }
       }
 
-      const functionCall = expr.match(/^(\w+)(?:$|\s)/)?.[1]
+      const functionCall = expr.match(/^([a-zA-Z0-9]+)/)?.[1]
       if (functionCall && this.constants[functionCall]) {
-        return this.evalExpr(this.evalFunction(expr))
+        const exprEval = this.evalFunction(expr)
+        if (exprEval) return this.evalExpr(exprEval)
       }
 
       if (expr.includes('<')) {
@@ -660,7 +665,7 @@ export class Parser {
               this.noiseTable[this.noiseIndex](
                 (expr.length === 1 ? 1 : this.evalExpr(expr.substring(1))) *
                   this.progress.time,
-                0
+                this.noiseIndex
               ) *
                 0.5 +
               0.5
@@ -931,9 +936,7 @@ export class Parser {
             case 'width':
             case 'w':
             case 'wid':
-              this.transform.width = () => {
-                return this.evalExpr(value)
-              }
+              this.transform.width = value
               break
             default:
               if (value.includes(',')) {
@@ -946,7 +949,7 @@ export class Parser {
                   this.transform[key] = this.evalPoint(value)
                 }
               } else {
-                this.transform[key] = this.evalExpr(value)
+                this.transform[key] = value
               }
               break
           }
@@ -1015,7 +1018,7 @@ export class Parser {
 
   evalFunction(token: string) {
     const functionCall = token.includes(' ')
-      ? token.match(/^(.*?)\s(.*)/)
+      ? token.match(/^([a-zA-Z0-9]+)\s(.*)/)
       : ['', token, '']
 
     if (functionCall) {
@@ -1023,7 +1026,10 @@ export class Parser {
       const argsStr = functionCall[2]
 
       // Parse function arguments
-      if (!this.constants[functionName]) return
+      if (!this.constants[functionName]) {
+        return
+        throw new Error(`Unknown function: ${functionName}`)
+      }
 
       const args = this.tokenize(argsStr)
 
@@ -1038,6 +1044,8 @@ export class Parser {
         }
         return funcText
       }
+    } else {
+      throw new Error(`Failed to match function name`)
     }
   }
 
@@ -1052,22 +1060,15 @@ export class Parser {
     this.progress.point = 0
   }
 
-  parseToken(
-    token: string,
-    { mode, silent = false }: { mode?: 'blank'; silent?: boolean } = {}
-  ) {
+  parseToken(token: string, { mode }: { mode?: 'blank' } = {}) {
     try {
       token = token.trim()
-      this.progress.isAdding = false
+      let adding = false
       let hasParentheses = false
 
       if (token.startsWith('+')) {
         token = token.substring(1)
-        this.progress.isAdding = true
-      } else {
-        if (this.currentCurve.length > 0) {
-          this.addCurve({ mode })
-        }
+        adding = true
       }
 
       while (token.startsWith('(') && token.endsWith(')')) {
@@ -1075,12 +1076,33 @@ export class Parser {
         token = token.substring(1, token.length - 1).trim()
       }
 
-      const functionCall = token.match(/^\w+/)
-      if (functionCall && this.constants[functionCall[0]]) {
-        // Parse function call
+      const constMatch = token.match(/([a-zA-Z0-9]+)(\=\>?)(.+)/)
+      console.log('constMatch', token, constMatch)
+
+      if (constMatch) {
+        const [_, key, type, value] = constMatch
+        if (this.reservedConstants.includes(key)) {
+          throw new Error(`Reserved constant: ${key}`)
+        }
+
+        if (type === '=>') {
+          this.constants[key] = () => value
+        } else {
+          const evaled = this.evalExpr(value).toFixed(4)
+
+          this.constants[key] = () => evaled
+        }
+
+        return
+      }
+
+      const functionCall = token.match(/^([a-zA-Z0-9]+)(?!\=)/)
+      if (functionCall && this.constants[functionCall[1]]) {
+        console.log('calling function', functionCall)
+
         const returnText = this.evalFunction(token)
         if (returnText) {
-          this.parse(returnText, { silent, mode })
+          this.parse(returnText, { mode })
         }
         return
       }
@@ -1100,7 +1122,7 @@ export class Parser {
         const parseFontSettings = () => {
           token = token.substring(2, token.length - 2).trim()
 
-          const fontName = token.match(/^([a-zA-Z0-9]+)\s/)
+          const fontName = token.match(/^([a-zA-Z0-9]+)/)
           if (fontName) {
             this.currentFont = fontName[1]
             token = token.replace(fontName[0], '')
@@ -1130,7 +1152,7 @@ export class Parser {
               ${token}
             }`)({ _ })
           if (typeof result === 'string') {
-            this.parse(result, { silent: true })
+            this.parse(result)
           }
         }
 
@@ -1162,9 +1184,7 @@ export class Parser {
         )
 
         const chars = [
-          !this.progress.isAdding
-            ? formatSpace(font.characters['\\^'])
-            : undefined,
+          !adding ? formatSpace(font.characters['\\^']) : undefined,
           token
             .split('')
             .map(x =>
@@ -1192,23 +1212,15 @@ export class Parser {
 
         for (let i = 0; i < chars.length; i++) {
           this.progress.letter = i / (chars.length - 1)
-          this.parse(chars[i], { silent: true })
+          this.parse(chars[i])
         }
-        return
-      }
-
-      const constMatch = token.match(/([\w]+?)\=(.*)/)
-      if (constMatch) {
-        const [_, key, value] = constMatch
-        if (this.reservedConstants.includes(key)) {
-          throw new Error(`Reserved constant: ${key}`)
-        }
-
-        this.constants[key] = () => value
         return
       }
 
       if (token.startsWith('[')) {
+        if (!adding && this.currentCurve.length > 0) {
+          this.addCurve({ mode })
+        }
         const pointsStr = token.substring(1, token.length - 1)
         const pointsTokens = this.tokenize(pointsStr)
 
@@ -1232,13 +1244,7 @@ export class Parser {
     }
   }
 
-  parse(
-    source: string,
-    {
-      mode = undefined,
-      silent = false
-    }: { mode?: 'blank'; silent?: boolean } = {}
-  ) {
+  parse(source: string, { mode = undefined }: { mode?: 'blank' } = {}) {
     const tokens = this.tokenize(source)
 
     if (tokens.length === 0) return
@@ -1247,11 +1253,6 @@ export class Parser {
       this.parseToken(tokens[i])
     }
 
-    if (this.currentCurve.length > 0) {
-      this.addCurve()
-    }
-
-    // error detection
     if (this.settings.debug && !mode) {
       const flatCurves = this.curves.flat()
 

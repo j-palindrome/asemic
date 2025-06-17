@@ -1,7 +1,6 @@
 # Source files
 src/
 tests/
-_archive/
 
 # Development files
 *.config.ts
@@ -31,10 +30,6 @@ package-lock.json
 # OS files
 .DS_Store
 Thumbs.db
-
-# Test files
-test-results/
-coverage/
 
 # Temporary files
 *.tmp

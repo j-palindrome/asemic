@@ -1085,6 +1085,7 @@ export class Parser {
       }
 
       const constMatch = token.match(/^([a-zA-Z0-9]+)(\=\>?)(.+)/)
+
       if (constMatch) {
         const [_, key, type, value] = constMatch
         if (this.reservedConstants.includes(key)) {

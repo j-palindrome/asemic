@@ -3,56 +3,14 @@
   "version": "1.0.0",
   "description": "A TypeScript library for generative asemic writing",
   "type": "module",
-  "main": "./dist/index.cjs.js",
-  "module": "./dist/index.es.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.es.js",
   "exports": {
     ".": {
       "import": "./dist/index.es.js",
-      "require": "./dist/index.cjs.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./asemic": {
-      "import": "./dist/asemic.es.js",
-      "require": "./dist/asemic.cjs.js",
-      "types": "./dist/asemic.d.ts"
-    },
-    "./parser": {
-      "import": "./dist/parser.es.js",
-      "require": "./dist/parser.cjs.js",
-      "types": "./dist/parser.d.ts"
-    },
-    "./renderer": {
-      "import": "./dist/renderer.es.js",
-      "require": "./dist/renderer.cjs.js",
-      "types": "./dist/renderer.d.ts"
-    },
-    "./canvas-renderer": {
-      "import": "./dist/canvas-renderer.es.js",
-      "require": "./dist/canvas-renderer.cjs.js",
-      "types": "./dist/canvas-renderer.d.ts"
-    },
-    "./webgpu-renderer": {
-      "import": "./dist/webgpu-renderer.es.js",
-      "require": "./dist/webgpu-renderer.cjs.js",
-      "types": "./dist/webgpu-renderer.d.ts"
-    },
-    "./three-renderer": {
-      "import": "./dist/three-renderer.es.js",
-      "require": "./dist/three-renderer.cjs.js",
-      "types": "./dist/three-renderer.d.ts"
-    },
-    "./asemic-app": {
-      "import": "./dist/asemic-app.es.js",
-      "require": "./dist/asemic-app.cjs.js",
-      "types": "./dist/asemic-app.d.ts"
-    },
-    "./worker": {
-      "import": "./dist/worker.es.js",
-      "require": "./dist/worker.cjs.js",
-      "types": "./dist/worker.d.ts"
+      "require": "./dist/index.cjs.js"
     }
   },
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "README.md",

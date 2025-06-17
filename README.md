@@ -71,12 +71,6 @@ const device = await navigator.gpu.requestAdapter()
 const context = canvas.getContext('webgpu')
 const renderer = new WebGPURenderer(context)
 
-// Three.js Renderer
-import ThreeRenderer from 'asemic/three-renderer'
-
-const renderer = new ThreeRenderer()
-```
-
 ## API Reference
 
 ### Parser
@@ -100,3 +94,4 @@ React component for full-featured asemic applications.
 ## License
 
 ISC
+```

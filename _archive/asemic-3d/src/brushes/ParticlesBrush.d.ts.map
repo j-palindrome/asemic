@@ -1,1 +1,0 @@
-{"version":3,"file":"ParticlesBrush.d.ts","sourceRoot":"","sources":["ParticlesBrush.ts"],"names":[],"mappings":"AAmBA,OAAO,YAAY,MAAM,gBAAgB,CAAA;AAEzC,qBAAa,cAAe,SAAQ,YAAY,CAAC,WAAW,CAAC;IAC3D,SAAS,CAAC,uBAAuB,IAAI,SAAS,CAAC,WAAW,CAAC;IAgB3D,SAAS,CAAC,OAAO;IAIjB,SAAS,CAAC,MAAM;IAEhB,SAAS,CAAC,MAAM;IAwLhB,SAAS,CAAC,SAAS;CAKpB"}

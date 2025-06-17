@@ -1,5 +1,5 @@
 import { Color, Group, GroupLike, Pt, PtIterable, PtLike } from 'pts'
-import type { Parser } from './parse'
+import type { Parser } from './Parser'
 
 type AsemicPtLike = Pt | Float32Array | number[]
 type AsemicGroupLike = AsemicGroup | AsemicPt[]

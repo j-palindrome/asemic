@@ -1,6 +1,6 @@
 import { Color, Pt } from 'pts'
-import { Parser } from './parse'
-export type { Parser } from './parse'
+import { Parser } from './Parser'
+export type { Parser } from './Parser'
 export type { default as Renderer } from './canvasRenderer'
 
 export type AsemicData = {

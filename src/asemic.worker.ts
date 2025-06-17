@@ -1,6 +1,6 @@
 import { flatMap, isUndefined, max } from 'lodash'
 import WebGPURenderer from './WebGPURenderer'
-import { Parser } from './parse'
+import { Parser } from './Parser'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import CanvasRenderer from './canvasRenderer'
 import Renderer from './renderer'
@@ -42,12 +42,12 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     }
     if (parser.rawSource !== ev.data.source) {
       parser.rawSource = ev.data.source
-      parser.preProcess(ev.data.source)
+      parser.setup(ev.data.source)
       self.postMessage({ settings: parser.settings })
     }
 
     const animate = () => {
-      parser.frame()
+      parser.draw()
       renderer.render(parser.curves)
       self.postMessage({
         lastTransform: {

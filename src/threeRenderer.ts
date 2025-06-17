@@ -2,7 +2,7 @@ import { OrthographicCamera, Scene } from 'three'
 import Renderer from './renderer'
 import { WebGPURenderer } from 'three/src/Three.WebGPU.js'
 import { AsemicGroup, AsemicPt } from './AsemicPt'
-import { LineBrush } from './asemic-3d/src'
+import { LineBrush } from '../_archive/asemic-3d/src'
 import WebGPURenderer from './WebGPURenderer'
 
 export default class ThreeRenderer extends Renderer {

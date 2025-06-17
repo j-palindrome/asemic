@@ -1,18 +1,82 @@
 {
   "name": "asemic",
   "version": "1.0.0",
-  "description": "",
+  "description": "A TypeScript library for generative asemic writing",
   "type": "module",
+  "main": "./dist/index.cjs.js",
+  "module": "./dist/index.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./asemic": {
+      "import": "./dist/asemic.es.js",
+      "require": "./dist/asemic.cjs.js",
+      "types": "./dist/asemic.d.ts"
+    },
+    "./parser": {
+      "import": "./dist/parser.es.js",
+      "require": "./dist/parser.cjs.js",
+      "types": "./dist/parser.d.ts"
+    },
+    "./renderer": {
+      "import": "./dist/renderer.es.js",
+      "require": "./dist/renderer.cjs.js",
+      "types": "./dist/renderer.d.ts"
+    },
+    "./canvas-renderer": {
+      "import": "./dist/canvas-renderer.es.js",
+      "require": "./dist/canvas-renderer.cjs.js",
+      "types": "./dist/canvas-renderer.d.ts"
+    },
+    "./webgpu-renderer": {
+      "import": "./dist/webgpu-renderer.es.js",
+      "require": "./dist/webgpu-renderer.cjs.js",
+      "types": "./dist/webgpu-renderer.d.ts"
+    },
+    "./three-renderer": {
+      "import": "./dist/three-renderer.es.js",
+      "require": "./dist/three-renderer.cjs.js",
+      "types": "./dist/three-renderer.d.ts"
+    },
+    "./asemic-app": {
+      "import": "./dist/asemic-app.es.js",
+      "require": "./dist/asemic-app.cjs.js",
+      "types": "./dist/asemic-app.d.ts"
+    },
+    "./worker": {
+      "import": "./dist/worker.es.js",
+      "require": "./dist/worker.cjs.js",
+      "types": "./dist/worker.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "npm run build:lib && npm run build:css",
+    "build:lib": "vite build --config vite.config.lib.ts",
+    "build:types": "tsc --project tsconfig.build.json",
+    "build:css": "npx @tailwindcss/cli -i ./src/app/tailwind.css -o ./dist/asemic-app.css",
+    "build:watch": "npm run build:lib -- --watch",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "prepublishOnly": "npm run test && npm run build",
+    "clean": "rm -rf dist"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.10.0",
   "dependencies": {
+    "@tailwindcss/cli": "^4.1.10",
     "@tailwindcss/vite": "^4.1.10",
     "@types/node-osc": "^9.1.0",
     "@types/react": "^19.1.8",
@@ -25,16 +89,21 @@
     "react-dom": "^19.1.0",
     "simplex-noise": "^4.0.3",
     "tailwindcss": "^4.1.10",
+    "test": "link:@types/playwright/test",
     "three": "^0.176.0",
     "tiny-invariant": "^1.3.3"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.16",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "builtin-modules": "^5.0.0",
     "esbuild": "^0.25.4",
     "esbuild-plugin-inline-worker": "^0.1.1",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   }

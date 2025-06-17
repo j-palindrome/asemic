@@ -91,7 +91,7 @@ export class Parser {
     },
     log: args => {
       const slice = Number(args[0] || '0')
-      const text = this.log(slice)
+      const text = this.debug(slice)
       this.output.errors.push(text)
     },
     print: () => {
@@ -312,7 +312,7 @@ export class Parser {
     } else if (typeof play === 'object') {
       if (!isUndefined(play.scene)) {
         this.reset()
-        this.preProcess(this.rawSource)
+        this.setup(this.rawSource)
         for (let i = 0; i < play.scene; i++) {
           // parse each scene until now to get OSC messages
           this.parse(this.scenes[i].source, { mode: 'blank' })
@@ -326,7 +326,7 @@ export class Parser {
     }
   }
 
-  frame() {
+  draw() {
     this.reset()
 
     for (let object of this.scenes) {
@@ -339,10 +339,7 @@ export class Parser {
           (this.progress.progress - object.start) / object.length
         this.progress.scrubTime = this.progress.progress - object.start
 
-        this.parse(object.source)
-        if (this.currentCurve.length > 0) {
-          this.addCurve()
-        }
+        this.parse(object.source, { last: true })
 
         if (
           this.pauseAt === false &&
@@ -359,7 +356,7 @@ export class Parser {
     }
   }
 
-  protected log(slice: number = 0) {
+  protected debug(slice: number = 0) {
     const toFixed = (x: number) => {
       const str = x.toFixed(2)
       if (str.endsWith('00')) {
@@ -377,7 +374,7 @@ export class Parser {
       .join('\n')
   }
 
-  preProcess(source: string) {
+  setup(source: string) {
     for (let replacement of Object.keys(this.preProcessing.replacements)) {
       source = source.replace(
         replacement,
@@ -958,7 +955,7 @@ export class Parser {
     })
   }
 
-  tokenize(source: string): string[] {
+  protected tokenize(source: string): string[] {
     source = source + ' '
 
     // Predefined functions
@@ -1016,7 +1013,7 @@ export class Parser {
     return tokens
   }
 
-  evalFunction(token: string) {
+  protected evalFunction(token: string) {
     const functionCall = token.includes(' ')
       ? token.match(/^([a-zA-Z0-9]+)\s(.*)/)
       : ['', token, '']
@@ -1049,7 +1046,7 @@ export class Parser {
     }
   }
 
-  addCurve({ mode = 'normal' }: { mode?: string } = {}) {
+  protected addCurve({ mode = 'normal' }: { mode?: string } = {}) {
     if (mode === 'blank') return
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
@@ -1060,7 +1057,7 @@ export class Parser {
     this.progress.point = 0
   }
 
-  parseToken(token: string, { mode }: { mode?: 'blank' } = {}) {
+  protected parseToken(token: string, { mode }: { mode?: 'blank' } = {}) {
     try {
       token = token.trim()
       let adding = false
@@ -1076,9 +1073,18 @@ export class Parser {
         token = token.substring(1, token.length - 1).trim()
       }
 
-      const constMatch = token.match(/([a-zA-Z0-9]+)(\=\>?)(.+)/)
-      console.log('constMatch', token, constMatch)
+      if (token.includes('|')) {
+        const [ifFalse, condition, ifTrue] = token.split('|')
+        const evalCondition = this.evalExpr(condition)
+        if (evalCondition > 0) {
+          this.parse(ifTrue)
+        } else {
+          this.parse(ifFalse)
+        }
+        return
+      }
 
+      const constMatch = token.match(/^([a-zA-Z0-9]+)(\=\>?)(.+)/)
       if (constMatch) {
         const [_, key, type, value] = constMatch
         if (this.reservedConstants.includes(key)) {
@@ -1098,22 +1104,9 @@ export class Parser {
 
       const functionCall = token.match(/^([a-zA-Z0-9]+)(?!\=)/)
       if (functionCall && this.constants[functionCall[1]]) {
-        console.log('calling function', functionCall)
-
         const returnText = this.evalFunction(token)
         if (returnText) {
           this.parse(returnText, { mode })
-        }
-        return
-      }
-
-      if (token.includes('|')) {
-        const [ifFalse, condition, ifTrue] = token.split('|')
-        const evalCondition = this.evalExpr(condition)
-        if (evalCondition > 0) {
-          this.parse(ifTrue)
-        } else {
-          this.parse(ifFalse)
         }
         return
       }
@@ -1244,7 +1237,10 @@ export class Parser {
     }
   }
 
-  parse(source: string, { mode = undefined }: { mode?: 'blank' } = {}) {
+  protected parse(
+    source: string,
+    { mode = undefined, last = false }: { mode?: 'blank'; last?: boolean } = {}
+  ) {
     const tokens = this.tokenize(source)
 
     if (tokens.length === 0) return
@@ -1260,6 +1256,12 @@ export class Parser {
         !flatCurves.find(x => x[0] <= 1 && x[0] >= 0 && x[1] <= 1 && x[1] >= 0)
       ) {
         this.output.errors.push('No points within [0,0] and [1,1]')
+      }
+    }
+
+    if (last) {
+      if (this.currentCurve.length > 0) {
+        this.addCurve()
       }
     }
   }

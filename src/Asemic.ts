@@ -1,8 +1,9 @@
 import { isUndefined } from 'lodash'
 // Import worker directly as a URL using Vite's ?worker syntax
 // Note: Vite automatically appends ?worker to .ts files in workers
+// @ts-ignore
 import AsemicWorker from './asemic.worker.ts?worker'
-import { Parser } from './parse'
+import { Parser } from './Parser'
 import CanvasRenderer from './canvasRenderer'
 import { AsemicData, AsemicDataBack } from './types'
 

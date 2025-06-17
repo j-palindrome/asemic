@@ -60,10 +60,10 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:lib && npm run build:css",
+    "build": "npm run build:css && npm run build:lib",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:types": "tsc --project tsconfig.build.json",
-    "build:css": "npx @tailwindcss/cli -i ./src/app/tailwind.css -o ./dist/asemic-app.css",
+    "build:css": "npx @tailwindcss/cli -i ./src/app/tailwind.css -o ./src/app/AsemicApp.css",
     "build:watch": "npm run build:lib -- --watch",
     "preview": "vite preview",
     "test": "jest",

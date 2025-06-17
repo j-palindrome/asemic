@@ -19,11 +19,11 @@ export default defineConfig({
         'canvas-renderer': resolve(__dirname, 'src/canvasRenderer.ts'),
         'webgpu-renderer': resolve(__dirname, 'src/WebGPURenderer.ts'),
         'three-renderer': resolve(__dirname, 'src/threeRenderer.ts'),
-        'asemic-app': resolve(__dirname, 'src/AsemicApp.tsx'),
+        'asemic-app': resolve(__dirname, 'src/app/AsemicApp.tsx'),
         worker: resolve(__dirname, 'src/asemic.worker.ts')
       },
       name: 'Asemic',
-      formats: ['es', 'cjs']
+      formats: ['es']
     },
     rollupOptions: {
       external: [
@@ -38,19 +38,19 @@ export default defineConfig({
         'simplex-noise'
       ],
       output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          three: 'THREE',
-          lodash: '_',
-          pts: 'Pts'
-        },
-        // Preserve directory structure
-        entryFileNames: chunkInfo => {
-          return `${chunkInfo.name}.[format].js`
-        },
-        chunkFileNames: 'chunks/[name]-[hash].[format].js',
-        assetFileNames: 'assets/[name]-[hash][extname]'
+        // globals: {
+        //   react: 'React',
+        //   'react-dom': 'ReactDOM',
+        //   three: 'THREE',
+        //   lodash: '_',
+        //   pts: 'Pts'
+        // },
+        // // Preserve directory structure
+        // entryFileNames: chunkInfo => {
+        //   return `${chunkInfo.name}.js`
+        // },
+        chunkFileNames: 'chunks/[name].js',
+        assetFileNames: 'assets/[name].[extname]'
       }
     },
     sourcemap: true,

@@ -13,7 +13,6 @@ export default class Asemic {
   offscreenCanvas: OffscreenCanvas
   ready = false
   messageQueue: Partial<AsemicData>[] = []
-  animationFrame: number | null
 
   postMessage(data: Partial<AsemicData>) {
     if (!this.ready) {
@@ -24,10 +23,6 @@ export default class Asemic {
   }
 
   dispose() {
-    if (this.animationFrame) {
-      window.cancelAnimationFrame(this.animationFrame)
-      this.animationFrame = null
-    }
     this.worker.terminate()
   }
 

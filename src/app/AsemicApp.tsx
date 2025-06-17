@@ -78,7 +78,6 @@ export default function AsemicApp({
   const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
   const setup = () => {
-    const animationFrame = useRef(0)
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
     const onResize = () => {
@@ -176,9 +175,6 @@ export default function AsemicApp({
         })
       }
       restart()
-      return () => {
-        cancelAnimationFrame(animationFrame.current)
-      }
     }, [scenesSource, isSetup])
   }
   setup()
@@ -368,9 +364,9 @@ export default function AsemicApp({
           //     ` ${mouse.x.toFixed(2)},${mouse.y.toFixed(2)}`
           //   editable.current.scrollTo({ top: scrollSave })
           // }
-          asemic.current?.postMessage({
-            source: editable.current.value
-          })
+          // asemic.current?.postMessage({
+          //   source: editable.current.value
+          // })
         }}>
         <canvas
           style={{

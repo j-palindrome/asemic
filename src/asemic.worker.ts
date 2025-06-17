@@ -9,6 +9,7 @@ let parser: Parser = new Parser()
 let renderer: Renderer
 let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
+let ready = true
 
 self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
@@ -47,8 +48,13 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     }
 
     const animate = () => {
+      if (!ready) {
+        throw new Error('two frames requested at once')
+      }
+      ready = false
       parser.draw()
       renderer.render(parser.curves)
+      ready = true
       self.postMessage({
         lastTransform: {
           translation: parser.transform.translation,
@@ -58,7 +64,11 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
         } as FlatTransform,
         ...parser.output
       } as AsemicDataBack)
-      // animationFrame = requestAnimationFrame(animate)
+
+      animationFrame = requestAnimationFrame(animate)
+    }
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame)
     }
     animationFrame = requestAnimationFrame(animate)
 

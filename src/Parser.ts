@@ -569,10 +569,14 @@ export class Parser {
         }
       }
 
-      const functionCall = expr.match(/^([a-zA-Z0-9]+)/)?.[1]
+      if (expr.match(/^\-?[0-9\.]+$/)) {
+        return parseFloat(expr)
+      }
+
+      const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
       if (functionCall && this.constants[functionCall]) {
         const exprEval = this.evalFunction(expr)
-        if (exprEval) return this.evalExpr(exprEval)
+        if (exprEval) return this.evalExpr(exprEval, false)
       }
 
       if (expr.includes('<')) {
@@ -606,7 +610,7 @@ export class Parser {
           case '_':
             let [round, after] = splitString(expr, '_')
             if (!after) after = '1'
-            const afterNum = this.evalExpr(after)
+            const afterNum = this.evalExpr(after, false)
             return Math.floor(this.evalExpr(round) / afterNum) * afterNum
 
           case '+':
@@ -650,7 +654,7 @@ export class Parser {
             if (expr.length === 1) {
               return Math.random()
             }
-            return this.hash(this.evalExpr(expr.substring(1)))
+            return this.hash(this.evalExpr(expr.substring(1), false))
 
           case '~':
             let sampleIndex = this.noiseIndex
@@ -660,7 +664,9 @@ export class Parser {
 
             const noise =
               this.noiseTable[this.noiseIndex](
-                (expr.length === 1 ? 1 : this.evalExpr(expr.substring(1))) *
+                (expr.length === 1
+                  ? 1
+                  : this.evalExpr(expr.substring(1), false)) *
                   this.progress.time,
                 this.noiseIndex
               ) *
@@ -672,7 +678,7 @@ export class Parser {
         }
       }
 
-      return parseFloat(expr)
+      throw new Error(`Invalid expression`)
     } catch (e) {
       throw new Error(`Failed to parse ${expr}: ${e}`)
     }

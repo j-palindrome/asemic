@@ -1,198 +1,84 @@
 import { Color, Group, GroupLike, Pt, PtIterable, PtLike } from 'pts'
 import type { Parser } from './Parser'
 
-type AsemicPtLike = Pt | Float32Array | number[]
-type AsemicGroupLike = AsemicGroup | AsemicPt[]
-type AsemicPtIterable = AsemicGroupLike | Iterable<AsemicPt>
-type PtLikeIterable = AsemicGroupLike | AsemicPtLike[] | Iterable<AsemicPtLike>
-
-// @ts-ignore
-export class AsemicGroup extends Group {
-  at(i: number): AsemicPt {
-    if (i < 0) i += this.length
-    return this[i] as AsemicPt
-  }
-
-  //     get p1(): Pt;
-  //     get p2(): Pt;
-  //     get p3(): Pt;
-  //     get p4(): Pt;
-  //     get q1(): Pt;
-  //     get q2(): Pt;
-  //     get q3(): Pt;
-  //     get q4(): Pt;
-  clone(): AsemicGroup {
-    return new AsemicGroup(...(this as unknown as AsemicPt[]))
-  }
-
-  reverse(): AsemicPt[] {
-    return super.reverse() as AsemicPt[]
-  }
-
-  split(chunkSize: number, stride?: number, loopBack?: boolean): AsemicGroup[] {
-    return super.split(chunkSize, stride, loopBack) as AsemicGroup[]
-  }
-  insert(pts: AsemicPtIterable, index?: number): this {
-    return super.insert(pts, index) as this
-  }
-  remove(index?: number, count?: number): AsemicGroup {
-    return super.remove(index, count) as this
-  }
-  segments(
-    pts_per_segment?: number,
-    stride?: number,
-    loopBack?: boolean
-  ): AsemicGroup[] {
-    return super.segments(pts_per_segment, stride, loopBack) as AsemicGroup[]
-  }
-  lines(): AsemicGroup[] {
-    return super.lines() as AsemicGroup[]
-  }
-  interpolate(t: number): AsemicPt {
-    return new AsemicPt(this.at(0).parent, super.interpolate(t))
-  }
-  $matrixAdd(g: GroupLike | number[][] | number): AsemicGroup {
-    return super.$matrixAdd(g) as AsemicGroup
-  }
-  $matrixMultiply(
-    g: GroupLike | number,
-    transposed?: boolean,
-    elementwise?: boolean
-  ): AsemicGroup {
-    return super.$matrixMultiply(g, transposed, elementwise) as AsemicGroup
-  }
-  zipSlice(index: number, defaultValue?: number | boolean): AsemicPt {
-    return super.zipSlice(index, defaultValue) as AsemicPt
-  }
-  $zip(defaultValue?: number | boolean, useLongest?: boolean): Group {
-    return super.$zip(defaultValue, useLongest) as AsemicGroup
-  }
-
-  aSlice(start?: number, end?: number): AsemicGroup {
-    return new AsemicGroup(...(super.slice(start, end) as AsemicPt[]))
-  }
-
-  flat<A, D extends number = 1>(
-    this: A,
-    depth?: D | undefined
-  ): FlatArray<A, D>[] {
-    // @ts-ignore
-    return super.flat(depth) as unknown as AsemicPt[]
-  }
-
-  map<U>(
-    callbackfn: (value: AsemicPt, index: number, array: AsemicPt[]) => U,
-    thisArg?: any
-  ): U[] {
-    return super.map(callbackfn, thisArg)
-  }
-
-  flatMap<U>(
-    callbackfn: (value: AsemicPt, index: number, array: AsemicPt[]) => U[] | U,
-    thisArg?: any
-  ): U[] {
-    return super.flatMap(callbackfn, thisArg)
-  }
-
-  static fromArray(list: PtLikeIterable) {
-    throw new Error('AsemicGroup: use fromPointArray.')
-  }
-
-  static fromPointArray(list: AsemicPtIterable) {
-    return super.fromPtArray(list) as AsemicGroup
-  }
-
-  constructor(...args: AsemicPt[]) {
-    super(...args)
-  }
-}
-
-export class AsemicPt extends Pt {
-  width: number
+export class AsemicPt extends Float32Array {
   parent: Parser
-  color: Pt
+  w: number
+  hsla: Float32Array // [h, s, l, a]
 
-  lerp(nextPt: AsemicPt, amount: number): this {
-    this.add(nextPt.$subtract(this).scale(amount))
+  constructor(parent: Parser, x: number = 0, y: number = 0) {
+    super(2)
+    this[0] = x
+    this[1] = y
+    this.parent = parent
+  }
+
+  get x() {
+    return this[0]
+  }
+  set x(val) {
+    this[0] = val
+  }
+  get y() {
+    return this[1]
+  }
+  set y(val) {
+    this[1] = val
+  }
+
+  // Lazy evaluation - only compute when needed
+  get width(): number {
+    if (this.w === undefined) {
+      this.w = this.parent.evalExpr(this.parent.transform.width)
+    }
+    return this.w
+  }
+
+  get color(): Float32Array {
+    if (!this.hsla) {
+      this.hsla = new Float32Array([
+        this.parent.evalExpr(this.parent.transform.h),
+        this.parent.evalExpr(this.parent.transform.s),
+        this.parent.evalExpr(this.parent.transform.l),
+        this.parent.evalExpr(this.parent.transform.a)
+      ])
+    }
+    return this.hsla
+  }
+
+  // Fast mutable operations
+  add(x: number, y: number): this {
+    this[0] += x
+    this[1] += y
     return this
   }
 
-  $lerp(nextPt: AsemicPt, amount: number): AsemicPt {
-    return this.$add(nextPt.$subtract(this).scale(amount))
+  scale(factor: number): this {
+    this[0] *= factor
+    this[1] *= factor
+    return this
+  }
+
+  lerp(target: AsemicPt, t: number): this {
+    this[0] += (target[0] - this[0]) * t
+    this[1] += (target[1] - this[1]) * t
+    return this
+  }
+
+  // Immutable operations when needed
+  $add(x: number, y: number): AsemicPt {
+    return new AsemicPt(this.parent, this[0] + x, this[1] + y)
   }
 
   clone(): AsemicPt {
-    return new AsemicPt(this.parent, this.x, this.y)
-  }
-  $to(...args: any[]): AsemicPt {
-    return this.clone().to(...args)
-  }
-  $take(axis: string | number[]): AsemicPt {
-    return super.$take(axis) as AsemicPt
-  }
-  $add(...args: any[]): AsemicPt {
-    return this.clone().add(...args)
-  }
-  $subtract(...args: any[]): AsemicPt {
-    return this.clone().subtract(...args)
-  }
-  $multiply(...args: any[]): AsemicPt {
-    return this.clone().multiply(...args)
-  }
-  $divide(...args: any[]): AsemicPt {
-    return this.clone().divide(...args)
-  }
-  // unit(magnitude?: number): AsemicPt;
-  // $unit(magnitude?: number): AsemicPt;
-  // $cross(...args: any[]): AsemicPt {
-
-  //     return this.clone().cross(...args)
-
-  // }
-  // $project(...args: any[]): AsemicPt {
-  //   return this.clone().proj
-  // }
-  abs(): this {
-    return super.abs() as this
-  }
-  $abs(): AsemicPt {
-    return this.clone().abs()
-  }
-  floor(): AsemicPt {
-    return super.floor() as this
-  }
-  $floor(): AsemicPt {
-    return this.clone().floor()
-  }
-  ceil(): AsemicPt {
-    return super.ceil() as this
-  }
-  $ceil(): AsemicPt {
-    return this.clone().ceil()
-  }
-  round(): AsemicPt {
-    return super.round() as this
-  }
-  $round(): AsemicPt {
-    return this.clone().round()
-  }
-  $min(...args: any[]): AsemicPt {
-    return super.$min(...args) as AsemicPt
-  }
-  $max(...args: any[]): AsemicPt {
-    return super.$max(...args) as AsemicPt
+    const pt = new AsemicPt(this.parent, this[0], this[1])
+    pt.w = this.w
+    pt.hsla = this.hsla ? new Float32Array(this.hsla) : undefined
+    return pt
   }
 
-  constructor(parent: Parser, ...args: ConstructorParameters<typeof Pt>) {
-    super(...args)
-    this.width = parent.evalExpr(parent.transform.width)
-    this.color = new Pt(
-      parent.evalExpr(parent.transform.h),
-      parent.evalExpr(parent.transform.s),
-      parent.evalExpr(parent.transform.l),
-      parent.evalExpr(parent.transform.a)
-    )
-
-    this.parent = parent
+  invalidateCache() {
+    this.w = undefined
+    this.hsla = undefined
   }
 }

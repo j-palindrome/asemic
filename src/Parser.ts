@@ -34,6 +34,9 @@ const defaultOutput = () =>
     eval: string[]
   })
 
+const defaultFonts = () =>
+  ({ default: new DefaultFont() } as Record<string, AsemicFont>)
+
 export class Parser {
   rawSource = ''
   debugged = new Map<string, { errors: string[] }>()
@@ -103,6 +106,9 @@ export class Parser {
     },
     keys: args => {
       this.parse(`"${this.live.keys[args[0] ? parseInt(args[0]) : 0] ?? ''}"`)
+    },
+    text: args => {
+      this.parse(`"${this.live.text[args[0] ? parseInt(args[0]) : 0] ?? ''}"`)
     },
     within: args => {
       const point0 = this.parsePoint(args[0])
@@ -266,7 +272,7 @@ export class Parser {
     }
   }
   reservedConstants = Object.keys(this.constants)
-  fonts: Record<string, AsemicFont> = { default: new DefaultFont() }
+  fonts: Record<string, AsemicFont> = defaultFonts()
   currentFont = 'default'
   lastPoint: AsemicPt = new AsemicPt(this, 0, 0)
   noiseTable: ((x: number, y: number) => number)[] = []
@@ -335,7 +341,7 @@ export class Parser {
     for (let object of this.scenes) {
       if (
         this.progress.progress >= object.start &&
-        this.progress.progress <= object.start + object.length + ONE_FRAME
+        this.progress.progress < object.start + object.length
       ) {
         this.resetTransform()
         this.progress.scrub =
@@ -384,6 +390,7 @@ export class Parser {
         this.preProcessing.replacements[replacement]
       )
     }
+    this.fonts = defaultFonts()
     const parseSetting = (token: string) => {
       if (!token) return
       if (token.startsWith('!')) {
@@ -404,8 +411,12 @@ export class Parser {
 
     const [settings, ...sceneList] = source.split('\n---')
 
-    for (let token of settings.trim().split(/\s+/g)) {
+    const [firstLine, settingsSource] = splitString(settings, '\n')
+    for (let token of firstLine.split(/\s+/g)) {
       parseSetting(token.trim())
+    }
+    if (settingsSource && settingsSource.trim().length > 0) {
+      this.parse(settingsSource, { last: true })
     }
 
     const scenes: Parser['scenes'] = []
@@ -694,16 +705,25 @@ export class Parser {
     point: AsemicPt,
     { relative = false, randomize = true } = {}
   ): AsemicPt => {
-    point.scale(this.transform.scale, !relative ? undefined : this.lastPoint) // EDIT - handle scale properly
+    point
+      .scale(this.transform.scale, !relative ? undefined : this.lastPoint)
+      .rotate(
+        this.transform.rotation * Math.PI * 2,
+        !relative ? [0, 0] : this.lastPoint
+      )
 
     if (this.transform.rotate !== undefined && randomize) {
-      // EDIT - Need rotate2D implementation
+      point.rotate(
+        this.evalExpr(this.transform.rotate) * Math.PI * 2,
+        !relative ? [0, 0] : this.lastPoint
+      )
     }
     if (this.transform.add !== undefined && randomize) {
-      const addPoint = this.evalPoint(this.transform.add)
-      addPoint.scale(this.transform.scale, [0, 0]) // EDIT - handle scale
-      // EDIT - Need rotate2D implementation
-      point.add(addPoint)
+      point.add(
+        this.evalPoint(this.transform.add)
+          .scale(this.transform.scale)
+          .rotate(this.transform.rotation * Math.PI * 2)
+      )
     }
     if (!relative) point.add(this.transform.translation)
     return point

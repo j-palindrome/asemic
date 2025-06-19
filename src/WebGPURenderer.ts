@@ -147,8 +147,6 @@ export default class WebGPURenderer {
   colors: { buffer: GPUBuffer; size: number }
 
   protected load(curves: AsemicPt[][]) {
-    // Create vertex shader
-
     // Create a buffer to store vertex data
     const vertexBuffer = this.device.createBuffer({
       size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
@@ -381,7 +379,7 @@ export default class WebGPURenderer {
   }
 
   render(curves: AsemicPt[][]) {
-    if (curves.length === 0) {
+    if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
       // If there are no curves, just clear the canvas and return
       const commandEncoder = this.device.createCommandEncoder()
       const renderPass = commandEncoder.beginRenderPass({
@@ -404,11 +402,12 @@ export default class WebGPURenderer {
       this.load(curves)
     } else {
       let total = 0
-      for (let i = 0; i < curves.length; i++) {
+      for (let i = 0; i < curves.length + 1; i++) {
         if (this.curveStarts.array[i] !== total) {
           this.load(curves)
           break
         }
+        if (!curves[i]) break
         total += curves[i].length
       }
     }

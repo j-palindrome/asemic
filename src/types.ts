@@ -1,5 +1,6 @@
 import { Color, Pt } from 'pts'
 import { Parser } from './Parser'
+import { BasicPt } from './AsemicPt'
 export type { Parser } from './Parser'
 export type { default as Renderer } from './canvasRenderer'
 
@@ -22,8 +23,8 @@ export type AsemicDataBack = {
 } & Partial<Parser['output']>
 
 export type Transform = {
-  scale: Pt
-  translation: Pt
+  scale: BasicPt
+  translation: BasicPt
   rotation: number
   add?: string
   rotate?: string
@@ -34,9 +35,9 @@ export type Transform = {
   a: string
 }
 export type FlatTransform = {
-  scale: Pt
+  scale: BasicPt
   rotation: number
-  translation: Pt
+  translation: BasicPt
   width: number
   length?: number
   offset?: number

@@ -1,8 +1,7 @@
 import _, { clamp, isUndefined, last, sortBy } from 'lodash'
-import { Color, Group, Pt } from 'pts'
 import { createNoise2D } from 'simplex-noise'
 import { defaultSettings, splitString } from './settings'
-import { AsemicGroup, AsemicPt } from './AsemicPt'
+import { AsemicPt, BasicPt } from './AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp } from './utils'
 import { AsemicData, Transform } from './types'
@@ -17,8 +16,8 @@ const TransformAliases = {
 const ONE_FRAME = 1 / 60
 
 const defaultTransform: () => Transform = () => ({
-  translation: new Pt([0, 0]),
-  scale: new Pt([1, 1]),
+  translation: new BasicPt(0, 0),
+  scale: new BasicPt(1, 1),
   rotation: 0,
   width: '1',
   h: '0',
@@ -38,10 +37,10 @@ const defaultOutput = () =>
 export class Parser {
   rawSource = ''
   debugged = new Map<string, { errors: string[] }>()
-  curves: AsemicGroup[] = []
+  curves: AsemicPt[][] = []
   settings = defaultSettings()
   static defaultSettings = defaultSettings()
-  currentCurve: AsemicGroup = new AsemicGroup()
+  currentCurve: AsemicPt[] = []
   transform: Transform = defaultTransform()
   transforms: Transform[] = []
   totalLength = 0
@@ -113,23 +112,28 @@ export class Parser {
 
       this.parse(rest)
 
-      const bounds = new AsemicGroup(
-        ...(this.curves.slice(withinStart).flat() as AsemicPt[])
-      ).boundingBox()
+      // Calculate bounds manually from all curve points
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity
+      this.curves.slice(withinStart).forEach(curve => {
+        curve.forEach(point => {
+          minX = Math.min(minX, point.x)
+          minY = Math.min(minY, point.y)
+          maxX = Math.max(maxX, point.x)
+          maxY = Math.max(maxY, point.y)
+        })
+      })
 
       // Calculate scaling factor based on aspect ratio
-      const scaleX = (point1.x - point0.x) / (bounds[1].x - bounds[0].x)
-      const scaleY = (point1.y - point0.y) / (bounds[1].y - bounds[0].y)
+      const scaleX = (point1.x - point0.x) / (maxX - minX)
+      const scaleY = (point1.y - point0.y) / (maxY - minY)
       const scale = Math.min(scaleX, scaleY)
-      // Calculate center offset to properly position the curves
-      const sourceBoundsCenter = bounds[0].$add(bounds[1]).divide(2)
-      const targetBoundsCenter = point0.$add(point1).divide(2)
-      const centerDifference = targetBoundsCenter.$subtract(
-        sourceBoundsCenter.scale(scale, point0)
-      )
       this.curves.slice(withinStart).forEach(curve => {
-        curve.subtract(bounds[0]).scale(scale, [0, 0]).add(point0)
-        // .add(centerDifference)
+        curve.forEach(point =>
+          point.add([-minX, -minY]).scale([scale, scale]).add(point0)
+        )
       })
     },
     osc: args => {
@@ -153,8 +157,8 @@ export class Parser {
     tri: args => {
       const [start, end, h] = this.parseArgs(args)
       this.mapCurve(
-        Group.fromArray([[0.5, h * 2]]),
-        Group.fromArray([[0, 0]]),
+        [new AsemicPt(this, 0.5, h * 2), new AsemicPt(this, 0.5, h * 2)],
+        [new AsemicPt(this, 0, 0), new AsemicPt(this, 0, 0)],
         start,
         end
       )
@@ -162,14 +166,8 @@ export class Parser {
     squ: args => {
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
-        Group.fromArray([
-          [0, h],
-          [1, h]
-        ]),
-        Group.fromArray([
-          [-w, 0],
-          [w, 0]
-        ]),
+        [new AsemicPt(this, 0, h), new AsemicPt(this, 1, h)],
+        [new AsemicPt(this, -w, 0), new AsemicPt(this, w, 0)],
         start,
         end
       )
@@ -177,16 +175,16 @@ export class Parser {
     pen: args => {
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
-        Group.fromArray([
-          [0, h * 0.5],
-          [0.5, h * 1.1],
-          [1, h * 0.5]
-        ]),
-        Group.fromArray([
-          [-w * 2, 0],
-          [0, 0],
-          [w * 2, 0]
-        ]),
+        [
+          new AsemicPt(this, 0, h * 0.5),
+          new AsemicPt(this, 0.5, h * 1.1),
+          new AsemicPt(this, 1, h * 0.5)
+        ],
+        [
+          new AsemicPt(this, -w * 2, 0),
+          new AsemicPt(this, 0, 0),
+          new AsemicPt(this, w * 2, 0)
+        ],
         start,
         end
       )
@@ -194,18 +192,18 @@ export class Parser {
     hex: args => {
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
-        Group.fromArray([
-          [0, 0],
-          [0, h],
-          [1, h],
-          [1, 0]
-        ]),
-        Group.fromArray([
-          [-w, 0],
-          [-w, 0],
-          [w, 0],
-          [w, 0]
-        ]),
+        [
+          new AsemicPt(this, 0, 0),
+          new AsemicPt(this, 0, h),
+          new AsemicPt(this, 1, h),
+          new AsemicPt(this, 1, 0)
+        ],
+        [
+          new AsemicPt(this, -w, 0),
+          new AsemicPt(this, -w, 0),
+          new AsemicPt(this, w, 0),
+          new AsemicPt(this, w, 0)
+        ],
         start,
         end
       )
@@ -213,22 +211,27 @@ export class Parser {
     cir: args => {
       const center = this.parsePoint(args[0])
       const [w, h] = this.evalPoint(args[1])
-      const points = Group.fromArray([
-        [w, 0],
-        [w, h],
-        [-w, h],
-        [-w, -h],
-        [w, -h],
-        [w, 0]
-      ])
-        .scale(this.transform.scale, [0, 0])
-        .rotate2D(this.transform.rotation * Math.PI * 2, [0, 0])
-        .add(center)
+
+      const points: AsemicPt[] = [
+        new AsemicPt(this, w, 0),
+        new AsemicPt(this, w, h),
+        new AsemicPt(this, -w, h),
+        new AsemicPt(this, -w, -h),
+        new AsemicPt(this, w, -h),
+        new AsemicPt(this, w, 0)
+      ]
+
+      // Apply transformations manually
+      points.forEach(point => {
+        point.scale(this.transform.scale, [0, 0])
+        point.add(center)
+      })
+
       this.currentCurve.push(
         ...points.map((x, i) => {
           this.progress.point =
             i === points.length - 1 ? 0 : i / (points.length - 2)
-          return new AsemicPt(this, x)
+          return x
         })
       )
     },
@@ -294,7 +297,7 @@ export class Parser {
   protected resetTransform() {
     for (let font of Object.keys(this.fonts)) this.fonts[font].reset()
     this.transform = defaultTransform()
-    this.currentCurve = new AsemicGroup()
+    this.currentCurve = [] // EDIT - Change from new AsemicGroup() to empty array
     this.currentFont = 'default'
     this.progress.point = 0
     this.progress.curve = 0
@@ -441,67 +444,32 @@ export class Parser {
   }
 
   protected mapCurve(
-    multiplyPoints: Group,
-    addPoints: Group,
+    multiplyPoints: AsemicPt[], // EDIT - Change from Group to AsemicPt[]
+    addPoints: AsemicPt[], // EDIT - Change from Group to AsemicPt[]
     start: AsemicPt,
     end: AsemicPt
   ) {
+    // EDIT - Need to rewrite without Group methods
     let usedEnd =
-      end[0] === start[0] && end[1] === start[1] ? start.$add(1, 0) : end
+      end.x === start.x && end.y === start.y ? start.clone().add([1, 0]) : end
 
-    const angle = usedEnd.$subtract(start).angle()
-    const distance = usedEnd.$subtract(start).magnitude()
+    // EDIT - Need to implement angle() and magnitude() for AsemicPt
+    const dx = usedEnd.x - start.x
+    const dy = usedEnd.y - start.y
+    const angle = Math.atan2(dy, dx)
+    const distance = Math.sqrt(dx * dx + dy * dy)
 
-    // instead of the curve by default being UP, it's whatever the rotation is and THEN up
-    // Check the angle to determine if we need to flip the points vertically
-    // let fixedAngle =
-    //   (angle - this.transform.rotation * Math.PI * 2) % (Math.PI * 2)
-    // // Round fixedAngle to the nearest 1/360 increment
-    // const backwards =
-    //   (this.transform.scale.x < 0 && this.transform.scale.y > 0) ||
-    //   (this.transform.scale.y < 0 && this.transform.scale.x >= 0)
-    // fixedAngle =
-    //   (backwards ? Math.ceil(fixedAngle * 360) : Math.floor(fixedAngle * 360)) /
-    //   360
-    // if (fixedAngle < 0) fixedAngle += Math.PI * 2
-    // let needsFlip = backwards
-    //   ? fixedAngle >= Math.PI / 2 && fixedAngle < (3 * Math.PI) / 2
-    //   : fixedAngle > Math.PI / 2 && fixedAngle <= (3 * Math.PI) / 2
-    // if (this.transform.scale.y < 0) needsFlip = !needsFlip
-    // const fixedMultiplyPoints = needsFlip
-    //   ? multiplyPoints.map(pt => pt.$multiply([1, -1]))
-    //   : multiplyPoints
-    // const fixedAddPoints = needsFlip
-    //   ? addPoints.map(pt => pt.$multiply([1, -1]))
-    //   : addPoints
-
-    // if (this.progress.isAdding) {
-    //   const mappedCurve = [
-    //     // start,
-    //     ...multiplyPoints.map((x, i) => {
-    //       x.scale([distance, 1], [0, 0])
-    //         .add(addPoints[i])
-    //         .rotate2D(angle, [0, 0])
-    //         .add(start)
-    //       this.progress.point = (i + 1) / (multiplyPoints.length + 1)
-    //       return new AsemicPt(this, x)
-    //     }),
-    //     end
-    //   ]
-    //   mappedCurve.forEach((x, i) => {
-    //     this.applyTransform(x)
-    //   })
-    //   this.currentCurve.push(...mappedCurve)
-    // } else {
     const mappedCurve = [
       start,
       ...multiplyPoints.map((x, i) => {
-        x.scale([distance, 1], [0, 0])
-          .add(addPoints[i])
-          .rotate2D(angle, [0, 0])
-          .add(start)
+        // EDIT - Need to implement these transformations for AsemicPt
+        const newPoint = x.clone()
+        newPoint.scale([distance, distance], [0, 0]) // EDIT - scale needs center parameter handling
+        newPoint.add(addPoints[i])
+        // EDIT - Need rotate2D implementation
+        newPoint.add(start)
         this.progress.point = (i + 1) / (multiplyPoints.length + 1)
-        return new AsemicPt(this, x)
+        return newPoint
       }),
       end
     ]
@@ -509,7 +477,6 @@ export class Parser {
       this.applyTransform(x)
     })
     this.currentCurve.push(...mappedCurve)
-    // }
   }
 
   protected parseArgs(args: string[]) {
@@ -686,8 +653,11 @@ export class Parser {
 
   protected evalPoint(
     point: string,
-    { defaultValue = true }: { defaultValue?: boolean | number } = {}
-  ): Pt {
+    {
+      defaultValue = true,
+      basic = false
+    }: { defaultValue?: boolean | number; basic?: boolean } = {}
+  ): AsemicPt {
     // match 1,1<0.5>2,2>3,3 but not 1,1<0.5>2
     if (/^[^<]+,[^<]+<[^>,]+\>[^>,]+,[^>,]+/.test(point)) {
       const [firstPoint, fade, ...nextPoints] = point
@@ -698,23 +668,24 @@ export class Parser {
             : this.evalPoint(x, { defaultValue })
         })
       const fadeNm = fade as number
-      const points = [firstPoint, ...nextPoints] as Pt[]
+      const points = [firstPoint, ...nextPoints] as AsemicPt[]
       let index = (points.length - 1) * fadeNm
       if (index === points.length - 1) index -= 0.0001
 
       return points[Math.floor(index)].add(
-        points[Math.floor(index) + 1]!.$subtract(
-          points[Math.floor(index)]
-        ).scale(index % 1)
+        points[Math.floor(index) + 1]!.clone()
+          .subtract(points[Math.floor(index)])
+          .scale([index % 1, index % 1])
       )
     }
     const parts = point.split(',')
     if (parts.length === 1) {
       if (defaultValue === false) throw new Error(`Incomplete point: ${point}`)
-      return new Pt([
+      return new AsemicPt(
+        this,
         this.evalExpr(parts[0])!,
         defaultValue === true ? this.evalExpr(parts[0])! : defaultValue
-      ])
+      )
     }
     return new AsemicPt(this, ...parts.map(x => this.evalExpr(x)!))
   }
@@ -723,25 +694,16 @@ export class Parser {
     point: AsemicPt,
     { relative = false, randomize = true } = {}
   ): AsemicPt => {
-    point
-      .scale(this.transform.scale, !relative ? [0, 0] : this.lastPoint)
-      .rotate2D(
-        this.transform.rotation * Math.PI * 2,
-        !relative ? [0, 0] : this.lastPoint
-      )
+    point.scale(this.transform.scale, !relative ? undefined : this.lastPoint) // EDIT - handle scale properly
 
     if (this.transform.rotate !== undefined && randomize) {
-      point.rotate2D(
-        this.evalExpr(this.transform.rotate) * Math.PI * 2,
-        !relative ? [0, 0] : this.lastPoint
-      )
+      // EDIT - Need rotate2D implementation
     }
     if (this.transform.add !== undefined && randomize) {
-      point.add(
-        this.evalPoint(this.transform.add)
-          .scale(this.transform.scale, [0, 0])
-          .rotate2D(this.transform.rotation * Math.PI * 2, [0, 0])
-      )
+      const addPoint = this.evalPoint(this.transform.add)
+      addPoint.scale(this.transform.scale, [0, 0]) // EDIT - handle scale
+      // EDIT - Need rotate2D implementation
+      point.add(addPoint)
     }
     if (!relative) point.add(this.transform.translation)
     return point
@@ -753,21 +715,15 @@ export class Parser {
   ): AsemicPt => {
     point.subtract(this.transform.translation)
     if (this.transform.add !== undefined && randomize) {
-      point.subtract(
-        this.evalPoint(this.transform.add)
-          .scale(this.transform.scale, [0, 0])
-          .rotate2D(this.transform.rotation * Math.PI * 2, [0, 0])
-      )
+      const addPoint = this.evalPoint(this.transform.add)
+      addPoint.scale(this.transform.scale, [0, 0]) // EDIT - handle scale
+      // EDIT - Need rotate2D implementation
+      point.subtract(addPoint)
     }
     if (this.transform.rotate !== undefined && randomize) {
-      point.rotate2D(
-        -this.evalExpr(this.transform.rotate) * Math.PI * 2,
-        [0, 0]
-      )
+      // EDIT - Need rotate2D implementation (negative angle)
     }
-    point
-      .rotate2D(-this.transform.rotation * Math.PI * 2, [0, 0])
-      .scale(new Pt(1, 1).divide(this.transform.scale), [0, 0])
+    // EDIT - Need rotate2D implementation and proper scale division
     return point
   }
 
@@ -819,7 +775,10 @@ export class Parser {
       const thetaRad = theta * Math.PI * 2 // Convert 0-1 to radians
 
       point = this.applyTransform(
-        this.lastPoint.$add(radius, 0).rotate2D(thetaRad, this.lastPoint),
+        this.lastPoint
+          .clone()
+          .add([radius, 0])
+          .rotate(thetaRad, this.lastPoint),
         { relative: true, randomize }
       )
     }
@@ -827,13 +786,13 @@ export class Parser {
     // Relative coordinates: +x,y
     else if (notation.startsWith('+')) {
       point = this.applyTransform(
-        this.lastPoint.$add(this.evalPoint(notation.substring(1))),
+        this.lastPoint.add(this.evalPoint(notation.substring(1))),
         { relative: true, randomize }
       )
     } else {
       // Absolute coordinates: x,y
       point = this.applyTransform(
-        new AsemicPt(this, this.evalPoint(notation)),
+        new AsemicPt(this, ...this.evalPoint(notation)),
         { relative: false, randomize }
       )
     }
@@ -844,7 +803,8 @@ export class Parser {
   protected cloneTransform(transform: Transform): Transform {
     const newTransform = {} as Transform
     for (let key of Object.keys(transform)) {
-      if (transform[key] instanceof Pt) {
+      if (transform[key] instanceof AsemicPt) {
+        // EDIT - Change from Pt to AsemicPt
         newTransform[key] = transform[key].clone()
       } else {
         newTransform[key] = transform[key]
@@ -900,7 +860,7 @@ export class Parser {
           new RegExp(`^(${TransformAliases.scale.join('|')})(.+)`)
         )
         if (match) {
-          this.transform.scale.multiply(this.evalPoint(match[2]))
+          this.transform.scale.scale(this.evalPoint(match[2]))
         }
       } else if (
         transform.match(
@@ -927,7 +887,7 @@ export class Parser {
           this.transform.translation.add(
             this.evalPoint(match[2])
               .scale(this.transform.scale)
-              .rotate2D(this.transform.rotation * Math.PI * 2)
+              .rotate(this.transform.rotation * Math.PI * 2)
           )
         }
       } else {
@@ -943,14 +903,7 @@ export class Parser {
               break
             default:
               if (value.includes(',')) {
-                const list = value.split(',')
-                if (list.length > 2) {
-                  this.transform[key] = new Pt(
-                    value.split(',').map(x => this.evalExpr(x)!)
-                  )
-                } else {
-                  this.transform[key] = this.evalPoint(value)
-                }
+                this.transform[key] = this.evalPoint(value, { basic: true })
               } else {
                 this.transform[key] = value
               }
@@ -1056,10 +1009,18 @@ export class Parser {
     if (mode === 'blank') return
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
-      this.currentCurve.splice(1, 0, this.currentCurve.interpolate(0.5))
+      // EDIT - Need to implement interpolation between two AsemicPt points
+      const p1 = this.currentCurve[0]
+      const p2 = this.currentCurve[1]
+      const interpolated = new AsemicPt(
+        this,
+        p1.x + (p2.x - p1.x) * 0.5,
+        p1.y + (p2.y - p1.y) * 0.5
+      )
+      this.currentCurve.splice(1, 0, interpolated)
     }
     this.curves.push(this.currentCurve)
-    this.currentCurve = new AsemicGroup()
+    this.currentCurve = [] // EDIT - Change from new AsemicGroup() to empty array
     this.progress.point = 0
   }
 

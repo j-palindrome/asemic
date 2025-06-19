@@ -34,3 +34,7 @@ export const mapRangeClamp = (
   const t = (value - inMin) / (inMax - inMin)
   return clamp(outMin + t * (outMax - outMin), outMin, outMax)
 }
+
+export const stripComments = (str: string) => {
+  return str.replace(/\/\/(?:.|\n)*?\/\//g, '')
+}

@@ -3,7 +3,7 @@ import { createNoise2D } from 'simplex-noise'
 import { defaultSettings, splitString } from './settings'
 import { AsemicPt, BasicPt } from './blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
-import { defaultPreProcess, lerp } from './utils'
+import { defaultPreProcess, lerp, stripComments } from './utils'
 import { AsemicData, Transform } from './types'
 import type { InputSchema } from './server/schema'
 
@@ -415,6 +415,7 @@ export class Parser {
   }
 
   setup(source: string) {
+    source = stripComments(source)
     for (let replacement of Object.keys(this.preProcessing.replacements)) {
       source = source.replace(
         replacement,
@@ -921,7 +922,7 @@ export class Parser {
           )
         }
       } else {
-        const keyCall = transform.match(/(\w+)\=(.+)/)
+        const keyCall = transform.match(/([a-z]+)\=(.+)/)
         if (keyCall) {
           const key = keyCall[1]
           const value = keyCall[2]
@@ -961,17 +962,14 @@ export class Parser {
     let fontDefinition = false
     let or = false
 
-    const parsedString = source.replace(/\/\/(?:.|\n)*?\/\//g, '')
-    for (let i = 0; i < parsedString.length; i++) {
-      const char = parsedString[i]
+    for (let i = 0; i < source.length; i++) {
+      const char = source[i]
 
-      if (char === '"' && parsedString[i - 1] !== '\\') quote = !quote
-      else if (char === '`' && parsedString[i - 1] !== '\\') {
+      if (char === '"' && source[i - 1] !== '\\') quote = !quote
+      else if (char === '`' && source[i - 1] !== '\\') {
         evaling = !evaling
-      } else if (char === '{' && parsedString[i + 1] === '{')
-        fontDefinition = true
-      else if (char === '}' && parsedString[i - 1] === '}')
-        fontDefinition = false
+      } else if (char === '{' && source[i + 1] === '{') fontDefinition = true
+      else if (char === '}' && source[i - 1] === '}') fontDefinition = false
       else if (!quote && !evaling && !functionCall && !fontDefinition) {
         if (char === '[') inBrackets++
         else if (char === ']') inBrackets--

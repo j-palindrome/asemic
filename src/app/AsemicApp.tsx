@@ -19,6 +19,7 @@ import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
 import { InputSchema, inputSchema, useSchema } from '../server/schema'
 import './AsemicApp.css'
+import { stripComments } from '../utils'
 
 export default function AsemicApp({
   source,
@@ -516,7 +517,7 @@ export default function AsemicApp({
               <textarea
                 ref={editable}
                 defaultValue={scenesSource}
-                className={`editor !text-blue-500 ${
+                className={`editor text-white ${
                   errors.length > 0 ? 'w-1/2' : 'w-full'
                 }`}
                 onBlur={ev => {
@@ -528,9 +529,11 @@ export default function AsemicApp({
                 }}
                 onKeyDown={ev => {
                   if (ev.key === 'Enter' && ev.metaKey) {
-                    const textBeforeCursor = ev.currentTarget.value.substring(
-                      0,
-                      ev.currentTarget.selectionStart
+                    const textBeforeCursor = stripComments(
+                      ev.currentTarget.value.substring(
+                        0,
+                        ev.currentTarget.selectionStart
+                      )
                     )
                     const sceneNumber =
                       (textBeforeCursor.match(/\n---/g) || ['']).length - 1

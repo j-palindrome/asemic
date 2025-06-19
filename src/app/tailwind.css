@@ -37,6 +37,8 @@ body,
   padding: 1rem;
   font-size: 14px;
   line-height: 1.5;
+  text-shadow: -1px -1px 0 #000, 1px 1px 0 #000, -1px 1px 0 #000,
+    1px -1px 0 #000, 5px 0px 5px #000, -5px 0px 5px #000;
 }
 
 /* Apply styles for fullscreen mode */

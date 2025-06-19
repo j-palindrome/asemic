@@ -23,6 +23,15 @@ export class BasicPt extends Float32Array {
     return this
   }
 
+  magnitude(): number {
+    return Math.sqrt(this[0] * this[0] + this[1] * this[1])
+  }
+
+  angle0to1(): number {
+    const angle = Math.atan2(this[1], this[0])
+    return (angle < 0 ? angle + Math.PI * 2 : angle) / (Math.PI * 2)
+  }
+
   subtract(point: BasicPt | [number, number]): this {
     this[0] -= point[0]
     this[1] -= point[1]
@@ -33,14 +42,20 @@ export class BasicPt extends Float32Array {
     const theta = amount0To1 * Math.PI * 2
     const cos = Math.cos(theta)
     const sin = Math.sin(theta)
-    const cx = around ? around[0] : 0
-    const cy = around ? around[1] : 0
-    const dx = this[0] - cx
-    const dy = this[1] - cy
-    const x = dx * cos - dy * sin + cx
-    const y = dx * sin + dy * cos + cy
-    this[0] = x
-    this[1] = y
+
+    if (around) {
+      const cx = around[0]
+      const cy = around[1]
+      const dx = this[0] - cx
+      const dy = this[1] - cy
+      this[0] = dx * cos - dy * sin + cx
+      this[1] = dx * sin + dy * cos + cy
+    } else {
+      const dx = this[0]
+      const dy = this[1]
+      this[0] = dx * cos - dy * sin
+      this[1] = dx * sin + dy * cos
+    }
     return this
   }
 

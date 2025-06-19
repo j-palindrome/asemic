@@ -164,8 +164,8 @@ export class Parser {
     tri: args => {
       const [start, end, h] = this.parseArgs(args)
       this.mapCurve(
-        [new AsemicPt(this, 0.5, h * 2), new AsemicPt(this, 0.5, h * 2)],
-        [new AsemicPt(this, 0, 0), new AsemicPt(this, 0, 0)],
+        [new AsemicPt(this, 0.5, h * 2)],
+        [new AsemicPt(this, 0, 0)],
         start,
         end
       )
@@ -462,31 +462,26 @@ export class Parser {
     start: AsemicPt,
     end: AsemicPt
   ) {
-    let usedEnd =
-      end.x === start.x && end.y === start.y ? start.clone().add([1, 0]) : end
+    this.addCurve()
 
-    // EDIT - Need to implement angle() and magnitude() for AsemicPt
-    const dx = usedEnd.x - start.x
-    const dy = usedEnd.y - start.y
-    const angle = Math.atan2(dy, dx)
-    const distance = Math.sqrt(dx * dx + dy * dy)
+    const angle = end.clone().subtract(start).angle0to1()
+    const distance = end.clone().subtract(start).magnitude()
 
     const mappedCurve = [
       start,
       ...multiplyPoints.map((x, i) => {
-        // EDIT - Need to implement these transformations for AsemicPt
-        const newPoint = x.clone()
-        newPoint.scale([distance, distance], [0, 0]) // EDIT - scale needs center parameter handling
-        newPoint.add(addPoints[i])
-        // EDIT - Need rotate2D implementation
-        newPoint.add(start)
         this.progress.point = (i + 1) / (multiplyPoints.length + 1)
-        return newPoint
+        return x
+          .clone()
+          .scale([distance, 1])
+          .add(addPoints[i])
+          .rotate(angle)
+          .add(start)
       }),
       end
     ]
     mappedCurve.forEach((x, i) => {
-      this.applyTransform(x)
+      this.applyTransform(x, { relative: false })
     })
     this.currentCurve.push(...mappedCurve)
   }
@@ -718,7 +713,7 @@ export class Parser {
           .rotate(this.transform.rotation)
       )
     }
-    if (!relative) point.add(this.transform.translation)
+    point.add(relative ? this.lastPoint : this.transform.translation)
     return point
   }
 
@@ -785,20 +780,18 @@ export class Parser {
         defaultValue: false
       })
 
-      point = this.applyTransform(
-        this.lastPoint.clone().add([radius, 0]).rotate(theta, this.lastPoint),
-        { relative: true, randomize }
-      )
+      point = this.applyTransform(new AsemicPt(this, radius, 0).rotate(theta), {
+        relative: true,
+        randomize
+      })
     }
 
     // Relative coordinates: +x,y
     else if (notation.startsWith('+')) {
-      point = this.lastPoint.clone().add(
-        this.applyTransform(this.evalPoint(notation.substring(1)), {
-          relative: true,
-          randomize
-        })
-      )
+      point = this.applyTransform(this.evalPoint(notation.substring(1)), {
+        relative: true,
+        randomize
+      })
     } else {
       // Absolute coordinates: x,y
       point = this.applyTransform(
@@ -1015,7 +1008,7 @@ export class Parser {
   }
 
   protected addCurve({ mode = 'normal' }: { mode?: string } = {}) {
-    if (mode === 'blank') return
+    if (mode === 'blank' || this.currentCurve.length === 0) return
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
       const p1 = this.currentCurve[0]

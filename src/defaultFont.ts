@@ -75,7 +75,7 @@ export class DefaultFont extends AsemicFont {
   constructor() {
     super(`a=(squ 1,-1 1,0 1) (tri 1,-1 +0,1 .05)
 b=[0,-2 0,0] (squ 0,-1 0,0 -1)
-c=(pen 1,-.8 @1/4,.6 1,.2)
+c=(pen 1,-.8 +0,.6 1,.2)
 d=[1,-2 1,0] (squ 1,-1 1,0 1)
 e=(hex 1,-.7 @1/4,.4 1,.3) [<0 <.5]
 f={+.25,0} (squ 1,-1.5 +-1,0 .5) +[0,0] {+-.25,0} [0,-1 @0,.5]

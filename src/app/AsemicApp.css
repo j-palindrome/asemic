@@ -197,17 +197,17 @@
   .hidden {
     display: none;
   }
-  .h-\[calc\(100vh-100px\)\] {
-    height: calc(100vh - 100px);
-  }
   .h-fit {
     height: fit-content;
   }
   .h-full {
     height: 100%;
   }
-  .max-h-\[calc\(100vh-100px\)\] {
-    max-height: calc(100vh - 100px);
+  .h-screen {
+    height: 100vh;
+  }
+  .max-h-screen {
+    max-height: 100vh;
   }
   .w-1\/2 {
     width: calc(1/2 * 100%);
@@ -328,7 +328,6 @@ html, body, #root {
   border: none;
   resize: none;
   outline: none;
-  width: 100%;
   height: 100%;
   padding: 1rem;
   font-size: 14px;

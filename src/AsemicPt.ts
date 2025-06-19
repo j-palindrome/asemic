@@ -61,6 +61,18 @@ export class BasicPt extends Float32Array {
     return this
   }
 
+  divide([x, y]: [number, number] | BasicPt) {
+    this[0] /= x
+    this[1] /= y
+    return this
+  }
+
+  oneOver(): this {
+    this[0] = 1 / this[0]
+    this[1] = 1 / this[1]
+    return this
+  }
+
   lerp(target: BasicPtLike, t: number): this {
     this[0] += (target[0] - this[0]) * t
     this[1] += (target[1] - this[1]) * t

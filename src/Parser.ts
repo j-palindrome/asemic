@@ -94,7 +94,8 @@ export class Parser {
     log: args => {
       const slice = Number(args[0] || '0')
       const text = this.debug(slice)
-      this.output.errors.push(text)
+      if (text.length > 0) this.output.errors.push(text)
+      else this.output.errors.push('[empty]')
     },
     print: () => {
       const text = `text:\n${this.live.text.join(
@@ -303,7 +304,7 @@ export class Parser {
   protected resetTransform() {
     for (let font of Object.keys(this.fonts)) this.fonts[font].reset()
     this.transform = defaultTransform()
-    this.currentCurve = [] // EDIT - Change from new AsemicGroup() to empty array
+    this.currentCurve = []
     this.currentFont = 'default'
     this.progress.point = 0
     this.progress.curve = 0
@@ -375,6 +376,7 @@ export class Parser {
       }
     }
     return this.curves
+      .concat([this.currentCurve])
       .slice(slice)
       .map(
         curve =>
@@ -455,12 +457,11 @@ export class Parser {
   }
 
   protected mapCurve(
-    multiplyPoints: AsemicPt[], // EDIT - Change from Group to AsemicPt[]
-    addPoints: AsemicPt[], // EDIT - Change from Group to AsemicPt[]
+    multiplyPoints: AsemicPt[],
+    addPoints: AsemicPt[],
     start: AsemicPt,
     end: AsemicPt
   ) {
-    // EDIT - Need to rewrite without Group methods
     let usedEnd =
       end.x === start.x && end.y === start.y ? start.clone().add([1, 0]) : end
 
@@ -705,24 +706,16 @@ export class Parser {
     point: AsemicPt,
     { relative = false, randomize = true } = {}
   ): AsemicPt => {
-    point
-      .scale(this.transform.scale, !relative ? undefined : this.lastPoint)
-      .rotate(
-        this.transform.rotation * Math.PI * 2,
-        !relative ? [0, 0] : this.lastPoint
-      )
+    point.scale(this.transform.scale).rotate(this.transform.rotation)
 
     if (this.transform.rotate !== undefined && randomize) {
-      point.rotate(
-        this.evalExpr(this.transform.rotate) * Math.PI * 2,
-        !relative ? [0, 0] : this.lastPoint
-      )
+      point.rotate(this.evalExpr(this.transform.rotate))
     }
     if (this.transform.add !== undefined && randomize) {
       point.add(
         this.evalPoint(this.transform.add)
           .scale(this.transform.scale)
-          .rotate(this.transform.rotation * Math.PI * 2)
+          .rotate(this.transform.rotation)
       )
     }
     if (!relative) point.add(this.transform.translation)
@@ -736,14 +729,13 @@ export class Parser {
     point.subtract(this.transform.translation)
     if (this.transform.add !== undefined && randomize) {
       const addPoint = this.evalPoint(this.transform.add)
-      addPoint.scale(this.transform.scale, [0, 0]) // EDIT - handle scale
-      // EDIT - Need rotate2D implementation
+      addPoint.scale(this.transform.scale)
       point.subtract(addPoint)
     }
     if (this.transform.rotate !== undefined && randomize) {
-      // EDIT - Need rotate2D implementation (negative angle)
+      point.rotate(this.evalExpr(this.transform.rotate) * -1)
     }
-    // EDIT - Need rotate2D implementation and proper scale division
+    point.divide(this.transform.scale).rotate(this.transform.rotation * -1)
     return point
   }
 
@@ -792,22 +784,20 @@ export class Parser {
       const [theta, radius] = this.evalPoint(notation.substring(1), {
         defaultValue: false
       })
-      const thetaRad = theta * Math.PI * 2 // Convert 0-1 to radians
 
       point = this.applyTransform(
-        this.lastPoint
-          .clone()
-          .add([radius, 0])
-          .rotate(thetaRad, this.lastPoint),
+        this.lastPoint.clone().add([radius, 0]).rotate(theta, this.lastPoint),
         { relative: true, randomize }
       )
     }
 
     // Relative coordinates: +x,y
     else if (notation.startsWith('+')) {
-      point = this.applyTransform(
-        this.lastPoint.add(this.evalPoint(notation.substring(1))),
-        { relative: true, randomize }
+      point = this.lastPoint.clone().add(
+        this.applyTransform(this.evalPoint(notation.substring(1)), {
+          relative: true,
+          randomize
+        })
       )
     } else {
       // Absolute coordinates: x,y
@@ -823,8 +813,7 @@ export class Parser {
   protected cloneTransform(transform: Transform): Transform {
     const newTransform = {} as Transform
     for (let key of Object.keys(transform)) {
-      if (transform[key] instanceof AsemicPt) {
-        // EDIT - Change from Pt to AsemicPt
+      if (transform[key] instanceof BasicPt) {
         newTransform[key] = transform[key].clone()
       } else {
         newTransform[key] = transform[key]
@@ -907,7 +896,7 @@ export class Parser {
           this.transform.translation.add(
             this.evalPoint(match[2])
               .scale(this.transform.scale)
-              .rotate(this.transform.rotation * Math.PI * 2)
+              .rotate(this.transform.rotation)
           )
         }
       } else {
@@ -1029,18 +1018,13 @@ export class Parser {
     if (mode === 'blank') return
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
-      // EDIT - Need to implement interpolation between two AsemicPt points
       const p1 = this.currentCurve[0]
       const p2 = this.currentCurve[1]
-      const interpolated = new AsemicPt(
-        this,
-        p1.x + (p2.x - p1.x) * 0.5,
-        p1.y + (p2.y - p1.y) * 0.5
-      )
+      const interpolated = p1.clone().lerp(p2, 0.5)
       this.currentCurve.splice(1, 0, interpolated)
     }
     this.curves.push(this.currentCurve)
-    this.currentCurve = [] // EDIT - Change from new AsemicGroup() to empty array
+    this.currentCurve = []
     this.progress.point = 0
   }
 

@@ -44,26 +44,19 @@ export default function AsemicApp({
   const frame = useRef<HTMLDivElement>(null!)
 
   const useErrors = () => {
-    const errorsRef = useRef<string[]>([])
-    const selectErrorsRef = useRef<HTMLDivElement>(null)
-    const [hasErrors, setHasErrors] = useState(false)
+    const [errors, setErrorsState] = useState<string[]>([])
+    const errorsRef = useRef<string[]>(errors)
+    useEffect(() => {
+      errorsRef.current = errors
+    }, [errors])
     const setErrors = (newErrors: string[]) => {
-      if (isEqual(errorsRef.current, newErrors)) return
-      errorsRef.current = newErrors
-      if (hasErrors && newErrors.length == 0) setHasErrors(false)
-      if (!hasErrors && newErrors.length > 0) setHasErrors(true)
-      if (selectErrorsRef.current) {
-        selectErrorsRef.current.innerHTML = errorsRef.current.join('\n')
+      if (!isEqual(errorsRef.current, newErrors)) {
+        setErrorsState(newErrors)
       }
     }
-    useEffect(() => {
-      if (hasErrors && selectErrorsRef.current) {
-        selectErrorsRef.current.innerHTML = errorsRef.current.join('\n')
-      }
-    }, [hasErrors])
-    return [setErrors, hasErrors, selectErrorsRef] as const
+    return [errors, setErrors, errorsRef] as const
   }
-  const [setErrors, hasErrors, selectErrorsRef] = useErrors()
+  const [errors, setErrors, errorsRef] = useErrors()
 
   const lastTransform = useRef<FlatTransform>(null!)
 
@@ -128,6 +121,7 @@ export default function AsemicApp({
               // client.send({ address: path, args: args as ArgumentType[] })
             })
           }
+
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
@@ -338,9 +332,7 @@ export default function AsemicApp({
     <div className='asemic-container'>
       <div
         className={`relative w-full bg-black overflow-auto ${
-          settings.h === 'window'
-            ? 'h-[calc(100vh-100px)]'
-            : 'h-fit max-h-[calc(100vh-100px)]'
+          settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen group`}
         ref={frame}
         onClick={ev => {
@@ -480,7 +472,7 @@ export default function AsemicApp({
                 ref={editable}
                 defaultValue={scenesSource}
                 className={`editor !text-blue-500 ${
-                  hasErrors ? 'w-1/2' : 'w-full'
+                  errors.length > 0 ? 'w-1/2' : 'w-full'
                 }`}
                 onBlur={ev => {
                   ev.preventDefault()
@@ -506,10 +498,10 @@ export default function AsemicApp({
                     ev.currentTarget.blur()
                   }
                 }}></textarea>
-              {hasErrors && (
-                <div
-                  ref={selectErrorsRef}
-                  className='editor text-right !text-red-400 w-1/2'></div>
+              {errors.length > 0 && (
+                <div className='editor text-right !text-red-400 w-1/2'>
+                  {errors.join(';\n')}
+                </div>
               )}
             </div>
           </div>

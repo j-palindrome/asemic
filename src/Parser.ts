@@ -39,6 +39,7 @@ const defaultFonts = () =>
 
 export class Parser {
   rawSource = ''
+  adding = false
   debugged = new Map<string, { errors: string[] }>()
   curves: AsemicPt[][] = []
   settings = defaultSettings()
@@ -74,7 +75,7 @@ export class Parser {
     keys: [''],
     text: ['']
   }
-  constants: Record<string, (args: string[]) => string | void> = {
+  constants: Record<string, (args: string[], parser: this) => string | void> = {
     N: () => this.progress.countNum.toString(),
     I: () => this.progress.index.toString(),
     T: () => this.progress.time.toFixed(5),
@@ -162,6 +163,7 @@ export class Parser {
       })
     },
     tri: args => {
+      if (!this.adding) this.addCurve()
       const [start, end, h] = this.parseArgs(args)
       this.mapCurve(
         [new AsemicPt(this, 0.5, h * 2)],
@@ -171,6 +173,7 @@ export class Parser {
       )
     },
     squ: args => {
+      if (!this.adding) this.addCurve()
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
         [new AsemicPt(this, 0, h), new AsemicPt(this, 1, h)],
@@ -180,6 +183,7 @@ export class Parser {
       )
     },
     pen: args => {
+      if (!this.adding) this.addCurve()
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
         [
@@ -197,6 +201,7 @@ export class Parser {
       )
     },
     hex: args => {
+      if (!this.adding) this.addCurve()
       const [start, end, h, w] = this.parseArgs(args)
       this.mapCurve(
         [
@@ -216,6 +221,8 @@ export class Parser {
       )
     },
     cir: args => {
+      if (!this.adding) this.addCurve()
+
       const center = this.parsePoint(args[0])
       const [w, h] = this.evalPoint(args[1])
 
@@ -462,8 +469,6 @@ export class Parser {
     start: AsemicPt,
     end: AsemicPt
   ) {
-    this.addCurve()
-
     const angle = end.clone().subtract(start).angle0to1()
     const distance = end.clone().subtract(start).magnitude()
 
@@ -991,7 +996,7 @@ export class Parser {
 
       const args = this.tokenize(argsStr)
 
-      let funcText = this.constants[functionName](args)
+      let funcText = this.constants[functionName](args, this)
 
       if (typeof funcText === 'string') {
         for (let i = 0; i < args.length; i++) {
@@ -1024,16 +1029,14 @@ export class Parser {
   protected parseToken(token: string, { mode }: { mode?: 'blank' } = {}) {
     try {
       token = token.trim()
-      let adding = false
-      let hasParentheses = false
+      this.adding = false
 
       if (token.startsWith('+')) {
         token = token.substring(1)
-        adding = true
+        this.adding = true
       }
 
       while (token.startsWith('(') && token.endsWith(')')) {
-        hasParentheses = true
         token = token.substring(1, token.length - 1).trim()
       }
 
@@ -1142,7 +1145,7 @@ export class Parser {
         )
 
         const chars = [
-          !adding ? formatSpace(font.characters['\\^']) : undefined,
+          !this.adding ? formatSpace(font.characters['\\^']) : undefined,
           token
             .split('')
             .map(x =>
@@ -1176,7 +1179,7 @@ export class Parser {
       }
 
       if (token.startsWith('[')) {
-        if (!adding && this.currentCurve.length > 0) {
+        if (!this.adding && this.currentCurve.length > 0) {
           this.addCurve({ mode })
         }
         const pointsStr = token.substring(1, token.length - 1)
@@ -1231,5 +1234,12 @@ export class Parser {
     }
   }
 
-  constructor() {}
+  constructor(additionalConstants: Parser['constants'] = {}) {
+    for (let key of Object.keys(additionalConstants)) {
+      if (this.reservedConstants.includes(key)) {
+        throw new Error(`Reserved constant: ${key}`)
+      }
+      this.constants[key] = additionalConstants[key]
+    }
+  }
 }

@@ -26,10 +26,15 @@ export default function AsemicApp({
   getRequire
 }: {
   source: string
-  save: (source: string) => void
+  save: (source: string, { reload }: { reload: boolean }) => void
   getRequire: (file: string) => Promise<string>
 }) {
   const [scenesSource, setScenesSource] = useState(source)
+  useEffect(() => {
+    if (scenesSource !== source) {
+      save(scenesSource, { reload: false })
+    }
+  }, [scenesSource])
   const scenesSourceRef = useRef(scenesSource)
   useEffect(() => {
     scenesSourceRef.current = scenesSource
@@ -448,7 +453,7 @@ export default function AsemicApp({
                   const currentScene = editable.current.value
                   const newFullSource = currentScene
                   setScenesSource(newFullSource)
-                  save(newFullSource)
+                  save(newFullSource, { reload: true })
                 }}>
                 {<Save {...lucideProps} />}
               </button>

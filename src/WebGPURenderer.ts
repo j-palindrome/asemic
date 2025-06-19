@@ -1,6 +1,6 @@
 import { range, sum, sumBy } from 'lodash'
 import { Color } from 'pts'
-import { AsemicGroup } from 'src/AsemicPt'
+import { AsemicPt } from 'src/AsemicPt'
 import invariant from 'tiny-invariant'
 
 const wgslRequires = /*wgsl*/ `
@@ -146,7 +146,7 @@ export default class WebGPURenderer {
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
 
-  protected load(curves: AsemicGroup[]) {
+  protected load(curves: AsemicPt[][]) {
     // Create vertex shader
 
     // Create a buffer to store vertex data
@@ -355,27 +355,18 @@ export default class WebGPURenderer {
     }
   }
 
-  protected reload(curves: AsemicGroup[]) {
+  protected reload(curves: AsemicPt[][]) {
     const vertices = new Float32Array(
       curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
     )
 
     this.device.queue.writeBuffer(this.vertex.buffer, 0, vertices)
 
-    const widths = new Float32Array(
-      curves.flatMap(x => x.flatMap(x => x.width))
-    )
+    const widths = new Float32Array(curves.flatMap(x => x.flatMap(x => x.w)))
     this.device.queue.writeBuffer(this.widths.buffer, 0, widths)
 
     const colors = new Float32Array(
-      curves.flatMap(x =>
-        x.flatMap(x => [
-          x.color[0] ?? 1,
-          x.color[1] ?? 1,
-          x.color[2] ?? 1,
-          x.color[3] ?? 1
-        ])
-      )
+      curves.flatMap(x => x.flatMap(x => [x.h, x.s, x.l, x.a]))
     )
 
     this.device.queue.writeBuffer(this.colors.buffer, 0, colors)
@@ -389,7 +380,7 @@ export default class WebGPURenderer {
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
   }
 
-  render(curves: AsemicGroup[]) {
+  render(curves: AsemicPt[][]) {
     if (curves.length === 0) {
       // If there are no curves, just clear the canvas and return
       const commandEncoder = this.device.createCommandEncoder()

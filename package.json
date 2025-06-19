@@ -39,6 +39,7 @@
     "@types/node-osc": "^9.1.0",
     "@types/react": "^19.1.8",
     "@types/three": "^0.176.0",
+    "@webgpu/types": "^0.1.61",
     "lodash": "^4.17.21",
     "lucide-react": "^0.515.0",
     "node-osc": "^9.1.5",

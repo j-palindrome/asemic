@@ -84,12 +84,12 @@ export class AsemicPt extends BasicPt {
 
   constructor(parent: Parser, x: number = 0, y: number = 0) {
     super(x, y, 7)
+    this.parent = parent
     this[2] = this.parent.evalExpr(this.parent.transform.width)
     this[3] = this.parent.evalExpr(this.parent.transform.h)
     this[4] = this.parent.evalExpr(this.parent.transform.s)
     this[5] = this.parent.evalExpr(this.parent.transform.l)
     this[6] = this.parent.evalExpr(this.parent.transform.a)
-    this.parent = parent
   }
 
   get w() {

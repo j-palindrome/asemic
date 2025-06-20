@@ -1,7 +1,7 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
-// import { ArgumentType, Client } from 'node-osc'
+import { ArgumentType, Client } from 'node-osc'
 import {
   Ellipsis,
   Info,
@@ -101,7 +101,7 @@ export default function AsemicApp({
   }
   const [audio, setAudio, audioRenderer] = setupAudio()
   const setup = () => {
-    // const client = useMemo(() => new Client('localhost', 57120), [])
+    const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
     const onResize = () => {
       if (!canvas.current) return
@@ -152,7 +152,7 @@ export default function AsemicApp({
           }
           if (!isUndefined(data.osc)) {
             data.osc.forEach(({ path, args }) => {
-              // client.send({ address: path, args: args as ArgumentType[] })
+              client.send({ address: path, args: args as ArgumentType[] })
             })
           }
           // if (!isUndefined(data.audio)) {
@@ -239,6 +239,9 @@ export default function AsemicApp({
         }
 
         if (ev.ctrlKey) {
+          if (ev.key === 'l') {
+            setIsLive(!isLive)
+          }
           if (ev.key === ' ') {
             ev.preventDefault()
             ev.stopPropagation()
@@ -250,9 +253,10 @@ export default function AsemicApp({
             return
           }
           const keyMatch = ev.code.match(/\d/)
-          if (keyMatch) {
+          if (keyMatch && keyMatch[0] !== '0') {
             if (ev.altKey) {
-              const key = parseInt(keyMatch[0])
+              const key = parseInt(keyMatch[0]) - 1
+
               const newKeys = [...live.keys]
               if (live.keys.length < key) {
                 for (let i = 0; i <= key - live.keys.length; i++) {
@@ -265,7 +269,7 @@ export default function AsemicApp({
                 index: { type: 'keys', value: key }
               })
             } else {
-              const key = parseInt(keyMatch[0])
+              const key = parseInt(keyMatch[0]) - 1
               const newTexts = [...live.text]
               if (live.text.length < key) {
                 for (let i = 0; i <= key - live.text.length; i++) {
@@ -481,7 +485,7 @@ export default function AsemicApp({
                   }
                 }}></input>
               <div className='font-mono truncate max-w-[33%] flex-none whitespace-nowrap text-blue-500'>
-                {live.index.type} {live.index.value}:{' '}
+                {live.index.type} {live.index.value + 1}:{' '}
                 {live[live.index.type][live.index.value]?.replace('\n', '/ ')}
               </div>
               <div className='grow' />
@@ -518,7 +522,7 @@ export default function AsemicApp({
                 ref={editable}
                 defaultValue={scenesSource}
                 className={`editor text-white ${
-                  errors.length > 0 ? 'w-1/2' : 'w-full'
+                  errors.length > 0 ? 'w-2/3' : 'w-full'
                 }`}
                 onBlur={ev => {
                   ev.preventDefault()
@@ -547,8 +551,8 @@ export default function AsemicApp({
                   }
                 }}></textarea>
               {errors.length > 0 && (
-                <div className='editor text-right !text-red-400 w-1/2'>
-                  {errors.join(';\n')}
+                <div className='editor !text-red-400 w-1/3'>
+                  {errors.join('\n---\n')}
                 </div>
               )}
             </div>

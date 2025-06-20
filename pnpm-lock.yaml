@@ -42,8 +42,8 @@ importers:
         specifier: ^0.515.0
         version: 0.515.0(react@19.1.0)
       node-osc:
-        specifier: ^9.1.5
-        version: 9.1.5
+        specifier: ^9.1.4
+        version: 9.1.4
       pts:
         specifier: ^0.12.9
         version: 0.12.9
@@ -2279,8 +2279,8 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-osc@9.1.5:
-    resolution: {integrity: sha512-m8f+VMhgrFmxORP6HAH2ISM4zA4yCoYlT9RFaESmX/2433LNHTv5fx3/StyCYXHlYV9aR9lDgXXdu9rMnnjXtg==}
+  node-osc@9.1.4:
+    resolution: {integrity: sha512-ChkdOHmy2Ay6egrGsL9C7u0RqBQ+VIHjw+lk6yd59TuyzmqbaosCo53E1lvjh1xM97c+ByBhyH6i2dHOiBa2bw==}
     engines: {node: ^18.17.0 || ^20.5.0 || >=22.0.0}
 
   node-releases@2.0.19:
@@ -5060,7 +5060,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-osc@9.1.5:
+  node-osc@9.1.4:
     dependencies:
       osc-min: 1.1.2
 

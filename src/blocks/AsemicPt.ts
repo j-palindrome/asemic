@@ -59,6 +59,12 @@ export class BasicPt extends Float32Array {
     return this
   }
 
+  exponent(exp: BasicPtLike): this {
+    this[0] = Math.pow(this[0], exp[0])
+    this[1] = Math.pow(this[1], exp[1])
+    return this
+  }
+
   scale(
     [x, y]: [number, number] | BasicPt,
     center?: [number, number] | BasicPt
@@ -109,14 +115,27 @@ export class BasicPt extends Float32Array {
 export class AsemicPt extends BasicPt {
   parent: Parser
 
-  constructor(parent: Parser, x: number = 0, y: number = 0) {
+  constructor(
+    parent: Parser,
+    x: number = 0,
+    y: number = 0,
+    { inherit }: { inherit?: AsemicPt } = {}
+  ) {
     super(x, y, 7)
     this.parent = parent
-    this[2] = this.parent.evalExpr(this.parent.transform.width)
-    this[3] = this.parent.evalExpr(this.parent.transform.h)
-    this[4] = this.parent.evalExpr(this.parent.transform.s)
-    this[5] = this.parent.evalExpr(this.parent.transform.l)
-    this[6] = this.parent.evalExpr(this.parent.transform.a)
+    if (inherit) {
+      this[2] = inherit[2]
+      this[3] = inherit[3]
+      this[4] = inherit[4]
+      this[5] = inherit[5]
+      this[6] = inherit[6]
+    } else {
+      this[2] = this.parent.evalExpr(this.parent.transform.width)
+      this[3] = this.parent.evalExpr(this.parent.transform.h)
+      this[4] = this.parent.evalExpr(this.parent.transform.s)
+      this[5] = this.parent.evalExpr(this.parent.transform.l)
+      this[6] = this.parent.evalExpr(this.parent.transform.a)
+    }
   }
 
   get w() {
@@ -150,8 +169,19 @@ export class AsemicPt extends BasicPt {
     this[6] = val
   }
 
+  lerp(target: AsemicPt, t: number): this {
+    this[0] += (target[0] - this[0]) * t
+    this[1] += (target[1] - this[1]) * t
+    this[2] += (target[2] - this[2]) * t
+    this[3] += (target[3] - this[3]) * t
+    this[4] += (target[4] - this[4]) * t
+    this[5] += (target[5] - this[5]) * t
+    this[6] += (target[6] - this[6]) * t
+    return this
+  }
+
   clone(): AsemicPt {
-    const pt = new AsemicPt(this.parent, this[0], this[1])
+    const pt = new AsemicPt(this.parent, this[0], this[1], { inherit: this })
     return pt
   }
 }

@@ -105,8 +105,8 @@ export class Parser {
     log: args => {
       const slice = Number(args[0] || '0')
       const text = this.debug(slice)
-      if (text.length > 0) this.output.errors.push(text)
-      else this.output.errors.push('[empty]')
+      if (text.length > 0) this.error(text)
+      else this.error('[empty]')
     },
     print: () => {
       const text = `text:\n${this.live.text.join(
@@ -114,7 +114,7 @@ export class Parser {
       )}\n\nkeys:${this.live.keys.join('\n')}\n\ntransform:\n${JSON.stringify(
         this.transform
       )}`
-      this.output.errors.push(text)
+      this.error(text)
     },
     keys: args => {
       this.parse(`"${this.live.keys[args[0] ? parseInt(args[0]) : 0] ?? ''}"`)
@@ -315,6 +315,12 @@ export class Parser {
     return typeof value === 'function' ? value() : value
   }
 
+  protected error(text: string) {
+    if (!this.output.errors.includes(text)) {
+      this.output.errors.push(text)
+    }
+  }
+
   protected reset() {
     this.curves = []
     this.transforms = []
@@ -327,6 +333,7 @@ export class Parser {
 
     this.output = defaultOutput()
     this.output.pauseAt = this.pauseAt
+    this.lastPoint = new AsemicPt(this, 0, 0)
     this.resetTransform()
   }
 
@@ -457,18 +464,23 @@ export class Parser {
     for (let scene of sceneList) {
       let [firstLine, drawScene] = splitString(scene, '\n')
 
+      const MIN_LENGTH = 0.1
       const newScene = { source: drawScene } as (typeof scenes)[number]
       const settings = {
-        length: 0.1,
+        length: MIN_LENGTH,
         offset: 0,
         pause: false as false | number
       }
-      for (let token of firstLine.split(' ')) {
-        const [key, value] = token.split('=')
-        settings[key] = parseFloat(value)
+      for (let token of this.tokenize(firstLine)) {
+        if (token.startsWith('!')) {
+          settings[token.substring(1)] = false
+        } else {
+          const [key, value] = token.split('=')
+          settings[key] = this.evalExpr(value)
+        }
       }
       newScene.start = this.totalLength - settings.offset
-      newScene.pause = settings.length === 0 ? 0 : settings.pause
+      newScene.pause = settings.length === MIN_LENGTH ? 0 : settings.pause
       if (settings.length) {
         newScene.length = settings.length
         this.totalLength += settings.length - settings.offset
@@ -537,8 +549,8 @@ export class Parser {
 
   evalExpr(expr: string, replace = true): number {
     try {
-      if (!expr) {
-        throw new Error('undefined expression')
+      if (expr === undefined || expr === null) {
+        throw new Error('undefined or null expression')
       }
       if (expr.length === 0) throw new Error('Empty expression')
       this.progress.curve++
@@ -599,101 +611,97 @@ export class Parser {
         )
       }
 
-      const operations = expr.match(/.+?([\_\+\-\*\/\%\^])(?!.*[\_\+\*\/\%\^])/)
+      const operatorsList = ['_', '+', '-', '*', '/', '%', '^', '#', '~']
+      for (let i = expr.length - 1; i >= 0; i--) {
+        if (operatorsList.includes(expr[i])) {
+          let operators: [number, number]
+          switch (expr[i]) {
+            case '^':
+              operators = splitString(expr, '^').map(
+                x => this.evalExpr(x, false)!
+              ) as [number, number]
+              return operators[0] ** operators[1]
 
-      if (operations) {
-        let operators: [number, number]
-        switch (operations[1]) {
-          case '^':
-            operators = splitString(expr, '^').map(
-              x => this.evalExpr(x, false)!
-            ) as [number, number]
-            return operators[0] ** operators[1]
+            case '_':
+              let [round, after] = splitString(expr, '_')
+              if (!after) after = '1'
+              const afterNum = this.evalExpr(after, false)
+              return Math.floor(this.evalExpr(round) / afterNum) * afterNum
 
-          case '_':
-            let [round, after] = splitString(expr, '_')
-            if (!after) after = '1'
-            const afterNum = this.evalExpr(after, false)
-            return Math.floor(this.evalExpr(round) / afterNum) * afterNum
+            case '+':
+              operators = splitString(expr, '+').map(
+                x => this.evalExpr(x, false)!
+              ) as [number, number]
+              return operators[0] + operators[1]
 
-          case '+':
-            operators = splitString(expr, '+').map(
-              x => this.evalExpr(x, false)!
-            ) as [number, number]
-            return operators[0] + operators[1]
+            case '-':
+              operators = splitString(expr, '-').map(
+                x => this.evalExpr(x, false)!
+              ) as [number, number]
+              return operators[0] - operators[1]
 
-          case '-':
-            operators = splitString(expr, '-').map(
-              x => this.evalExpr(x, false)!
-            ) as [number, number]
-            return operators[0] - operators[1]
+            case '*':
+              const split = splitString(expr, '*')
+              operators = split.map(x => this.evalExpr(x, false)!) as [
+                number,
+                number
+              ]
+              return operators[0] * operators[1]
 
-          case '*':
-            const split = splitString(expr, '*')
-            operators = split.map(x => this.evalExpr(x, false)!) as [
-              number,
-              number
-            ]
-            return operators[0] * operators[1]
+            case '/':
+              operators = splitString(expr, '/').map(
+                x => this.evalExpr(x, false)!
+              ) as [number, number]
+              return operators[0] / operators[1]
 
-          case '/':
-            operators = splitString(expr, '/').map(
-              x => this.evalExpr(x, false)!
-            ) as [number, number]
-            return operators[0] / operators[1]
+            case '%':
+              operators = splitString(expr, '%').map(
+                x => this.evalExpr(x, false)!
+              ) as [number, number]
+              return operators[0] % operators[1]
 
-          case '%':
-            operators = splitString(expr, '%').map(
-              x => this.evalExpr(x, false)!
-            ) as [number, number]
-            return operators[0] % operators[1]
-        }
-      }
+            case '#':
+              const exprHash = splitString(expr, '#')[0]
+              if (!exprHash) {
+                return Math.random()
+              }
+              return this.hash(this.evalExpr(exprHash, false))
 
-      const startOperators = expr.match(/^[\#\~]/)
-      if (startOperators) {
-        switch (startOperators[0]) {
-          case '#':
-            if (expr.length === 1) {
-              return Math.random()
-            }
-            return this.hash(this.evalExpr(expr.substring(1), false))
+            case '~':
+              const speed = this.evalExpr(splitString(expr, '~')[0] || '1')
 
-          case '~':
-            let sampleIndex = this.noiseIndex
-            while (sampleIndex > this.noiseTable.length - 1) {
-              this.noiseTable.push(createNoise2D())
-            }
+              let sampleIndex = this.noiseIndex
+              while (sampleIndex > this.noiseTable.length - 1) {
+                this.noiseTable.push(createNoise2D())
+              }
 
-            const noise =
-              this.noiseTable[this.noiseIndex](
-                (expr.length === 1
-                  ? 1
-                  : this.evalExpr(expr.substring(1), false)) *
-                  this.progress.time,
-                this.noiseIndex
-              ) *
-                0.5 +
-              0.5
-            this.noiseIndex++
+              const noise =
+                this.noiseTable[this.noiseIndex](
+                  speed * this.progress.time,
+                  this.noiseIndex
+                ) *
+                  0.5 +
+                0.5
+              this.noiseIndex++
 
-            return noise
+              return noise
+          }
         }
       }
 
       throw new Error(`Invalid expression`)
     } catch (e) {
-      throw new Error(`Failed to parse ${expr}: ${e}`)
+      throw new Error(`Expression failed ${expr}:\n${e.message}`)
     }
   }
 
-  protected evalPoint(
+  protected evalPoint<K extends boolean>(
     point: string,
     {
       defaultValue = true,
-      basic = false
-    }: { defaultValue?: boolean | number; basic?: boolean } = {}
-  ): AsemicPt {
+      basic = false as any
+    }: { defaultValue?: boolean | number; basic?: K } = {} as any
+  ): K extends true ? BasicPt : AsemicPt {
     // match 1,1<0.5>2,2>3,3 but not 1,1<0.5>2
     if (/^[^<]+,[^<]+<[^>,]+\>[^>,]+,[^>,]+/.test(point)) {
       const [firstPoint, fade, ...nextPoints] = point
@@ -713,6 +721,55 @@ export class Parser {
           .subtract(points[Math.floor(index)])
           .scale([index % 1, index % 1])
       )
+    } else if (point.startsWith('(')) {
+      let end = 0
+      let evalPoint: string | undefined = undefined
+      let endPoint: string | undefined = undefined
+      let expression: string | undefined = undefined
+      for (let i = 0; i < point.length; i++) {
+        if (point[i] === '(') end++
+        else if (point[i] === ')') {
+          end--
+          if (end === 0) {
+            evalPoint = point.substring(1, i)
+            endPoint = point.substring(i + 2)
+            expression = point[i + 1]
+            break
+          }
+        }
+      }
+      if (!evalPoint || !endPoint || !expression) {
+        throw new Error(`Invalid parentheses: ${point}`)
+      }
+      const initialPoint = this.evalPoint(evalPoint, {
+        defaultValue
+      })
+      const modifierPoint = this.evalPoint(endPoint, {
+        defaultValue
+      })
+      switch (expression) {
+        case '*':
+          return initialPoint.scale(modifierPoint) as K extends true
+            ? BasicPt
+            : AsemicPt
+        case '+':
+          return initialPoint.add(modifierPoint) as K extends true
+            ? BasicPt
+            : AsemicPt
+        case '-':
+          return initialPoint.subtract(modifierPoint) as K extends true
+            ? BasicPt
+            : AsemicPt
+        case '/':
+          return initialPoint.divide(modifierPoint) as K extends true
+            ? BasicPt
+            : AsemicPt
+        case '^':
+          return initialPoint.exponent([
+            modifierPoint.x,
+            modifierPoint.y
+          ]) as K extends true ? BasicPt : AsemicPt
+      }
     }
     const parts = point.split(',')
     if (parts.length === 1) {
@@ -723,7 +780,11 @@ export class Parser {
         defaultValue === true ? this.evalExpr(parts[0])! : defaultValue
       )
     }
-    return new AsemicPt(this, ...parts.map(x => this.evalExpr(x)!))
+    return (
+      basic
+        ? new BasicPt(...parts.map(x => this.evalExpr(x)!))
+        : new AsemicPt(this, ...parts.map(x => this.evalExpr(x)!))
+    ) as K extends true ? BasicPt : AsemicPt
   }
 
   protected applyTransform = (
@@ -817,10 +878,13 @@ export class Parser {
 
     // Relative coordinates: +x,y
     else if (notation.startsWith('+')) {
-      point = this.applyTransform(this.evalPoint(notation.substring(1)), {
-        relative: true,
-        randomize
-      })
+      point = this.applyTransform(
+        this.evalPoint(notation.substring(1), { basic: false }),
+        {
+          relative: true,
+          randomize
+        }
+      )
     } else {
       // Absolute coordinates: x,y
       point = this.applyTransform(
@@ -845,8 +909,9 @@ export class Parser {
   }
 
   protected parseTransform(token: string) {
-    const transformStr = token.trim().substring(1, token.length - 1)
-    const transforms = this.tokenize(transformStr)
+    token = token.trim()
+    token = token.substring(1, token.length - 1)
+    const transforms = this.tokenize(token)
 
     transforms.forEach(transform => {
       if (transform === '<') {
@@ -922,7 +987,7 @@ export class Parser {
           )
         }
       } else {
-        const keyCall = transform.match(/([a-z]+)\=(.+)/)
+        const keyCall = transform.match(/^([a-z]+)\=(.+)/)
         if (keyCall) {
           const key = keyCall[1]
           const value = keyCall[2]
@@ -1083,8 +1148,12 @@ export class Parser {
         if (type === '=>') {
           this.constants[key] = () => value
         } else {
-          const evaled = this.evalExpr(value).toFixed(4)
-
+          const evaled = value.includes(',')
+            ? value
+                .split(',')
+                .map(x => this.evalExpr(x).toFixed(3))
+                .join(',')
+            : this.evalExpr(value).toFixed(4)
           this.constants[key] = () => evaled
         }
 
@@ -1092,8 +1161,10 @@ export class Parser {
       }
 
       const functionCall = token.match(/^([a-zA-Z0-9]+)(?!\=)/)
+
       if (functionCall && this.constants[functionCall[1]]) {
         const returnText = this.evalFunction(token)
+
         if (returnText) {
           this.parse(returnText, { mode })
         }
@@ -1200,28 +1271,45 @@ export class Parser {
       }
 
       if (token.startsWith('[')) {
-        if (!this.adding && this.currentCurve.length > 0) {
+        if (!this.adding) {
           this.addCurve({ mode })
         }
-        const pointsStr = token.substring(1, token.length - 1)
-        const pointsTokens = this.tokenize(pointsStr)
+        token = token.substring(1, token.length - 1)
+        const pointsTokens = this.tokenize(token)
 
         pointsTokens.forEach((pointToken, i) => {
           if (pointToken.startsWith('{')) {
-            this.parseTransform(token)
+            this.parseTransform(pointToken)
             return
-          }
-          if (pointToken.trim().length == 0) return
-          this.progress.point = i / (pointsTokens.length - 1)
-          const point = this.parsePoint(pointToken)
+          } else {
+            try {
+              this.progress.point = i / (pointsTokens.length - 1 || 1)
+              const point = this.parsePoint(pointToken)
 
-          this.currentCurve.push(point)
+              this.currentCurve.push(point)
+              return
+            } catch (e) {
+              if (
+                Object.keys(this.constants).find(x =>
+                  new RegExp(`^\\(?${x}`).test(pointToken)
+                )
+              ) {
+                const evaled = this.evalFunction(pointToken)
+                if (evaled) {
+                  this.currentCurve.push(this.parsePoint(evaled))
+                } else {
+                  throw new Error(
+                    `Function ${pointToken} doesn't return a point`
+                  )
+                }
+              }
+            }
+          }
         })
         return
       }
     } catch (e) {
-      this.output.errors.push(`Parsing failed: ${token}; ${e}`)
-      console.error(`Parsing failed`, token, e)
+      this.error(`Token failed ${token}:\n${e.message}`)
       return
     }
   }
@@ -1244,7 +1332,7 @@ export class Parser {
       if (
         !flatCurves.find(x => x[0] <= 1 && x[0] >= 0 && x[1] <= 1 && x[1] >= 0)
       ) {
-        this.output.errors.push('No points within [0,0] and [1,1]')
+        this.error('No points within [0,0] and [1,1]')
       }
     }
 

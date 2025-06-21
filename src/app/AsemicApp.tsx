@@ -1,5 +1,5 @@
 import _, { isEqual, isUndefined } from 'lodash'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 // import { ArgumentType, Client } from 'node-osc'
 import {
@@ -17,6 +17,7 @@ import {
 import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
+import { InputSchema, inputSchema, useSchema } from '../server/schema'
 import './AsemicApp.css'
 
 export default function AsemicApp({
@@ -359,6 +360,8 @@ export default function AsemicApp({
       } as LucideProps),
     []
   )
+
+  const [sendWebSocketData, wsConnected] = useSchema()
 
   return (
     <div className='asemic-container'>

@@ -5,6 +5,7 @@ import { AsemicPt, BasicPt } from './blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp } from './utils'
 import { AsemicData, Transform } from './types'
+import type { InputSchema } from './server/schema'
 
 const TransformAliases = {
   scale: ['\\*', 'sca', 'scale'],
@@ -27,11 +28,19 @@ const defaultTransform: () => Transform = () => ({
 })
 
 const defaultOutput = () =>
-  ({ osc: [], curves: [], errors: [], pauseAt: false, eval: [] } as {
+  ({
+    osc: [],
+    curves: [],
+    errors: [],
+    pauseAt: false,
+    eval: [],
+    params: {}
+  } as {
     osc: { path: string; args: (string | number | [number, number])[] }[]
     errors: string[]
     pauseAt: string | false
     eval: string[]
+    params: InputSchema['params']
   })
 
 const defaultFonts = () =>
@@ -57,6 +66,7 @@ export class Parser {
     pause: false | number
     offset: number
   }[] = []
+  params = {} as InputSchema['params']
   progress = {
     point: 0,
     time: performance.now() / 1000,
@@ -277,6 +287,15 @@ export class Parser {
       const currentAccum = this.progress.accums[this.progress.accumIndex]
       this.progress.accumIndex++
       return currentAccum.toFixed(4)
+    },
+    param: ([paramName, defaultValue]) => {
+      if (!this.params[paramName]) {
+        this.params[paramName] = {
+          type: 'number',
+          value: defaultValue ? this.evalExpr(defaultValue) : 0
+        }
+      }
+      return this.params[paramName].value.toFixed(4)
     }
   }
   reservedConstants = Object.keys(this.constants)
@@ -400,6 +419,7 @@ export class Parser {
       )
     }
     this.fonts = defaultFonts()
+    this.params = {} as InputSchema['params']
     const parseSetting = (token: string) => {
       if (!token) return
       if (token.startsWith('!')) {

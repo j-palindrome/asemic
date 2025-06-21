@@ -1,6 +1,6 @@
 import { Color, Pt } from 'pts'
 import { Parser } from './Parser'
-import { BasicPt } from './AsemicPt'
+import { BasicPt } from './blocks/AsemicPt'
 export type { Parser } from './Parser'
 export type { default as Renderer } from './renderers/visual/CanvasRenderer'
 

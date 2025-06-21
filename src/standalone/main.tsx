@@ -1,21 +1,22 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import AsemicApp from '../app/AsemicApp'
-import { createBrowserRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
 
-function App() {
-  return <></>
+function AsemicWrapper() {
+  return (
+    <AsemicApp
+      source={defaultSource}
+      save={newSource => localStorage.setItem('asemic-source', newSource)}
+      getRequire={async link => ''}
+    />
+  )
 }
+
 let router = createBrowserRouter([
   {
     path: '/',
-    Component: App,
-    children: [
-      {
-        path: '/',
-        Component: AsemicApp
-      }
-    ]
+    Component: AsemicWrapper
   }
 ])
 

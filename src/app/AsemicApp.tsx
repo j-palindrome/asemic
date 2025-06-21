@@ -1,7 +1,7 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
-import { ArgumentType, Client } from 'node-osc'
+// import { ArgumentType, Client } from 'node-osc'
 import {
   Ellipsis,
   Info,
@@ -101,7 +101,22 @@ export default function AsemicApp({
   }
   const [audio, setAudio, audioRenderer] = setupAudio()
   const setup = () => {
-    const client = useMemo(() => new Client('localhost', 57120), [])
+    const wsRef = useRef<WebSocket | null>(null)
+
+    useEffect(() => {
+      wsRef.current = new WebSocket('ws://localhost:7001')
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected')
+      }
+      return () => {
+        if (wsRef.current) {
+          wsRef.current.close()
+          wsRef.current = null
+        }
+      }
+    })
+
+    // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
     const onResize = () => {
       if (!canvas.current) return
@@ -152,7 +167,10 @@ export default function AsemicApp({
           }
           if (!isUndefined(data.osc)) {
             data.osc.forEach(({ path, args }) => {
-              client.send({ address: path, args: args as ArgumentType[] })
+              // Send OSC data via WebSocket instead of direct OSC client
+
+              if (!wsRef.current) return
+              wsRef.current.send(JSON.stringify({ address: path, args }))
             })
           }
           // if (!isUndefined(data.audio)) {

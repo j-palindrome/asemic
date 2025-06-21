@@ -77,20 +77,22 @@ export default function AsemicApp({
 
   const setupAudio = () => {
     // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
-    const audioRenderer = new ElRenderer(
-      () => ({}),
-      (curves, el, vars) => {
-        const output = el.mul(el.sin(440), 0.5)
-        return [output, output] as const
-      }
+    const audioRenderer = useRef(
+      new ElRenderer(
+        () => ({}),
+        (curves, el, vars) => {
+          const output = el.mul(el.sin(440), 0.5)
+          return [output, output] as const
+        }
+      )
     )
 
     const [audio, setAudio] = useState<boolean>(false)
     useEffect(() => {
       if (audio) {
-        audioRenderer.start()
+        audioRenderer.current.start()
       } else {
-        audioRenderer.stop()
+        audioRenderer.current.stop()
       }
     }, [audio])
     return [audio, setAudio, audioRenderer] as const
@@ -120,7 +122,7 @@ export default function AsemicApp({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          audioRenderer.render([])
+          audioRenderer.current.render([])
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
               ...settingsRef.current,

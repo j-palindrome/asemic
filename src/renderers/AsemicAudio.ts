@@ -8,6 +8,7 @@ export default abstract class AsemicAudio extends AsemicRenderer {
   isSetup = false
 
   stop(): void {
+    if (!this.ctx) return
     this.ctx!.suspend()
   }
 

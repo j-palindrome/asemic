@@ -124,6 +124,9 @@ export default function AsemicApp({
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
           audioRenderer.current.render([])
+          if (!isUndefined(data.params)) {
+            sendWebSocketData(inputSchema.parse({ params: data.params }))
+          }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
               ...settingsRef.current,

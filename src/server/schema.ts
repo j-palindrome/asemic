@@ -1,3 +1,4 @@
+import { pick } from 'lodash'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 
@@ -6,7 +7,9 @@ export const inputSchema = z.object({
     z.string(),
     z.object({
       type: z.literal('number'),
-      value: z.number()
+      value: z.number(),
+      max: z.number(),
+      min: z.number()
     })
   )
 })
@@ -17,6 +20,8 @@ export const useSchema = () => {
   // WebSocket connection setup
   const websocket = useRef<WebSocket | null>(null)
   const [wsConnected, setWsConnected] = useState(false)
+  const [schema, setSchema] = useState<InputSchema | null>(null)
+  useEffect(() => {}, [schema])
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -43,8 +48,14 @@ export const useSchema = () => {
 
         websocket.current.onmessage = event => {
           try {
-            const data = JSON.parse(event.data)
+            const data = inputSchema.parse(JSON.parse(event.data))
             console.log('Received WebSocket data:', data)
+            setSchema(prevSchema => ({
+              params: {
+                ...prevSchema?.params,
+                ...data.params
+              }
+            }))
           } catch (error) {
             console.error('Failed to parse WebSocket message:', error)
           }
@@ -77,5 +88,26 @@ export const useSchema = () => {
     },
     [websocket]
   )
-  return [sendWebSocketData, wsConnected] as const
+
+  const setParam = useCallback(
+    (param: string, value: number) => {
+      if (!schema) return
+      const newParams = {
+        ...schema.params,
+        [param]: {
+          ...schema.params[param],
+          value: Math.max(
+            schema.params[param].min,
+            Math.min(schema.params[param].max, value)
+          )
+        }
+      }
+      const newSchema: InputSchema = { params: newParams }
+      setSchema(newSchema)
+      sendWebSocketData({ params: pick(newSchema.params, [param]) })
+    },
+    [schema, sendWebSocketData]
+  )
+
+  return [schema, setParam] as const
 }

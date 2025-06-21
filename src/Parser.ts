@@ -288,12 +288,15 @@ export class Parser {
       this.progress.accumIndex++
       return currentAccum.toFixed(4)
     },
-    param: ([paramName, defaultValue]) => {
+    param: ([paramName, defaultValue, max, min]) => {
       if (!this.params[paramName]) {
         this.params[paramName] = {
           type: 'number',
-          value: defaultValue ? this.evalExpr(defaultValue) : 0
+          value: defaultValue ? this.evalExpr(defaultValue) : 0,
+          max: max ? parseFloat(max) : 1,
+          min: min ? parseFloat(min) : 0
         }
+        this.output.params[paramName] = this.params[paramName]
       }
       return this.params[paramName].value.toFixed(4)
     }

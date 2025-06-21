@@ -1,12 +1,7 @@
-import _, { flatMap, isEqual, isUndefined, max } from 'lodash'
-import { Pt } from 'pts'
+import _, { isEqual, isUndefined } from 'lodash'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 // import { ArgumentType, Client } from 'node-osc'
-import Asemic from '../Asemic'
-import { AsemicData } from '../types'
-import { FlatTransform } from '../types'
-import { Parser } from '../types'
 import {
   Ellipsis,
   Info,
@@ -16,8 +11,12 @@ import {
   Pause,
   Play,
   Power,
-  Save
+  Save,
+  Speaker
 } from 'lucide-react'
+import ElRenderer from '../renderers/audio/ElRenderer'
+import Asemic from '../Asemic'
+import { AsemicData, FlatTransform, Parser } from '../types'
 import './AsemicApp.css'
 
 export default function AsemicApp({
@@ -75,6 +74,28 @@ export default function AsemicApp({
   }
   const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
+
+  const setupAudio = () => {
+    // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
+    const audioRenderer = new ElRenderer(
+      () => ({}),
+      (curves, el, vars) => {
+        const output = el.mul(el.sin(440), 0.5)
+        return [output, output] as const
+      }
+    )
+
+    const [audio, setAudio] = useState<boolean>(false)
+    useEffect(() => {
+      if (audio) {
+        audioRenderer.start()
+      } else {
+        audioRenderer.stop()
+      }
+    }, [audio])
+    return [audio, setAudio, audioRenderer] as const
+  }
+  const [audio, setAudio, audioRenderer] = setupAudio()
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -99,6 +120,7 @@ export default function AsemicApp({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
+          audioRenderer.render([])
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
               ...settingsRef.current,
@@ -126,6 +148,9 @@ export default function AsemicApp({
               // client.send({ address: path, args: args as ArgumentType[] })
             })
           }
+          // if (!isUndefined(data.audio)) {
+          //   audioRenderer.render(data.audio)
+          // }
 
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
@@ -388,6 +413,13 @@ export default function AsemicApp({
                   setIsLive(!isLive)
                 }}>
                 <Power {...lucideProps} />
+              </button>
+              <button
+                className={`${audio ? '!bg-blue-200/40' : ''}`}
+                onClick={() => {
+                  setAudio(!audio)
+                }}>
+                {<Speaker {...lucideProps} />}
               </button>
               <button
                 onClick={() => {

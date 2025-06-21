@@ -2,7 +2,7 @@ import { Color, Pt } from 'pts'
 import { Parser } from './Parser'
 import { BasicPt } from './AsemicPt'
 export type { Parser } from './Parser'
-export type { default as Renderer } from './canvasRenderer'
+export type { default as Renderer } from './renderers/visual/CanvasRenderer'
 
 export type AsemicData = {
   source?: string

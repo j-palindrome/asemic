@@ -1,7 +1,8 @@
 import { range, sum, sumBy } from 'lodash'
 import { Color } from 'pts'
-import { AsemicPt } from 'src/AsemicPt'
+import { AsemicPt } from 'src/blocks/AsemicPt'
 import invariant from 'tiny-invariant'
+import AsemicVisual from '../AsemicVisual'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -133,7 +134,7 @@ const calcPosition = /*wgsl*/ `
   let color = colors[start_at_point];
   `
 
-export default class WebGPURenderer {
+export default class WebGPURenderer extends AsemicVisual {
   ctx: GPUCanvasContext
   device: GPUDevice
   pipeline: GPURenderPipeline
@@ -636,6 +637,7 @@ export default class WebGPURenderer {
   }
 
   constructor(ctx: GPUCanvasContext) {
+    super()
     this.ctx = ctx
   }
 }

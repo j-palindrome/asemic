@@ -1,9 +1,11 @@
-import { AsemicGroup, AsemicPt } from './AsemicPt'
-import Renderer from './renderer'
+import { AsemicPt } from '../../blocks/AsemicPt'
+import AsemicRenderer from '../AsemicRenderer'
+import Renderer from '../AsemicRenderer'
+import AsemicVisual from '../AsemicVisual'
 
-export default class CanvasRenderer extends Renderer {
+export default class CanvasRenderer extends AsemicVisual {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-  protected format(curves: AsemicGroup[]) {
+  protected format(curves: AsemicPt[][]) {
     const w = this.ctx.canvas.width
     let newCurves: [number, number][][] = []
     for (let curve of curves) {
@@ -15,34 +17,35 @@ export default class CanvasRenderer extends Renderer {
         newCurve.push([x, y])
         index += 2
       }
-      const preTangent = curve
-        .at(0)
-        .$subtract(curve.at(1))
+      const preTangent = curve[0]
+        .clone()
+        .subtract(curve[1])
         .unit()
-        .scale(curve.at(0).width / 2 / w)
-      curve.at(0).add(preTangent)
+        .scale(curve[0].width / 2 / w)
+      curve[0].add(preTangent)
       const postTangent = curve
         .at(curve.length - 1)
-        .$subtract(curve.at(curve.length - 2))
+        .clone()
+        .subtract(curve.at(curve.length - 2))
         .unit()
         .scale(curve.at(curve.length - 1).width / 2 / w)
       curve.at(curve.length - 1).add(postTangent)
 
       if (curve.length == 1) {
       } else if (curve.length == 2) {
-        const normal = curve
-          .at(1)
-          .$subtract(curve[0])
+        const normal = curve[1]
+          .clone()
+          .subtract(curve[0])
           .rotate2D(0.25 * Math.PI * 2)
           .unit()
-          .scale(curve.at(1).width / 2 / w)
+          .scale(curve[1].width / 2 / w)
 
-        const p0 = curve.at(0).clone()
+        const p0 = curve[0].clone()
         p0.add(normal)
 
         push([p0.x, p0.y])
 
-        const p1 = curve.at(1).clone()
+        const p1 = curve[1].clone()
         p1.add(normal)
         push([p1.x, p1.y])
         p1.subtract(normal.clone().scale(2))
@@ -50,18 +53,18 @@ export default class CanvasRenderer extends Renderer {
         p0.subtract(normal.clone().scale(2))
         push([p0.x, p0.y])
       } else {
-        const p0 = curve.at(0).clone()
-        const n0 = curve
-          .at(1)
-          .$subtract(curve.at(0))
+        const p0 = curve[0].clone()
+        const n0 = curve[1]
+          .clone()
+          .subtract(curve[0])
           .rotate2D(0.25 * Math.PI * 2)
           .unit()
-          .scale(curve.at(0).width / 2 / w)
+          .scale(curve[0].width / 2 / w)
         p0.add(n0)
         push([p0.x, p0.y])
-        // push([...curve.at(0).clone()])
+        // push([...curve[0].clone()])
 
-        const drawCurve = (curve: AsemicGroup, i: number) => {
+        const drawCurve = (curve: AsemicPt[], i: number) => {
           const p2 =
             i === curve.length - 3
               ? curve.at(i + 2).clone()
@@ -71,7 +74,8 @@ export default class CanvasRenderer extends Renderer {
                   .divide(2)
           const n2 = curve
             .at(i + 2)
-            .$subtract(curve.at(i + 1))
+            .clone()
+            .subtract(curve.at(i + 1))
             .rotate2D(0.25 * Math.PI * 2)
             .unit()
             .scale(
@@ -85,7 +89,8 @@ export default class CanvasRenderer extends Renderer {
           const p1 = curve.at(i + 1).clone()
           const n1 = curve
             .at(i + 2)
-            .$subtract(curve.at(i))
+            .clone()
+            .subtract(curve.at(i))
             .rotate2D(0.25 * Math.PI * 2)
             .unit()
             .scale(curve.at(i + 1).width / 2 / w)
@@ -100,13 +105,13 @@ export default class CanvasRenderer extends Renderer {
           drawCurve(curve, i)
         }
         const reversedCurve = new AsemicGroup(...curve.reverse())
-        const pEnd = reversedCurve.at(0).clone()
-        const nEnd = reversedCurve
-          .at(1)
-          .$subtract(reversedCurve.at(0))
+        const pEnd = reversedCurve[0].clone()
+        const nEnd = reversedCurve[1]
+          .clone()
+          .subtract(reversedCurve[0])
           .rotate2D(0.25 * Math.PI * 2)
           .unit()
-          .scale(reversedCurve.at(0).width / 2 / w)
+          .scale(reversedCurve[0].width / 2 / w)
         pEnd.add(nEnd)
         push([pEnd.x, pEnd.y])
         for (let i = 0; i <= curve.length - 3; i++) {
@@ -118,7 +123,7 @@ export default class CanvasRenderer extends Renderer {
 
     return newCurves
   }
-  render(curves: AsemicGroup[], { clear = true } = {}) {
+  render(curves: AsemicPt[][], { clear = true } = {}) {
     let { ctx } = this
 
     ctx.resetTransform()

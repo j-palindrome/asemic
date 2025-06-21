@@ -1,7 +1,7 @@
 import _, { clamp, isUndefined, last, sortBy } from 'lodash'
 import { createNoise2D } from 'simplex-noise'
 import { defaultSettings, splitString } from './settings'
-import { AsemicPt, BasicPt } from './AsemicPt'
+import { AsemicPt, BasicPt } from './blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp } from './utils'
 import { AsemicData, Transform } from './types'

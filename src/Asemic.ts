@@ -4,7 +4,7 @@ import { isUndefined } from 'lodash'
 // @ts-ignore
 import AsemicWorker from './asemic.worker.ts?worker'
 import { Parser } from './Parser'
-import CanvasRenderer from './canvasRenderer'
+import CanvasRenderer from './renderers/visual/CanvasRenderer'
 import { AsemicData, AsemicDataBack } from './types'
 
 export default class Asemic {

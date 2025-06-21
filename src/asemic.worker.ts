@@ -1,12 +1,16 @@
 import { flatMap, isUndefined, max } from 'lodash'
-import WebGPURenderer from './WebGPURenderer'
+import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import { Parser } from './Parser'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
-import CanvasRenderer from './canvasRenderer'
-import Renderer from './renderer'
+import CanvasRenderer from './renderers/visual/CanvasRenderer'
+import Renderer from './renderers/AsemicRenderer'
+import AsemicAudio from './renderers/AsemicAudio'
+import AsemicVisual from './renderers/AsemicVisual'
+import ElRenderer from './renderers/audio/ElRenderer'
 
 let parser: Parser = new Parser()
-let renderer: Renderer
+let renderer: AsemicVisual
+let audioRenderer: AsemicAudio
 let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
 let ready = true
@@ -16,7 +20,7 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     offscreenCanvas = ev.data.offscreenCanvas
     renderer = new WebGPURenderer(ev.data.offscreenCanvas.getContext('webgpu')!)
     await renderer.setup()
-    // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
+
     postMessage({
       ready: true
     } as AsemicDataBack)

@@ -4,7 +4,6 @@ import AsemicCurve from 'src/blocks/AsemicCurve'
 
 export default abstract class AsemicAudio extends AsemicRenderer {
   ctx: AudioContext | null = null
-  playing = false
   isSetup = false
 
   stop(): void {

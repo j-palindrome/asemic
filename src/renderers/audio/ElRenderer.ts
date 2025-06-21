@@ -17,7 +17,7 @@ export default class ElRenderer<
   ) => [NodeRepr_t, NodeRepr_t]
 
   async render(curves: AsemicPt[][]) {
-    if (!this.isSetup || !this.playing) return
+    if (!this.isSetup || !this.ctx || this.ctx.state !== 'running') return
     const channels = this.renderFunction(curves, el, this.variables)
     this.core.render(...channels)
   }
@@ -70,11 +70,11 @@ export default class ElRenderer<
       .connect(node)
       .connect(gainNode2)
       .connect(this.ctx.destination)
-    const oscillator = this.ctx.createOscillator()
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(440, this.ctx.currentTime)
-    oscillator.connect(gainNode2)
-    oscillator.start()
+    // const oscillator = this.ctx.createOscillator()
+    // oscillator.type = 'sine'
+    // oscillator.frequency.setValueAtTime(440, this.ctx.currentTime)
+    // oscillator.connect(gainNode2)
+    // oscillator.start()
   }
 
   constructor(

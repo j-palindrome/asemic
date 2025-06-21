@@ -84,7 +84,8 @@ export default function AsemicApp({
       new ElRenderer(
         () => ({}),
         (curves, el, vars) => {
-          const output = el.mul(el.sin(440), 0.5)
+          // const output = el.mul(el.sin(440), 0.5)
+          const output = el.in({ channel: 0 })
           return [output, output] as const
         }
       )
@@ -446,13 +447,13 @@ export default function AsemicApp({
                 }}>
                 <Power {...lucideProps} />
               </button>
-              <button
+              {/*<button
                 className={`${audio ? '!bg-blue-200/40' : ''}`}
                 onClick={() => {
                   setAudio(!audio)
                 }}>
                 {<Speaker {...lucideProps} />}
-              </button>
+              </button>*/}
               <button
                 onClick={() => {
                   asemic.current!.postMessage({

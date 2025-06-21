@@ -17,9 +17,10 @@ import {
 import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
-import { InputSchema, inputSchema, useSchema } from '../server/schema'
+import { useSchema } from '../server/schema'
 import './AsemicApp.css'
 import { stripComments } from '../utils'
+import { inputSchema, WS_PORT } from '../server/constants'
 
 export default function AsemicApp({
   source,
@@ -104,7 +105,7 @@ export default function AsemicApp({
     const wsRef = useRef<WebSocket | null>(null)
 
     useEffect(() => {
-      wsRef.current = new WebSocket('ws://localhost:7001')
+      wsRef.current = new WebSocket(`ws://localhost:${WS_PORT}`)
       wsRef.current.onopen = () => {
         console.log('WebSocket connected')
       }
@@ -141,7 +142,7 @@ export default function AsemicApp({
         asemic.current = new Asemic(canvas.current, data => {
           audioRenderer.current.render([])
           if (!isUndefined(data.params)) {
-            sendWebSocketData(inputSchema.parse({ params: data.params }))
+            inputSchema.parse({ params: data.params })
           }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({

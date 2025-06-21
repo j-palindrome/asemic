@@ -17,7 +17,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx src/server/server.ts",
     "build": "npm run build:css && npm run build:lib",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:types": "tsc --project tsconfig.build.json",
@@ -48,6 +48,7 @@
     "pts": "^0.12.9",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-router": "^7.6.2",
     "simplex-noise": "^4.0.3",
     "tailwindcss": "^4.1.10",
     "test": "link:@types/playwright/test",
@@ -65,6 +66,7 @@
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
     "ts-jest": "^29.4.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   }

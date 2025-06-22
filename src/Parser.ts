@@ -5,7 +5,7 @@ import { AsemicPt, BasicPt } from './blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp, stripComments } from './utils'
 import { AsemicData, Transform } from './types'
-import type { InputSchema } from './server/schema'
+import { InputSchema } from './server/constants'
 
 const TransformAliases = {
   scale: ['\\*', 'sca', 'scale'],

@@ -10,13 +10,38 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 95.0, 98.0, 1176.0, 878.0 ],
+		"rect" : [ 34.0, 62.0, 1176.0, 704.0 ],
 		"gridsize" : [ 8.0, 8.0 ],
 		"gridsnaponopen" : 2,
 		"objectsnaponopen" : 0,
 		"style" : "Joshua",
 		"subpatcher_template" : "J",
 		"boxes" : [ 			{
+				"box" : 				{
+					"id" : "obj-36",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "multichannelsignal" ],
+					"patching_rect" : [ 839.0, 192.0, 100.0, 20.0 ],
+					"text" : "mc.dup~"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-35",
+					"linecount" : 2,
+					"maxclass" : "newobj",
+					"numinlets" : 7,
+					"numoutlets" : 2,
+					"outlettype" : [ "multichannelsignal", "multichannelsignal" ],
+					"patching_rect" : [ 296.0, 1032.0, 100.0, 31.0 ],
+					"text" : "mc.abl.dsp.darkhall~"
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"id" : "obj-34",
 					"lastchannelcount" : 1,
@@ -149,7 +174,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "float" ],
-					"patching_rect" : [ 504.0, 112.0, 304.0, 184.0 ]
+					"patching_rect" : [ 496.0, 112.0, 304.0, 184.0 ]
 				}
 
 			}
@@ -171,7 +196,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 240.0, 1038.0, 100.0, 20.0 ],
+					"patching_rect" : [ 240.0, 1240.0, 100.0, 20.0 ],
 					"text" : "mc.dac~ 1 2"
 				}
 
@@ -419,7 +444,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-30", 0 ],
+					"destination" : [ "obj-36", 0 ],
 					"source" : [ "obj-26", 0 ]
 				}
 
@@ -463,6 +488,13 @@
 				"patchline" : 				{
 					"destination" : [ "obj-14", 0 ],
 					"source" : [ "obj-34", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-30", 0 ],
+					"source" : [ "obj-36", 0 ]
 				}
 
 			}

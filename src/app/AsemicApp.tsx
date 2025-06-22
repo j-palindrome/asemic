@@ -95,6 +95,7 @@ export default function AsemicApp({
     useEffect(() => {
       if (audio) {
         audioRenderer.current.start()
+        audioRenderer.current.render([])
       } else {
         audioRenderer.current.stop()
       }
@@ -141,7 +142,6 @@ export default function AsemicApp({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          audioRenderer.current.render([])
           if (!isUndefined(data.params)) {
             inputSchema.parse({ params: data.params })
           }
@@ -447,13 +447,13 @@ export default function AsemicApp({
                 }}>
                 <Power {...lucideProps} />
               </button>
-              {/*<button
+              <button
                 className={`${audio ? '!bg-blue-200/40' : ''}`}
                 onClick={() => {
                   setAudio(!audio)
                 }}>
                 {<Speaker {...lucideProps} />}
-              </button>*/}
+              </button>
               <button
                 onClick={() => {
                   asemic.current!.postMessage({

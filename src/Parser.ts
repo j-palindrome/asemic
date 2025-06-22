@@ -721,56 +721,57 @@ export class Parser {
           .subtract(points[Math.floor(index)])
           .scale([index % 1, index % 1])
       )
-    } else if (point.startsWith('(')) {
-      let end = 0
-      let evalPoint: string | undefined = undefined
-      let endPoint: string | undefined = undefined
-      let expression: string | undefined = undefined
-      for (let i = 0; i < point.length; i++) {
-        if (point[i] === '(') end++
-        else if (point[i] === ')') {
-          end--
-          if (end === 0) {
-            evalPoint = point.substring(1, i)
-            endPoint = point.substring(i + 2)
-            expression = point[i + 1]
-            break
-          }
-        }
-      }
-      if (!evalPoint || !endPoint || !expression) {
-        throw new Error(`Invalid parentheses: ${point}`)
-      }
-      const initialPoint = this.evalPoint(evalPoint, {
-        defaultValue
-      })
-      const modifierPoint = this.evalPoint(endPoint, {
-        defaultValue
-      })
-      switch (expression) {
-        case '*':
-          return initialPoint.scale(modifierPoint) as K extends true
-            ? BasicPt
-            : AsemicPt
-        case '+':
-          return initialPoint.add(modifierPoint) as K extends true
-            ? BasicPt
-            : AsemicPt
-        case '-':
-          return initialPoint.subtract(modifierPoint) as K extends true
-            ? BasicPt
-            : AsemicPt
-        case '/':
-          return initialPoint.divide(modifierPoint) as K extends true
-            ? BasicPt
-            : AsemicPt
-        case '^':
-          return initialPoint.exponent([
-            modifierPoint.x,
-            modifierPoint.y
-          ]) as K extends true ? BasicPt : AsemicPt
-      }
     }
+    // else if (point.startsWith('(')) {
+    //   let end = 0
+    //   let evalPoint: string | undefined = undefined
+    //   let endPoint: string | undefined = undefined
+    //   let expression: string | undefined = undefined
+    //   for (let i = 0; i < point.length; i++) {
+    //     if (point[i] === '(') end++
+    //     else if (point[i] === ')') {
+    //       end--
+    //       if (end === 0) {
+    //         evalPoint = point.substring(1, i)
+    //         endPoint = point.substring(i + 2)
+    //         expression = point[i + 1]
+    //         break
+    //       }
+    //     }
+    //   }
+    //   if (!evalPoint || !endPoint || !expression) {
+    //     throw new Error(`Invalid parentheses: ${point}`)
+    //   }
+    //   const initialPoint = this.evalPoint(evalPoint, {
+    //     defaultValue
+    //   })
+    //   const modifierPoint = this.evalPoint(endPoint, {
+    //     defaultValue
+    //   })
+    //   switch (expression) {
+    //     case '*':
+    //       return initialPoint.scale(modifierPoint) as K extends true
+    //         ? BasicPt
+    //         : AsemicPt
+    //     case '+':
+    //       return initialPoint.add(modifierPoint) as K extends true
+    //         ? BasicPt
+    //         : AsemicPt
+    //     case '-':
+    //       return initialPoint.subtract(modifierPoint) as K extends true
+    //         ? BasicPt
+    //         : AsemicPt
+    //     case '/':
+    //       return initialPoint.divide(modifierPoint) as K extends true
+    //         ? BasicPt
+    //         : AsemicPt
+    //     case '^':
+    //       return initialPoint.exponent([
+    //         modifierPoint.x,
+    //         modifierPoint.y
+    //       ]) as K extends true ? BasicPt : AsemicPt
+    //   }
+    // }
     const parts = point.split(',')
     if (parts.length === 1) {
       if (defaultValue === false) throw new Error(`Incomplete point: ${point}`)

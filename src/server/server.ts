@@ -1,7 +1,7 @@
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
-import { WebSocketServer } from 'ws'
+import { Server as SocketIOServer } from 'socket.io'
 import { z } from 'zod'
 import { Server, Client } from 'node-osc'
 import invariant from 'tiny-invariant'
@@ -45,38 +45,36 @@ async function startDevServer() {
     }
   })
 
-  // Create WebSocket server
+  // Create Socket.IO server
   const httpServer = server.httpServer
   invariant(httpServer)
-  const wss = new WebSocketServer({ port: WS_PORT })
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST']
+    }
+  })
 
-  wss.on('connection', ws => {
-    console.log('WebSocket client connected')
-    ws.send(JSON.stringify(paramsState))
+  io.on('connection', socket => {
+    console.log('Socket.IO client connected:', socket.id)
+    socket.emit('params', paramsState)
 
-    ws.on('message', message => {
-      const obj = inputSchema.safeParse(JSON.parse(message.toString()))
-      if (obj.data) {
-        for (let param of Object.keys(obj.data.params)) {
-          paramsState.params[param] = obj.data.params[param]
-          wss.clients.forEach(client => {
-            if (client.readyState === client.OPEN) {
-              client.send(
-                JSON.stringify({
-                  params: _.pick(
-                    paramsState.params,
-                    Object.keys(obj.data.params)
-                  )
-                })
-              )
-            }
+    socket.on('params', obj => {
+      try {
+        const validatedObj = inputSchema.parse(obj)
+        for (let param of Object.keys(validatedObj.params)) {
+          paramsState.params[param] = validatedObj.params[param]
+          io.emit('params', {
+            params: _.pick(paramsState.params, Object.keys(validatedObj.params))
           })
         }
+      } catch (error) {
+        console.error('Invalid params received:', error)
       }
     })
 
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected')
+    socket.on('disconnect', () => {
+      console.log('Socket.IO client disconnected:', socket.id)
     })
   })
 
@@ -92,7 +90,6 @@ async function startDevServer() {
     console.log(
       `🎵 OSC Server listening on ${oscConfig.host}:${oscConfig.port}`
     )
-    resolve()
   })
 
   oscServer.on('message', msg => {
@@ -106,23 +103,15 @@ async function startDevServer() {
   oscServer.on('message', msg => {
     const [address, ...args] = msg as [string, ...any[]]
 
-    const broadcastToClients = (data: any) => {
-      wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) {
-          client.send(JSON.stringify(data))
-        }
-      })
-    }
-
     switch (address) {
       case '/asemic/param':
         console.log('⚙️ Parameter update:', args)
-        broadcastToClients({ type: 'asemic:param', data: args })
+        io.emit('asemic:param', args)
         break
 
       default:
         // Forward all other messages to clients
-        broadcastToClients({ type: 'osc:message', address, data: args })
+        io.emit('osc:message', { address, data: args })
     }
   })
 

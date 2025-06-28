@@ -1,4 +1,4 @@
-import { inputSchema, useSchema } from 'src/server/schema'
+import { useSchema } from '../server/schema'
 import './AsemicApp.css'
 export default function AsemicParams() {
   const [schema, setParam] = useSchema()

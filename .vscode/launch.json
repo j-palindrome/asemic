@@ -18,7 +18,10 @@
       "name": "Start Dev Server",
       "program": "${workspaceFolder}/src/server/server.ts",
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DEBUG": "*"
+      }
     }
   ]
 }

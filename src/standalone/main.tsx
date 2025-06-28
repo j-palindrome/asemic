@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import AsemicApp from '../app/AsemicApp'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
+import AsemicParams from '../app/AsemicParams'
 
 function AsemicWrapper() {
   return (
@@ -17,7 +18,8 @@ let router = createBrowserRouter([
   {
     path: '/',
     Component: AsemicWrapper
-  }
+  },
+  { path: '/control', Component: AsemicParams }
 ])
 
 // Default source content - you can customize this initial content

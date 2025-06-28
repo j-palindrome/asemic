@@ -30,6 +30,7 @@ export const useSchema = () => {
 
         websocket.current.onerror = error => {
           console.error('WebSocket error:', error)
+
           setWsConnected(false)
         }
 
@@ -76,25 +77,28 @@ export const useSchema = () => {
     [websocket]
   )
 
-  const setParam = useCallback(
-    (param: string, value: number) => {
+  const setParams = useCallback(
+    (params: Record<string, number>) => {
       if (!schema) return
-      const newParams = {
-        ...schema.params,
-        [param]: {
+      const newParams = { ...schema.params }
+
+      Object.entries(params).forEach(([param, value]) => {
+        newParams[param] = {
           ...schema.params[param],
           value: Math.max(
             schema.params[param].min,
             Math.min(schema.params[param].max, value)
           )
         }
-      }
+      })
+
       const newSchema: InputSchema = { params: newParams }
       setSchema(newSchema)
-      sendWebSocketData({ params: pick(newSchema.params, [param]) })
+
+      sendWebSocketData(newSchema)
     },
     [schema, sendWebSocketData]
   )
 
-  return [schema, setParam] as const
+  return [schema, setParams] as const
 }

@@ -60,21 +60,20 @@ export default class ElRenderer<
     })
 
     const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const source = this.ctx.createMediaStreamSource(mic)
+    // const source = this.ctx.createMediaStreamSource(mic)
+    const oscillator = this.ctx.createOscillator()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(440, this.ctx.currentTime)
+    oscillator.start()
     const gainNode = this.ctx.createGain()
     gainNode.gain.value = 1
     const gainNode2 = this.ctx.createGain()
     gainNode2.gain.value = 1
-    source
+    oscillator
       .connect(gainNode)
       .connect(node)
       .connect(gainNode2)
       .connect(this.ctx.destination)
-    // const oscillator = this.ctx.createOscillator()
-    // oscillator.type = 'sine'
-    // oscillator.frequency.setValueAtTime(440, this.ctx.currentTime)
-    // oscillator.connect(gainNode2)
-    // oscillator.start()
   }
 
   constructor(

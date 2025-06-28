@@ -1,7 +1,7 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
-// import { ArgumentType, Client } from 'node-osc'
+import { io, Socket } from 'socket.io-client'
 import {
   Ellipsis,
   Info,
@@ -95,6 +95,7 @@ export default function AsemicApp({
     useEffect(() => {
       if (audio) {
         audioRenderer.current.start()
+
         audioRenderer.current.render([])
       } else {
         audioRenderer.current.stop()
@@ -104,20 +105,26 @@ export default function AsemicApp({
   }
   const [audio, setAudio, audioRenderer] = setupAudio()
   const setup = () => {
-    const wsRef = useRef<WebSocket | null>(null)
+    const socketRef = useRef<Socket | null>(null)
 
     useEffect(() => {
-      wsRef.current = new WebSocket(`ws://localhost:${WS_PORT}`)
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connected')
-      }
+      socketRef.current = io(`http://localhost:${WS_PORT}`)
+
+      socketRef.current.on('connect', () => {
+        console.log('Socket.IO connected')
+      })
+
+      socketRef.current.on('disconnect', () => {
+        console.log('Socket.IO disconnected')
+      })
+
       return () => {
-        if (wsRef.current) {
-          wsRef.current.close()
-          wsRef.current = null
+        if (socketRef.current) {
+          socketRef.current.disconnect()
+          socketRef.current = null
         }
       }
-    })
+    }, [])
 
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -143,7 +150,9 @@ export default function AsemicApp({
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
           if (!isUndefined(data.params)) {
-            inputSchema.parse({ params: data.params })
+            const { params } = inputSchema.parse({ params: data.params })
+
+            setParams({ params })
           }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
@@ -169,10 +178,9 @@ export default function AsemicApp({
           }
           if (!isUndefined(data.osc)) {
             data.osc.forEach(({ path, args }) => {
-              // Send OSC data via WebSocket instead of direct OSC client
-
-              if (!wsRef.current) return
-              wsRef.current.send(JSON.stringify({ address: path, args }))
+              // Send OSC data via Socket.IO instead of WebSocket
+              if (!socketRef.current) return
+              socketRef.current.emit('osc:message', { address: path, args })
             })
           }
           // if (!isUndefined(data.audio)) {
@@ -389,7 +397,7 @@ export default function AsemicApp({
     []
   )
 
-  const [sendWebSocketData, wsConnected] = useSchema()
+  const [schema, setParams] = useSchema()
 
   return (
     <div className='asemic-container'>

@@ -51,6 +51,8 @@
     "react-dom": "^19.1.0",
     "react-router": "^7.6.2",
     "simplex-noise": "^4.0.3",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.1.10",
     "test": "link:@types/playwright/test",
     "three": "^0.176.0",

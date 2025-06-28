@@ -149,11 +149,11 @@ export default function AsemicApp({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          if (!isUndefined(data.params)) {
-            const { params } = inputSchema.parse({ params: data.params })
+          // if (!isUndefined(data.params)) {
+          //   const { params } = inputSchema.parse({ params: data.params })
 
-            setParams({ params })
-          }
+          //   setParams({ params })
+          // }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
               ...settingsRef.current,

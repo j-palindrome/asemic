@@ -130,11 +130,11 @@ export class AsemicPt extends BasicPt {
       this[5] = inherit[5]
       this[6] = inherit[6]
     } else {
-      this[2] = this.parent.evalExpr(this.parent.transform.width)
-      this[3] = this.parent.evalExpr(this.parent.transform.h)
-      this[4] = this.parent.evalExpr(this.parent.transform.s)
-      this[5] = this.parent.evalExpr(this.parent.transform.l)
-      this[6] = this.parent.evalExpr(this.parent.transform.a)
+      this[2] = this.parent.evalExpr(this.parent.currentTransform.width)
+      this[3] = this.parent.evalExpr(this.parent.currentTransform.h)
+      this[4] = this.parent.evalExpr(this.parent.currentTransform.s)
+      this[5] = this.parent.evalExpr(this.parent.currentTransform.l)
+      this[6] = this.parent.evalExpr(this.parent.currentTransform.a)
     }
   }
 

@@ -1,0 +1,29 @@
+
+this
+.def('h', 'window')
+.def('test', '(param 1)')
+.def('scale', '.5')
+.def('spd', '.1')
+.def('shrink', '.9')
+.def('a', 'T_1#*1')
+.def('rpt', '20')
+.def('flame', 'T_.05#*10')
+.def('rotMag', '0.9+(.05)')
+.def('rotScale', '.1#')
+.def('lineWidth', '1')
+.font('trees', {
+  'q,w,e,r,t,y': () => this.pts('@.5<I+1/N>1*rotMag,1')
+  'a,s,d,f,g,h': () => this.pts('@.5*rotMag<I/N>0,1')
+  '\.': () => this.tra('@spd-.5*rotScale *shrink')
+  '\s': () => this.crv('0,0')
+  '\^': () => this.crv('0,0')
+})
+
+---
+this
+.font('trees')
+.tra('a=a w=lineWidth ! +.5,0*H *scale >')
+.repeat(
+  'rpt', 
+  () => this.tra('< > +(.1~-.5)*flame').crv('0,0').txt('gega')
+)

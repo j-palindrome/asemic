@@ -61,10 +61,10 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
       ready = true
       self.postMessage({
         lastTransform: {
-          translation: parser.transform.translation,
-          rotation: parser.transform.rotation,
-          scale: parser.transform.scale,
-          width: parser.evalExpr(parser.transform.width)
+          translation: parser.currentTransform.translation,
+          rotation: parser.currentTransform.rotation,
+          scale: parser.currentTransform.scale,
+          width: parser.evalExpr(parser.currentTransform.width)
         } as FlatTransform,
         ...parser.output
       } as AsemicDataBack)

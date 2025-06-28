@@ -114,11 +114,11 @@ describe('Point Parsing', () => {
   })
 
   test('should apply transforms to parsed points', () => {
-    parser.transform.scale = new Pt([2, 2])
+    parser.currentTransform.scale = new Pt([2, 2])
 
-    parser.transform.rotation = 0
+    parser.currentTransform.rotation = 0
 
-    parser.transform.translation = new Pt([1, 1])
+    parser.currentTransform.translation = new Pt([1, 1])
 
     // @ts-ignore
     const point = parser.parsePoint('0.5,0.5')
@@ -131,69 +131,69 @@ describe('Point Parsing', () => {
 describe('Transformation Parsing', () => {
   test('should parse scale transformations', () => {
     // @ts-ignore
-    parser.parseTransform('{*2,2}')
+    parser.tra('{*2,2}')
 
-    expect(parser.transform.scale[0]).toBe(2)
+    expect(parser.currentTransform.scale[0]).toBe(2)
 
-    expect(parser.transform.scale[1]).toBe(2)
+    expect(parser.currentTransform.scale[1]).toBe(2)
   })
 
   test('should parse rotation transformations', () => {
     // @ts-ignore
-    parser.parseTransform('{@0.25}') // 90 degrees
+    parser.tra('{@0.25}') // 90 degrees
 
-    expect(parser.transform.rotation).toBe(0.25)
+    expect(parser.currentTransform.rotation).toBe(0.25)
   })
 
   test('should parse translation transformations', () => {
     // @ts-ignore
-    parser.parseTransform('{+1,1}')
+    parser.tra('{+1,1}')
 
-    expect(parser.transform.translation[0]).toBe(1)
+    expect(parser.currentTransform.translation[0]).toBe(1)
 
-    expect(parser.transform.translation[1]).toBe(1)
+    expect(parser.currentTransform.translation[1]).toBe(1)
   })
 
   test('should handle transform reset', () => {
     // First set some transforms
     // @ts-ignore
 
-    parser.parseTransform('{*2,2}')
+    parser.tra('{*2,2}')
 
     // @ts-ignore
-    parser.parseTransform('{@0.25}')
+    parser.tra('{@0.25}')
 
     // @ts-ignore
-    parser.parseTransform('{+1,1}')
+    parser.tra('{+1,1}')
 
     // Then reset all
     // @ts-ignore
 
-    parser.parseTransform('{!}')
+    parser.tra('{!}')
 
-    expect(parser.transform.scale[0]).toBe(1)
+    expect(parser.currentTransform.scale[0]).toBe(1)
 
-    expect(parser.transform.scale[1]).toBe(1)
+    expect(parser.currentTransform.scale[1]).toBe(1)
 
-    expect(parser.transform.rotation).toBe(0)
+    expect(parser.currentTransform.rotation).toBe(0)
 
-    expect(parser.transform.translation[0]).toBe(0)
+    expect(parser.currentTransform.translation[0]).toBe(0)
 
-    expect(parser.transform.translation[1]).toBe(0)
+    expect(parser.currentTransform.translation[1]).toBe(0)
   })
 
   test('should handle transform stacking', () => {
     // @ts-ignore
-    parser.parseTransform('{>}') // Push current transform
+    parser.tra('{>}') // Push current transform
     // @ts-ignore
-    parser.parseTransform('{*2,2}') // Scale
+    parser.tra('{*2,2}') // Scale
 
-    expect(parser.transform.scale[0]).toBe(2)
+    expect(parser.currentTransform.scale[0]).toBe(2)
 
     // @ts-ignore
-    parser.parseTransform('{<}') // Pop back to previous transform
+    parser.tra('{<}') // Pop back to previous transform
 
-    expect(parser.transform.scale[0]).toBe(1)
+    expect(parser.currentTransform.scale[0]).toBe(1)
   })
 })
 

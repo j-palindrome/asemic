@@ -381,6 +381,7 @@ export class Parser {
       this.applyTransform(x, { relative: false })
     })
     this.currentCurve.push(...mappedCurve)
+    this.addCurve()
   }
 
   protected parseArgs(args: string[]) {
@@ -425,7 +426,6 @@ export class Parser {
   }
   tri(argsStr: string) {
     const args = this.tokenize(argsStr)
-    if (!this.adding) this.addCurve()
     const [start, end, h] = this.parseArgs(args)
     this.mapCurve(
       [new AsemicPt(this, 0.5, h * 2)],
@@ -437,7 +437,6 @@ export class Parser {
   }
   squ(argsStr: string) {
     const args = this.tokenize(argsStr)
-    if (!this.adding) this.addCurve()
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
       [new AsemicPt(this, 0, h), new AsemicPt(this, 1, h)],
@@ -449,7 +448,7 @@ export class Parser {
   }
   pen(argsStr: string) {
     const args = this.tokenize(argsStr)
-    if (!this.adding) this.addCurve()
+
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
       [
@@ -467,9 +466,9 @@ export class Parser {
     )
     return this
   }
+
   hex(argsStr: string) {
     const args = this.tokenize(argsStr)
-    if (!this.adding) this.addCurve()
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
       [
@@ -491,7 +490,6 @@ export class Parser {
   }
   cir(argsStr: string) {
     const args = this.tokenize(argsStr)
-    if (!this.adding) this.addCurve()
 
     const center = this.parsePoint(args[0])
     const [w, h] = this.evalPoint(args[1])
@@ -518,6 +516,7 @@ export class Parser {
         return x
       })
     )
+    this.addCurve()
     return this
   }
 
@@ -778,7 +777,7 @@ export class Parser {
     }
     if (this.currentTransform.add !== undefined && randomize) {
       point.add(
-        this.evalPoint(this.currentTransform.add)
+        this.parsePoint(this.currentTransform.add)
           .scale(this.currentTransform.scale)
           .rotate(this.currentTransform.rotation)
       )
@@ -809,7 +808,7 @@ export class Parser {
   // Parse point from string notation
   protected parsePoint(
     notation: string | number,
-    { save = true, randomize = true } = {}
+    { save = true, randomize = true, forceRelative = false } = {}
   ): AsemicPt {
     let prevCurve = this.curves[this.curves.length - 1]
     let point: AsemicPt
@@ -875,7 +874,7 @@ export class Parser {
         // Absolute coordinates: x,y
         point = this.applyTransform(
           new AsemicPt(this, ...this.evalPoint(notation)),
-          { relative: false, randomize }
+          { relative: forceRelative, randomize }
         )
       }
     }
@@ -1090,12 +1089,7 @@ export class Parser {
     this.crv(token)
   }
 
-  crv(token: string) {
-    if (!this.adding) {
-      this.addCurve()
-    } else {
-      this.adding = false
-    }
+  crv(token: string, { add = false } = {}) {
     const pointsTokens = this.tokenize(token)
 
     pointsTokens.forEach((pointToken, i) => {
@@ -1125,6 +1119,9 @@ export class Parser {
         }
       }
     })
+    if (!add) {
+      this.addCurve()
+    }
     return this
   }
 
@@ -1192,15 +1189,15 @@ export class Parser {
       }
     )
 
-    console.log('here')
-
     for (let i = 0; i < token.length; i++) {
       this.progress.letter = i / (token.length - 1)
       if (!font.characters[token[i]]) {
         continue
       }
-      // @ts-ignore
       ;(font.characters[token[i]] as any)(this)
+      if (font.characters['\\.']) {
+        ;(font.characters['\\.'] as any)(this)
+      }
     }
     return this
   }

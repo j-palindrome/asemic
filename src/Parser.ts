@@ -49,7 +49,7 @@ const defaultOutput = () =>
 export class Parser {
   rawSource = ''
   protected mode = 'normal' as 'normal' | 'blank'
-  protected adding = false
+  protected adding = 0
   protected debugged = new Map<string, { errors: string[] }>()
   protected curves: AsemicPt[][] = []
   protected settings = defaultSettings()
@@ -359,15 +359,18 @@ export class Parser {
     multiplyPoints: AsemicPt[],
     addPoints: AsemicPt[],
     start: AsemicPt,
-    end: AsemicPt
+    end: AsemicPt,
+    { add = false } = {}
   ) {
     const angle = end.clone().subtract(start).angle0to1()
     const distance = end.clone().subtract(start).magnitude()
 
+    const previousLength = this.adding
+    this.adding += multiplyPoints.length + 2
     const mappedCurve = [
       start,
       ...multiplyPoints.map((x, i) => {
-        this.progress.point = (i + 1) / (multiplyPoints.length + 1)
+        this.progress.point = (previousLength + 1 + i) / this.adding
         return x
           .clone()
           .scale([distance, 1])
@@ -381,7 +384,9 @@ export class Parser {
       this.applyTransform(x, { relative: false })
     })
     this.currentCurve.push(...mappedCurve)
-    this.addCurve()
+    if (!add) {
+      this.addCurve()
+    }
   }
 
   protected parseArgs(args: string[]) {
@@ -424,29 +429,31 @@ export class Parser {
     })
     return this
   }
-  tri(argsStr: string) {
+  tri(argsStr: string, { add = false } = {}) {
     const args = this.tokenize(argsStr)
     const [start, end, h] = this.parseArgs(args)
     this.mapCurve(
       [new AsemicPt(this, 0.5, h * 2)],
       [new AsemicPt(this, 0, 0)],
       start,
-      end
+      end,
+      { add }
     )
     return this
   }
-  squ(argsStr: string) {
+  squ(argsStr: string, { add = false } = {}) {
     const args = this.tokenize(argsStr)
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
       [new AsemicPt(this, 0, h), new AsemicPt(this, 1, h)],
       [new AsemicPt(this, -w, 0), new AsemicPt(this, w, 0)],
       start,
-      end
+      end,
+      { add }
     )
     return this
   }
-  pen(argsStr: string) {
+  pen(argsStr: string, { add = false } = {}) {
     const args = this.tokenize(argsStr)
 
     const [start, end, h, w] = this.parseArgs(args)
@@ -462,7 +469,8 @@ export class Parser {
         new AsemicPt(this, w * 2, 0)
       ],
       start,
-      end
+      end,
+      { add }
     )
     return this
   }
@@ -1075,6 +1083,7 @@ export class Parser {
     }
     this.currentCurve = []
     this.progress.point = 0
+    this.adding = 0
   }
 
   crvs(...tokens: string[]) {
@@ -1085,20 +1094,22 @@ export class Parser {
   }
 
   pts(token: string) {
-    this.adding = true
-    this.crv(token)
+    this.crv(token, { add: true })
   }
 
-  crv(token: string, { add = false } = {}) {
+  crv(token: string, { add = false }: { add?: boolean } = {}) {
     const pointsTokens = this.tokenize(token)
 
+    let totalLength =
+      pointsTokens.filter(x => !x.startsWith('{')).length - 1 || 1
+    this.adding += totalLength
     pointsTokens.forEach((pointToken, i) => {
       if (pointToken.startsWith('{')) {
         this.tra(pointToken)
         return
       } else {
         try {
-          this.progress.point = i / (pointsTokens.length - 1 || 1)
+          this.progress.point = i / this.adding
           const point = this.parsePoint(pointToken)
 
           this.currentCurve.push(point)

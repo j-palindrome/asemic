@@ -86,16 +86,12 @@ const wgslRequires = /*wgsl*/ `
 
 const calcPosition = /*wgsl*/ `
   const VERTEXCOUNT = 100.;
-  // Problem 1: The calculation below assumes a fixed number of vertices per curve
-  // When you have many vertices, vertex_index gets very large and the division/modulo operations become imprecise
   let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
   let single_curve_progress = min(fract(progress), 0.9999);
-  // Problem 2: When floor(progress) exceeds the number of curves, you get out-of-bounds access
   let point_progress = floor(progress) + single_curve_progress;
   let side = vertex_index % 2u > 0;
-  let curve = u32(progress);  // This can exceed your curve count with large vertex_index values
-  
-  // Problem 3: When curve is out of bounds, this will wrap around due to unsigned integer behavior
+  let curve = u32(progress);
+
   let curve_length = curve_starts[curve + 1] - curve_starts[curve];
   let start_at_point = curve_starts[curve] 
     + u32(fract(point_progress) * f32(curve_length - 2));
@@ -111,7 +107,6 @@ const calcPosition = /*wgsl*/ `
     (vertices[start_at_point + 1] + vertices[start_at_point + 2]) / 2.,
     start_at_point < curve_starts[curve] + curve_length - 3));
   
-  // Get the widths at the corresponding points
   let width0 = select(
     widths[start_at_point], 
     (widths[start_at_point] + widths[start_at_point + 1]) / 2., 
@@ -122,16 +117,29 @@ const calcPosition = /*wgsl*/ `
     (widths[start_at_point + 1] + widths[start_at_point + 2]) / 2.,
     start_at_point < curve_starts[curve] + curve_length - 3);
   
-  // Interpolate width using the same Bezier curve formula
   var width = select(
     mix(width0, width1, t * 2), 
     mix(width1, width2, (t - 0.5) * 2), 
     t > 0.5);
-  width /= canvas_dimensions.x / 2; // Normalize width to canvas dimensions
-  
+  width /= canvas_dimensions.x / 2;
+
   let bezier_position = normalCoords(bezierCurve(t, p0, p1, p2, side, width));
   let uv = vec2<f32>(single_curve_progress, select(0., 1., side));
-  let color = colors[start_at_point];
+
+  // Lerp color with the next color
+  let color0 = select(
+    colors[start_at_point], 
+    (colors[start_at_point] + colors[start_at_point + 1]) / 2., 
+    start_at_point > curve_starts[curve]);
+  let color1 = colors[start_at_point + 1];
+  let color2 = select(
+    colors[start_at_point + 2],
+    (colors[start_at_point + 1] + colors[start_at_point + 2]) / 2.,
+    start_at_point < curve_starts[curve] + curve_length - 3);
+  let color = select(
+    mix(color0, color1, t * 2), 
+    mix(color1, color2, (t - 0.5) * 2), 
+    t > 0.5);
   `
 
 export default class WebGPURenderer extends AsemicVisual {

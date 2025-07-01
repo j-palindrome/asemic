@@ -25,7 +25,7 @@ export const useSchema = () => {
           console.log('WebSocket disconnected')
           setWsConnected(false)
           // Attempt to reconnect after 3 seconds
-          setTimeout(connectWebSocket, 3000)
+          // setTimeout(connectWebSocket, 3000)
         }
 
         websocket.current.onerror = error => {

@@ -2,20 +2,43 @@ import { escapeRegExp } from 'lodash'
 import { Parser } from './types'
 
 export class AsemicFont {
-  characters: Record<string, (p: Parser) => void> = {}
+  parser: Parser
+  characters: Record<
+    string,
+    (p: Parser, info?: { i: number; n: number }) => void
+  > = {}
   protected defaultCharacters: AsemicFont['characters'] = {}
   protected defaultDynamicCharacters: AsemicFont['characters'] = {}
   dynamicCharacters: AsemicFont['characters'] = {}
+
   reset() {
     this.characters = { ...this.defaultCharacters }
     this.dynamicCharacters = { ...this.defaultDynamicCharacters }
   }
+
   resetCharacter(char: string) {
     this.characters[char] = this.defaultCharacters[char]
     this.dynamicCharacters[char] = this.defaultDynamicCharacters[char]
   }
-  constructor(characters: Record<string, (p: Parser) => void>) {
-    this.characters = characters
+
+  parseCharacters(chars: AsemicFont['characters']) {
+    for (let name of Object.keys(chars)) {
+      if (name.includes(',')) {
+        const multipleChars = name.split(',')
+        const countNum = multipleChars.length
+        for (let j = 0; j < countNum; j++) {
+          this.characters[multipleChars[j]] = (p: Parser) => {
+            chars[name](p, { i: j, n: multipleChars.length })
+          }
+        }
+      } else {
+        this.characters[name] = chars[name]
+      }
+    }
+  }
+
+  constructor(characters: AsemicFont['characters']) {
+    this.parseCharacters(characters)
     this.defaultCharacters = { ...this.characters }
     this.defaultDynamicCharacters = { ...this.dynamicCharacters }
   }
@@ -29,7 +52,7 @@ export class DefaultFont extends AsemicFont {
       c: p => p.pen('1,-.8 +0,.6 1,.2'),
       d: p => p.crv('1,-2 1,0').squ('1,-1 1,0 1'),
       e: p => p.hex('1,-.7 @1/4,.4 1,.3').crv('<0 <.5'),
-      f: p =>
+      f: (p: Parser) =>
         p
           .tra('+.25,0')
           .squ('1,-1.5 +-1,0 .5')
@@ -38,9 +61,9 @@ export class DefaultFont extends AsemicFont {
           .crv('0,-1 @0,.5'),
       g: p => p.cir('.5,-.5 .5,.5').crv('1,-.5').tri('@1/4,1 +-1,0 -.5'),
       h: p => p.crv('0,0 0,-2').crv('0,-.8 1,-1 1,0'),
-      i: p =>
+      i: (p: Parser) =>
         p.tra('+0.5,0').crv('0,0 +0,-1').cir('0,-1.5 .25,.25').tra('+-.5,0'),
-      j: p =>
+      j: (p: Parser) =>
         p
           .tra('+.5,0')
           .crv('0,-1')
@@ -48,8 +71,9 @@ export class DefaultFont extends AsemicFont {
           .cir('0,-1.5 .25,.25')
           .tra('+-.5,0'),
       k: p => p.crv('0,0 @-1/4,2').crv('0,-1 1,0').crv('0,-1 @-1/8,.5'),
-      l: p => p.tra('+0.5,0').crv('0,-2').tri('0,-.2 @0,.3 .2').tra('+-0.5,0'),
-      m: p =>
+      l: (p: Parser) =>
+        p.tra('+0.5,0').crv('0,-2').tri('0,-.2 @0,.3 .2').tra('+-0.5,0'),
+      m: (p: Parser) =>
         p
           .crv('0,0 0,-1')
           .tri('<.8 @0,.5 -0.2')
@@ -66,7 +90,7 @@ export class DefaultFont extends AsemicFont {
       u: p => p.squ('0,-1 1,-1 1,0'),
       '.': p => p.cir('0,0 .1,.1'),
       v: p => p.crv('0,-1 .5,0').crv('.5,0 1,-1'),
-      w: p =>
+      w: (p: Parser) =>
         p
           .tra('*0.5,1')
           .crv('0,-1 .5,0')
@@ -82,7 +106,7 @@ export class DefaultFont extends AsemicFont {
       B: p => p.crv('0,0 0,-2').squ('+0,0 +0,1 -.8').squ('+0,0 +0,1 -1'),
       C: p => p.pen('1,-1.7 1,-0.3 1,.3'),
       D: p => p.crv('0,0 0,-2').squ('+0,0 +0,2 -1'),
-      E: p =>
+      E: (p: Parser) =>
         p.crv('0,0 0,-2').crv('+0,0 +1,0').crv('0,-1 +.5,0').crv('0,0 +.9,0'),
       F: p => p.crv('0,0 0,-2').crv('+0,0 +1,0').crv('0,-1 +.5,0'),
       G: p => p.crv('1,-1.7 1,-2 0,-2 0,0 1,0 1,-1').crv('+0,0 +-.5,0'),
@@ -91,7 +115,7 @@ export class DefaultFont extends AsemicFont {
       J: p => p.crv('1,-2 1,0 0,0 0,-1').crv('<0 +-.5,0'),
       K: p => p.crv('0,0 0,-2').crv('0,-1 @-1/8,.75').crv('0,-1 1,0'),
       L: p => p.crv('0,0 0,-2').crv('0,0 1,0'),
-      M: p =>
+      M: (p: Parser) =>
         p.crv('0,0 0,-2').crv('+0,0 +.5,1').crv('+0,0 +.5,-1').crv('+0,0 1,0'),
       N: p => p.crv('0,0 0,-2').crv('+0,0 1,0').crv('+0,0 +0,-2'),
       O: p => p.cir('.5,-1 .5,1'),

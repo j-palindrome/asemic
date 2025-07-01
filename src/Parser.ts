@@ -6,6 +6,7 @@ import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp, stripComments } from './utils'
 import { AsemicData, Transform } from './types'
 import { InputSchema } from './server/constants'
+import { log } from 'console'
 
 const TransformAliases = {
   scale: ['\\*', 'sca', 'scale'],
@@ -44,9 +45,6 @@ const defaultOutput = () =>
     eval: string[]
     params: InputSchema['params']
   })
-
-const defaultFonts = () =>
-  ({ default: new DefaultFont() } as Record<string, AsemicFont>)
 
 export class Parser {
   rawSource = ''
@@ -90,79 +88,26 @@ export class Parser {
   }
   protected constants: Record<
     string,
-    (args: string[], parser: this) => string | void
+    ((args: string[]) => number) | (() => number)
   > = {
-    N: () => this.progress.countNum.toString(),
-    I: () => this.progress.index.toString(),
-    T: () => this.progress.time.toFixed(5),
+    N: () => this.progress.countNum,
+    I: () => this.progress.index,
+    T: () => this.progress.time,
     H: () => {
       const height = this.preProcessing.height / this.preProcessing.width
-      return height.toFixed(5)
+      return height
     },
-    Sc: () => this.progress.scrub.toFixed(5),
-    S: () => this.progress.scrubTime.toFixed(5),
-    P: () => this.progress.point.toString(),
-    C: () => this.progress.curve.toString(),
-    L: () => this.progress.letter.toString(),
+    Sc: () => this.progress.scrub,
+    S: () => this.progress.scrubTime,
+    P: () => this.progress.point,
+    C: () => this.progress.curve,
+    L: () => this.progress.letter,
     px: () => {
       const pixels = this.preProcessing.width
-      return (1 / pixels).toFixed(5)
+      return 1 / pixels
     },
-    log: args => {
-      const slice = Number(args[0] || '0')
-      const text = this.debug(slice)
-      if (text.length > 0) this.error(text)
-      else this.error('[empty]')
-    },
-    print: () => {
-      const text = `text:\n${this.live.text.join(
-        '\n'
-      )}\n\nkeys:${this.live.keys.join('\n')}\n\ntransform:\n${JSON.stringify(
-        this.currentTransform
-      )}`
-      this.error(text)
-    },
-    keys: args => {
-      this.txt(this.live.keys[args[0] ? parseInt(args[0]) : 0] ?? '')
-    },
-    text: args => {
-      this.txt(this.live.text[args[0] ? parseInt(args[0]) : 0] ?? '')
-    },
-    // within: args => {
-    //   const point0 = this.parsePoint(args[0])
-    //   const point1 = this.parsePoint(args[1])
-    //   const rest = args.slice(2).join(' ')
-    //   const withinStart = this.curves.length
 
-    //   this.parse(rest)
-
-    //   // Calculate bounds manually from all curve points
-    //   let minX = Infinity,
-    //     minY = Infinity,
-    //     maxX = -Infinity,
-    //     maxY = -Infinity
-    //   this.curves.slice(withinStart).forEach(curve => {
-    //     curve.forEach(point => {
-    //       minX = Math.min(minX, point.x)
-    //       minY = Math.min(minY, point.y)
-    //       maxX = Math.max(maxX, point.x)
-    //       maxY = Math.max(maxY, point.y)
-    //     })
-    //   })
-
-    //   // Calculate scaling factor based on aspect ratio
-    //   const scaleX = (point1.x - point0.x) / (maxX - minX)
-    //   const scaleY = (point1.y - point0.y) / (maxY - minY)
-    //   const scale = Math.min(scaleX, scaleY)
-    //   this.curves.slice(withinStart).forEach(curve => {
-    //     curve.forEach(point =>
-    //       point.add([-minX, -minY]).scale([scale, scale]).add(point0)
-    //     )
-    //   })
-    // },
-
-    sin: ([x]) =>
-      (Math.sin(this.evalExpr(x, false) * Math.PI * 2) * 0.5 + 0.5).toFixed(4),
+    sin: ([x]) => Math.sin(this.evalExpr(x, false) * Math.PI * 2) * 0.5 + 0.5,
     acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
         this.progress.accums.push(0)
@@ -171,7 +116,7 @@ export class Parser {
       this.progress.accums[this.progress.accumIndex] += value / 60
       const currentAccum = this.progress.accums[this.progress.accumIndex]
       this.progress.accumIndex++
-      return currentAccum.toFixed(4)
+      return currentAccum
     },
     param: ([paramName, defaultValue, max, min]) => {
       if (!this.params[paramName]) {
@@ -183,11 +128,13 @@ export class Parser {
         }
         this.output.params[paramName] = this.params[paramName]
       }
-      return this.params[paramName].value.toFixed(4)
+      return this.params[paramName].value
     }
   }
   protected reservedConstants = Object.keys(this.constants)
-  protected fonts: Record<string, AsemicFont> = defaultFonts()
+  protected fonts: Record<string, AsemicFont> = {
+    default: new DefaultFont()
+  }
   protected currentFont = 'default'
   protected lastPoint: AsemicPt = new AsemicPt(this, 0, 0)
   protected noiseTable: ((x: number, y: number) => number)[] = []
@@ -259,7 +206,7 @@ export class Parser {
     }
   }
 
-  repeat(count: Expr, callback: (p: this) => void) {
+  rpt(count: Expr, callback: (p: this) => void) {
     const countNum = this.evalExpr(count)
 
     const prevIndex = this.progress.index
@@ -271,6 +218,7 @@ export class Parser {
     }
     this.progress.index = prevIndex
     this.progress.countNum = prevCountNum
+    return this
   }
 
   draw() {
@@ -325,7 +273,7 @@ export class Parser {
   protected toCallback(source: string) {
     return eval(`() => {
       ${source}
-    }`)
+    }`).bind(this)
   }
 
   setup(source: string) {
@@ -335,7 +283,7 @@ export class Parser {
     //     this.preProcessing.replacements[replacement]
     //   )
     // }
-    this.fonts = defaultFonts()
+    this.fonts = { default: new DefaultFont() }
     this.params = {} as InputSchema['params']
     const parseSetting = (token: string) => {
       if (!token) return
@@ -455,7 +403,8 @@ export class Parser {
     return [startPoint, endPoint, h, w] as [AsemicPt, AsemicPt, number, number]
   }
 
-  osc(args) {
+  osc(argsStr: string) {
+    const args = this.tokenize(argsStr)
     const [path, ...messages] = args
     this.output.osc.push({
       path,
@@ -474,7 +423,8 @@ export class Parser {
     })
     return this
   }
-  tri(args) {
+  tri(argsStr: string) {
+    const args = this.tokenize(argsStr)
     if (!this.adding) this.addCurve()
     const [start, end, h] = this.parseArgs(args)
     this.mapCurve(
@@ -485,7 +435,8 @@ export class Parser {
     )
     return this
   }
-  squ(args) {
+  squ(argsStr: string) {
+    const args = this.tokenize(argsStr)
     if (!this.adding) this.addCurve()
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
@@ -496,7 +447,8 @@ export class Parser {
     )
     return this
   }
-  pen(args) {
+  pen(argsStr: string) {
+    const args = this.tokenize(argsStr)
     if (!this.adding) this.addCurve()
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
@@ -515,7 +467,8 @@ export class Parser {
     )
     return this
   }
-  hex(args) {
+  hex(argsStr: string) {
+    const args = this.tokenize(argsStr)
     if (!this.adding) this.addCurve()
     const [start, end, h, w] = this.parseArgs(args)
     this.mapCurve(
@@ -536,7 +489,8 @@ export class Parser {
     )
     return this
   }
-  cir(args) {
+  cir(argsStr: string) {
+    const args = this.tokenize(argsStr)
     if (!this.adding) this.addCurve()
 
     const center = this.parsePoint(args[0])
@@ -592,7 +546,7 @@ export class Parser {
 
         return this.evalExpr(
           expr.substring(0, start) +
-            this.evalExpr(expr.substring(start + 1, end)) +
+            this.evalExpr(expr.substring(start + 1, end)).toFixed(4) +
             expr.substring(end + 1)
         )
       }
@@ -612,9 +566,9 @@ export class Parser {
       }
 
       const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
+
       if (functionCall && this.constants[functionCall]) {
-        const exprEval = this.evalFunction(expr)
-        if (exprEval) return this.evalExpr(exprEval, false)
+        return this.constants[functionCall]([])
       }
 
       if (expr.includes('<')) {
@@ -854,72 +808,78 @@ export class Parser {
 
   // Parse point from string notation
   protected parsePoint(
-    notation: string,
+    notation: string | number,
     { save = true, randomize = true } = {}
   ): AsemicPt {
     let prevCurve = this.curves[this.curves.length - 1]
-
-    notation = notation.trim()
-
     let point: AsemicPt
-    // Intersection point syntax: <p
-    if (notation.startsWith('<')) {
-      let count = 0
-      while (notation.startsWith('<')) {
-        notation = notation.substring(1)
-        count++
-      }
-      prevCurve = this.curves[this.curves.length - count]
-      if (!prevCurve || prevCurve.length < 2) {
-        throw new Error('Intersection requires a previous curve')
-      }
-
-      let p = this.evalExpr(notation)
-      const idx = Math.floor(p * (prevCurve.length - 1))
-      const frac = p * (prevCurve.length - 1) - idx
-
-      if (idx >= prevCurve.length - 1) {
-        return prevCurve[prevCurve.length - 1] as AsemicPt
-      }
-
-      const p1 = prevCurve[idx]
-      const p2 = prevCurve[idx + 1]
-
-      point = new AsemicPt(
-        this,
-        p1[0] + (p2[0] - p1[0]) * frac,
-        p1[1] + (p2[1] - p1[1]) * frac
-      )
-    }
-
-    // Polar coordinates: @t,r
-    else if (notation.startsWith('@')) {
-      const [theta, radius] = this.evalPoint(notation.substring(1), {
-        defaultValue: false
-      })
-
-      point = this.applyTransform(new AsemicPt(this, radius, 0).rotate(theta), {
-        relative: true,
-        randomize
-      })
-    }
-
-    // Relative coordinates: +x,y
-    else if (notation.startsWith('+')) {
-      point = this.applyTransform(
-        this.evalPoint(notation.substring(1), { basic: false }),
-        {
-          relative: true,
-          randomize
-        }
-      )
+    if (typeof notation === 'number') {
+      point = new AsemicPt(this, notation, notation)
     } else {
-      // Absolute coordinates: x,y
-      point = this.applyTransform(
-        new AsemicPt(this, ...this.evalPoint(notation)),
-        { relative: false, randomize }
-      )
+      notation = notation.trim()
+      // Intersection point syntax: <p
+      if (notation.startsWith('<')) {
+        let count = 0
+        while (notation.startsWith('<')) {
+          notation = notation.substring(1)
+          count++
+        }
+        prevCurve = this.curves[this.curves.length - count]
+        if (!prevCurve || prevCurve.length < 2) {
+          throw new Error('Intersection requires a previous curve')
+        }
+
+        let p = this.evalExpr(notation)
+        const idx = Math.floor(p * (prevCurve.length - 1))
+        const frac = p * (prevCurve.length - 1) - idx
+
+        if (idx >= prevCurve.length - 1) {
+          return prevCurve[prevCurve.length - 1] as AsemicPt
+        }
+
+        const p1 = prevCurve[idx]
+        const p2 = prevCurve[idx + 1]
+
+        point = new AsemicPt(
+          this,
+          p1[0] + (p2[0] - p1[0]) * frac,
+          p1[1] + (p2[1] - p1[1]) * frac
+        )
+      }
+
+      // Polar coordinates: @t,r
+      else if (notation.startsWith('@')) {
+        const [theta, radius] = this.evalPoint(notation.substring(1), {
+          defaultValue: false
+        })
+
+        point = this.applyTransform(
+          new AsemicPt(this, radius, 0).rotate(theta),
+          {
+            relative: true,
+            randomize
+          }
+        )
+      }
+
+      // Relative coordinates: +x,y
+      else if (notation.startsWith('+')) {
+        point = this.applyTransform(
+          this.evalPoint(notation.substring(1), { basic: false }),
+          {
+            relative: true,
+            randomize
+          }
+        )
+      } else {
+        // Absolute coordinates: x,y
+        point = this.applyTransform(
+          new AsemicPt(this, ...this.evalPoint(notation)),
+          { relative: false, randomize }
+        )
+      }
     }
+
     if (save) this.lastPoint = point
     return point
   }
@@ -945,7 +905,6 @@ export class Parser {
 
   tra(token: string) {
     token = token.trim()
-    token = token.substring(1, token.length - 1)
     const transforms = this.tokenize(token)
 
     transforms.forEach(transform => {
@@ -1103,39 +1062,6 @@ export class Parser {
     return tokens
   }
 
-  protected evalFunction(token: string) {
-    const functionCall = token.includes(' ')
-      ? token.match(/^([a-zA-Z0-9]+)\s(.*)/)
-      : ['', token, '']
-
-    if (functionCall) {
-      const functionName = functionCall[1]
-      const argsStr = functionCall[2]
-
-      // Parse function arguments
-      if (!this.constants[functionName]) {
-        return
-        throw new Error(`Unknown function: ${functionName}`)
-      }
-
-      const args = this.tokenize(argsStr)
-
-      let funcText = this.constants[functionName](args, this)
-
-      if (typeof funcText === 'string') {
-        for (let i = 0; i < args.length; i++) {
-          funcText = funcText.replace(
-            new RegExp(`\\$${i + 1}`, 'g'),
-            `(${args[i]})`
-          )
-        }
-        return funcText
-      }
-    } else {
-      throw new Error(`Failed to match function name`)
-    }
-  }
-
   protected addCurve() {
     if (this.currentCurve.length === 0) return
     if (this.currentCurve.length === 2) {
@@ -1189,7 +1115,7 @@ export class Parser {
               new RegExp(`^\\(?${x}`).test(pointToken)
             )
           ) {
-            const evaled = this.evalFunction(pointToken)
+            const evaled = this.evalExpr(pointToken)
             if (evaled) {
               this.currentCurve.push(this.parsePoint(evaled))
             } else {
@@ -1213,21 +1139,26 @@ export class Parser {
     callbacks[divisions - 1](this)
   }
 
-  def(key: string, cb: (args: string[], p: this) => void) {
+  def(key: string, definition: string) {
     if (this.reservedConstants.includes(key)) {
       throw new Error(`Reserved constant: ${key}`)
     }
 
-    this.constants[key] = cb
+    this.constants[key] = () => this.evalExpr(definition)
+
     return this
   }
 
-  fnt(name: string, chars: AsemicFont['characters']) {
-    if (!this.fonts[name]) {
-      this.fonts[name] = new AsemicFont(chars)
-    } else {
-      Object.assign(this.fonts[name].characters, chars)
+  fnt(name: string, chars?: AsemicFont['characters']) {
+    this.currentFont = name
+    if (chars) {
+      if (!this.fonts[name]) {
+        this.fonts[name] = new AsemicFont(chars as any)
+      } else {
+        this.fonts[name].parseCharacters(chars)
+      }
     }
+
     return this
   }
 
@@ -1237,10 +1168,10 @@ export class Parser {
   }
 
   txt(token: string) {
-    const formatSpace = (insert?: string) => {
-      if (insert) return ` ${insert} `
-      return ' '
-    }
+    // const formatSpace = (insert?: string) => {
+    //   if (insert) return ` ${insert} `
+    //   return ' '
+    // }
     const font = this.fonts[this.currentFont]
     // Randomly select one character from each set of brackets for the text
     token = token.replace(
@@ -1261,36 +1192,15 @@ export class Parser {
       }
     )
 
-    // const chars = [
-    //   !this.adding ? formatSpace(font.characters['\\^']) : undefined,
-    //   token
-    //     .split('')
-    //     .map(x =>
-    //       x === '\n'
-    //         ? [
-    //             font.dynamicCharacters['\n'] ? '{<}' : undefined,
-    //             font.characters['\n'],
-    //             font.dynamicCharacters['\n']
-    //               ? '{>} ' + font.dynamicCharacters['\n']
-    //               : undefined
-    //           ]
-    //         : [
-    //             font.dynamicCharacters['\\.']
-    //               ? '{>} ' + font.dynamicCharacters['\\.']
-    //               : undefined,
-    //             font.characters[x],
-    //             font.dynamicCharacters['\\.'] ? '{<}' : undefined,
-    //             formatSpace(font.characters['\\.'])
-    //           ]
-    //     ),
-    //   formatSpace(font.characters['\\$'])
-    // ]
-    //   .flat(2)
-    //   .filter(Boolean) as string[]
+    console.log('here')
 
     for (let i = 0; i < token.length; i++) {
       this.progress.letter = i / (token.length - 1)
-      this.fonts[this.currentFont].characters[i](this)
+      if (!font.characters[token[i]]) {
+        continue
+      }
+      // @ts-ignore
+      ;(font.characters[token[i]] as any)(this)
     }
     return this
   }

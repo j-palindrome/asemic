@@ -13,6 +13,7 @@ export type AsemicData = {
     index: { type: 'keys' | 'text'; value: number }
   }
   play?: boolean | { scene: number }
+  scrub?: number
   offscreenCanvas?: OffscreenCanvas
 }
 export type AsemicDataBack = {
@@ -20,6 +21,8 @@ export type AsemicDataBack = {
   lastTransform?: FlatTransform
   ready?: boolean
   frameReady?: boolean
+  totalLength?: number
+  progress?: number
 } & Partial<Parser['output']>
 
 export type Transform = {

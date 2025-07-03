@@ -84,6 +84,29 @@ export default function AsemicApp({
   const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
 
+  const useProgress = () => {
+    const [progress, setProgress] = useState(0)
+    const [totalLength, setTotalLength] = useState(0)
+    const [isDragging, setIsDragging] = useState(false)
+
+    return [
+      progress,
+      setProgress,
+      totalLength,
+      setTotalLength,
+      isDragging,
+      setIsDragging
+    ] as const
+  }
+  const [
+    progress,
+    setProgress,
+    totalLength,
+    setTotalLength,
+    isDragging,
+    setIsDragging
+  ] = useProgress()
+
   const setupAudio = () => {
     // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
     const audioRenderer = useRef(
@@ -320,6 +343,12 @@ export default function AsemicApp({
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
+          if (!isUndefined(data.progress) && !isDragging) {
+            setProgress(data.progress)
+          }
+          if (!isUndefined(data.totalLength)) {
+            setTotalLength(data.totalLength)
+          }
         })
       }
 
@@ -410,36 +439,48 @@ export default function AsemicApp({
             }
             return
           }
-          const keyMatch = ev.code.match(/\d/)
-          if (keyMatch && keyMatch[0] !== '0') {
-            if (ev.altKey) {
-              const key = parseInt(keyMatch[0]) - 1
-
-              const newKeys = [...live.keys]
-              if (live.keys.length < key) {
-                for (let i = 0; i <= key - live.keys.length; i++) {
-                  newKeys.push('')
-                }
-              }
-              setLive({
-                ...live,
-                keys: newKeys,
-                index: { type: 'keys', value: key }
-              })
-            } else {
-              const key = parseInt(keyMatch[0]) - 1
-              const newTexts = [...live.text]
-              if (live.text.length < key) {
-                for (let i = 0; i <= key - live.text.length; i++) {
-                  newTexts.push('')
-                }
-              }
-              setLive({
-                ...live,
-                text: newTexts,
-                index: { type: 'text', value: key }
-              })
+          // Scrubber keyboard controls
+          if (ev.key === 'ArrowLeft' && totalLength > 0) {
+            ev.preventDefault()
+            const newProgress = Math.max(0, progress - 0.1)
+            setProgress(newProgress)
+            if (asemic.current) {
+              asemic.current.postMessage({
+                scrub: newProgress
+              } as AsemicData)
             }
+            return
+          }
+          if (ev.key === 'ArrowRight' && totalLength > 0) {
+            ev.preventDefault()
+            const newProgress = Math.min(totalLength, progress + 0.1)
+            setProgress(newProgress)
+            if (asemic.current) {
+              asemic.current.postMessage({
+                scrub: newProgress
+              } as AsemicData)
+            }
+            return
+          }
+          if (ev.key === 'Home' && totalLength > 0) {
+            ev.preventDefault()
+            setProgress(0)
+            if (asemic.current) {
+              asemic.current.postMessage({
+                scrub: 0
+              } as AsemicData)
+            }
+            return
+          }
+          if (ev.key === 'End' && totalLength > 0) {
+            ev.preventDefault()
+            setProgress(totalLength)
+            if (asemic.current) {
+              asemic.current.postMessage({
+                scrub: totalLength
+              } as AsemicData)
+            }
+            return
           }
         } else {
           switch (live.index.type) {
@@ -695,6 +736,48 @@ export default function AsemicApp({
                 }
               </button>
             </div>
+
+            {/* Progress Scrubber */}
+            {!perform && totalLength > 0 && (
+              <div className='w-full flex items-center gap-2 px-2 py-1 bg-black bg-opacity-50'>
+                <span className='text-xs text-white opacity-70 font-mono min-w-[60px]'>
+                  {progress.toFixed(2)}s
+                </span>
+                <div className='flex-1 relative h-6 flex items-center'>
+                  <input
+                    type='range'
+                    min={0}
+                    max={totalLength}
+                    step={0.01}
+                    value={progress}
+                    onChange={e => {
+                      const newProgress = parseFloat(e.target.value)
+                      setProgress(newProgress)
+                      if (asemic.current) {
+                        asemic.current.postMessage({
+                          scrub: newProgress
+                        } as AsemicData)
+                      }
+                    }}
+                    onMouseDown={() => setIsDragging(true)}
+                    onMouseUp={() => setIsDragging(false)}
+                    onTouchStart={() => setIsDragging(true)}
+                    onTouchEnd={() => setIsDragging(false)}
+                    className='w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider'
+                    style={{
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${
+                        (progress / totalLength) * 100
+                      }%, #4b5563 ${
+                        (progress / totalLength) * 100
+                      }%, #4b5563 100%)`
+                    }}
+                  />
+                </div>
+                <span className='text-xs text-white opacity-70 font-mono min-w-[60px] text-right'>
+                  {totalLength.toFixed(2)}s
+                </span>
+              </div>
+            )}
 
             <div className='flex h-full w-full relative *:flex-none'>
               <textarea

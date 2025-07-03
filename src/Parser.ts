@@ -206,6 +206,25 @@ export class Parser {
     }
   }
 
+  scrub(progress: number) {
+    // Clamp progress to valid range
+    progress = Math.max(0, Math.min(progress, this.totalLength))
+
+    // Reset and set the progress directly
+    this.reset()
+    this.progress.progress = progress
+
+    // Clear any pause states when scrubbing
+    this.pauseAt = false
+    this.pausedAt = []
+
+    return this
+  }
+
+  get duration() {
+    return this.totalLength
+  }
+
   rpt(count: Expr, callback: (p: this) => void) {
     const countNum = this.evalExpr(count)
 

@@ -41,6 +41,23 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     parser.play(ev.data.play)
     self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
   }
+  if (!isUndefined(ev.data.scrub)) {
+    parser.scrub(ev.data.scrub)
+    // Render once to show the scrubbed position
+    parser.draw()
+    renderer.render(parser.curves)
+    self.postMessage({
+      lastTransform: {
+        translation: parser.currentTransform.translation,
+        rotation: parser.currentTransform.rotation,
+        scale: parser.currentTransform.scale,
+        width: parser.evalExpr(parser.currentTransform.width)
+      } as FlatTransform,
+      progress: parser.progress.progress,
+      totalLength: parser.duration,
+      ...parser.output
+    } as AsemicDataBack)
+  }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
       cancelAnimationFrame(animationFrame)
@@ -66,6 +83,8 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
           scale: parser.currentTransform.scale,
           width: parser.evalExpr(parser.currentTransform.width)
         } as FlatTransform,
+        progress: parser.progress.progress,
+        totalLength: parser.duration,
         ...parser.output
       } as AsemicDataBack)
 

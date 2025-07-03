@@ -194,7 +194,11 @@ export class Parser {
         for (let i = 0; i < play.scene; i++) {
           // parse each scene until now to get OSC messages
           this.mode = 'blank'
-          this.scenes[i].callback(this)
+          try {
+            this.scenes[i].callback(this)
+          } catch (e) {
+            this.output.errors.push(`Error in scene ${i}: ${e.message}`)
+          }
         }
         this.mode = 'normal'
         this.progress.progress =
@@ -279,7 +283,7 @@ export class Parser {
         return str
       }
     }
-    return this.curves
+    const c = this.curves
       .concat([this.currentCurve])
       .slice(slice)
       .map(
@@ -287,12 +291,14 @@ export class Parser {
           `[${curve.map(x => `${toFixed(x[0])},${toFixed(x[1])}`).join(' ')}]`
       )
       .join('\n')
+    this.output.errors.push(c)
+    return c
   }
 
   protected toCallback(source: string) {
     return eval(`() => {
-      ${source}
-    }`).bind(this)
+        ${source}
+      }`).bind(this)
   }
 
   setup(source: string) {
@@ -329,7 +335,11 @@ export class Parser {
       parseSetting(token.trim())
     }
     if (settingsSource && settingsSource.trim().length > 0) {
-      this.toCallback(settingsSource)()
+      try {
+        this.toCallback(settingsSource)()
+      } catch (e) {
+        this.output.errors.push('Error in settings: ' + e.message)
+      }
     }
 
     const scenes: Parser['scenes'] = []

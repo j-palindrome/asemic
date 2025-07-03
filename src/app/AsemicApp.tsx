@@ -107,6 +107,15 @@ export default function AsemicApp({
     setIsDragging
   ] = useProgress()
 
+  const scrubberRef = useRef<HTMLInputElement>(null)
+
+  // Update scrubber value when progress changes
+  useEffect(() => {
+    if (scrubberRef.current && !isDragging) {
+      scrubberRef.current.value = progress.toString()
+    }
+  }, [progress, isDragging])
+
   const setupAudio = () => {
     // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
     const audioRenderer = useRef(
@@ -739,43 +748,95 @@ export default function AsemicApp({
 
             {/* Progress Scrubber */}
             {!perform && totalLength > 0 && (
-              <div className='w-full flex items-center gap-2 px-2 py-1 bg-black bg-opacity-50'>
-                <span className='text-xs text-white opacity-70 font-mono min-w-[60px]'>
-                  {progress.toFixed(2)}s
-                </span>
-                <div className='flex-1 relative h-6 flex items-center'>
-                  <input
-                    type='range'
-                    min={0}
-                    max={totalLength}
-                    step={0.01}
-                    value={progress}
-                    onChange={e => {
-                      const newProgress = parseFloat(e.target.value)
-                      setProgress(newProgress)
-                      if (asemic.current) {
-                        asemic.current.postMessage({
-                          scrub: newProgress
-                        } as AsemicData)
-                      }
-                    }}
-                    onMouseDown={() => setIsDragging(true)}
-                    onMouseUp={() => setIsDragging(false)}
-                    onTouchStart={() => setIsDragging(true)}
-                    onTouchEnd={() => setIsDragging(false)}
-                    className='w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider'
+              <div className='w-full px-0 py-1 bg-black bg-opacity-50'>
+                <div
+                  className='w-full h-3 flex items-center cursor-pointer relative'
+                  onMouseDown={e => {
+                    setIsDragging(true)
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const x = e.clientX - rect.left
+                    const percent = Math.max(0, Math.min(1, x / rect.width))
+                    const newProgress = percent * totalLength
+                    setProgress(newProgress)
+                    if (asemic.current) {
+                      asemic.current.postMessage({
+                        scrub: newProgress
+                      } as AsemicData)
+                    }
+                  }}
+                  onMouseMove={e => {
+                    if (!isDragging) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const x = e.clientX - rect.left
+                    const percent = Math.max(0, Math.min(1, x / rect.width))
+                    const newProgress = percent * totalLength
+                    setProgress(newProgress)
+                    if (asemic.current) {
+                      asemic.current.postMessage({
+                        scrub: newProgress
+                      } as AsemicData)
+                    }
+                  }}
+                  onMouseUp={() => setIsDragging(false)}
+                  onMouseLeave={() => setIsDragging(false)}
+                  onTouchStart={e => {
+                    setIsDragging(true)
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const touch = e.touches[0]
+                    const x = touch.clientX - rect.left
+                    const percent = Math.max(0, Math.min(1, x / rect.width))
+                    const newProgress = percent * totalLength
+                    setProgress(newProgress)
+                    if (asemic.current) {
+                      asemic.current.postMessage({
+                        scrub: newProgress
+                      } as AsemicData)
+                    }
+                  }}
+                  onTouchMove={e => {
+                    if (!isDragging) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const touch = e.touches[0]
+                    const x = touch.clientX - rect.left
+                    const percent = Math.max(0, Math.min(1, x / rect.width))
+                    const newProgress = percent * totalLength
+                    setProgress(newProgress)
+                    if (asemic.current) {
+                      asemic.current.postMessage({
+                        scrub: newProgress
+                      } as AsemicData)
+                    }
+                  }}
+                  onTouchEnd={() => setIsDragging(false)}>
+                  <div
+                    className='absolute h-1 rounded-lg'
                     style={{
-                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${
-                        (progress / totalLength) * 100
-                      }%, #4b5563 ${
-                        (progress / totalLength) * 100
-                      }%, #4b5563 100%)`
+                      left: 0,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '100%',
+                      background: '#4b5563'
+                    }}
+                  />
+                  <div
+                    className='absolute h-1 rounded-lg'
+                    style={{
+                      left: 0,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: `${(progress / totalLength) * 100}%`,
+                      background: '#3b82f6'
+                    }}
+                  />
+                  <div
+                    className='absolute w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow'
+                    style={{
+                      left: `calc(${(progress / totalLength) * 100}% - 6px)`,
+                      top: '50%',
+                      transform: 'translateY(-50%)'
                     }}
                   />
                 </div>
-                <span className='text-xs text-white opacity-70 font-mono min-w-[60px] text-right'>
-                  {totalLength.toFixed(2)}s
-                </span>
               </div>
             )}
 

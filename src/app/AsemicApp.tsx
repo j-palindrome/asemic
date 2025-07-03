@@ -25,9 +25,6 @@ import { useSchema } from '../server/schema'
 import './AsemicApp.css'
 import { stripComments } from '../utils'
 import { inputSchema, WS_PORT } from '../server/constants'
-import { Recorder, RecorderStatus } from 'canvas-record'
-import { AVC } from 'media-codecs'
-import { MP4WasmEncoder } from 'node_modules/canvas-record/types/src/encoders'
 
 export default function AsemicApp({
   source,
@@ -148,7 +145,10 @@ export default function AsemicApp({
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const canvasRecorderRef = useRef<Recorder | null>(null)
+    // const canvasRecorderRef = useRef<Recorder | null>(null) // REMOVE
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null) // ADD
+    const recordedChunksRef = useRef<BlobPart[]>([]) // ADD
+    const videoRef = useRef<HTMLVideoElement>(null) // ADD
 
     const startRecording = async () => {
       try {
@@ -157,24 +157,58 @@ export default function AsemicApp({
         recordingCanvas.current.width = mainCanvas.width
         recordingCanvas.current.height = mainCanvas.height
 
-        const context = recordingCanvas.current.getContext('bitmaprenderer')!
-        canvasRecorderRef.current = new Recorder(context, {
-          name: 'asemic-recording',
-          encoderOptions: {
-            codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
-          },
-          rect: [
-            0,
-            0,
-            recordingCanvas.current.width,
-            recordingCanvas.current.height
-          ],
-          frameRate: 60,
-          extension: 'mp4',
-          download: true
-        })
+        // const context = recordingCanvas.current.getContext('bitmaprenderer')! // REMOVE
+        // canvasRecorderRef.current = new Recorder(context, { // REMOVE
+        //   name: 'asemic-recording', // REMOVE
+        //   encoderOptions: { // REMOVE
+        //     codec: AVC.getCodec({ profile: 'Main', level: '5.2' }) // REMOVE
+        //   }, // REMOVE
+        //   rect: [ // REMOVE
+        //     0, // REMOVE
+        //     0, // REMOVE
+        //     recordingCanvas.current.width, // REMOVE
+        //     recordingCanvas.current.height // REMOVE
+        //   ], // REMOVE
+        //   frameRate: 60, // REMOVE
+        //   extension: 'mp4', // REMOVE
+        //   download: true // REMOVE
+        // }) // REMOVE
 
-        await canvasRecorderRef.current.start()
+        // await canvasRecorderRef.current.start() // REMOVE
+
+        // Get MediaStream from canvas
+        const stream = recordingCanvas.current.captureStream(60) // ADD
+
+        // Create MediaRecorder
+        mediaRecorderRef.current = new MediaRecorder(stream, {
+          // ADD
+          mimeType: 'video/webm' // ADD
+        }) // ADD
+
+        // Reset recorded chunks
+        recordedChunksRef.current = [] // ADD
+
+        // Set up data available event
+        mediaRecorderRef.current.ondataavailable = (event: BlobEvent) => {
+          // ADD
+          if (event.data.size > 0) {
+            // ADD
+            recordedChunksRef.current.push(event.data) // ADD
+          } // ADD
+        } // ADD
+
+        // Set up stop event
+        mediaRecorderRef.current.onstop = () => {
+          // ADD
+          const blob = new Blob(recordedChunksRef.current, {
+            // ADD
+            type: 'video/webm' // ADD
+          }) // ADD
+          saveRecordedVideo(blob) // ADD
+        } // ADD
+
+        // Start MediaRecorder
+        mediaRecorderRef.current.start() // ADD
 
         // Start worker recording
         asemic.current!.postMessage({
@@ -198,10 +232,17 @@ export default function AsemicApp({
         } as AsemicData)
 
         // Stop canvas recorder
-        if (canvasRecorderRef.current) {
-          canvasRecorderRef.current.stop()
-          setIsRecording(false)
-        }
+        // if (canvasRecorderRef.current) { // REMOVE
+        //   canvasRecorderRef.current.stop() // REMOVE
+        //   setIsRecording(false) // REMOVE
+        // } // REMOVE
+
+        // Stop MediaRecorder
+        if (mediaRecorderRef.current) {
+          // ADD
+          mediaRecorderRef.current.stop() // ADD
+          setIsRecording(false) // ADD
+        } // ADD
       } catch (error) {
         console.error('Failed to stop recording:', error)
         setIsRecording(false)
@@ -209,16 +250,16 @@ export default function AsemicApp({
     }
 
     const stepRecording = async () => {
-      if (
-        canvasRecorderRef.current &&
-        canvasRecorderRef.current.status === RecorderStatus.Recording
-      ) {
-        try {
-          await canvasRecorderRef.current.step()
-        } catch (error) {
-          console.error('Recording step error:', error)
-        }
-      }
+      // if ( // REMOVE
+      //   canvasRecorderRef.current && // REMOVE
+      //   canvasRecorderRef.current.status === RecorderStatus.Recording // REMOVE
+      // ) { // REMOVE
+      //   try { // REMOVE
+      //     await canvasRecorderRef.current.step() // REMOVE
+      //   } catch (error) { // REMOVE
+      //     console.error('Recording step error:', error) // REMOVE
+      //   } // REMOVE
+      // } // REMOVE
     }
 
     const saveRecordedVideo = (recordedData: Blob) => {
@@ -229,7 +270,7 @@ export default function AsemicApp({
         a.download = `asemic-recording-${new Date()
           .toISOString()
           .slice(0, 19)
-          .replace(/:/g, '-')}.mp4`
+          .replace(/:/g, '-')}.webm` // Modified extension
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)

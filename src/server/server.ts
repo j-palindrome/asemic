@@ -21,8 +21,6 @@ const inputSchema = z.object({
 
 type InputSchema = z.infer<typeof inputSchema>
 
-const WS_PORT = 7004
-
 const paramsState: InputSchema = {
   params: {}
 }

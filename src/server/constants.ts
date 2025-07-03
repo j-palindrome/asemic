@@ -13,5 +13,3 @@ export const inputSchema = z.object({
 })
 
 export type InputSchema = z.infer<typeof inputSchema>
-
-export const WS_PORT = 7004

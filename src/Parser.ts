@@ -118,17 +118,8 @@ export class Parser {
       this.progress.accumIndex++
       return currentAccum
     },
-    param: ([paramName, defaultValue, max, min]) => {
-      if (!this.params[paramName]) {
-        this.params[paramName] = {
-          type: 'number',
-          value: defaultValue ? this.evalExpr(defaultValue) : 0,
-          max: max ? parseFloat(max) : 1,
-          min: min ? parseFloat(min) : 0
-        }
-        this.output.params[paramName] = this.params[paramName]
-      }
-      return this.params[paramName].value
+    prm: ([paramName]) => {
+      return this.params[paramName]!.value
     }
   }
   protected reservedConstants = Object.keys(this.constants)
@@ -207,6 +198,18 @@ export class Parser {
         this.pausedAt = this.pausedAt.filter(x => x <= fixedProgress)
         this.pauseAt = false
       }
+    }
+  }
+
+  prm([paramName, defaultValue, max, min]) {
+    if (!this.params[paramName]) {
+      this.params[paramName] = {
+        type: 'number',
+        value: defaultValue ? this.evalExpr(defaultValue) : 0,
+        max: max ? parseFloat(max) : 1,
+        min: min ? parseFloat(min) : 0
+      }
+      this.output.params[paramName] = this.params[paramName]
     }
   }
 

@@ -1,5 +1,12 @@
 import _, { isEqual, isUndefined } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import invariant from 'tiny-invariant'
 import { io, Socket } from 'socket.io-client'
 import {
@@ -21,12 +28,12 @@ import {
 import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
-import { useSchema } from '../server/schema'
+import { SocketContext, useSchema, useSocket } from '../server/schema'
 import './AsemicApp.css'
 import { stripComments } from '../utils'
-import { inputSchema, WS_PORT } from '../server/constants'
+import { inputSchema } from '../server/constants'
 
-export default function AsemicApp({
+function AsemicAppInner({
   source,
   save,
   getRequire
@@ -355,26 +362,7 @@ export default function AsemicApp({
   ] = useRecording()
 
   const setup = () => {
-    const socketRef = useRef<Socket | null>(null)
-
-    useEffect(() => {
-      socketRef.current = io(`http://localhost:${WS_PORT}`)
-
-      socketRef.current.on('connect', () => {
-        console.log('Socket.IO connected')
-      })
-
-      socketRef.current.on('disconnect', () => {
-        console.log('Socket.IO disconnected')
-      })
-
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect()
-          socketRef.current = null
-        }
-      }
-    }, [])
+    const socket = useSocket()
 
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -429,8 +417,8 @@ export default function AsemicApp({
           if (!isUndefined(data.osc)) {
             data.osc.forEach(({ path, args }) => {
               // Send OSC data via Socket.IO instead of WebSocket
-              if (!socketRef.current) return
-              socketRef.current.emit('osc:message', { address: path, args })
+              if (!socket) return
+              socket.emit('osc:message', { address: path, args })
             })
           }
           if (!isUndefined(data.recordingStarted)) {
@@ -976,5 +964,36 @@ export default function AsemicApp({
         height={1080}
       />
     </div>
+  )
+}
+
+export default function AsemicApp(props: {
+  source: string
+  save: (source: string, { reload }: { reload: boolean }) => void
+  getRequire: (file: string) => Promise<string>
+}) {
+  const [socket, setSocket] = useState<Socket | null>(null)
+
+  useEffect(() => {
+    const newSocket = io(`http://localhost:3000`)
+    setSocket(newSocket)
+
+    newSocket.on('connect', () => {
+      console.log('Socket.IO connected')
+    })
+
+    newSocket.on('disconnect', () => {
+      console.log('Socket.IO disconnected')
+    })
+
+    return () => {
+      newSocket.disconnect()
+    }
+  }, [])
+
+  return (
+    <SocketContext.Provider value={socket}>
+      <AsemicAppInner {...props} />
+    </SocketContext.Provider>
   )
 }

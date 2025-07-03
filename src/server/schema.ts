@@ -1,104 +1,66 @@
 import _, { pick } from 'lodash'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 import { z } from 'zod'
 import { inputSchema, InputSchema } from './constants'
+import { Socket } from 'socket.io-client'
+
+export const SocketContext = createContext<Socket | null>(null)
+
+export const useSocket = () => {
+  return useContext(SocketContext)
+}
 
 export const useSchema = () => {
-  // WebSocket connection setup
-  const websocket = useRef<WebSocket | null>(null)
-  const [wsConnected, setWsConnected] = useState(false)
   const [schema, setSchema] = useState<InputSchema | null>(null)
-  useEffect(() => {}, [schema])
-
-  useEffect(() => {
-    const connectWebSocket = () => {
-      try {
-        const serverUrl = `ws://${window.location.hostname}:7000`
-        websocket.current = new WebSocket(serverUrl)
-
-        websocket.current.onopen = () => {
-          console.log('WebSocket connected to port 7000')
-          setWsConnected(true)
-        }
-
-        websocket.current.onclose = () => {
-          console.log('WebSocket disconnected')
-          setWsConnected(false)
-          // Attempt to reconnect after 3 seconds
-          // setTimeout(connectWebSocket, 3000)
-        }
-
-        websocket.current.onerror = error => {
-          console.error('WebSocket error:', error)
-
-          setWsConnected(false)
-        }
-
-        websocket.current.onmessage = event => {
-          try {
-            const data = inputSchema.parse(JSON.parse(event.data))
-            console.log('Received WebSocket data:', data)
-            setSchema(prevSchema => ({
-              params: {
-                ...prevSchema?.params,
-                ...data.params
-              }
-            }))
-          } catch (error) {
-            console.error('Failed to parse WebSocket message:', error)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to create WebSocket connection:', error)
-        setTimeout(connectWebSocket, 3000)
-      }
-    }
-
-    connectWebSocket()
-
-    return () => {
-      websocket.current?.close()
-    }
-  }, [])
-
-  // Function to send data via WebSocket
-  const sendWebSocketData = useCallback(
-    (data: InputSchema) => {
-      if (
-        !websocket.current ||
-        websocket.current.readyState !== WebSocket.OPEN
-      ) {
-        console.warn('WebSocket not connected')
-        return
-      }
-
-      websocket.current.send(JSON.stringify(data))
-    },
-    [websocket]
-  )
+  const socket = useSocket()
 
   const setParams = useCallback(
-    (params: Record<string, number>) => {
+    (params: Record<string, number>, broadcast = true) => {
       if (!schema) return
       const newParams = { ...schema.params }
 
       Object.entries(params).forEach(([param, value]) => {
-        newParams[param] = {
-          ...schema.params[param],
-          value: Math.max(
-            schema.params[param].min,
-            Math.min(schema.params[param].max, value)
-          )
+        if (newParams[param]) {
+          newParams[param] = {
+            ...schema.params[param],
+            value: Math.max(
+              schema.params[param].min,
+              Math.min(schema.params[param].max, value)
+            )
+          }
         }
       })
 
       const newSchema: InputSchema = { params: newParams }
       setSchema(newSchema)
 
-      sendWebSocketData(newSchema)
+      if (broadcast && socket) {
+        socket.emit('params:update', params)
+      }
     },
-    [schema, sendWebSocketData]
+    [schema, socket]
   )
+
+  useEffect(() => {
+    if (!socket) return
+
+    const handleParamsUpdate = (params: Record<string, number>) => {
+      setParams(params, false)
+    }
+
+    socket.on('params:update', handleParamsUpdate)
+
+    return () => {
+      socket.off('params:update', handleParamsUpdate)
+    }
+  }, [socket, setParams])
 
   return [schema, setParams] as const
 }

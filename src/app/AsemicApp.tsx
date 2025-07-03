@@ -165,6 +165,8 @@ export default function AsemicApp({
           encoderOptions: {
             codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
           },
+          frameRate: 60,
+          extension: 'mp4',
           download: true
         })
 

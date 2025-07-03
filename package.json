@@ -47,6 +47,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.515.0",
     "media-codecs": "^2.0.2",
+    "mp4-muxer": "^5.2.2",
     "node-osc": "^9.1.4",
     "pts": "^0.12.9",
     "react": "^19.1.0",

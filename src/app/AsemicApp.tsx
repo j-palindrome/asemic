@@ -2,8 +2,6 @@ import _, { isEqual, isUndefined } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import { io, Socket } from 'socket.io-client'
-import { Recorder, RecorderStatus } from 'canvas-record'
-import { AVC } from 'media-codecs'
 import {
   Ellipsis,
   Info,
@@ -145,37 +143,16 @@ export default function AsemicApp({
 
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)
-    const recorderRef = useRef<Recorder | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const startRecording = async () => {
-      if (!canvas.current) return
+      if (!asemic.current) return
 
       try {
-        const context = canvas.current.getContext('2d')
-        if (!context) return
-
-        recorderRef.current = new Recorder(context, {
-          name: `asemic-recording-${new Date()
-            .toISOString()
-            .slice(0, 19)
-            .replace(/:/g, '-')}`,
-          encoderOptions: {
-            codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
-          }
-        })
-
-        await recorderRef.current.start()
+        asemic.current.postMessage({
+          startRecording: true
+        } as AsemicData)
         setIsRecording(true)
-
-        // Start the recording loop
-        const recordingLoop = async () => {
-          if (recorderRef.current?.status === RecorderStatus.Recording) {
-            await recorderRef.current.step()
-            requestAnimationFrame(recordingLoop)
-          }
-        }
-        requestAnimationFrame(recordingLoop)
       } catch (error) {
         console.error('Failed to start recording:', error)
         setIsRecording(false)
@@ -183,20 +160,36 @@ export default function AsemicApp({
     }
 
     const stopRecording = async () => {
-      if (!recorderRef.current) return
+      if (!asemic.current) return
 
       try {
-        await recorderRef.current.stop()
-        const url = await recorderRef.current.download()
-        setIsRecording(false)
-        recorderRef.current = null
-
-        // Optional: Show download notification
-        console.log('Recording saved:', url)
+        asemic.current.postMessage({
+          stopRecording: true
+        } as AsemicData)
+        // Note: setIsRecording(false) will be called when we receive the response
       } catch (error) {
         console.error('Failed to stop recording:', error)
         setIsRecording(false)
-        recorderRef.current = null
+      }
+    }
+
+    const saveRecordedVideo = (recordedData: Blob) => {
+      try {
+        const url = URL.createObjectURL(recordedData)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `asemic-recording-${new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/:/g, '-')}.webm`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        setIsRecording(false)
+      } catch (error) {
+        console.error('Failed to save recording:', error)
+        setIsRecording(false)
       }
     }
 
@@ -254,7 +247,9 @@ export default function AsemicApp({
       saveToFile,
       openFile,
       handleFileLoad,
-      fileInputRef
+      fileInputRef,
+      saveRecordedVideo,
+      setIsRecording
     ] as const
   }
   const [
@@ -263,7 +258,9 @@ export default function AsemicApp({
     saveToFile,
     openFile,
     handleFileLoad,
-    fileInputRef
+    fileInputRef,
+    saveRecordedVideo,
+    setIsRecording
   ] = useRecording()
 
   const setup = () => {
@@ -345,9 +342,21 @@ export default function AsemicApp({
               socketRef.current.emit('osc:message', { address: path, args })
             })
           }
-          // if (!isUndefined(data.audio)) {
-          //   audioRenderer.render(data.audio)
-          // }
+          if (!isUndefined(data.recordingStarted)) {
+            if (data.recordingStarted) {
+              console.log('Recording started')
+            } else {
+              setIsRecording(false)
+            }
+          }
+          if (!isUndefined(data.recordingStopped)) {
+            if (data.recordingStopped && !isUndefined(data.recordedData)) {
+              console.log('Recording stopped, saving video')
+              saveRecordedVideo(data.recordedData)
+            } else {
+              setIsRecording(false)
+            }
+          }
 
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)

@@ -15,6 +15,8 @@ export type AsemicData = {
   play?: boolean | { scene: number }
   scrub?: number
   offscreenCanvas?: OffscreenCanvas
+  startRecording?: boolean
+  stopRecording?: boolean
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']
@@ -23,6 +25,9 @@ export type AsemicDataBack = {
   frameReady?: boolean
   totalLength?: number
   progress?: number
+  recordingStarted?: boolean
+  recordingStopped?: boolean
+  recordedData?: Blob
 } & Partial<Parser['output']>
 
 export type Transform = {

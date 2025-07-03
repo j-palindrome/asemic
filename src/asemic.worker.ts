@@ -30,15 +30,15 @@ const stopRecording = async () => {
   self.postMessage({ recordingStopped: true } as AsemicDataBack)
 }
 
-self.onmessage = async (ev: MessageEvent<AsemicData>) => {
+self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
     renderer = new WebGPURenderer(ev.data.offscreenCanvas.getContext('webgpu')!)
-    await renderer.setup()
-
-    postMessage({
-      ready: true
-    } as AsemicDataBack)
+    renderer.setup().then(() => {
+      self.postMessage({
+        ready: true
+      } as AsemicDataBack)
+    })
   }
   // if (!renderer?.device || !offscreenCanvas) return
   if (!offscreenCanvas) return
@@ -138,10 +138,10 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
     }
   }
   if (!isUndefined(ev.data.startRecording)) {
-    await startRecording()
+    startRecording()
   }
   if (!isUndefined(ev.data.stopRecording)) {
-    await stopRecording()
+    stopRecording()
   }
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
@@ -241,12 +241,7 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
       }
     }
   }
-  if (!isUndefined(ev.data.startRecording)) {
-    await startRecording()
-  }
-  if (!isUndefined(ev.data.stopRecording)) {
-    await stopRecording()
-  }
+
   if (parser.settings.h === 'auto') {
     if (parser.curves.length === 0) return
 
@@ -259,36 +254,5 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
         preProcessing: parser.preProcessing
       } as AsemicDataBack)
     }
-  }
-  if (!isUndefined(ev.data.startRecording)) {
-    await startRecording()
-  }
-  if (!isUndefined(ev.data.stopRecording)) {
-    await stopRecording()
-  }
-  if (!isUndefined(ev.data.startRecording)) {
-    await startRecording()
-  }
-  if (!isUndefined(ev.data.stopRecording)) {
-    await stopRecording()
-  }
-  if (parser.settings.h === 'auto') {
-    if (parser.curves.length === 0) return
-
-    const maxY = max(flatMap(parser.curves, '1'))! + 0.1
-
-    if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
-      offscreenCanvas.height = offscreenCanvas.width * maxY
-      parser.preProcessing.height = offscreenCanvas.height
-      self.postMessage({
-        preProcessing: parser.preProcessing
-      } as AsemicDataBack)
-    }
-  }
-  if (!isUndefined(ev.data.startRecording)) {
-    await startRecording()
-  }
-  if (!isUndefined(ev.data.stopRecording)) {
-    await stopRecording()
   }
 }

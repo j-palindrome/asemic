@@ -151,8 +151,6 @@ export default function AsemicApp({
     const canvasRecorderRef = useRef<Recorder | null>(null)
 
     const startRecording = async () => {
-      if (!asemic.current || !recordingCanvas.current) return
-
       try {
         // Setup recording canvas to match main canvas size
         const mainCanvas = canvas.current
@@ -165,6 +163,12 @@ export default function AsemicApp({
           encoderOptions: {
             codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
           },
+          rect: [
+            0,
+            0,
+            recordingCanvas.current.width,
+            recordingCanvas.current.height
+          ],
           frameRate: 60,
           extension: 'mp4',
           download: true
@@ -173,7 +177,7 @@ export default function AsemicApp({
         await canvasRecorderRef.current.start()
 
         // Start worker recording
-        asemic.current.postMessage({
+        asemic.current!.postMessage({
           startRecording: true
         } as AsemicData)
 
@@ -196,6 +200,7 @@ export default function AsemicApp({
         // Stop canvas recorder
         if (canvasRecorderRef.current) {
           canvasRecorderRef.current.stop()
+          setIsRecording(false)
         }
       } catch (error) {
         console.error('Failed to stop recording:', error)
@@ -636,15 +641,7 @@ export default function AsemicApp({
   const [schema, setParams] = useSchema()
 
   return (
-    <div className='asemic-container'>
-      {/* Hidden canvas for recording */}
-      <canvas
-        ref={recordingCanvas}
-        style={{ display: 'none' }}
-        width={1080}
-        height={1080}
-      />
-
+    <div className='asemic-container relative'>
       <div
         className={`relative w-full bg-black overflow-auto ${
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
@@ -660,6 +657,7 @@ export default function AsemicApp({
           ref={canvas}
           height={1080}
           width={1080}></canvas>
+
         {!perform ? (
           <div className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col hidden group-hover:!flex !z-100'>
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
@@ -923,6 +921,19 @@ export default function AsemicApp({
           </div>
         )}
       </div>
+      <canvas
+        ref={recordingCanvas}
+        className='top-0 left-0 !z-100'
+        style={{
+          position: 'fixed',
+          display: isRecording ? 'block' : 'none',
+          width: '100%',
+          height: settings.h === 'window' ? '100%' : undefined,
+          aspectRatio: settings.h === 'window' ? undefined : `1 / ${settings.h}`
+        }}
+        width={1080}
+        height={1080}
+      />
     </div>
   )
 }

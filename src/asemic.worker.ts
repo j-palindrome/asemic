@@ -42,107 +42,14 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   // if (!renderer?.device || !offscreenCanvas) return
   if (!offscreenCanvas) return
-  if (!isUndefined(ev.data.preProcess) && renderer) {
-    Object.assign(parser.preProcessing, ev.data.preProcess)
-    if (!isUndefined(parser.preProcessing.width))
-      offscreenCanvas.width = parser.preProcessing.width
-    if (!isUndefined(parser.preProcessing.height))
-      offscreenCanvas.height = parser.preProcessing.height
-  }
-  if (!isUndefined(ev.data.live)) {
-    Object.assign(parser.live, ev.data.live)
-  }
-  if (!isUndefined(ev.data.play)) {
-    parser.play(ev.data.play)
-    self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
-  }
-  if (!isUndefined(ev.data.scrub)) {
-    parser.scrub(ev.data.scrub)
-    // Render once to show the scrubbed position
-    parser.draw()
-    renderer.render(parser.curves)
-    self.postMessage({
-      lastTransform: {
-        translation: parser.currentTransform.translation,
-        rotation: parser.currentTransform.rotation,
-        scale: parser.currentTransform.scale,
-        width: parser.evalExpr(parser.currentTransform.width)
-      } as FlatTransform,
-      progress: parser.progress.progress,
-      totalLength: parser.duration,
-      ...parser.output
-    } as AsemicDataBack)
-  }
-  if (!isUndefined(ev.data.source)) {
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame)
-    }
-    if (parser.rawSource !== ev.data.source) {
-      parser.rawSource = ev.data.source
-      parser.setup(ev.data.source)
-      self.postMessage({ settings: parser.settings })
-    }
 
-    const animate = async () => {
-      if (!ready) {
-        throw new Error('two frames requested at once')
-      }
-      ready = false
-      parser.draw()
-      renderer.render(parser.curves)
-
-      // Transfer frame if recording
-      if (isRecording) {
-        try {
-          const imageBitmap = offscreenCanvas.transferToImageBitmap()
-          self.postMessage({
-            frameData: imageBitmap
-          } as AsemicDataBack)
-        } catch (error) {
-          console.error('Frame transfer error:', error)
-        }
-      }
-
-      ready = true
-      self.postMessage({
-        lastTransform: {
-          translation: parser.currentTransform.translation,
-          rotation: parser.currentTransform.rotation,
-          scale: parser.currentTransform.scale,
-          width: parser.evalExpr(parser.currentTransform.width)
-        } as FlatTransform,
-        progress: parser.progress.progress,
-        totalLength: parser.duration,
-        ...parser.output
-      } as AsemicDataBack)
-
-      animationFrame = requestAnimationFrame(animate)
-    }
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame)
-    }
-    animationFrame = requestAnimationFrame(animate)
-
-    if (parser.settings.h === 'auto') {
-      if (parser.curves.length === 0) return
-
-      const maxY = max(flatMap(parser.curves, '1'))! + 0.1
-
-      if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
-        offscreenCanvas.height = offscreenCanvas.width * maxY
-        parser.preProcessing.height = offscreenCanvas.height
-        self.postMessage({
-          preProcessing: parser.preProcessing
-        } as AsemicDataBack)
-      }
-    }
-  }
   if (!isUndefined(ev.data.startRecording)) {
     startRecording()
   }
   if (!isUndefined(ev.data.stopRecording)) {
     stopRecording()
   }
+
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
     if (!isUndefined(parser.preProcessing.width))
@@ -159,20 +66,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   if (!isUndefined(ev.data.scrub)) {
     parser.scrub(ev.data.scrub)
-    // Render once to show the scrubbed position
-    parser.draw()
-    renderer.render(parser.curves)
-    self.postMessage({
-      lastTransform: {
-        translation: parser.currentTransform.translation,
-        rotation: parser.currentTransform.rotation,
-        scale: parser.currentTransform.scale,
-        width: parser.evalExpr(parser.currentTransform.width)
-      } as FlatTransform,
-      progress: parser.progress.progress,
-      totalLength: parser.duration,
-      ...parser.output
-    } as AsemicDataBack)
   }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
@@ -198,7 +91,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
         try {
           imageBitmap = offscreenCanvas.transferToImageBitmap()
         } catch (error) {
-          console.error('Frame transfer error:', error)
+          console.log('Frame transfer error:', error)
         }
       }
 
@@ -217,7 +110,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
           ...parser.output
         } as AsemicDataBack,
         // @ts-ignore
-        imageBitmap ? [imageBitmap as Transferable] : undefined
+        imageBitmap ? [imageBitmap] : undefined
       )
 
       animationFrame = requestAnimationFrame(animate)
@@ -226,20 +119,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       cancelAnimationFrame(animationFrame)
     }
     animationFrame = requestAnimationFrame(animate)
-
-    if (parser.settings.h === 'auto') {
-      if (parser.curves.length === 0) return
-
-      const maxY = max(flatMap(parser.curves, '1'))! + 0.1
-
-      if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
-        offscreenCanvas.height = offscreenCanvas.width * maxY
-        parser.preProcessing.height = offscreenCanvas.height
-        self.postMessage({
-          preProcessing: parser.preProcessing
-        } as AsemicDataBack)
-      }
-    }
   }
 
   if (parser.settings.h === 'auto') {

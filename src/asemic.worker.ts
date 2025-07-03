@@ -17,64 +17,17 @@ let ready = true
 
 // Video recording state
 let isRecording = false
-let mediaRecorder: MediaRecorder | null = null
-let recordedChunks: Blob[] = []
 
 const startRecording = async () => {
   if (isRecording) return
-
-  try {
-    // Create a MediaStream from the canvas
-    const stream = offscreenCanvas.captureStream(30) // 30 FPS
-
-    // Create MediaRecorder with WebM format
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9'
-    })
-
-    recordedChunks = []
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunks.push(event.data)
-      }
-    }
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' })
-      self.postMessage({
-        recordingStopped: true,
-        recordedData: blob
-      } as AsemicDataBack)
-    }
-
-    mediaRecorder.onerror = (event) => {
-      console.error('MediaRecorder error:', event)
-      self.postMessage({
-        recordingStopped: false,
-        error: 'Recording failed'
-      } as AsemicDataBack)
-    }
-
-    mediaRecorder.start(100) // Collect data every 100ms
-    isRecording = true
-
-    self.postMessage({ recordingStarted: true } as AsemicDataBack)
-  } catch (error) {
-    console.error('Failed to start recording:', error)
-    self.postMessage({
-      recordingStarted: false,
-      error: 'Failed to initialize recorder'
-    } as AsemicDataBack)
-  }
+  isRecording = true
+  self.postMessage({ recordingStarted: true } as AsemicDataBack)
 }
 
 const stopRecording = async () => {
-  if (!isRecording || !mediaRecorder) return
-
+  if (!isRecording) return
   isRecording = false
-  mediaRecorder.stop()
-  mediaRecorder = null
+  self.postMessage({ recordingStopped: true } as AsemicDataBack)
 }
 
 self.onmessage = async (ev: MessageEvent<AsemicData>) => {
@@ -138,7 +91,17 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
       parser.draw()
       renderer.render(parser.curves)
 
-      // No need for manual frame capture with MediaRecorder
+      // Transfer frame if recording
+      if (isRecording) {
+        try {
+          const imageBitmap = offscreenCanvas.transferToImageBitmap()
+          self.postMessage({
+            frameData: imageBitmap
+          } as AsemicDataBack)
+        } catch (error) {
+          console.error('Frame transfer error:', error)
+        }
+      }
 
       ready = true
       self.postMessage({
@@ -180,7 +143,6 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.stopRecording)) {
     await stopRecording()
   }
-}
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
     if (!isUndefined(parser.preProcessing.width))
@@ -230,23 +192,33 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
       parser.draw()
       renderer.render(parser.curves)
 
-      // Capture frame if recording
+      let imageBitmap: ImageBitmap | undefined
+      // Transfer frame if recording
       if (isRecording) {
-        await captureFrame()
+        try {
+          imageBitmap = offscreenCanvas.transferToImageBitmap()
+        } catch (error) {
+          console.error('Frame transfer error:', error)
+        }
       }
 
       ready = true
-      self.postMessage({
-        lastTransform: {
-          translation: parser.currentTransform.translation,
-          rotation: parser.currentTransform.rotation,
-          scale: parser.currentTransform.scale,
-          width: parser.evalExpr(parser.currentTransform.width)
-        } as FlatTransform,
-        progress: parser.progress.progress,
-        totalLength: parser.duration,
-        ...parser.output
-      } as AsemicDataBack)
+      self.postMessage(
+        {
+          lastTransform: {
+            translation: parser.currentTransform.translation,
+            rotation: parser.currentTransform.rotation,
+            scale: parser.currentTransform.scale,
+            width: parser.evalExpr(parser.currentTransform.width)
+          } as FlatTransform,
+          progress: parser.progress.progress,
+          totalLength: parser.duration,
+          frameData: imageBitmap,
+          ...parser.output
+        } as AsemicDataBack,
+        // @ts-ignore
+        imageBitmap ? [imageBitmap as Transferable] : undefined
+      )
 
       animationFrame = requestAnimationFrame(animate)
     }
@@ -267,6 +239,50 @@ self.onmessage = async (ev: MessageEvent<AsemicData>) => {
           preProcessing: parser.preProcessing
         } as AsemicDataBack)
       }
+    }
+  }
+  if (!isUndefined(ev.data.startRecording)) {
+    await startRecording()
+  }
+  if (!isUndefined(ev.data.stopRecording)) {
+    await stopRecording()
+  }
+  if (parser.settings.h === 'auto') {
+    if (parser.curves.length === 0) return
+
+    const maxY = max(flatMap(parser.curves, '1'))! + 0.1
+
+    if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
+      offscreenCanvas.height = offscreenCanvas.width * maxY
+      parser.preProcessing.height = offscreenCanvas.height
+      self.postMessage({
+        preProcessing: parser.preProcessing
+      } as AsemicDataBack)
+    }
+  }
+  if (!isUndefined(ev.data.startRecording)) {
+    await startRecording()
+  }
+  if (!isUndefined(ev.data.stopRecording)) {
+    await stopRecording()
+  }
+  if (!isUndefined(ev.data.startRecording)) {
+    await startRecording()
+  }
+  if (!isUndefined(ev.data.stopRecording)) {
+    await stopRecording()
+  }
+  if (parser.settings.h === 'auto') {
+    if (parser.curves.length === 0) return
+
+    const maxY = max(flatMap(parser.curves, '1'))! + 0.1
+
+    if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
+      offscreenCanvas.height = offscreenCanvas.width * maxY
+      parser.preProcessing.height = offscreenCanvas.height
+      self.postMessage({
+        preProcessing: parser.preProcessing
+      } as AsemicDataBack)
     }
   }
   if (!isUndefined(ev.data.startRecording)) {

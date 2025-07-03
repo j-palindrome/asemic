@@ -28,6 +28,7 @@ export type AsemicDataBack = {
   recordingStarted?: boolean
   recordingStopped?: boolean
   recordedData?: Blob
+  frameData?: ImageBitmap
 } & Partial<Parser['output']>
 
 export type Transform = {

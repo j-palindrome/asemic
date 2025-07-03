@@ -25,6 +25,9 @@ import { useSchema } from '../server/schema'
 import './AsemicApp.css'
 import { stripComments } from '../utils'
 import { inputSchema, WS_PORT } from '../server/constants'
+import { Recorder, RecorderStatus } from 'canvas-record'
+import { AVC } from 'media-codecs'
+import { MP4WasmEncoder } from 'node_modules/canvas-record/types/src/encoders'
 
 export default function AsemicApp({
   source,
@@ -52,6 +55,7 @@ export default function AsemicApp({
   }, [settings])
 
   const canvas = useRef<HTMLCanvasElement>(null!)
+  const recordingCanvas = useRef<HTMLCanvasElement>(null!)
   const frame = useRef<HTMLDivElement>(null!)
 
   const useErrors = () => {
@@ -144,14 +148,33 @@ export default function AsemicApp({
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const canvasRecorderRef = useRef<Recorder | null>(null)
 
     const startRecording = async () => {
-      if (!asemic.current) return
+      if (!asemic.current || !recordingCanvas.current) return
 
       try {
+        // Setup recording canvas to match main canvas size
+        const mainCanvas = canvas.current
+        recordingCanvas.current.width = mainCanvas.width
+        recordingCanvas.current.height = mainCanvas.height
+
+        const context = recordingCanvas.current.getContext('bitmaprenderer')!
+        canvasRecorderRef.current = new Recorder(context, {
+          name: 'asemic-recording',
+          encoderOptions: {
+            codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
+          },
+          download: true
+        })
+
+        await canvasRecorderRef.current.start()
+
+        // Start worker recording
         asemic.current.postMessage({
           startRecording: true
         } as AsemicData)
+
         setIsRecording(true)
       } catch (error) {
         console.error('Failed to start recording:', error)
@@ -163,13 +186,31 @@ export default function AsemicApp({
       if (!asemic.current) return
 
       try {
+        // Stop worker recording
         asemic.current.postMessage({
           stopRecording: true
         } as AsemicData)
-        // Note: setIsRecording(false) will be called when we receive the response
+
+        // Stop canvas recorder
+        if (canvasRecorderRef.current) {
+          canvasRecorderRef.current.stop()
+        }
       } catch (error) {
         console.error('Failed to stop recording:', error)
         setIsRecording(false)
+      }
+    }
+
+    const stepRecording = async () => {
+      if (
+        canvasRecorderRef.current &&
+        canvasRecorderRef.current.status === RecorderStatus.Recording
+      ) {
+        try {
+          await canvasRecorderRef.current.step()
+        } catch (error) {
+          console.error('Recording step error:', error)
+        }
       }
     }
 
@@ -181,7 +222,7 @@ export default function AsemicApp({
         a.download = `asemic-recording-${new Date()
           .toISOString()
           .slice(0, 19)
-          .replace(/:/g, '-')}.webm`
+          .replace(/:/g, '-')}.mp4`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -249,7 +290,8 @@ export default function AsemicApp({
       handleFileLoad,
       fileInputRef,
       saveRecordedVideo,
-      setIsRecording
+      setIsRecording,
+      stepRecording
     ] as const
   }
   const [
@@ -260,7 +302,8 @@ export default function AsemicApp({
     handleFileLoad,
     fileInputRef,
     saveRecordedVideo,
-    setIsRecording
+    setIsRecording,
+    stepRecording
   ] = useRecording()
 
   const setup = () => {
@@ -350,14 +393,16 @@ export default function AsemicApp({
             }
           }
           if (!isUndefined(data.recordingStopped)) {
-            if (data.recordingStopped && !isUndefined(data.recordedData)) {
-              console.log('Recording stopped, saving video')
-              saveRecordedVideo(data.recordedData)
-            } else {
-              setIsRecording(false)
-            }
+            // Worker stopped recording, main thread recorder will handle the rest
           }
+          if (!isUndefined(data.frameData) && recordingCanvas.current) {
+            // Draw transferred frame to recording canvas
+            const ctx = recordingCanvas.current.getContext('bitmaprenderer')!
+            ctx.transferFromImageBitmap(data.frameData)
 
+            // Step the recorder
+            stepRecording()
+          }
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
@@ -590,36 +635,19 @@ export default function AsemicApp({
 
   return (
     <div className='asemic-container'>
+      {/* Hidden canvas for recording */}
+      <canvas
+        ref={recordingCanvas}
+        style={{ display: 'none' }}
+        width={1080}
+        height={1080}
+      />
+
       <div
         className={`relative w-full bg-black overflow-auto ${
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen group`}
-        ref={frame}
-        onClick={ev => {
-          if (perform || !editable.current || !ev.altKey) return
-          ev.preventDefault()
-          ev.stopPropagation()
-
-          const rect = editable.current.getBoundingClientRect()
-          // const mouse = new Pt([
-          //   (ev.clientX - rect.left) / rect.width,
-          //   (ev.clientY - rect.top) / rect.width
-          // ])
-          // const listenForResponse = (ev: { data: AsemicDataBack }) => {
-          //   mouse.rotate2D(lastTransform.current.rotation * Math.PI * 2 * -1)
-          //   mouse.divide(lastTransform.current.scale)
-          //   mouse.subtract(lastTransform.current.translation)
-
-          //   const scrollSave = editable.current.scrollTop
-          //   editable.current.value =
-          //     editable.current.value +
-          //     ` ${mouse.x.toFixed(2)},${mouse.y.toFixed(2)}`
-          //   editable.current.scrollTo({ top: scrollSave })
-          // }
-          // asemic.current?.postMessage({
-          //   source: editable.current.value
-          // })
-        }}>
+        ref={frame}>
         <canvas
           style={{
             width: '100%',
@@ -646,14 +674,10 @@ export default function AsemicApp({
               </button>
 
               <button
-                className={`${isRecording ? '!bg-red-500/60' : ''}`}
+                className={`${isRecording ? '!bg-red-500' : ''}`}
                 onClick={toggleRecording}
                 title={isRecording ? 'Stop Recording' : 'Start Recording'}>
-                {isRecording ? (
-                  <VideoOff {...lucideProps} />
-                ) : (
-                  <Video {...lucideProps} />
-                )}
+                {<Video {...lucideProps} />}
               </button>
 
               <button

@@ -180,8 +180,10 @@ export class AsemicPt extends BasicPt {
     return this
   }
 
-  clone(): AsemicPt {
-    const pt = new AsemicPt(this.parent, this[0], this[1], { inherit: this })
+  clone(inherit = false): AsemicPt {
+    const pt = new AsemicPt(this.parent, this[0], this[1], {
+      inherit: inherit ? this : undefined
+    })
     return pt
   }
 }

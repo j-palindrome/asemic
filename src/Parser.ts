@@ -51,11 +51,11 @@ export class Parser {
   protected mode = 'normal' as 'normal' | 'blank'
   protected adding = 0
   protected debugged = new Map<string, { errors: string[] }>()
-  protected curves: AsemicPt[][] = []
-  protected settings = defaultSettings()
+  curves: AsemicPt[][] = []
+  settings = defaultSettings()
   static defaultSettings = defaultSettings()
   protected currentCurve: AsemicPt[] = []
-  protected currentTransform: Transform = defaultTransform()
+  currentTransform: Transform = defaultTransform()
   protected transforms: Transform[] = []
   protected totalLength = 0
   protected pausedAt: string[] = []
@@ -82,7 +82,7 @@ export class Parser {
     scrubTime: 0,
     progress: 0
   }
-  protected live = {
+  live = {
     keys: [''],
     text: ['']
   }
@@ -306,7 +306,7 @@ export class Parser {
     const [settings, ...sceneList] = source.split('\n---')
 
     const [firstLine, settingsSource] = splitString(settings, '\n')
-    for (let token of firstLine.split(/\s+/g)) {
+    for (let token of firstLine.replace('---', '').split(/\s+/g)) {
       parseSetting(token.trim())
     }
     if (settingsSource && settingsSource.trim().length > 0) {
@@ -362,30 +362,32 @@ export class Parser {
     end: AsemicPt,
     { add = false } = {}
   ) {
-    const angle = end.clone().subtract(start).angle0to1()
-    const distance = end.clone().subtract(start).magnitude()
+    const angle = end.clone(true).subtract(start).angle0to1()
+    const distance = end.clone(true).subtract(start).magnitude()
 
     const previousLength = this.adding
     this.adding += multiplyPoints.length + 2
-    const mappedCurve = [
-      start,
-      ...multiplyPoints.map((x, i) => {
-        this.progress.point = (previousLength + 1 + i) / this.adding
-        return x
-          .clone()
-          .scale([distance, 1])
-          .add(addPoints[i])
-          .rotate(angle)
-          .add(start)
-      }),
-      end
-    ]
+    multiplyPoints = multiplyPoints.map((x, i) => {
+      this.progress.point = (previousLength + 1 + i) / this.adding
+      return x
+        .clone()
+        .scale([distance, 1])
+        .add(addPoints[i])
+        .rotate(angle)
+        .add(start)
+    })
+    const mappedCurve = add
+      ? [start, ...multiplyPoints, end]
+      : [start, ...multiplyPoints, end]
     mappedCurve.forEach((x, i) => {
       this.applyTransform(x, { relative: false })
     })
-    this.currentCurve.push(...mappedCurve)
+    // this.crv()
+    this.currentCurve.push(...(add ? mappedCurve.slice(0, -1) : mappedCurve))
+
+    // this.lastPoint = end.clone()
     if (!add) {
-      this.addCurve()
+      this.end()
     }
   }
 
@@ -521,14 +523,15 @@ export class Parser {
       ...points.map((x, i) => {
         this.progress.point =
           i === points.length - 1 ? 0 : i / (points.length - 2)
-        return x
+        return x.clone()
       })
     )
-    this.addCurve()
+    this.lastPoint = last(this.currentCurve)!
+    this.end()
     return this
   }
 
-  protected evalExpr(expr: Expr, replace = true): number {
+  evalExpr(expr: Expr, replace = true): number {
     try {
       if (expr === undefined || expr === null) {
         throw new Error('undefined or null expression')
@@ -537,6 +540,7 @@ export class Parser {
         return expr
       }
       if (expr.length === 0) throw new Error('Empty expression')
+
       this.progress.curve++
 
       if (expr.includes('(')) {
@@ -587,6 +591,15 @@ export class Parser {
         const points = [firstPoint, ...nextPoints]
         let index = (points.length - 1) * fade
         if (index === points.length - 1) index -= 0.0001
+        // if (
+        //   lerp(
+        //     points[Math.floor(index)]!,
+        //     points[Math.floor(index) + 1]!,
+        //     index % 1
+        //   ) === 0
+        // ) {
+        //   debugger
+        // }
 
         return lerp(
           points[Math.floor(index)]!,
@@ -1069,7 +1082,7 @@ export class Parser {
     return tokens
   }
 
-  protected addCurve() {
+  end() {
     if (this.currentCurve.length === 0) return
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
@@ -1093,15 +1106,13 @@ export class Parser {
     return this
   }
 
-  pts(token: string) {
-    this.crv(token, { add: true })
-  }
-
   crv(token: string, { add = false }: { add?: boolean } = {}) {
     const pointsTokens = this.tokenize(token)
 
     let totalLength =
       pointsTokens.filter(x => !x.startsWith('{')).length - 1 || 1
+
+    const originalEnd = this.adding
     this.adding += totalLength
     pointsTokens.forEach((pointToken, i) => {
       if (pointToken.startsWith('{')) {
@@ -1109,7 +1120,7 @@ export class Parser {
         return
       } else {
         try {
-          this.progress.point = i / this.adding
+          this.progress.point = (originalEnd + i) / this.adding
           const point = this.parsePoint(pointToken)
 
           this.currentCurve.push(point)
@@ -1131,7 +1142,7 @@ export class Parser {
       }
     })
     if (!add) {
-      this.addCurve()
+      this.end()
     }
     return this
   }
@@ -1175,7 +1186,7 @@ export class Parser {
     return this
   }
 
-  txt(token: string) {
+  txt(token: string, { add = false }: { add?: boolean } = {}) {
     // const formatSpace = (insert?: string) => {
     //   if (insert) return ` ${insert} `
     //   return ' '
@@ -1200,8 +1211,25 @@ export class Parser {
       }
     )
 
+    if (font.characters['\\^'] && !add) {
+      font.characters['\\^'](this)
+    }
+
     for (let i = 0; i < token.length; i++) {
+      if (token[i] === '{') {
+        const start = i
+        while (token[i] !== '}') {
+          i++
+          if (i >= token.length) {
+            throw new Error('Missing } in text')
+          }
+        }
+        const end = i
+        this.tra(token.substring(start + 1, end))
+        continue
+      }
       this.progress.letter = i / (token.length - 1)
+
       if (!font.characters[token[i]]) {
         continue
       }
@@ -1210,6 +1238,10 @@ export class Parser {
         ;(font.characters['\\.'] as any)(this)
       }
     }
+    if (font.characters['\\$'] && !add) {
+      font.characters['\\$'](this)
+    }
+
     return this
   }
 

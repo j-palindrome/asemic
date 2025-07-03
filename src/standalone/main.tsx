@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import AsemicApp from '../app/AsemicApp'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
 import AsemicParams from '../app/AsemicParams'
+import asemicDefault from './asemicDefault'
 
 function AsemicWrapper() {
   return (
@@ -23,11 +24,7 @@ let router = createBrowserRouter([
 ])
 
 // Default source content - you can customize this initial content
-const defaultSource =
-  localStorage.getItem('asemic-source') ??
-  `h=1
----
-[0,0 1,1]`
+const defaultSource = localStorage.getItem('asemic-source') ?? asemicDefault
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

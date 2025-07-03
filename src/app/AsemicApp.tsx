@@ -2,6 +2,8 @@ import _, { isEqual, isUndefined } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import { io, Socket } from 'socket.io-client'
+import { Recorder, RecorderStatus } from 'canvas-record'
+import { AVC } from 'media-codecs'
 import {
   Ellipsis,
   Info,
@@ -12,7 +14,11 @@ import {
   Play,
   Power,
   Save,
-  Speaker
+  Speaker,
+  Video,
+  VideoOff,
+  Download,
+  Upload
 } from 'lucide-react'
 import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
@@ -104,6 +110,130 @@ export default function AsemicApp({
     return [audio, setAudio, audioRenderer] as const
   }
   const [audio, setAudio, audioRenderer] = setupAudio()
+
+  const useRecording = () => {
+    const [isRecording, setIsRecording] = useState(false)
+    const recorderRef = useRef<Recorder | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const startRecording = async () => {
+      if (!canvas.current) return
+
+      try {
+        const context = canvas.current.getContext('2d')
+        if (!context) return
+
+        recorderRef.current = new Recorder(context, {
+          name: `asemic-recording-${new Date()
+            .toISOString()
+            .slice(0, 19)
+            .replace(/:/g, '-')}`,
+          encoderOptions: {
+            codec: AVC.getCodec({ profile: 'Main', level: '5.2' })
+          }
+        })
+
+        await recorderRef.current.start()
+        setIsRecording(true)
+
+        // Start the recording loop
+        const recordingLoop = async () => {
+          if (recorderRef.current?.status === RecorderStatus.Recording) {
+            await recorderRef.current.step()
+            requestAnimationFrame(recordingLoop)
+          }
+        }
+        requestAnimationFrame(recordingLoop)
+      } catch (error) {
+        console.error('Failed to start recording:', error)
+        setIsRecording(false)
+      }
+    }
+
+    const stopRecording = async () => {
+      if (!recorderRef.current) return
+
+      try {
+        await recorderRef.current.stop()
+        const url = await recorderRef.current.download()
+        setIsRecording(false)
+        recorderRef.current = null
+
+        // Optional: Show download notification
+        console.log('Recording saved:', url)
+      } catch (error) {
+        console.error('Failed to stop recording:', error)
+        setIsRecording(false)
+        recorderRef.current = null
+      }
+    }
+
+    const saveToFile = () => {
+      const content = editable.current?.value || scenesSource
+      const blob = new Blob([content], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `asemic-${new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/:/g, '-')}.asemic`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+
+    const openFile = () => {
+      fileInputRef.current?.click()
+    }
+
+    const handleFileLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      const reader = new FileReader()
+      reader.onload = e => {
+        const content = e.target?.result as string
+        if (content) {
+          setScenesSource(content)
+          if (editable.current) {
+            editable.current.value = content
+          }
+        }
+      }
+      reader.readAsText(file)
+
+      // Reset the input so the same file can be loaded again
+      event.target.value = ''
+    }
+
+    const toggleRecording = () => {
+      if (isRecording) {
+        stopRecording()
+      } else {
+        startRecording()
+      }
+    }
+
+    return [
+      isRecording,
+      toggleRecording,
+      saveToFile,
+      openFile,
+      handleFileLoad,
+      fileInputRef
+    ] as const
+  }
+  const [
+    isRecording,
+    toggleRecording,
+    saveToFile,
+    openFile,
+    handleFileLoad,
+    fileInputRef
+  ] = useRecording()
+
   const setup = () => {
     const socketRef = useRef<Socket | null>(null)
 
@@ -455,13 +585,18 @@ export default function AsemicApp({
                 }}>
                 <Power {...lucideProps} />
               </button>
+
               <button
-                className={`${audio ? '!bg-blue-200/40' : ''}`}
-                onClick={() => {
-                  setAudio(!audio)
-                }}>
-                {<Speaker {...lucideProps} />}
+                className={`${isRecording ? '!bg-red-500/60' : ''}`}
+                onClick={toggleRecording}
+                title={isRecording ? 'Stop Recording' : 'Start Recording'}>
+                {isRecording ? (
+                  <VideoOff {...lucideProps} />
+                ) : (
+                  <Video {...lucideProps} />
+                )}
               </button>
+
               <button
                 onClick={() => {
                   asemic.current!.postMessage({
@@ -520,6 +655,22 @@ export default function AsemicApp({
               <button onClick={() => setHelp(!help)}>
                 {<Info {...lucideProps} />}
               </button>
+
+              <button onClick={saveToFile} title='Save to .asemic file'>
+                <Download {...lucideProps} />
+              </button>
+
+              <button onClick={openFile} title='Open .asemic file'>
+                <Upload {...lucideProps} />
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type='file'
+                accept='.asemic'
+                style={{ display: 'none' }}
+                onChange={handleFileLoad}
+              />
 
               <button
                 onClick={() => {

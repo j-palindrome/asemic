@@ -7,7 +7,7 @@ import asemicDefault from './asemicDefault'
 import { SocketContext } from '../server/schema'
 import { InputSchema } from '../server/constants'
 import { io, Socket } from 'socket.io-client'
-import invariant from 'tiny-invariant'
+import './index.css'
 
 function AsemicWrapper() {
   return (

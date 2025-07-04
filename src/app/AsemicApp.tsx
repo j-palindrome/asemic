@@ -30,7 +30,6 @@ import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
 import { SocketContext, useSocket } from '../server/schema'
-import './AsemicApp.css'
 import { stripComments } from '../utils'
 import { InputSchema, inputSchema } from '../server/constants'
 

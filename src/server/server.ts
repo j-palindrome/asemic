@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Server, Client } from 'node-osc'
 import invariant from 'tiny-invariant'
 import _ from 'lodash'
+import tailwindcss from '@tailwindcss/vite'
 
 const inputSchema = z.object({
   params: z.record(
@@ -28,7 +29,7 @@ const paramsState: InputSchema = {
 async function startDevServer() {
   const server = await createServer({
     // config options
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': resolve(import.meta.dirname, './src')
@@ -54,13 +55,9 @@ async function startDevServer() {
   })
 
   io.on('connection', (socket: Socket<ReceiveMap, SendMap>) => {
-    console.log('Socket.IO client connected:', socket.id)
     socket.emit('params', paramsState)
-    console.log('doing things')
 
     socket.on('params', obj => {
-      console.log('received param', obj)
-
       try {
         const validatedObj = inputSchema.parse(obj)
         for (let param of Object.keys(validatedObj.params)) {

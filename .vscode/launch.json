@@ -19,9 +19,10 @@
       "program": "${workspaceFolder}/src/server/server.ts",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "env": {
-        "DEBUG": "*"
-      }
+      "args": ["--watch"]
+      // "env": {
+      //   "DEBUG": "*"
+      // }
     }
   ]
 }

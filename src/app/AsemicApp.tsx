@@ -1,6 +1,7 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -28,10 +29,10 @@ import {
 import ElRenderer from '../renderers/audio/ElRenderer'
 import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
-import { SocketContext, useSchema, useSocket } from '../server/schema'
+import { SocketContext, useSocket } from '../server/schema'
 import './AsemicApp.css'
 import { stripComments } from '../utils'
-import { inputSchema } from '../server/constants'
+import { InputSchema, inputSchema } from '../server/constants'
 
 function AsemicAppInner({
   source,
@@ -362,7 +363,12 @@ function AsemicAppInner({
   ] = useRecording()
 
   const setup = () => {
-    const socket = useSocket()
+    const { socket, params, setParams } = useSocket()
+    useEffect(() => {
+      asemic.current?.postMessage({
+        params
+      })
+    }, [params])
 
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -387,11 +393,14 @@ function AsemicAppInner({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          // if (!isUndefined(data.params)) {
-          //   const { params } = inputSchema.parse({ params: data.params })
+          if (
+            !isUndefined(data.params) &&
+            Object.keys(data.params).length > 0
+          ) {
+            const { params } = inputSchema.parse({ params: data.params })
 
-          //   setParams({ params })
-          // }
+            setParams(params)
+          }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
               ...settingsRef.current,
@@ -418,7 +427,7 @@ function AsemicAppInner({
             data.osc.forEach(({ path, args }) => {
               // Send OSC data via Socket.IO instead of WebSocket
               if (!socket) return
-              socket.emit('osc:message', { address: path, args })
+              socket.emit('osc:message', { address: path, data: args })
             })
           }
           if (!isUndefined(data.recordingStarted)) {
@@ -667,8 +676,6 @@ function AsemicAppInner({
     []
   )
 
-  const [schema, setParams] = useSchema()
-
   return (
     <div className='asemic-container relative'>
       <div
@@ -686,6 +693,20 @@ function AsemicAppInner({
           ref={canvas}
           height={1080}
           width={1080}></canvas>
+        <canvas
+          ref={recordingCanvas}
+          className='top-0 left-0 !z-100'
+          style={{
+            position: 'fixed',
+            display: isRecording ? 'block' : 'none',
+            width: '100%',
+            height: settings.h === 'window' ? '100%' : undefined,
+            aspectRatio:
+              settings.h === 'window' ? undefined : `1 / ${settings.h}`
+          }}
+          width={1080}
+          height={1080}
+        />
 
         {!perform ? (
           <div className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col hidden group-hover:!flex !z-100'>
@@ -950,19 +971,6 @@ function AsemicAppInner({
           </div>
         )}
       </div>
-      <canvas
-        ref={recordingCanvas}
-        className='top-0 left-0 !z-100'
-        style={{
-          position: 'fixed',
-          display: isRecording ? 'block' : 'none',
-          width: '100%',
-          height: settings.h === 'window' ? '100%' : undefined,
-          aspectRatio: settings.h === 'window' ? undefined : `1 / ${settings.h}`
-        }}
-        width={1080}
-        height={1080}
-      />
     </div>
   )
 }
@@ -972,28 +980,5 @@ export default function AsemicApp(props: {
   save: (source: string, { reload }: { reload: boolean }) => void
   getRequire: (file: string) => Promise<string>
 }) {
-  const [socket, setSocket] = useState<Socket | null>(null)
-
-  useEffect(() => {
-    const newSocket = io(`http://localhost:3000`)
-    setSocket(newSocket)
-
-    newSocket.on('connect', () => {
-      console.log('Socket.IO connected')
-    })
-
-    newSocket.on('disconnect', () => {
-      console.log('Socket.IO disconnected')
-    })
-
-    return () => {
-      newSocket.disconnect()
-    }
-  }, [])
-
-  return (
-    <SocketContext.Provider value={socket}>
-      <AsemicAppInner {...props} />
-    </SocketContext.Provider>
-  )
+  return <AsemicAppInner {...props} />
 }

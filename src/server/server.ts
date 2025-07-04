@@ -1,7 +1,7 @@
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
-import { Server as SocketIOServer } from 'socket.io'
+import { Socket, Server as SocketIOServer } from 'socket.io'
 import { z } from 'zod'
 import { Server, Client } from 'node-osc'
 import invariant from 'tiny-invariant'
@@ -53,19 +53,22 @@ async function startDevServer() {
     }
   })
 
-  io.on('connection', socket => {
+  io.on('connection', (socket: Socket<ReceiveMap, SendMap>) => {
     console.log('Socket.IO client connected:', socket.id)
     socket.emit('params', paramsState)
+    console.log('doing things')
 
     socket.on('params', obj => {
+      console.log('received param', obj)
+
       try {
         const validatedObj = inputSchema.parse(obj)
         for (let param of Object.keys(validatedObj.params)) {
           paramsState.params[param] = validatedObj.params[param]
-          io.emit('params', {
-            params: _.pick(paramsState.params, Object.keys(validatedObj.params))
-          })
         }
+        io.emit('params', {
+          params: _.pick(paramsState.params, Object.keys(validatedObj.params))
+        })
       } catch (error) {
         console.error('Invalid params received:', error)
       }

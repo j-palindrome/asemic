@@ -1,6 +1,6 @@
 export const defaultSettings = () => ({
   debug: true as boolean,
-  h: 'auto' as number | 'window' | 'auto',
+  h: 'window' as number | 'window' | 'auto',
   perform: false as boolean,
   scene: 0 as number,
   fullscreen: false

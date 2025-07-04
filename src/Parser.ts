@@ -117,9 +117,6 @@ export class Parser {
       const currentAccum = this.progress.accums[this.progress.accumIndex]
       this.progress.accumIndex++
       return currentAccum
-    },
-    prm: ([paramName]) => {
-      return this.params[paramName]!.value
     }
   }
   protected reservedConstants = Object.keys(this.constants)
@@ -201,19 +198,20 @@ export class Parser {
     }
   }
 
-  prm([paramName, defaultValue, max, min]) {
-    if (!this.params[paramName]) {
-      this.params[paramName] = {
-        type: 'number',
-        value: defaultValue ? this.evalExpr(defaultValue) : 0,
-        max: max ? parseFloat(max) : 1,
-        min: min ? parseFloat(min) : 0
-      }
-      this.output.params[paramName] = this.params[paramName]
+  prm(paramName: string, defaultValue: Expr, max: Expr, min: Expr) {
+    this.params[paramName] = {
+      type: 'number',
+      value: defaultValue ? this.evalExpr(defaultValue) : 0,
+      max: max ? this.evalExpr(max) : 1,
+      min: min ? this.evalExpr(min) : 0
     }
+    this.output.params[paramName] = this.params[paramName]
+    this.constants[paramName] = () => this.params[paramName].value
+
+    return this
   }
 
-  scrub(progress: number) {
+  scr(progress: number) {
     // Clamp progress to valid range
     progress = Math.max(0, Math.min(progress, this.totalLength))
 
@@ -298,10 +296,24 @@ export class Parser {
     return c
   }
 
-  protected toCallback(source: string) {
-    return eval(`() => {
-        ${source}
-      }`).bind(this)
+  scn(
+    callback: (p: this) => void,
+    { length = 0.1, offset = 0, pause = 0 } = {}
+  ) {
+    this.scenes.push({
+      callback,
+      start: this.totalLength,
+      length,
+      offset,
+      pause
+    })
+    this.totalLength += length - offset
+    return this
+  }
+
+  set(settings: Partial<this['settings']>) {
+    Object.assign(this.settings, settings)
+    return this
   }
 
   setup(source: string) {
@@ -313,72 +325,11 @@ export class Parser {
     // }
     this.fonts = { default: new DefaultFont() }
     this.params = {} as InputSchema['params']
-    const parseSetting = (token: string) => {
-      if (!token) return
-      if (token.startsWith('!')) {
-        this.settings[token.substring(1)] = false
-      } else if (token.includes('=')) {
-        const [key, value] = token.split('=')
-        if (key === 'h' && (value === 'window' || value === 'auto')) {
-          this.settings[key] = value
-        } else {
-          this.settings[key] = this.evalExpr(value)
-        }
-      } else {
-        this.settings[token] = true
-      }
-    }
-
-    this.settings = {} as Parser['settings']
-
-    const [settings, ...sceneList] = source.split('\n---')
-
-    const [firstLine, settingsSource] = splitString(settings, '\n')
-    for (let token of firstLine.replace('---', '').split(/\s+/g)) {
-      parseSetting(token.trim())
-    }
-    if (settingsSource && settingsSource.trim().length > 0) {
-      try {
-        this.toCallback(settingsSource)()
-      } catch (e) {
-        this.output.errors.push('Error in settings: ' + e.message)
-      }
-    }
-
-    const scenes: Parser['scenes'] = []
     this.totalLength = 0
-    for (let scene of sceneList) {
-      let [firstLine, drawScene] = splitString(scene, '\n')
 
-      const MIN_LENGTH = 0.1
-      const newScene = {
-        callback: this.toCallback(drawScene)
-      } as (typeof scenes)[number]
-      const settings = {
-        length: MIN_LENGTH,
-        offset: 0,
-        pause: false as false | number
-      }
-      for (let token of this.tokenize(firstLine)) {
-        if (token.startsWith('!')) {
-          settings[token.substring(1)] = false
-        } else {
-          const [key, value] = token.split('=')
-          settings[key] = this.evalExpr(value)
-        }
-      }
-      newScene.start = this.totalLength - settings.offset
-      newScene.pause = settings.length === MIN_LENGTH ? 0 : settings.pause
-      if (settings.length) {
-        newScene.length = settings.length
-        this.totalLength += settings.length - settings.offset
-      }
-      newScene.offset = settings.offset ?? 0
-
-      scenes.push(newScene)
-    }
-
-    this.scenes = scenes
+    this.settings = defaultSettings()
+    this.scenes = []
+    eval(source)
   }
 
   protected hash = (n: number): number => {
@@ -608,12 +559,6 @@ export class Parser {
         return parseFloat(expr)
       }
 
-      const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
-
-      if (functionCall && this.constants[functionCall]) {
-        return this.constants[functionCall]([])
-      }
-
       if (expr.includes('<')) {
         // 1.1<R>2.4
         let [firstPoint, fade, ...nextPoints] = expr.split(/[<>]/g).map(x => {
@@ -716,6 +661,13 @@ export class Parser {
               return noise
           }
         }
+      }
+
+      const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
+
+      if (functionCall && this.constants[functionCall]) {
+        const args = this.tokenize(expr.substring(functionCall.length))
+        return this.constants[functionCall](args)
       }
 
       throw new Error(`Invalid expression`)

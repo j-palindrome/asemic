@@ -1,12 +1,12 @@
-import { useSchema } from '../server/schema'
+import { useSocket } from '../server/schema'
 import './AsemicApp.css'
 export default function AsemicParams() {
-  const [schema, setParam] = useSchema()
+  const { socket, params, setParams } = useSocket()
 
   return (
     <div className='flex w-full h-full'>
-      {schema &&
-        Object.entries(schema.params).map(([key, type]) => {
+      {params &&
+        Object.entries(params).map(([key, type]) => {
           const min = type.min
           const max = type.max
           const step = (type.max - type.min) / 100
@@ -20,7 +20,10 @@ export default function AsemicParams() {
                 max={max}
                 step={step}
                 onChange={e => {
-                  setParam(key, parseFloat(e.target.value))
+                  setParams({
+                    ...params,
+                    [key]: { ...params[key], value: parseFloat(e.target.value) }
+                  })
                 }}
               />
             </div>

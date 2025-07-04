@@ -65,7 +65,10 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
   }
   if (!isUndefined(ev.data.scrub)) {
-    parser.scrub(ev.data.scrub)
+    parser.scr(ev.data.scrub)
+  }
+  if (!isUndefined(ev.data.params)) {
+    parser.params = { ...parser.params, ...ev.data.params }
   }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
@@ -74,7 +77,11 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     if (parser.rawSource !== ev.data.source) {
       parser.rawSource = ev.data.source
       parser.setup(ev.data.source)
-      self.postMessage({ settings: parser.settings })
+
+      self.postMessage({
+        settings: parser.settings,
+        ...parser.output
+      } as AsemicDataBack)
     }
 
     const animate = async () => {
@@ -96,6 +103,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       }
 
       ready = true
+
       self.postMessage(
         {
           lastTransform: {

@@ -1,6 +1,7 @@
 import { Color, Pt } from 'pts'
 import { Parser } from './Parser'
 import { BasicPt } from './blocks/AsemicPt'
+import { InputSchema } from './server/constants'
 export type { Parser } from './Parser'
 export type { default as Renderer } from './renderers/visual/CanvasRenderer'
 
@@ -17,6 +18,7 @@ export type AsemicData = {
   offscreenCanvas?: OffscreenCanvas
   startRecording?: boolean
   stopRecording?: boolean
+  params?: InputSchema['params']
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']

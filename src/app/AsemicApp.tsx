@@ -691,31 +691,53 @@ function AsemicAppInner({
   const [selectedParam, setSelectedParam] = useState(
     undefined as string | undefined
   )
-  const [selectedPreset, setSelectedPreset] = useState(
+  const [selectedPreset, setSelectedPresetState] = useState(
     undefined as string | undefined
   )
+  const setSelectedPreset = useCallback((presetName: string | undefined) => {
+    setPresetFadeAmount(0)
+    setSelectedPresetState(presetName)
+  }, [])
   const [presetFadeAmount, setPresetFadeAmount] = useState(0)
+  const [initialParamsForFade, setInitialParamsForFade] = useState<
+    typeof params | null
+  >(null)
   const [copyNotification, setCopyNotification] = useState('')
 
   useEffect(() => {
     const fadeToPreset = (presetName: string, amount: number) => {
       if (!presets[presetName]) return
 
+      // Save initial params when starting a fade (amount goes from 0 to > 0)
+      if (amount > 0 && initialParamsForFade === null) {
+        setInitialParamsForFade({ ...params })
+        return
+      }
+
+      // Clear saved params when fade is reset to 0
+      if (amount === 0 && initialParamsForFade !== null) {
+        setInitialParamsForFade(null)
+        return
+      }
+
+      // Use saved initial params if available, otherwise current params
+      const baseParams = initialParamsForFade || params
       const updatedParams = { ...params }
+
       for (let paramName of Object.keys(presets[presetName])) {
-        if (updatedParams[paramName]) {
+        if (updatedParams[paramName] && baseParams[paramName]) {
           const targetValue = presets[presetName][paramName].value
-          const currentValue = updatedParams[paramName].value
+          const initialValue = baseParams[paramName].value
           updatedParams[paramName].value =
-            currentValue + (targetValue - currentValue) * amount
+            initialValue + (targetValue - initialValue) * amount
         }
       }
       setParams(updatedParams)
     }
-    if (selectedPreset && presetFadeAmount > 0) {
+    if (selectedPreset && presetFadeAmount >= 0) {
       fadeToPreset(selectedPreset, presetFadeAmount)
     }
-  }, [presetFadeAmount, selectedPreset])
+  }, [presetFadeAmount, selectedPreset, params, presets, initialParamsForFade])
 
   const copyPreset = () => {
     const presetValues = Object.fromEntries(

@@ -363,13 +363,13 @@ function AsemicAppInner({
   ] = useRecording()
 
   const setup = () => {
-    const { socket, params, setParams, presets, setPresets } = useSocket()
+    const { socket, schema, setSchema } = useSocket()
     useEffect(() => {
       asemic.current?.postMessage({
-        params,
-        presets
+        params: schema.params,
+        presets: schema.presets
       })
-    }, [params, presets])
+    }, [schema])
 
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -398,30 +398,15 @@ function AsemicAppInner({
             socket.emit('params:reset')
           }
           if (
-            !isUndefined(data.params) &&
-            Object.keys(data.params).length > 0
+            (!isUndefined(data.params) &&
+              Object.keys(data.params).length > 0) ||
+            (!isUndefined(data.presets) && Object.keys(data.presets).length > 0)
           ) {
-            const { params } = inputSchema.parse({
+            const parsedSchema = inputSchema.parse({
               params: data.params,
-              presets: {}
-            })
-            setParams(params)
-          }
-          if (
-            !isUndefined(data.presets) &&
-            Object.keys(data.presets).length > 0
-          ) {
-            const { presets } = inputSchema.parse({
-              params: {},
               presets: data.presets
             })
-            setPresets(presets)
-          }
-          if (!isUndefined(data.settings)) {
-            setSettings(settings => ({
-              ...settingsRef.current,
-              ...data.settings
-            }))
+            setSchema(parsedSchema as InputSchema)
           }
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
@@ -692,7 +677,16 @@ function AsemicAppInner({
     []
   )
 
-  const { params, setParams, presets, setPresets } = useSocket()
+  const { schema, setSchema } = useSocket()
+  const { params, presets } = schema
+
+  // Helper functions for backwards compatibility
+  const setParams = useCallback(
+    (newParams: typeof params) => {
+      setSchema({ params: newParams })
+    },
+    [schema, setSchema]
+  )
 
   const [selectedParam, setSelectedParam] = useState(
     undefined as string | undefined

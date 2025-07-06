@@ -13,10 +13,8 @@ import { Socket } from 'socket.io-client'
 
 export const SocketContext = createContext<{
   socket: Socket<SendMap, ReceiveMap>
-  params: InputSchema['params']
-  setParams: (params: InputSchema['params'], silent?: boolean) => void
-  presets: InputSchema['presets']
-  setPresets: (presets: InputSchema['presets'], silent?: boolean) => void
+  schema: InputSchema
+  setSchema: (schema: Partial<InputSchema>, silent?: boolean) => void
 }>({} as any)
 
 export const useSocket = () => {

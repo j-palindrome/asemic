@@ -57,30 +57,17 @@ const App = () => {
 
   const [schema, setSchema] = useState<InputSchema>({ params: {}, presets: {} })
 
-  const setParams = useCallback(
-    (params: InputSchema['params'], broadcast = true) => {
+  const setSchemaWithBroadcast = useCallback(
+    (newSchema: Partial<InputSchema>, broadcast = true) => {
       if (!socketRef.current) {
         return
       }
 
-      if (Object.keys(params).length === 0) return
-      setSchema({ ...schema, params: { ...schema.params, ...params } })
+      setSchema({ ...schema, ...newSchema })
 
       if (broadcast) {
-        socketRef.current.emit('params', { params, presets: schema.presets })
+        socketRef.current.emit('params', { ...schema, ...newSchema })
       }
-    },
-    [socketRef, schema]
-  )
-
-  const setPresets = useCallback(
-    (presets: InputSchema['presets'], broadcast = true) => {
-      if (!socketRef.current) {
-        return
-      }
-
-      debugger
-      setSchema({ ...schema, presets: { ...schema.presets, ...presets } })
     },
     [socketRef, schema]
   )
@@ -88,26 +75,23 @@ const App = () => {
   useEffect(() => {
     if (!socket) return
 
-    const handleParamsUpdate = ({ params, presets }: InputSchema) => {
-      if (params && Object.keys(params).length > 0) setParams(params, false)
-      if (presets && Object.keys(presets).length > 0) setPresets(presets, false)
+    const handleParamsUpdate = (newSchema: InputSchema) => {
+      setSchemaWithBroadcast(newSchema, false)
     }
     socket.on('params', handleParamsUpdate)
 
     return () => {
       socket.off('params', handleParamsUpdate)
     }
-  }, [socket, setParams, setPresets])
+  }, [socket, setSchemaWithBroadcast])
 
   return (
     socket && (
       <SocketContext.Provider
         value={{
           socket,
-          params: schema.params,
-          setParams,
-          presets: schema.presets,
-          setPresets
+          schema,
+          setSchema: setSchemaWithBroadcast
         }}>
         <RouterProvider router={router} />
       </SocketContext.Provider>

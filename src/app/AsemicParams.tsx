@@ -2,7 +2,12 @@ import { useSocket } from '../server/schema'
 import Slider from '../components/Slider'
 
 export default function AsemicParams() {
-  const { socket, params, setParams } = useSocket()
+  const { socket, schema, setSchema } = useSocket()
+  const { params } = schema
+
+  const setParams = (newParams: typeof params) => {
+    setSchema({ ...schema, params: newParams })
+  }
 
   return (
     <>

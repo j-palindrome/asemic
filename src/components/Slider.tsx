@@ -46,7 +46,7 @@ export default function Slider({
     const rect = divRef.current!.getBoundingClientRect()
     let x: number, y: number
 
-    if (ev.type === 'touchmove') {
+    if (ev.type.includes('touch')) {
       const touchEv = ev as TouchEvent
       const touch = Array.from(touchEv.touches).find(
         t => t.identifier === touchId
@@ -54,11 +54,11 @@ export default function Slider({
       if (!touch) return
       x = (touch.clientX - rect.x) / rect.width
       y = 1 - (touch.clientY - rect.y) / rect.height
-    } else if (ev.type === 'mousemove') {
+    } else if (ev.type.includes('mouse')) {
       const mouseEv = ev as MouseEvent
       x = (mouseEv.clientX - rect.x) / rect.width
       y = 1 - (mouseEv.clientY - rect.y) / rect.height
-    } else throw new Error()
+    } else return
 
     // Clamp to bounds
     x = Math.max(0, Math.min(1, x))

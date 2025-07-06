@@ -397,9 +397,6 @@ function AsemicAppInner({
           if (data.resetParams === true) {
             socket.emit('params:reset')
           }
-          if (data.resetPresets === true) {
-            socket.emit('presets:reset')
-          }
           if (
             !isUndefined(data.params) &&
             Object.keys(data.params).length > 0
@@ -706,22 +703,21 @@ function AsemicAppInner({
   const [presetFadeAmount, setPresetFadeAmount] = useState(0)
   const [copyNotification, setCopyNotification] = useState('')
 
-  const fadeToPreset = (presetName: string, amount: number) => {
-    if (!presets[presetName]) return
-
-    const updatedParams = { ...params }
-    for (let paramName of Object.keys(presets[presetName])) {
-      if (updatedParams[paramName]) {
-        const targetValue = presets[presetName][paramName].value
-        const currentValue = updatedParams[paramName].value
-        updatedParams[paramName].value =
-          currentValue + (targetValue - currentValue) * amount
-      }
-    }
-    setParams(updatedParams)
-  }
-
   useEffect(() => {
+    const fadeToPreset = (presetName: string, amount: number) => {
+      if (!presets[presetName]) return
+
+      const updatedParams = { ...params }
+      for (let paramName of Object.keys(presets[presetName])) {
+        if (updatedParams[paramName]) {
+          const targetValue = presets[presetName][paramName].value
+          const currentValue = updatedParams[paramName].value
+          updatedParams[paramName].value =
+            currentValue + (targetValue - currentValue) * amount
+        }
+      }
+      setParams(updatedParams)
+    }
     if (selectedPreset && presetFadeAmount > 0) {
       fadeToPreset(selectedPreset, presetFadeAmount)
     }

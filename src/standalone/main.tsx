@@ -63,6 +63,7 @@ const App = () => {
         return
       }
 
+      if (Object.keys(params).length === 0) return
       setSchema({ ...schema, params: { ...schema.params, ...params } })
 
       if (broadcast) {
@@ -78,11 +79,8 @@ const App = () => {
         return
       }
 
+      debugger
       setSchema({ ...schema, presets: { ...schema.presets, ...presets } })
-
-      if (broadcast) {
-        socketRef.current.emit('params', { params: schema.params, presets })
-      }
     },
     [socketRef, schema]
   )
@@ -91,8 +89,8 @@ const App = () => {
     if (!socket) return
 
     const handleParamsUpdate = ({ params, presets }: InputSchema) => {
-      if (params) setParams(params, false)
-      if (presets) setPresets(presets, false)
+      if (params && Object.keys(params).length > 0) setParams(params, false)
+      if (presets && Object.keys(presets).length > 0) setPresets(presets, false)
     }
     socket.on('params', handleParamsUpdate)
 

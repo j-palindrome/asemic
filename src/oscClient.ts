@@ -21,7 +21,7 @@ export class OSCClient {
   private messageHandlers: Map<string, ((message: OSCMessage) => void)[]> =
     new Map()
 
-  constructor(private wsUrl: string = 'ws://localhost:3000') {
+  constructor(private wsUrl: string = `ws://0.0.0.0:3000`) {
     this.connect()
   }
 

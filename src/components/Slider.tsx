@@ -1,4 +1,4 @@
-import { TouchList, useEffect, useRef } from 'react'
+import { TouchList, useEffect, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 
 /**
@@ -10,93 +10,142 @@ export default function Slider({
   onChange,
   values,
   sliderStyle,
-  exponential = false
+  max,
+  min,
+  exponent = 1
 }: React.PropsWithChildren & {
+  max: number
+  min: number
   className?: string
   innerClassName?: string
   sliderStyle: ({ x, y }: { x: number; y: number }) => React.CSSProperties
   onChange: ({ x, y }: { x: number; y: number }, end?: boolean) => void
   values: { x: number; y: number }
-  exponential?: boolean
+  exponent: number
 }) {
   const slider = useRef<HTMLDivElement>(null!)
   const place = useRef<{ x: number; y: number }>(values)
+  const [isDragging, setIsDragging] = useState(false)
+  const [touchId, setTouchId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!slider.current) return
-    place.current = exponential
-      ? { x: values.x ** 0.5, y: values.y ** 0.5 }
-      : { x: values.x, y: values.y }
+    place.current = {
+      x: exponent
+        ? ((values.x - min) / (max - min)) ** (1 / exponent)
+        : (values.x - min) / (max - min),
+      y: exponent
+        ? ((values.y - min) / (max - min)) ** (1 / exponent)
+        : (values.y - min) / (max - min)
+    }
     Object.assign(slider.current.style, sliderStyle(place.current))
   }, [values])
 
   const divRef = useRef<HTMLDivElement>(null)
-  let moved = useRef<false | number>(false)
-  const updateMouse = (ev: React.MouseEvent | React.TouchEvent) => {
+  const updateMouse = (ev: MouseEvent | TouchEvent) => {
     const rect = divRef.current!.getBoundingClientRect()
     let x: number, y: number
 
     if (ev.type === 'touchmove') {
-      const touch = Array.from(ev.touches).find(
-        x =>
-          x.clientX > rect.left &&
-          x.clientX < rect.right &&
-          x.clientY < rect.bottom &&
-          x.clientY > rect.top
+      const touchEv = ev as TouchEvent
+      const touch = Array.from(touchEv.touches).find(
+        t => t.identifier === touchId
       )
       if (!touch) return
       x = (touch.clientX - rect.x) / rect.width
       y = 1 - (touch.clientY - rect.y) / rect.height
     } else if (ev.type === 'mousemove') {
-      if (!ev.buttons) return
-      x = (ev.clientX - rect.x) / rect.width
-      y = 1 - (ev.clientY - rect.y) / rect.height
+      const mouseEv = ev as MouseEvent
+      x = (mouseEv.clientX - rect.x) / rect.width
+      y = 1 - (mouseEv.clientY - rect.y) / rect.height
     } else throw new Error()
 
+    // Clamp to bounds
+    x = Math.max(0, Math.min(1, x))
+    y = Math.max(0, Math.min(1, y))
+
+    const edgeThreshold = 0.05
+
+    // Set to minimum when clicking near edges
+    if (x < edgeThreshold) x = 0
+    if (y < edgeThreshold) y = 0
+
     place.current = { x, y }
-    if (exponential) {
-      onChange({ x: x ** 2, y: y ** 2 })
-    } else {
-      onChange({ x: x, y: y })
+    const newX = exponent
+      ? place.current.x ** exponent * (max - min) + min
+      : place.current.x * (max - min) + min
+    const newY = exponent
+      ? place.current.y ** exponent * (max - min) + min
+      : place.current.y * (max - min) + min
+    onChange({
+      x: newX,
+      y: newY
+    })
+
+    Object.assign(slider.current.style, sliderStyle(place.current))
+  }
+
+  const handleStart = (ev: React.MouseEvent | React.TouchEvent) => {
+    if (ev.type === 'touchstart') {
+      const touchEv = ev as React.TouchEvent
+      const touch = touchEv.touches[0]
+      setTouchId(touch.identifier)
+    }
+    setIsDragging(true)
+    updateMouse(ev.nativeEvent)
+  }
+
+  const handleEnd = () => {
+    setIsDragging(false)
+    setTouchId(null)
+    onChange(
+      {
+        x: exponent
+          ? place.current.x ** exponent * (max - min) + min
+          : place.current.x * (max - min) + min,
+        y: exponent
+          ? place.current.y ** exponent * (max - min) + min
+          : place.current.y * (max - min) + min
+      },
+      true
+    )
+  }
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (ev: MouseEvent) => updateMouse(ev)
+    const handleTouchMove = (ev: TouchEvent) => updateMouse(ev)
+    const handleMouseUp = () => handleEnd()
+    const handleTouchEnd = (ev: TouchEvent) => {
+      if (
+        touchId !== null &&
+        Array.from(ev.changedTouches).some(t => t.identifier === touchId)
+      ) {
+        handleEnd()
+      }
     }
 
-    Object.assign(slider.current.style, sliderStyle({ x, y }))
-  }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('touchmove', handleTouchMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchend', handleTouchEnd)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [isDragging, touchId])
 
   return (
     <div
       ref={divRef}
       className={`${className} relative flex overflow-hidden`}
-      onTouchMove={updateMouse}
-      onMouseMove={updateMouse}
-      onMouseUp={ev => {
-        if (moved.current) {
-          return
-        }
-        const rect = ev.currentTarget.getBoundingClientRect()
-        const x =
-          ((ev instanceof TouchEvent ? ev.touches[0].clientX : ev.clientX) -
-            rect.x) /
-          rect.width
-        const y =
-          1 -
-          ((ev instanceof TouchEvent ? ev.touches[0].clientY : ev.clientY) -
-            rect.y) /
-            rect.height
-
-        const lastY = place.current.y
-        place.current = { x, y }
-
-        if (divRef.current!.getBoundingClientRect().bottom < ev.clientY + 30) {
-          place.current = { x, y: 0 }
-        }
-
-        if (exponential) {
-          onChange({ x: place.current.x ** 2, y: place.current.y ** 2 }, true)
-        } else {
-          onChange({ x: place.current.x, y: place.current.y }, true)
-        }
-      }}>
+      style={{ touchAction: 'none' }}
+      onTouchStart={handleStart}
+      onMouseDown={handleStart}>
       <div className={`${innerClassName} absolute`} ref={slider}></div>
     </div>
   )

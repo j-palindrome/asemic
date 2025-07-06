@@ -7,20 +7,7 @@ import { Server, Client } from 'node-osc'
 import invariant from 'tiny-invariant'
 import _ from 'lodash'
 import tailwindcss from '@tailwindcss/vite'
-
-const inputSchema = z.object({
-  params: z.record(
-    z.string(),
-    z.object({
-      type: z.literal('number'),
-      value: z.number(),
-      max: z.number(),
-      min: z.number()
-    })
-  )
-})
-
-type InputSchema = z.infer<typeof inputSchema>
+import { InputSchema, inputSchema } from './inputSchema'
 
 const paramsState: InputSchema = {
   params: {}
@@ -57,6 +44,9 @@ async function startDevServer() {
   io.on('connection', (socket: Socket<ReceiveMap, SendMap>) => {
     socket.emit('params', paramsState)
 
+    socket.on('params:reset', () => {
+      paramsState.params = {}
+    })
     socket.on('params', obj => {
       try {
         const validatedObj = inputSchema.parse(obj)

@@ -1,11 +1,18 @@
-import _, { clamp, isUndefined, last, sortBy } from 'lodash'
-import { createNoise2D } from 'simplex-noise'
+import _, {
+  clamp,
+  cloneDeep,
+  isUndefined,
+  last,
+  pick,
+  range,
+  sortBy
+} from 'lodash'
 import { defaultSettings, splitString } from './settings'
 import { AsemicPt, BasicPt } from './blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from './defaultFont'
 import { defaultPreProcess, lerp, stripComments } from './utils'
 import { AsemicData, Transform } from './types'
-import { InputSchema } from './server/constants'
+import { InputSchema } from './server/inputSchema'
 import { log } from 'console'
 
 const TransformAliases = {
@@ -37,17 +44,24 @@ const defaultOutput = () =>
     errors: [],
     pauseAt: false,
     eval: [],
-    params: {}
+    params: {},
+    presets: {},
+    resetParams: false,
+    resetPresets: false
   } as {
     osc: { path: string; args: (string | number | [number, number])[] }[]
     errors: string[]
     pauseAt: string | false
     eval: string[]
     params: InputSchema['params']
+    presets: InputSchema['presets']
+    resetParams: boolean
+    resetPresets: boolean
   })
 
 export class Parser {
   rawSource = ''
+  protected presets: Record<string, InputSchema['params']> = {}
   protected mode = 'normal' as 'normal' | 'blank'
   protected adding = 0
   protected debugged = new Map<string, { errors: string[] }>()
@@ -107,11 +121,11 @@ export class Parser {
       return 1 / pixels
     },
 
-    sin: ([x]) => Math.sin(this.evalExpr(x, false) * Math.PI * 2) * 0.5 + 0.5,
+    sin: ([x]) => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
     acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
         this.progress.accums.push(0)
-      const value = this.evalExpr(x, false)
+      const value = this.expr(x, false)
       // correct for 60fps
       this.progress.accums[this.progress.accumIndex] += value / 60
       const currentAccum = this.progress.accums[this.progress.accumIndex]
@@ -125,9 +139,9 @@ export class Parser {
   }
   protected currentFont = 'default'
   protected lastPoint: AsemicPt = new AsemicPt(this, 0, 0)
-  protected noiseTable: ((x: number, y: number) => number)[] = []
+  protected noiseTable: ((x: number) => number)[] = []
+  protected noiseValues: number[] = []
   protected noiseIndex = 0
-  protected noise = createNoise2D()
   output = defaultOutput()
   preProcessing = defaultPreProcess()
 
@@ -198,12 +212,65 @@ export class Parser {
     }
   }
 
-  prm(paramName: string, defaultValue: Expr, max: Expr, min: Expr) {
+  toPreset(presetName: string, amount: Expr = 1) {
+    if (!this.presets[presetName]) {
+      this.error(`Preset '${presetName}' not found`)
+      return this
+    }
+
+    const lerpAmount = this.expr(amount)
+    for (let paramName of Object.keys(this.presets[presetName])) {
+      if (!this.params[paramName]) {
+        this.error(
+          `Parameter '${paramName}' not found for preset '${presetName}'`
+        )
+        continue
+      }
+
+      const targetValue = this.presets[presetName][paramName].value
+      const currentValue = this.params[paramName].value
+      this.params[paramName].value =
+        currentValue + (targetValue - currentValue) * lerpAmount
+    }
+    return this
+  }
+
+  preset(presetName: string, values: string) {
+    const tokenized = this.tokenize(values)
+    if (!this.presets[presetName]) {
+      this.presets[presetName] = {}
+    }
+    for (let token of tokenized) {
+      const [paramName, value] = token.split('=')
+      if (!this.params[paramName]) {
+        this.error(
+          `Parameter '${paramName}' must be defined before creating preset`
+        )
+        continue
+      }
+      this.presets[presetName][paramName] = {
+        ...this.params[paramName],
+        value: this.expr(value)
+      }
+    }
+    this.output.presets[presetName] = this.presets[presetName]
+    return this
+  }
+
+  param(
+    paramName: string,
+    { value, min = 0, max = 1, exponent = 1 }: InputSchema['params'][string]
+  ) {
     this.params[paramName] = {
       type: 'number',
-      value: defaultValue ? this.evalExpr(defaultValue) : 0,
-      max: max ? this.evalExpr(max) : 1,
-      min: min ? this.evalExpr(min) : 0
+      value: this.params[paramName]
+        ? this.params[paramName].value
+        : value
+        ? this.expr(value)
+        : 0,
+      min: this.expr(min),
+      max: this.expr(max),
+      exponent: this.expr(exponent)
     }
     this.output.params[paramName] = this.params[paramName]
     this.constants[paramName] = () => this.params[paramName].value
@@ -211,7 +278,7 @@ export class Parser {
     return this
   }
 
-  scr(progress: number) {
+  scrub(progress: number) {
     // Clamp progress to valid range
     progress = Math.max(0, Math.min(progress, this.totalLength))
 
@@ -230,8 +297,8 @@ export class Parser {
     return this.totalLength
   }
 
-  rpt(count: Expr, callback: (p: this) => void) {
-    const countNum = this.evalExpr(count)
+  repeat(count: Expr, callback: (p: this) => void) {
+    const countNum = this.expr(count)
 
     const prevIndex = this.progress.index
     const prevCountNum = this.progress.countNum
@@ -296,7 +363,7 @@ export class Parser {
     return c
   }
 
-  scn(
+  scene(
     callback: (p: this) => void,
     { length = 0.1, offset = 0, pause = 0 } = {}
   ) {
@@ -324,12 +391,24 @@ export class Parser {
     //   )
     // }
     this.fonts = { default: new DefaultFont() }
-    this.params = {} as InputSchema['params']
     this.totalLength = 0
 
     this.settings = defaultSettings()
     this.scenes = []
-    eval(source)
+    this.rawSource = source
+    // Use Function constructor with 'this' bound to the Parser instance
+    const setupFunction = new Function(
+      'source',
+      `
+      with (this) {
+        ${source}
+      }
+    `
+    ).bind(this)
+
+    this.output.resetParams = true
+    this.output.resetPresets = true
+    setupFunction(source)
   }
 
   protected hash = (n: number): number => {
@@ -387,8 +466,8 @@ export class Parser {
       w = 0
     if (args.length >= 3) {
       const hwParts = args[2].split(',')
-      h = this.evalExpr(hwParts[0])!
-      w = hwParts.length > 1 ? this.evalExpr(hwParts[1])! : 0
+      h = this.expr(hwParts[0])!
+      w = hwParts.length > 1 ? this.expr(hwParts[1])! : 0
     }
 
     return [startPoint, endPoint, h, w] as [AsemicPt, AsemicPt, number, number]
@@ -407,7 +486,7 @@ export class Parser {
         } else if (x.includes(',')) {
           return [...this.evalPoint(x)] as [number, number]
         } else {
-          const evaluated = this.evalExpr(x)
+          const evaluated = this.expr(x)
           return isNaN(evaluated) ? x : evaluated
         }
       })
@@ -514,7 +593,7 @@ export class Parser {
     return this
   }
 
-  evalExpr(expr: Expr, replace = true): number {
+  expr(expr: Expr, replace = true): number {
     try {
       if (expr === undefined || expr === null) {
         throw new Error('undefined or null expression')
@@ -538,9 +617,9 @@ export class Parser {
           }
         }
 
-        return this.evalExpr(
+        return this.expr(
           expr.substring(0, start) +
-            this.evalExpr(expr.substring(start + 1, end)).toFixed(4) +
+            this.expr(expr.substring(start + 1, end)).toFixed(4) +
             expr.substring(end + 1)
         )
       }
@@ -562,21 +641,12 @@ export class Parser {
       if (expr.includes('<')) {
         // 1.1<R>2.4
         let [firstPoint, fade, ...nextPoints] = expr.split(/[<>]/g).map(x => {
-          return this.evalExpr(x, false)
+          return this.expr(x, false)
         })
         fade = clamp(fade, 0, 1)
         const points = [firstPoint, ...nextPoints]
         let index = (points.length - 1) * fade
         if (index === points.length - 1) index -= 0.0001
-        // if (
-        //   lerp(
-        //     points[Math.floor(index)]!,
-        //     points[Math.floor(index) + 1]!,
-        //     index % 1
-        //   ) === 0
-        // ) {
-        //   debugger
-        // }
 
         return lerp(
           points[Math.floor(index)]!,
@@ -592,31 +662,35 @@ export class Parser {
           switch (expr[i]) {
             case '^':
               operators = splitString(expr, '^').map(
-                x => this.evalExpr(x, false)!
+                x => this.expr(x, false)!
               ) as [number, number]
               return operators[0] ** operators[1]
 
             case '_':
               let [round, after] = splitString(expr, '_')
-              if (!after) after = '1'
-              const afterNum = this.evalExpr(after, false)
-              return Math.floor(this.evalExpr(round) / afterNum) * afterNum
+
+              const afterNum = this.expr(after || 0, false)
+              if (!afterNum) {
+                return this.expr(round, false)
+              } else {
+                return Math.floor(this.expr(round) / afterNum) * afterNum
+              }
 
             case '+':
               operators = splitString(expr, '+').map(
-                x => this.evalExpr(x, false)!
+                x => this.expr(x, false)!
               ) as [number, number]
               return operators[0] + operators[1]
 
             case '-':
               operators = splitString(expr, '-').map(
-                x => this.evalExpr(x, false)!
+                x => this.expr(x, false)!
               ) as [number, number]
               return operators[0] - operators[1]
 
             case '*':
               const split = splitString(expr, '*')
-              operators = split.map(x => this.evalExpr(x, false)!) as [
+              operators = split.map(x => this.expr(x, false)!) as [
                 number,
                 number
               ]
@@ -624,35 +698,39 @@ export class Parser {
 
             case '/':
               operators = splitString(expr, '/').map(
-                x => this.evalExpr(x, false)!
+                x => this.expr(x, false)!
               ) as [number, number]
               return operators[0] / operators[1]
 
             case '%':
               operators = splitString(expr, '%').map(
-                x => this.evalExpr(x, false)!
+                x => this.expr(x, false)!
               ) as [number, number]
               return operators[0] % operators[1]
 
-            case '#':
-              const exprHash = splitString(expr, '#')[0]
-              if (!exprHash) {
-                return Math.random()
-              }
-              return this.hash(this.evalExpr(exprHash, false))
-
             case '~':
-              const speed = this.evalExpr(splitString(expr, '~')[0] || '1')
-
               let sampleIndex = this.noiseIndex
               while (sampleIndex > this.noiseTable.length - 1) {
-                this.noiseTable.push(createNoise2D())
+                const seed = Math.random()
+                const add = Math.random() * Math.PI * 2
+                this.noiseTable.push((x: number) => {
+                  return Math.sin(x * 2 * Math.PI * seed + add)
+                })
+                this.noiseValues.push(0)
               }
+
+              const [spd, val] = splitString(expr, '~')
+              const speed = this.expr(spd || '1')
+
+              const value = !val
+                ? this.noiseValues[this.noiseIndex] + (speed * 1) / 60
+                : this.expr(val) ||
+                  this.noiseValues[this.noiseIndex] + (speed * 1) / 60
+              this.noiseValues[this.noiseIndex] = value
 
               const noise =
                 this.noiseTable[this.noiseIndex](
-                  speed * this.progress.time,
-                  this.noiseIndex
+                  this.noiseValues[this.noiseIndex]
                 ) *
                   0.5 +
                 0.5
@@ -676,21 +754,33 @@ export class Parser {
     }
   }
 
+  choose(value0To1: Expr, ...callbacks: (() => void)[]) {
+    const normalizedValue = this.expr(value0To1)
+    const numCallbacks = callbacks.length
+
+    if (numCallbacks === 0) return this
+
+    // Scale the value to the number of callbacks and clamp it
+    const index = Math.floor(clamp(normalizedValue, 0, 0.999999) * numCallbacks)
+
+    // Call the selected callback
+    if (callbacks[index]) {
+      callbacks[index]()
+    }
+
+    return this
+  }
+
   protected evalPoint<K extends boolean>(
     point: string,
-    {
-      defaultValue = true,
-      basic = false as any
-    }: { defaultValue?: boolean | number; basic?: K } = {} as any
+    { basic = false as any }: { basic?: K } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
     // match 1,1<0.5>2,2>3,3 but not 1,1<0.5>2
     if (/^[^<]+,[^<]+<[^>,]+\>[^>,]+,[^>,]+/.test(point)) {
       const [firstPoint, fade, ...nextPoints] = point
         .split(/[<>]/g)
         .map((x, i) => {
-          return i === 1
-            ? this.evalExpr(x)
-            : this.evalPoint(x, { defaultValue })
+          return i === 1 ? this.expr(x) : this.evalPoint(x)
         })
       const fadeNm = fade as number
       const points = [firstPoint, ...nextPoints] as AsemicPt[]
@@ -703,6 +793,7 @@ export class Parser {
           .scale([index % 1, index % 1])
       )
     }
+
     // else if (point.startsWith('(')) {
     //   let end = 0
     //   let evalPoint: string | undefined = undefined
@@ -755,17 +846,13 @@ export class Parser {
     // }
     const parts = point.split(',')
     if (parts.length === 1) {
-      if (defaultValue === false) throw new Error(`Incomplete point: ${point}`)
-      return new AsemicPt(
-        this,
-        this.evalExpr(parts[0])!,
-        defaultValue === true ? this.evalExpr(parts[0])! : defaultValue
-      )
+      const x = this.expr(parts[0])!
+      return new AsemicPt(this, x, parts[1] ? this.expr(parts[1])! : x)
     }
     return (
       basic
-        ? new BasicPt(...parts.map(x => this.evalExpr(x)!))
-        : new AsemicPt(this, ...parts.map(x => this.evalExpr(x)!))
+        ? new BasicPt(...parts.map(x => this.expr(x)!))
+        : new AsemicPt(this, ...parts.map(x => this.expr(x)!))
     ) as K extends true ? BasicPt : AsemicPt
   }
 
@@ -778,7 +865,7 @@ export class Parser {
       .rotate(this.currentTransform.rotation)
 
     if (this.currentTransform.rotate !== undefined && randomize) {
-      point.rotate(this.evalExpr(this.currentTransform.rotate))
+      point.rotate(this.expr(this.currentTransform.rotate))
     }
     if (this.currentTransform.add !== undefined && randomize) {
       point.add(
@@ -802,7 +889,7 @@ export class Parser {
       point.subtract(addPoint)
     }
     if (this.currentTransform.rotate !== undefined && randomize) {
-      point.rotate(this.evalExpr(this.currentTransform.rotate) * -1)
+      point.rotate(this.expr(this.currentTransform.rotate) * -1)
     }
     point
       .divide(this.currentTransform.scale)
@@ -833,7 +920,7 @@ export class Parser {
           throw new Error('Intersection requires a previous curve')
         }
 
-        let p = this.evalExpr(notation)
+        let p = this.expr(notation)
         const idx = Math.floor(p * (prevCurve.length - 1))
         const frac = p * (prevCurve.length - 1) - idx
 
@@ -853,9 +940,7 @@ export class Parser {
 
       // Polar coordinates: @t,r
       else if (notation.startsWith('@')) {
-        const [theta, radius] = this.evalPoint(notation.substring(1), {
-          defaultValue: false
-        })
+        const [theta, radius] = this.evalPoint(notation.substring(1))
 
         point = this.applyTransform(
           new AsemicPt(this, radius, 0).rotate(theta),
@@ -900,14 +985,7 @@ export class Parser {
     return newTransform
   }
 
-  tras(...tokens: string[]) {
-    for (let token of tokens) {
-      this.tra(token)
-    }
-    return this
-  }
-
-  tra(token: string) {
+  to(token: string) {
     token = token.trim()
     const transforms = this.tokenize(token)
 
@@ -966,7 +1044,7 @@ export class Parser {
           new RegExp(`^(${TransformAliases.rotation.join('|')})(.+)`)
         )
         if (match) {
-          this.currentTransform.rotation += this.evalExpr(match[2])!
+          this.currentTransform.rotation += this.expr(match[2])!
         }
       } else if (
         transform.match(
@@ -1083,14 +1161,7 @@ export class Parser {
     this.adding = 0
   }
 
-  crvs(...tokens: string[]) {
-    for (let token of tokens) {
-      this.crv(token)
-    }
-    return this
-  }
-
-  crv(token: string, { add = false }: { add?: boolean } = {}) {
+  points(token: string) {
     const pointsTokens = this.tokenize(token)
 
     let totalLength =
@@ -1100,7 +1171,7 @@ export class Parser {
     this.adding += totalLength
     pointsTokens.forEach((pointToken, i) => {
       if (pointToken.startsWith('{')) {
-        this.tra(pointToken)
+        this.to(pointToken)
         return
       } else {
         try {
@@ -1115,7 +1186,7 @@ export class Parser {
               new RegExp(`^\\(?${x}`).test(pointToken)
             )
           ) {
-            const evaled = this.evalExpr(pointToken)
+            const evaled = this.expr(pointToken)
             if (evaled) {
               this.currentCurve.push(this.parsePoint(evaled))
             } else {
@@ -1125,9 +1196,12 @@ export class Parser {
         }
       }
     })
-    if (!add) {
-      this.end()
-    }
+    return this
+  }
+
+  curve(token: string) {
+    this.points(token)
+    this.end()
     return this
   }
 
@@ -1147,12 +1221,12 @@ export class Parser {
       throw new Error(`Reserved constant: ${key}`)
     }
 
-    this.constants[key] = () => this.evalExpr(definition)
+    this.constants[key] = () => this.expr(definition)
 
     return this
   }
 
-  fnt(name: string, chars?: AsemicFont['characters']) {
+  font(name: string, chars?: AsemicFont['characters']) {
     this.currentFont = name
     if (chars) {
       if (!this.fonts[name]) {
@@ -1165,12 +1239,7 @@ export class Parser {
     return this
   }
 
-  evl(script: string) {
-    this.evl(script)
-    return this
-  }
-
-  txt(token: string, { add = false }: { add?: boolean } = {}) {
+  text(token: string, { add = false }: { add?: boolean } = {}) {
     // const formatSpace = (insert?: string) => {
     //   if (insert) return ` ${insert} `
     //   return ' '
@@ -1209,7 +1278,7 @@ export class Parser {
           }
         }
         const end = i
-        this.tra(token.substring(start + 1, end))
+        this.to(token.substring(start + 1, end))
         continue
       }
       this.progress.letter = i / (token.length - 1)

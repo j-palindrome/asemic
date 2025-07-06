@@ -1,7 +1,7 @@
 import { Color, Pt } from 'pts'
 import { Parser } from './Parser'
 import { BasicPt } from './blocks/AsemicPt'
-import { InputSchema } from './server/constants'
+import { InputSchema } from './server/inputSchema'
 export type { Parser } from './Parser'
 export type { default as Renderer } from './renderers/visual/CanvasRenderer'
 
@@ -19,6 +19,7 @@ export type AsemicData = {
   startRecording?: boolean
   stopRecording?: boolean
   params?: InputSchema['params']
+  presets?: InputSchema['presets']
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']
@@ -31,6 +32,7 @@ export type AsemicDataBack = {
   recordingStopped?: boolean
   recordedData?: Blob
   frameData?: ImageBitmap
+  resetPresets?: boolean
 } & Partial<Parser['output']>
 
 export type Transform = {

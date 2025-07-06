@@ -16,66 +16,66 @@ describe('Parser Basic Tests', () => {
 
 describe('Expression Evaluation', () => {
   test('should evaluate basic numeric expressions', () => {
-    expect(parser.evalExpr('5')).toBe(5)
-    expect(parser.evalExpr('5.5')).toBe(5.5)
-    expect(parser.evalExpr('-10')).toBe(-10)
+    expect(parser.expr('5')).toBe(5)
+    expect(parser.expr('5.5')).toBe(5.5)
+    expect(parser.expr('-10')).toBe(-10)
   })
 
   test('should evaluate arithmetic operations', () => {
-    expect(parser.evalExpr('5+3')).toBe(8)
-    expect(parser.evalExpr('5-3')).toBe(2)
-    expect(parser.evalExpr('5*3')).toBe(15)
-    expect(parser.evalExpr('6/3')).toBe(2)
-    expect(parser.evalExpr('7%3')).toBe(1)
-    expect(parser.evalExpr('2^3')).toBe(8)
+    expect(parser.expr('5+3')).toBe(8)
+    expect(parser.expr('5-3')).toBe(2)
+    expect(parser.expr('5*3')).toBe(15)
+    expect(parser.expr('6/3')).toBe(2)
+    expect(parser.expr('7%3')).toBe(1)
+    expect(parser.expr('2^3')).toBe(8)
   })
 
   test('should handle nested operations with parentheses', () => {
-    expect(parser.evalExpr('(5+3)*2')).toBe(16)
-    expect(parser.evalExpr('2*(5+3)')).toBe(16)
-    expect(parser.evalExpr('(2+3)*(4-1)')).toBe(15)
+    expect(parser.expr('(5+3)*2')).toBe(16)
+    expect(parser.expr('2*(5+3)')).toBe(16)
+    expect(parser.expr('(2+3)*(4-1)')).toBe(15)
   })
 
   test('should evaluate special operators', () => {
     // Test hash operator (#) - since it uses Math.random, we'll just check if it returns a number
 
-    const hashResult = parser.evalExpr('#')
+    const hashResult = parser.expr('#')
     expect(typeof hashResult).toBe('number')
     expect(hashResult).toBeGreaterThanOrEqual(0)
     expect(hashResult).toBeLessThanOrEqual(1)
 
     // Test floor operator (_)
 
-    expect(parser.evalExpr('5.7_1')).toBe(5)
+    expect(parser.expr('5.7_1')).toBe(5)
 
-    expect(parser.evalExpr('5.7_0.5')).toBe(5.5)
+    expect(parser.expr('5.7_0.5')).toBe(5.5)
   })
 
   test('should handle interpolation expressions', () => {
-    expect(parser.evalExpr('1<0.5>3')).toBe(2)
+    expect(parser.expr('1<0.5>3')).toBe(2)
 
-    expect(parser.evalExpr('0<0.25>4')).toBe(1)
+    expect(parser.expr('0<0.25>4')).toBe(1)
 
-    expect(parser.evalExpr('10<0.75>20')).toBe(17.5)
+    expect(parser.expr('10<0.75>20')).toBe(17.5)
   })
 
   test('should evaluate built-in constants', () => {
     // Test time constant
 
-    const timeResult = parser.evalExpr('T')
+    const timeResult = parser.expr('T')
     expect(typeof timeResult).toBe('number')
 
     // Test index constant
 
     parser.progress.index = 5
 
-    expect(parser.evalExpr('I')).toBe(5)
+    expect(parser.expr('I')).toBe(5)
 
     // Test count constant
 
     parser.progress.countNum = 10
 
-    expect(parser.evalExpr('N')).toBe(10)
+    expect(parser.expr('N')).toBe(10)
   })
 })
 
@@ -131,7 +131,7 @@ describe('Point Parsing', () => {
 describe('Transformation Parsing', () => {
   test('should parse scale transformations', () => {
     // @ts-ignore
-    parser.tra('{*2,2}')
+    parser.to('{*2,2}')
 
     expect(parser.currentTransform.scale[0]).toBe(2)
 
@@ -140,14 +140,14 @@ describe('Transformation Parsing', () => {
 
   test('should parse rotation transformations', () => {
     // @ts-ignore
-    parser.tra('{@0.25}') // 90 degrees
+    parser.to('{@0.25}') // 90 degrees
 
     expect(parser.currentTransform.rotation).toBe(0.25)
   })
 
   test('should parse translation transformations', () => {
     // @ts-ignore
-    parser.tra('{+1,1}')
+    parser.to('{+1,1}')
 
     expect(parser.currentTransform.translation[0]).toBe(1)
 
@@ -158,18 +158,18 @@ describe('Transformation Parsing', () => {
     // First set some transforms
     // @ts-ignore
 
-    parser.tra('{*2,2}')
+    parser.to('{*2,2}')
 
     // @ts-ignore
-    parser.tra('{@0.25}')
+    parser.to('{@0.25}')
 
     // @ts-ignore
-    parser.tra('{+1,1}')
+    parser.to('{+1,1}')
 
     // Then reset all
     // @ts-ignore
 
-    parser.tra('{!}')
+    parser.to('{!}')
 
     expect(parser.currentTransform.scale[0]).toBe(1)
 
@@ -184,14 +184,14 @@ describe('Transformation Parsing', () => {
 
   test('should handle transform stacking', () => {
     // @ts-ignore
-    parser.tra('{>}') // Push current transform
+    parser.to('{>}') // Push current transform
     // @ts-ignore
-    parser.tra('{*2,2}') // Scale
+    parser.to('{*2,2}') // Scale
 
     expect(parser.currentTransform.scale[0]).toBe(2)
 
     // @ts-ignore
-    parser.tra('{<}') // Pop back to previous transform
+    parser.to('{<}') // Pop back to previous transform
 
     expect(parser.currentTransform.scale[0]).toBe(1)
   })
@@ -268,7 +268,7 @@ describe('Text Handling', () => {
 
 describe('Function Evaluation', () => {
   test('should evaluate sin function', () => {
-    const result = parser.evalExpr('sin 0.25') // sin of 90 degrees
+    const result = parser.expr('sin 0.25') // sin of 90 degrees
     expect(parseFloat(result.toString())).toBeCloseTo(1)
   })
 

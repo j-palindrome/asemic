@@ -5,31 +5,35 @@ export default function AsemicParams() {
   const { socket, params, setParams } = useSocket()
 
   return (
-    <div className='flex w-full h-full'>
-      {params &&
-        Object.entries(params).map(([key, type]) => {
-          const min = type.min
-          const max = type.max
-          const step = (type.max - type.min) / 100
-
-          return (
-            <div key={key} className='flex flex-col items-center h-full w-10'>
-              <label>{key}</label>
-              <Slider
-                className='h-full w-full border border-gray-300 rounded-lg'
-                values={{ x: 0, y: (type.value - min) / (max - min) }}
-                innerClassName='bottom-0 left-0 w-full bg-white rounded-lg'
-                sliderStyle={({ x, y }) => ({
-                  height: `${y * 100}%`
-                })}
-                onChange={({ x, y }, end) => {
-                  const newValue = min + y * (max - min)
-                  setParams({ ...params, [key]: { ...type, value: newValue } })
-                }}
-              />
-            </div>
-          )
-        })}
-    </div>
+    <>
+      <div className='h-[200px]'></div>
+      <div className='flex w-screen h-screen space-x-2'>
+        {params &&
+          Object.entries(params).map(([key, type]) => {
+            return (
+              <div
+                key={key}
+                className='flex flex-col items-center h-full w-[60px] mr-2'>
+                <label>{key}</label>
+                <Slider
+                  max={type.max}
+                  min={type.min}
+                  className='h-full w-full border border-gray-300 rounded-lg'
+                  values={{ x: 0, y: type.value }}
+                  exponent={type.exponent}
+                  innerClassName='bottom-0 left-0 w-full bg-white rounded-lg'
+                  sliderStyle={({ x, y }) => ({
+                    height: `${y * 100}%`
+                  })}
+                  onChange={({ x, y }, end) => {
+                    setParams({ ...params, [key]: { ...type, value: y } })
+                  }}
+                />
+                <div className='text-xs mt-1'>{type.value.toFixed(2)}</div>
+              </div>
+            )
+          })}
+      </div>
+    </>
   )
 }

@@ -65,10 +65,13 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
   }
   if (!isUndefined(ev.data.scrub)) {
-    parser.scr(ev.data.scrub)
+    parser.scrub(ev.data.scrub)
   }
   if (!isUndefined(ev.data.params)) {
     parser.params = { ...parser.params, ...ev.data.params }
+  }
+  if (!isUndefined(ev.data.presets)) {
+    parser.presets = { ...parser.presets, ...ev.data.presets }
   }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
@@ -80,6 +83,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
       self.postMessage({
         settings: parser.settings,
+        resetPresets: parser.output.resetPresets,
         ...parser.output
       } as AsemicDataBack)
     }
@@ -110,7 +114,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
             translation: parser.currentTransform.translation,
             rotation: parser.currentTransform.rotation,
             scale: parser.currentTransform.scale,
-            width: parser.evalExpr(parser.currentTransform.width)
+            width: parser.expr(parser.currentTransform.width)
           } as FlatTransform,
           progress: parser.progress.progress,
           totalLength: parser.duration,

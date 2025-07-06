@@ -31,7 +31,8 @@ import Asemic from '../Asemic'
 import { AsemicData, FlatTransform, Parser } from '../types'
 import { SocketContext, useSocket } from '../server/schema'
 import { stripComments } from '../utils'
-import { InputSchema, inputSchema } from '../server/constants'
+import { InputSchema, inputSchema } from '../server/inputSchema'
+import Slider from '../components/Slider'
 
 function AsemicAppInner({
   source,
@@ -298,7 +299,7 @@ function AsemicAppInner({
       a.download = `asemic-${new Date()
         .toISOString()
         .slice(0, 19)
-        .replace(/:/g, '-')}.asemic`
+        .replace(/:/g, '-')}.js`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -362,12 +363,13 @@ function AsemicAppInner({
   ] = useRecording()
 
   const setup = () => {
-    const { socket, params, setParams } = useSocket()
+    const { socket, params, setParams, presets, setPresets } = useSocket()
     useEffect(() => {
       asemic.current?.postMessage({
-        params
+        params,
+        presets
       })
-    }, [params])
+    }, [params, presets])
 
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -392,13 +394,31 @@ function AsemicAppInner({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
+          if (data.resetParams === true) {
+            socket.emit('params:reset')
+          }
+          if (data.resetPresets === true) {
+            socket.emit('presets:reset')
+          }
           if (
             !isUndefined(data.params) &&
             Object.keys(data.params).length > 0
           ) {
-            const { params } = inputSchema.parse({ params: data.params })
-
+            const { params } = inputSchema.parse({
+              params: data.params,
+              presets: {}
+            })
             setParams(params)
+          }
+          if (
+            !isUndefined(data.presets) &&
+            Object.keys(data.presets).length > 0
+          ) {
+            const { presets } = inputSchema.parse({
+              params: {},
+              presets: data.presets
+            })
+            setPresets(presets)
           }
           if (!isUndefined(data.settings)) {
             setSettings(settings => ({
@@ -675,12 +695,61 @@ function AsemicAppInner({
     []
   )
 
+  const { params, setParams, presets, setPresets } = useSocket()
+
+  const [selectedParam, setSelectedParam] = useState(
+    undefined as string | undefined
+  )
+  const [selectedPreset, setSelectedPreset] = useState(
+    undefined as string | undefined
+  )
+  const [presetFadeAmount, setPresetFadeAmount] = useState(0)
+  const [copyNotification, setCopyNotification] = useState('')
+
+  const fadeToPreset = (presetName: string, amount: number) => {
+    if (!presets[presetName]) return
+
+    const updatedParams = { ...params }
+    for (let paramName of Object.keys(presets[presetName])) {
+      if (updatedParams[paramName]) {
+        const targetValue = presets[presetName][paramName].value
+        const currentValue = updatedParams[paramName].value
+        updatedParams[paramName].value =
+          currentValue + (targetValue - currentValue) * amount
+      }
+    }
+    setParams(updatedParams)
+  }
+
+  useEffect(() => {
+    if (selectedPreset && presetFadeAmount > 0) {
+      fadeToPreset(selectedPreset, presetFadeAmount)
+    }
+  }, [presetFadeAmount, selectedPreset])
+
+  const copyPreset = () => {
+    const presetValues = Object.fromEntries(
+      Object.entries(params).map(([key, param]) => [
+        key,
+        param.value.toFixed(2)
+      ])
+    )
+    // Format the preset as 'key1=value1 key2=value2' format
+    const formattedPreset = Object.entries(presetValues)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(' ')
+
+    navigator.clipboard.writeText(formattedPreset)
+    setCopyNotification(`Copied preset: ${formattedPreset}`)
+    setTimeout(() => setCopyNotification(''), 3000)
+  }
+
   return (
-    <div className='asemic-container relative'>
+    <div className='asemic-container relative group'>
       <div
         className={`relative w-full bg-black overflow-auto ${
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
-        } fullscreen:max-h-screen group`}
+        } fullscreen:max-h-screen`}
         ref={frame}>
         <canvas
           style={{
@@ -788,18 +857,26 @@ function AsemicAppInner({
                 {<Info {...lucideProps} />}
               </button>
 
-              <button onClick={saveToFile} title='Save to .asemic file'>
+              <button
+                className={`${audio ? '!bg-blue-200/40' : ''}`}
+                onClick={() => {
+                  setAudio(!audio)
+                }}>
+                {<Speaker {...lucideProps} />}
+              </button>
+
+              <button onClick={saveToFile} title='Save to .js file'>
                 <Download {...lucideProps} />
               </button>
 
-              <button onClick={openFile} title='Open .asemic file'>
+              <button onClick={openFile} title='Open Asemic file'>
                 <Upload {...lucideProps} />
               </button>
 
               <input
                 ref={fileInputRef}
                 type='file'
-                accept='.asemic'
+                accept='.js,.ts'
                 style={{ display: 'none' }}
                 onChange={handleFileLoad}
               />
@@ -830,7 +907,7 @@ function AsemicAppInner({
 
             {/* Progress Scrubber */}
             {!perform && totalLength > 0 && (
-              <div className='w-full px-0 py-1 bg-black bg-opacity-50'>
+              <div className='w-full px-0 py-1'>
                 <div
                   className='w-full h-3 flex items-center cursor-pointer relative'
                   onMouseDown={e => {
@@ -911,7 +988,7 @@ function AsemicAppInner({
                     }}
                   />
                   <div
-                    className='absolute w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow'
+                    className='absolute w-3 h-3 rounded-full bg-black border-2 border-white shadow'
                     style={{
                       left: `calc(${(progress / totalLength) * 100}% - 6px)`,
                       top: '50%',
@@ -919,6 +996,90 @@ function AsemicAppInner({
                     }}
                   />
                 </div>
+
+                <div className='w-full flex'>
+                  <select
+                    value={selectedParam}
+                    onChange={ev => setSelectedParam(ev.target.value)}>
+                    <option value={''}></option>
+                    {Object.keys(params).map(param => (
+                      <option key={param} value={param}>
+                        {param}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedParam && params[selectedParam] && (
+                    <>
+                      <Slider
+                        values={{ x: params[selectedParam].value, y: 0 }}
+                        onChange={({ x }) =>
+                          setParams({
+                            ...params,
+                            [selectedParam]: {
+                              ...params[selectedParam],
+                              value: x
+                            }
+                          })
+                        }
+                        sliderStyle={({ x, y }) => ({
+                          width: `${x * 100}%`
+                        })}
+                        max={params[selectedParam].max}
+                        min={params[selectedParam].min}
+                        exponent={params[selectedParam].exponent}
+                        className='h-8 w-full'
+                        innerClassName='bg-white rounded-lg left-0 top-0 h-full'
+                      />
+                      <div className='text-xs mt-1'>
+                        {params[selectedParam].value.toFixed(2)}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Preset Controls */}
+                <div className='w-full flex mt-2'>
+                  <select
+                    value={selectedPreset}
+                    onChange={ev => setSelectedPreset(ev.target.value)}>
+                    <option value={''}>Select Preset</option>
+                    {Object.keys(presets).map(preset => (
+                      <option key={preset} value={preset}>
+                        {preset}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedPreset && (
+                    <>
+                      <Slider
+                        values={{ x: presetFadeAmount, y: 0 }}
+                        onChange={({ x }) => setPresetFadeAmount(x)}
+                        sliderStyle={({ x, y }) => ({
+                          width: `${x * 100}%`
+                        })}
+                        max={1}
+                        min={0}
+                        exponent={1}
+                        className='h-8 w-full'
+                        innerClassName='bg-blue-500 rounded-lg left-0 top-0 h-full'
+                      />
+                      <div className='text-xs mt-1'>
+                        {presetFadeAmount.toFixed(2)}
+                      </div>
+                    </>
+                  )}
+                  <button
+                    onClick={copyPreset}
+                    className='ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700'
+                    title='Copy current parameter values as preset'>
+                    Copy Preset
+                  </button>
+                </div>
+                {copyNotification && (
+                  <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
+                    {copyNotification}
+                  </div>
+                )}
               </div>
             )}
 

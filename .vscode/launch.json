@@ -8,8 +8,12 @@
       "type": "chrome",
       "request": "launch",
       "name": "Launch Chrome against localhost",
-      "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}"
+      "url": "http://0.0.0.0:3000",
+      "webRoot": "${workspaceFolder}",
+      "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile",
+      "runtimeArgs": [
+        "--load-extension=${env:HOME}/.config/google-chrome/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/4.28.0_0"
+      ]
     },
     {
       "type": "node",
@@ -20,9 +24,6 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "args": ["--watch"]
-      // "env": {
-      //   "DEBUG": "*"
-      // }
     }
   ]
 }

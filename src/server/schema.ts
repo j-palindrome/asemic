@@ -8,13 +8,15 @@ import {
   useState
 } from 'react'
 import { z } from 'zod'
-import { inputSchema, InputSchema } from './constants'
+import { inputSchema, InputSchema } from './inputSchema'
 import { Socket } from 'socket.io-client'
 
 export const SocketContext = createContext<{
-  socket: Socket<SendMap, ReceiveMap> | null
+  socket: Socket<SendMap, ReceiveMap>
   params: InputSchema['params']
   setParams: (params: InputSchema['params'], silent?: boolean) => void
+  presets: InputSchema['presets']
+  setPresets: (presets: InputSchema['presets'], silent?: boolean) => void
 }>({} as any)
 
 export const useSocket = () => {

@@ -5,7 +5,7 @@ import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
 import AsemicParams from '../app/AsemicParams'
 import asemicDefault from './asemicDefault'
 import { SocketContext } from '../server/schema'
-import { InputSchema } from '../server/constants'
+import { InputSchema } from '../server/inputSchema'
 import { io, Socket } from 'socket.io-client'
 import './index.css'
 
@@ -38,7 +38,7 @@ const App = () => {
   }, [socket])
 
   useEffect(() => {
-    const newSocket = io(`http://localhost:3000`)
+    const newSocket = io(`http://${window.location.hostname}:3000`)
     setSocket(newSocket)
 
     newSocket.on('connect', () => {
@@ -55,7 +55,7 @@ const App = () => {
     }
   }, [])
 
-  const [schema, setSchema] = useState<InputSchema>({ params: {} })
+  const [schema, setSchema] = useState<InputSchema>({ params: {}, presets: {} })
 
   const setParams = useCallback(
     (params: InputSchema['params'], broadcast = true) => {
@@ -66,29 +66,54 @@ const App = () => {
       setSchema({ ...schema, params: { ...schema.params, ...params } })
 
       if (broadcast) {
-        socketRef.current.emit('params', { params })
+        socketRef.current.emit('params', { params, presets: schema.presets })
       }
     },
-    [socketRef, schema.params]
+    [socketRef, schema]
+  )
+
+  const setPresets = useCallback(
+    (presets: InputSchema['presets'], broadcast = true) => {
+      if (!socketRef.current) {
+        return
+      }
+
+      setSchema({ ...schema, presets: { ...schema.presets, ...presets } })
+
+      if (broadcast) {
+        socketRef.current.emit('params', { params: schema.params, presets })
+      }
+    },
+    [socketRef, schema]
   )
 
   useEffect(() => {
     if (!socket) return
 
-    const handleParamsUpdate = ({ params }: InputSchema) => {
-      setParams(params, false)
+    const handleParamsUpdate = ({ params, presets }: InputSchema) => {
+      if (params) setParams(params, false)
+      if (presets) setPresets(presets, false)
     }
     socket.on('params', handleParamsUpdate)
 
     return () => {
       socket.off('params', handleParamsUpdate)
     }
-  }, [socket, setParams])
+  }, [socket, setParams, setPresets])
+
   return (
-    <SocketContext.Provider
-      value={{ socket, params: schema.params, setParams }}>
-      <RouterProvider router={router} />
-    </SocketContext.Provider>
+    socket && (
+      <SocketContext.Provider
+        value={{
+          socket,
+          params: schema.params,
+          setParams,
+          presets: schema.presets,
+          setPresets
+        }}>
+        <RouterProvider router={router} />
+      </SocketContext.Provider>
+    )
   )
 }
 

@@ -10,8 +10,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { InputSchema, inputSchema } from './inputSchema'
 
 const paramsState: InputSchema = {
-  params: {},
-  presets: {}
+  params: {}
 }
 
 async function startDevServer() {
@@ -43,20 +42,22 @@ async function startDevServer() {
   })
 
   io.on('connection', (socket: Socket<ReceiveMap, SendMap>) => {
-    socket.emit('schema', paramsState)
+    socket.emit('params', paramsState)
 
-    socket.on('schema:reset', () => {
+    socket.on('params:reset', () => {
       paramsState.params = {}
-      paramsState.presets = {}
-      io.emit('schema', paramsState)
     })
-    socket.on('schema', obj => {
+    socket.on('params', obj => {
       try {
         const validatedObj = inputSchema.parse(obj)
-        Object.assign(paramsState, validatedObj)
-        io.emit('schema', paramsState)
+        for (let param of Object.keys(validatedObj.params)) {
+          paramsState.params[param] = validatedObj.params[param]
+        }
+        io.emit('params', {
+          params: _.pick(paramsState.params, Object.keys(validatedObj.params))
+        })
       } catch (error) {
-        console.error('Invalid schema received:', error)
+        console.error('Invalid params received:', error)
       }
     })
 

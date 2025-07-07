@@ -63,11 +63,10 @@ const App = () => {
         return
       }
 
-      const updatedSchema = { ...schema, ...newSchema }
-      setSchema(updatedSchema)
+      setSchema({ ...schema, ...newSchema })
 
       if (broadcast) {
-        socketRef.current.emit('schema', updatedSchema)
+        socketRef.current.emit('params', { ...schema, ...newSchema })
       }
     },
     [socketRef, schema]
@@ -79,10 +78,10 @@ const App = () => {
     const handleParamsUpdate = (newSchema: InputSchema) => {
       setSchemaWithBroadcast(newSchema, false)
     }
-    socket.on('schema', handleParamsUpdate)
+    socket.on('params', handleParamsUpdate)
 
     return () => {
-      socket.off('schema', handleParamsUpdate)
+      socket.off('params', handleParamsUpdate)
     }
   }, [socket, setSchemaWithBroadcast])
 

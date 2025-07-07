@@ -1,12 +1,12 @@
 import { InputSchema } from './inputSchema'
 declare global {
   type ReceiveMap = {
-    schema: (obj: InputSchema) => void
+    params: (obj: InputSchema) => void
     'osc:message': (data: { address: string; data: any[] }) => void
-    'schema:reset': () => void
+    'params:reset': () => void
+    'presets:reset': () => void
   }
   type SendMap = {
-    schema: (obj: InputSchema) => void
-    'osc:message': (data: { address: string; data: any[] }) => void
+    params: (obj: InputSchema) => void
   }
 }

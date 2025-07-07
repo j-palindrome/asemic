@@ -64,12 +64,6 @@ export default function Slider({
     x = Math.max(0, Math.min(1, x))
     y = Math.max(0, Math.min(1, y))
 
-    const edgeThreshold = 0.05
-
-    // Set to minimum when clicking near edges
-    if (x < edgeThreshold) x = 0
-    if (y < edgeThreshold) y = 0
-
     place.current = { x, y }
     const newX = exponent
       ? place.current.x ** exponent * (max - min) + min
@@ -98,6 +92,16 @@ export default function Slider({
   const handleEnd = () => {
     setIsDragging(false)
     setTouchId(null)
+
+    const edgeThreshold = 0.05
+    let { x, y } = place.current
+
+    // Set to minimum when near edges
+    if (x < edgeThreshold) x = 0
+    if (y < edgeThreshold) y = 0
+
+    place.current = { x, y }
+
     onChange(
       {
         x: exponent
@@ -109,6 +113,8 @@ export default function Slider({
       },
       true
     )
+
+    Object.assign(slider.current.style, sliderStyle(place.current))
   }
 
   useEffect(() => {

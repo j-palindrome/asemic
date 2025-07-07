@@ -1050,7 +1050,7 @@ function AsemicAppInner({
                 </div>
 
                 {/* Preset Controls */}
-                <div className='w-full flex mt-2'>
+                <div className='w-full flex mt-2 select-none'>
                   <select
                     value={selectedPreset}
                     onChange={ev => setSelectedPreset(ev.target.value)}>

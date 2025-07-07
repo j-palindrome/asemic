@@ -18,5 +18,13 @@ export const SocketContext = createContext<{
 }>({} as any)
 
 export const useSocket = () => {
-  return useContext(SocketContext)
+  const { socket, schema, setSchema } = useContext(SocketContext)
+  const setSchemaFull = useCallback(
+    (newSchema: Partial<InputSchema>, broadcast = true) => {
+      const updatedSchema = { ...schema, ...newSchema }
+      setSchema(updatedSchema, !broadcast)
+    },
+    [schema, setSchema]
+  )
+  return { socket, schema, setSchema: setSchemaFull }
 }

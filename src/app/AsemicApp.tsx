@@ -395,7 +395,7 @@ function AsemicAppInner({
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
           if (data.resetParams === true) {
-            socket.emit('params:reset')
+            socket.emit('schema:reset')
           }
           if (
             (!isUndefined(data.params) &&

@@ -399,11 +399,9 @@ export class Parser {
     // Use Function constructor with 'this' bound to the Parser instance
     const setupFunction = new Function(
       'source',
-      `
-      with (this) {
+      `with (this) {
         ${source}
-      }
-    `
+      }`
     ).bind(this)
 
     this.output.resetParams = true

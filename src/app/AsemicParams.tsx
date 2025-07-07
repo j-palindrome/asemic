@@ -1,62 +1,19 @@
 import { useSocket } from '../server/schema'
 import Slider from '../components/Slider'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { usePresetFader } from '../hooks/usePresetFader'
 
 export default function AsemicParams() {
   const { socket, schema, setSchema } = useSocket()
   const { params, presets } = schema
 
-  const setParams = (newParams: typeof params) => {
-    setSchema({ ...schema, params: newParams })
-  }
-
-  const [selectedPreset, setSelectedPresetState] = useState(
-    undefined as string | undefined
-  )
-  const setSelectedPreset = useCallback((presetName: string | undefined) => {
-    setPresetFadeAmount(0)
-    setSelectedPresetState(presetName)
-  }, [])
-  const [presetFadeAmount, setPresetFadeAmount] = useState(0)
-  const [initialParamsForFade, setInitialParamsForFade] = useState<
-    typeof params | null
-  >(null)
+  const {
+    selectedPreset,
+    setSelectedPreset,
+    presetFadeAmount,
+    setPresetFadeAmount
+  } = usePresetFader({ schema, setSchema })
   const [copyNotification, setCopyNotification] = useState('')
-
-  useEffect(() => {
-    const fadeToPreset = (presetName: string, amount: number) => {
-      if (!presets[presetName]) return
-
-      // Save initial params when starting a fade (amount goes from 0 to > 0)
-      if (amount > 0 && initialParamsForFade === null) {
-        setInitialParamsForFade({ ...params })
-        return
-      }
-
-      // Clear saved params when fade is reset to 0
-      if (amount === 0 && initialParamsForFade !== null) {
-        setInitialParamsForFade(null)
-        return
-      }
-
-      // Use saved initial params if available, otherwise current params
-      const baseParams = initialParamsForFade || params
-      const updatedParams = { ...params }
-
-      for (let paramName of Object.keys(presets[presetName])) {
-        if (updatedParams[paramName] && baseParams[paramName]) {
-          const targetValue = presets[presetName][paramName].value
-          const initialValue = baseParams[paramName].value
-          updatedParams[paramName].value =
-            initialValue + (targetValue - initialValue) * amount
-        }
-      }
-      setParams(updatedParams)
-    }
-    if (selectedPreset && presetFadeAmount >= 0) {
-      fadeToPreset(selectedPreset, presetFadeAmount)
-    }
-  }, [presetFadeAmount, selectedPreset, params, presets, initialParamsForFade])
 
   const copyPreset = () => {
     if (!params) return
@@ -140,7 +97,16 @@ export default function AsemicParams() {
                     height: `${y * 100}%`
                   })}
                   onChange={({ x, y }, end) => {
-                    setParams({ ...params, [key]: { ...type, value: y } })
+                    setSchema({
+                      ...schema,
+                      params: {
+                        ...schema.params,
+                        [key]: {
+                          ...type,
+                          value: y
+                        }
+                      }
+                    })
                   }}
                 />
                 <div className='text-xs mt-1'>{type.value.toFixed(2)}</div>

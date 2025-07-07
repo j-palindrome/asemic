@@ -51,12 +51,10 @@ async function startDevServer() {
     socket.on('params', obj => {
       try {
         const validatedObj = inputSchema.parse(obj)
-        for (let param of Object.keys(validatedObj.params)) {
-          paramsState.params[param] = validatedObj.params[param]
+        for (let key of Object.keys(validatedObj)) {
+          Object.assign(paramsState[key], validatedObj[key])
         }
-        io.emit('params', {
-          params: _.pick(paramsState.params, Object.keys(validatedObj.params))
-        })
+        io.emit('params', paramsState)
       } catch (error) {
         console.error('Invalid params received:', error)
       }

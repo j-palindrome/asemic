@@ -1,18 +1,12 @@
 import { useSocket } from '../server/schema'
 import Slider from '../components/Slider'
 import { useState } from 'react'
-import { usePresetFader } from '../hooks/usePresetFader'
+import { AsemicPresetFader } from '../hooks/AsemicPresetFader'
 
 export default function AsemicParams() {
   const { socket, schema, setSchema } = useSocket()
   const { params, presets } = schema
 
-  const {
-    selectedPreset,
-    setSelectedPreset,
-    presetFadeAmount,
-    setPresetFadeAmount
-  } = usePresetFader({ schema, setSchema })
   const [copyNotification, setCopyNotification] = useState('')
 
   const copyPreset = () => {
@@ -37,82 +31,48 @@ export default function AsemicParams() {
     <>
       <div className='h-[200px]'></div>
       {/* Preset Controls */}
-      <div className='w-full flex mt-2 select-none p-2'>
-        <select
-          value={selectedPreset}
-          onChange={ev => setSelectedPreset(ev.target.value)}>
-          <option value={''}>Select Preset</option>
-          {presets &&
-            Object.keys(presets).map(preset => (
-              <option key={preset} value={preset}>
-                {preset}
-              </option>
-            ))}
-        </select>
-        {selectedPreset && (
-          <>
-            <Slider
-              values={{ x: presetFadeAmount, y: 0 }}
-              onChange={({ x }) => setPresetFadeAmount(x)}
-              sliderStyle={({ x, y }) => ({
-                width: `${x * 100}%`
-              })}
-              max={1}
-              min={0}
-              exponent={1}
-              className='h-8 w-full'
-              innerClassName='bg-blue-500 rounded-lg left-0 top-0 h-full'
-            />
-            <div className='text-xs mt-1'>{presetFadeAmount.toFixed(2)}</div>
-          </>
+      <div className='h-screen w-screen flex flex-col'>
+        {copyNotification && (
+          <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
+            {copyNotification}
+          </div>
         )}
-        <button
-          onClick={copyPreset}
-          className='ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700'
-          title='Copy current parameter values as preset'>
-          Copy Preset
-        </button>
-      </div>
-      {copyNotification && (
-        <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
-          {copyNotification}
-        </div>
-      )}
-      <div className='flex w-screen h-screen space-x-2'>
-        {params &&
-          Object.entries(params).map(([key, type]) => {
-            return (
-              <div
-                key={key}
-                className='flex flex-col items-center h-full w-[60px] mr-2'>
-                <label>{key}</label>
-                <Slider
-                  max={type.max}
-                  min={type.min}
-                  className='h-full w-full border border-gray-300 rounded-lg'
-                  values={{ x: 0, y: type.value }}
-                  exponent={type.exponent}
-                  innerClassName='bottom-0 left-0 w-full bg-white rounded-lg'
-                  sliderStyle={({ x, y }) => ({
-                    height: `${y * 100}%`
-                  })}
-                  onChange={({ x, y }, end) => {
-                    setSchema({
-                      ...schema,
-                      params: {
-                        ...schema.params,
-                        [key]: {
-                          ...type,
-                          value: y
+        <AsemicPresetFader />
+        <div className='flex w-full h-full space-x-2'>
+          {params &&
+            Object.entries(params).map(([key, type]) => {
+              return (
+                <div
+                  key={key}
+                  className='flex flex-col items-center h-full w-[60px] mr-2'>
+                  <label>{key}</label>
+                  <Slider
+                    max={type.max}
+                    min={type.min}
+                    className='h-full w-full border border-gray-300 rounded-lg'
+                    values={{ x: 0, y: type.value }}
+                    exponent={type.exponent}
+                    innerClassName='bottom-0 left-0 w-full bg-white rounded-lg'
+                    sliderStyle={({ x, y }) => ({
+                      height: `${y * 100}%`
+                    })}
+                    onChange={({ x, y }, end) => {
+                      setSchema({
+                        params: {
+                          ...params,
+                          [key]: {
+                            ...type,
+                            value: y
+                          }
                         }
-                      }
-                    })
-                  }}
-                />
-                <div className='text-xs mt-1'>{type.value.toFixed(2)}</div>
-              </div>
-            )
-          })}
+                      })
+                    }}
+                  />
+                  <div className='text-xs mt-1'>{type.value.toFixed(2)}</div>
+                </div>
+              )
+            })}
+        </div>
       </div>
     </>
   )

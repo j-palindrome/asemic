@@ -1,16 +1,6 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import invariant from 'tiny-invariant'
-import { io, Socket } from 'socket.io-client'
-import {
+  Download,
   Ellipsis,
   Info,
   LucideProps,
@@ -21,19 +11,18 @@ import {
   Power,
   Save,
   Speaker,
-  Video,
-  VideoOff,
-  Download,
-  Upload
+  Upload,
+  Video
 } from 'lucide-react'
-import ElRenderer from '../renderers/audio/ElRenderer'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import invariant from 'tiny-invariant'
 import Asemic from '../Asemic'
-import { AsemicData, FlatTransform, Parser } from '../types'
-import { SocketContext, useSocket } from '../server/schema'
-import { stripComments } from '../utils'
-import { InputSchema, inputSchema } from '../server/inputSchema'
 import Slider from '../components/Slider'
-import { usePresetFader } from '../hooks/usePresetFader'
+import ElRenderer from '../renderers/audio/ElRenderer'
+import { InputSchema, inputSchema } from '../server/inputSchema'
+import { useSocket } from '../server/schema'
+import { AsemicData, FlatTransform, Parser } from '../types'
+import { stripComments } from '../utils'
 
 function AsemicAppInner({
   source,
@@ -92,28 +81,9 @@ function AsemicAppInner({
   const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
 
-  const useProgress = () => {
-    const [progress, setProgress] = useState(0)
-    const [totalLength, setTotalLength] = useState(0)
-    const [isDragging, setIsDragging] = useState(false)
-
-    return [
-      progress,
-      setProgress,
-      totalLength,
-      setTotalLength,
-      isDragging,
-      setIsDragging
-    ] as const
-  }
-  const [
-    progress,
-    setProgress,
-    totalLength,
-    setTotalLength,
-    isDragging,
-    setIsDragging
-  ] = useProgress()
+  const [progress, setProgress] = useState(0)
+  const [totalLength, setTotalLength] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
 
   const scrubberRef = useRef<HTMLInputElement>(null)
 
@@ -404,8 +374,14 @@ function AsemicAppInner({
             (!isUndefined(data.presets) && Object.keys(data.presets).length > 0)
           ) {
             const parsedSchema = inputSchema.parse({
-              params: data.params,
-              presets: data.presets
+              params:
+                data.params && Object.keys(data.params).length > 0
+                  ? data.params
+                  : undefined,
+              presets:
+                data.presets && Object.keys(data.presets).length > 0
+                  ? data.presets
+                  : undefined
             })
             setSchema(parsedSchema as InputSchema)
           }
@@ -681,23 +657,9 @@ function AsemicAppInner({
   const { schema, setSchema } = useSocket()
   const { params, presets } = schema
 
-  // Helper functions for backwards compatibility
-  const setParams = useCallback(
-    (newParams: typeof params) => {
-      setSchema({ params: newParams })
-    },
-    [schema, setSchema]
-  )
-
   const [selectedParam, setSelectedParam] = useState(
     undefined as string | undefined
   )
-  const {
-    selectedPreset,
-    setSelectedPreset,
-    presetFadeAmount,
-    setPresetFadeAmount
-  } = usePresetFader({ schema, setSchema })
   const [copyNotification, setCopyNotification] = useState('')
 
   const copyPreset = () => {
@@ -986,11 +948,13 @@ function AsemicAppInner({
                       <Slider
                         values={{ x: params[selectedParam].value, y: 0 }}
                         onChange={({ x }) =>
-                          setParams({
-                            ...params,
-                            [selectedParam]: {
-                              ...params[selectedParam],
-                              value: x
+                          setSchema({
+                            params: {
+                              ...params,
+                              [selectedParam]: {
+                                ...params[selectedParam],
+                                value: x
+                              }
                             }
                           })
                         }
@@ -1012,35 +976,6 @@ function AsemicAppInner({
 
                 {/* Preset Controls */}
                 <div className='w-full flex mt-2 select-none'>
-                  <select
-                    value={selectedPreset}
-                    onChange={ev => setSelectedPreset(ev.target.value)}>
-                    <option value={''}>Select Preset</option>
-                    {Object.keys(presets).map(preset => (
-                      <option key={preset} value={preset}>
-                        {preset}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedPreset && (
-                    <>
-                      <Slider
-                        values={{ x: presetFadeAmount, y: 0 }}
-                        onChange={({ x }) => setPresetFadeAmount(x)}
-                        sliderStyle={({ x, y }) => ({
-                          width: `${x * 100}%`
-                        })}
-                        max={1}
-                        min={0}
-                        exponent={1}
-                        className='h-8 w-full'
-                        innerClassName='bg-blue-500 rounded-lg left-0 top-0 h-full'
-                      />
-                      <div className='text-xs mt-1'>
-                        {presetFadeAmount.toFixed(2)}
-                      </div>
-                    </>
-                  )}
                   <button
                     onClick={copyPreset}
                     className='ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700'

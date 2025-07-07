@@ -8,6 +8,7 @@ import { SocketContext } from '../server/schema'
 import { InputSchema } from '../server/inputSchema'
 import { io, Socket } from 'socket.io-client'
 import './index.css'
+import { isEqual } from 'lodash'
 
 function AsemicWrapper() {
   return (
@@ -64,18 +65,15 @@ const App = () => {
       }
       for (const key in newSchema) {
         const value = newSchema[key]
-        if (
-          value &&
-          typeof value === 'object' &&
-          Object.keys(value).length === 0
-        ) {
+        if (value && Object.keys(value).length === 0) {
           delete newSchema[key]
         }
       }
-      setSchema({ ...schema, ...newSchema })
-
-      if (broadcast) {
-        socketRef.current.emit('params', { ...schema, ...newSchema })
+      if (!isEqual(schema, { ...schema, ...newSchema })) {
+        setSchema({ ...schema, ...newSchema })
+        if (broadcast) {
+          socketRef.current.emit('params', { ...schema, ...newSchema })
+        }
       }
     },
     [socketRef, schema]

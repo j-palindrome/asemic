@@ -100,6 +100,10 @@ export default function Slider({
     if (x < edgeThreshold) x = 0
     if (y < edgeThreshold) y = 0
 
+    // Set to maximum when near upper edges
+    if (x > 1 - edgeThreshold) x = 1
+    if (y > 1 - edgeThreshold) y = 1
+
     place.current = { x, y }
 
     onChange(

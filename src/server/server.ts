@@ -10,7 +10,8 @@ import tailwindcss from '@tailwindcss/vite'
 import { InputSchema, inputSchema } from './inputSchema'
 
 const paramsState: InputSchema = {
-  params: {}
+  params: {},
+  presets: {}
 }
 
 async function startDevServer() {
@@ -92,11 +93,6 @@ async function startDevServer() {
     const [address, ...args] = msg as [string, ...any[]]
 
     switch (address) {
-      case '/asemic/param':
-        console.log('⚙️ Parameter update:', args)
-        io.emit('asemic:param', args)
-        break
-
       default:
         // Forward all other messages to clients
         io.emit('osc:message', { address, data: args })

@@ -1,17 +1,126 @@
 import { useSocket } from '../server/schema'
 import Slider from '../components/Slider'
+import { useCallback, useEffect, useState } from 'react'
 
 export default function AsemicParams() {
   const { socket, schema, setSchema } = useSocket()
-  const { params } = schema
+  const { params, presets } = schema
 
   const setParams = (newParams: typeof params) => {
     setSchema({ ...schema, params: newParams })
   }
 
+  const [selectedPreset, setSelectedPresetState] = useState(
+    undefined as string | undefined
+  )
+  const setSelectedPreset = useCallback((presetName: string | undefined) => {
+    setPresetFadeAmount(0)
+    setSelectedPresetState(presetName)
+  }, [])
+  const [presetFadeAmount, setPresetFadeAmount] = useState(0)
+  const [initialParamsForFade, setInitialParamsForFade] = useState<
+    typeof params | null
+  >(null)
+  const [copyNotification, setCopyNotification] = useState('')
+
+  useEffect(() => {
+    const fadeToPreset = (presetName: string, amount: number) => {
+      if (!presets[presetName]) return
+
+      // Save initial params when starting a fade (amount goes from 0 to > 0)
+      if (amount > 0 && initialParamsForFade === null) {
+        setInitialParamsForFade({ ...params })
+        return
+      }
+
+      // Clear saved params when fade is reset to 0
+      if (amount === 0 && initialParamsForFade !== null) {
+        setInitialParamsForFade(null)
+        return
+      }
+
+      // Use saved initial params if available, otherwise current params
+      const baseParams = initialParamsForFade || params
+      const updatedParams = { ...params }
+
+      for (let paramName of Object.keys(presets[presetName])) {
+        if (updatedParams[paramName] && baseParams[paramName]) {
+          const targetValue = presets[presetName][paramName].value
+          const initialValue = baseParams[paramName].value
+          updatedParams[paramName].value =
+            initialValue + (targetValue - initialValue) * amount
+        }
+      }
+      setParams(updatedParams)
+    }
+    if (selectedPreset && presetFadeAmount >= 0) {
+      fadeToPreset(selectedPreset, presetFadeAmount)
+    }
+  }, [presetFadeAmount, selectedPreset, params, presets, initialParamsForFade])
+
+  const copyPreset = () => {
+    if (!params) return
+    const presetValues = Object.fromEntries(
+      Object.entries(params).map(([key, param]) => [
+        key,
+        param.value.toFixed(2)
+      ])
+    )
+    // Format the preset as 'key1=value1 key2=value2' format
+    const formattedPreset = Object.entries(presetValues)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(' ')
+
+    navigator.clipboard.writeText(formattedPreset)
+    setCopyNotification(`Copied preset: ${formattedPreset}`)
+    setTimeout(() => setCopyNotification(''), 3000)
+  }
+
   return (
     <>
       <div className='h-[200px]'></div>
+      {/* Preset Controls */}
+      <div className='w-full flex mt-2 select-none p-2'>
+        <select
+          value={selectedPreset}
+          onChange={ev => setSelectedPreset(ev.target.value)}>
+          <option value={''}>Select Preset</option>
+          {presets &&
+            Object.keys(presets).map(preset => (
+              <option key={preset} value={preset}>
+                {preset}
+              </option>
+            ))}
+        </select>
+        {selectedPreset && (
+          <>
+            <Slider
+              values={{ x: presetFadeAmount, y: 0 }}
+              onChange={({ x }) => setPresetFadeAmount(x)}
+              sliderStyle={({ x, y }) => ({
+                width: `${x * 100}%`
+              })}
+              max={1}
+              min={0}
+              exponent={1}
+              className='h-8 w-full'
+              innerClassName='bg-blue-500 rounded-lg left-0 top-0 h-full'
+            />
+            <div className='text-xs mt-1'>{presetFadeAmount.toFixed(2)}</div>
+          </>
+        )}
+        <button
+          onClick={copyPreset}
+          className='ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700'
+          title='Copy current parameter values as preset'>
+          Copy Preset
+        </button>
+      </div>
+      {copyNotification && (
+        <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
+          {copyNotification}
+        </div>
+      )}
       <div className='flex w-screen h-screen space-x-2'>
         {params &&
           Object.entries(params).map(([key, type]) => {

@@ -62,7 +62,18 @@ const App = () => {
       if (!socketRef.current) {
         return
       }
-
+      for (const key in newSchema) {
+        if (Object.prototype.hasOwnProperty.call(newSchema, key)) {
+          const value = newSchema[key]
+          if (
+            value &&
+            typeof value === 'object' &&
+            Object.keys(value).length === 0
+          ) {
+            delete newSchema[key]
+          }
+        }
+      }
       setSchema({ ...schema, ...newSchema })
 
       if (broadcast) {

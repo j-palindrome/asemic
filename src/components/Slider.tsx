@@ -96,11 +96,9 @@ export default function Slider({
     const edgeThreshold = 0.05
     let { x, y } = place.current
 
-    // Set to minimum when near edges
     if (x < edgeThreshold) x = 0
     if (y < edgeThreshold) y = 0
 
-    // Set to maximum when near upper edges
     if (x > 1 - edgeThreshold) x = 1
     if (y > 1 - edgeThreshold) y = 1
 

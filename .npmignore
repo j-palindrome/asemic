@@ -1,0 +1,47 @@
+# Source files
+src/
+tests/
+
+# Development files
+*.config.ts
+*.config.js
+tsconfig*.json
+jest.config.js
+playwright.config.ts
+
+# Build artifacts
+.vite/
+.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Development dependencies
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Development HTML
+index.html
+
+# Vite dev files
+vite.config.ts
+README-vite.md
+
+# Worker plugin
+worker-plugin.ts

@@ -1,0 +1,113 @@
+@import 'tailwindcss';
+
+/* Reset default margin and padding */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  background-color: #000;
+  color: #fff;
+}
+
+.asemic-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Styles for the editor textarea */
+.editor {
+  font-family: monospace;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  border: none;
+  resize: none;
+  outline: none;
+  height: 100%;
+  padding: 1rem;
+  font-size: 14px;
+  line-height: 1.5;
+  text-shadow: -1px -1px 0 #000, 1px 1px 0 #000, -1px 1px 0 #000,
+    1px -1px 0 #000, 5px 0px 5px #000, -5px 0px 5px #000;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Apply styles for fullscreen mode */
+.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+}
+
+/* Button styling */
+button {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+input[type='range'] {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem;
+  border-radius: 4px;
+}
+
+/* Custom slider styles */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-webkit-slider-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
+}

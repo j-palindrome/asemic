@@ -499,9 +499,9 @@ function AsemicAppInner({
 
   const useKeys = () => {
     const [live, setLive] = useState({
-      keys: [''],
-      text: [''],
-      index: { type: 'text', value: 0 }
+      keys: ['', '', '', '', '', '', '', '', '', ''],
+      text: ['', '', '', '', '', '', '', '', '', ''],
+      index: { type: 'keys', value: 0 }
     } as AsemicData['live'])
     const [isLive, setIsLive] = useState(false)
 
@@ -519,8 +519,9 @@ function AsemicAppInner({
         }
 
         if (ev.ctrlKey) {
-          if (ev.key === 'l') {
-            setIsLive(!isLive)
+          if (/[0-9]/.test(ev.key)) {
+            const index = Number(ev.key)
+            setLive({ ...live, index: { ...live.index, value: index } })
           }
           if (ev.key === ' ') {
             ev.preventDefault()
@@ -575,11 +576,11 @@ function AsemicAppInner({
             }
             return
           }
-        } else {
+        } else if (isLive) {
           switch (live.index.type) {
             case 'keys':
               if (ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey) {
-                keysPressed.current[ev.key] = performance.now()
+                keysPressed.current[String(ev.key)] = performance.now()
               }
               const newKeys = [...live.keys]
               newKeys[live.index.value] = Object.keys(keysPressed.current)
@@ -622,7 +623,6 @@ function AsemicAppInner({
         setLive({ ...live, keys: newKeys })
       }
 
-      if (!isLive) return
       window.addEventListener('keydown', onKeyDown)
       window.addEventListener('keyup', onKeyUp)
       return () => {
@@ -819,32 +819,9 @@ function AsemicAppInner({
                   } as AsemicData)
                   ev.currentTarget.value = ''
                   ev.currentTarget.blur()
-                  const allScenes = editable.current.value.split('\n---')
-                  // Find the line number of the selected scene
-                  if (scene >= 0 && scene < allScenes.length) {
-                    // Count lines before the target scene
-                    let lineCount = 0
-                    for (let i = 0; i < scene; i++) {
-                      // Add 1 for the "---" separator lines
-                      lineCount += allScenes[i].split('\n').length + 1
-                    }
-
-                    // Set cursor position
-                    editable.current.setSelectionRange(
-                      editable.current.value.indexOf(allScenes[scene]),
-                      editable.current.value.indexOf(allScenes[scene])
-                    )
-
-                    // Scroll to the position
-                    const lineHeight = parseInt(
-                      getComputedStyle(editable.current).lineHeight
-                    )
-
-                    editable.current.scrollTop = lineHeight * lineCount
-                  }
                 }}></input>
               <div className='font-mono truncate max-w-[33%] flex-none whitespace-nowrap text-blue-500'>
-                {live.index.type} {live.index.value + 1}:{' '}
+                {live.index.type} {live.index.value}:{' '}
                 {live[live.index.type][live.index.value]?.replace('\n', '/ ')}
               </div>
               <div className='grow' />

@@ -72,6 +72,7 @@ export class Parser {
   protected currentCurve: AsemicPt[] = []
   currentTransform: Transform = defaultTransform()
   protected transforms: Transform[] = []
+  protected namedTransforms: Record<string, Transform> = {}
   protected totalLength = 0
   protected pausedAt: string[] = []
   protected pauseAt: string | false = false
@@ -107,20 +108,14 @@ export class Parser {
     N: () => this.progress.countNum,
     I: () => this.progress.index,
     T: () => this.progress.time,
-    H: () => {
-      const height = this.preProcessing.height / this.preProcessing.width
-      return height
-    },
-    Sc: () => this.progress.scrub,
+    H: () => this.preProcessing.height / this.preProcessing.width,
+    Hpx: () => this.preProcessing.height,
+    Wpx: () => this.preProcessing.height,
     S: () => this.progress.scrubTime,
-    P: () => this.progress.point,
     C: () => this.progress.curve,
     L: () => this.progress.letter,
-    px: () => {
-      const pixels = this.preProcessing.width
-      return 1 / pixels
-    },
-
+    P: () => this.progress.point,
+    px: () => 1 / this.preProcessing.width,
     sin: ([x]) => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
     acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
@@ -1093,15 +1088,17 @@ export class Parser {
 
     transforms.forEach(transform => {
       if (transform.startsWith('<')) {
-        let index = 1
         if (transform.slice(1)) {
-          index = Math.floor(this.expr(transform.slice(1))!)
+          const name = transform.slice(1)
+          Object.assign(thisTransform, this.namedTransforms[name])
+        } else {
+          Object.assign(thisTransform, this.transforms.pop())
         }
-        Object.assign(
-          thisTransform,
-          this.transforms[this.transforms.length - index]
-        )
-      } else if (transform === '>') {
+      } else if (transform.startsWith('>')) {
+        if (transform.slice(1)) {
+          const name = transform.slice(1)
+          this.namedTransforms[name] = this.cloneTransform(thisTransform)
+        }
         this.transforms.push(this.cloneTransform(thisTransform))
       } else if (transform === '!') {
         // Reset all transformations
@@ -1290,7 +1287,7 @@ export class Parser {
     this.adding += totalLength
     pointsTokens.forEach((pointToken, i) => {
       if (pointToken.startsWith('{')) {
-        this.to(pointToken)
+        this.to(pointToken.slice(1, -1))
         return
       } else {
         try {
@@ -1369,6 +1366,11 @@ export class Parser {
       }
     }
 
+    return this
+  }
+
+  keys(index: Expr) {
+    this.text(this.live.keys[Math.floor(this.expr(index))])
     return this
   }
 

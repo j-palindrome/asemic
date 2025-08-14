@@ -117,6 +117,11 @@ export class Parser {
     P: () => this.progress.point,
     px: () => 1 / this.preProcessing.width,
     sin: ([x]) => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
+    table: ([name, x, y, channel]) => {
+      const imageName = typeof name === 'string' ? name : String(name)
+      const channelName = channel ? String(channel) : 'brightness'
+      return this.table(imageName, x, y, channelName as any)
+    },
     acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
         this.progress.accums.push(0)
@@ -137,6 +142,8 @@ export class Parser {
   protected noiseTable: ((x: number) => number)[] = []
   protected noiseValues: number[] = []
   protected noiseIndex = 0
+  protected imageLookupTables: Map<string, ImageData> = new Map()
+  protected canvas2DContext: OffscreenCanvasRenderingContext2D | null = null
   output = defaultOutput()
   preProcessing = defaultPreProcess()
 
@@ -1453,106 +1460,65 @@ export class Parser {
     return this
   }
 
-  // protected parseToken(token: string, { mode }: { mode?: 'blank' } = {}) {
-  //   try {
-  //     token = token.trim()
-  //     this.adding = false
+  /**
+   * Load an image into a lookup table for pixel access
+   * @param name - The name to store the image lookup table under
+   * @param imageData - The ImageData object containing pixel data
+   */
+  loadImage(name: string, bitmap: ImageData) {
+    this.imageLookupTables.set(name, bitmap)
+    return this
+  }
 
-  //     if (token.startsWith('+')) {
-  //       token = token.substring(1)
-  //       this.adding = true
-  //     }
+  /**
+   * Look up a pixel value from a loaded image
+   * @param name - The name of the loaded image
+   * @param x - X coordinate (0-1, will be mapped to image width)
+   * @param y - Y coordinate (0-1, will be mapped to image height)
+   * @param channel - Which channel to return: 'r', 'g', 'b', 'a', or 'brightness' (default)
+   * @returns Normalized pixel value (0-1)
+   */
+  table(nameCoordChannel: string): number {
+    const [name, coord, channel] = this.tokenize(nameCoordChannel)
+    const [x, y] = this.evalPoint(coord, { basic: true })
+    const imageData = this.imageLookupTables.get(name)
+    if (!imageData) {
+      this.error(`Image lookup table '${name}' not found`)
+      return 0
+    }
+    // Clamp coordinates to 0-1 range
+    const normalizedX = Math.max(0, Math.min(1, x))
+    const normalizedY = Math.max(0, Math.min(1, y))
+    // Map to pixel coordinates
+    const pixelX = Math.floor(normalizedX * (imageData.width - 1))
+    const pixelY = Math.floor(normalizedY * (imageData.height - 1))
+    // Get pixel index (RGBA format)
+    const index = (pixelY * imageData.width + pixelX) * 4
 
-  //     while (token.startsWith('(') && token.endsWith(')')) {
-  //       token = token.substring(1, token.length - 1).trim()
-  //     }
+    if (index >= imageData.data.length) {
+      return 0
+    }
 
-  //     if (token.includes('|')) {
-  //       return
-  //     }
+    const r = imageData.data[index] / 255
+    const g = imageData.data[index + 1] / 255
+    const b = imageData.data[index + 2] / 255
+    const a = imageData.data[index + 3] / 255
 
-  //     const constMatch = token.match(/^([a-zA-Z0-9]+)(\=\>?)(.+)/)
-
-  //     if (constMatch) {
-  //       const [_, key, type, value] = constMatch
-
-  //       return
-  //     }
-
-  //     const functionCall = token.match(/^([a-zA-Z0-9]+)(?!\=)/)
-
-  //     if (functionCall && this.constants[functionCall[1]]) {
-  //       const returnText = this.evalFunction(token)
-
-  //       if (returnText) {
-  //         this.parse(returnText, { mode })
-  //       }
-  //       return
-  //     }
-
-  //     if (token.startsWith('{{') && token.endsWith('}}')) {
-
-  //       parseFontSettings()
-  //       return
-  //     } else if (token.startsWith('{') && token.endsWith('}')) {
-  //       this.transform(token)
-  //       return
-  //     } else if (token.startsWith('`')) {
-  //       token = token.substring(1, token.length - 1)
-  //       if (token.startsWith('client')) {
-  //         const clientFunction = token.substring(6)
-  //         this.output.eval.push(clientFunction)
-  //       } else {
-  //         const result = eval(`({ _ }) => {
-  //             ${token}
-  //           }`)({ _ })
-  //         if (typeof result === 'string') {
-  //           this.parse(result)
-  //         }
-  //       }
-
-  //       return
-  //     } else if (token.startsWith('"')) {
-  //     }
-
-  //     if (token.startsWith('[')) {
-
-  //       return
-  //     }
-  //   } catch (e) {
-  //     this.error(`Token failed ${token}:\n${e.message}`)
-  //     return
-  //   }
-  // }
-
-  // protected parse(
-  //   source: string,
-  //   { mode = undefined, last = false }: { mode?: 'blank'; last?: boolean } = {}
-  // ) {
-  //   const tokens = this.tokenize(source)
-
-  //   if (tokens.length === 0) return
-
-  //   for (let i = 0; i < tokens.length; i++) {
-  //     this.parseToken(tokens[i])
-  //   }
-
-  //   if (this.settings.debug && !mode) {
-  //     const flatCurves = this.curves.flat()
-
-  //     if (
-  //       !flatCurves.find(x => x[0] <= 1 && x[0] >= 0 && x[1] <= 1 && x[1] >= 0)
-  //     ) {
-  //       this.error('No points within [0,0] and [1,1]')
-  //     }
-  //   }
-
-  //   if (last) {
-  //     if (this.currentCurve.length > 0) {
-  //       this.addCurve()
-  //     }
-  //   }
-  // }
+    switch (channel) {
+      case 'r':
+        return r
+      case 'g':
+        return g
+      case 'b':
+        return b
+      case 'a':
+        return a
+      case 'brightness':
+      default:
+        // Calculate brightness using standard luminance formula
+        return (0.299 * r + 0.587 * g + 0.114 * b) * a
+    }
+  }
 
   constructor(additionalConstants: Parser['constants'] = {}) {
     for (let key of Object.keys(additionalConstants)) {

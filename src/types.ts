@@ -21,6 +21,10 @@ export type AsemicData = {
   stopRecording?: boolean
   params?: InputSchema['params']
   presets?: InputSchema['presets']
+  loadImage?: {
+    name: string
+    data: ImageData
+  }
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']

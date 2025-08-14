@@ -2,6 +2,7 @@ import _, { isEqual, isUndefined } from 'lodash'
 import {
   Download,
   Ellipsis,
+  Image as ImageIcon,
   Info,
   LucideProps,
   Maximize2,
@@ -118,10 +119,10 @@ function AsemicAppInner({
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const imageInputRef = useRef<HTMLInputElement>(null)
     // const canvasRecorderRef = useRef<Recorder | null>(null) // REMOVE
     const mediaRecorderRef = useRef<MediaRecorder | null>(null) // ADD
-    const recordedChunksRef = useRef<BlobPart[]>([]) // ADD
-    const videoRef = useRef<HTMLVideoElement>(null) // ADD
+    const recordedChunksRef = useRef<BlobPart[]>([])
 
     const startRecording = async () => {
       try {
@@ -295,6 +296,57 @@ function AsemicAppInner({
       event.target.value = ''
     }
 
+    const openImageFile = () => {
+      imageInputRef.current?.click()
+    }
+
+    const handleImageLoad = async (
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      try {
+        const image = new Image()
+        image.src = URL.createObjectURL(file)
+
+        await new Promise((resolve, reject) => {
+          image.onload = () => resolve(image)
+          image.onerror = error => reject(error)
+        })
+
+        const canvas = document.createElement('canvas')
+        canvas.width = image.width
+        canvas.height = image.height
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(image, 0, 0)
+        const imageData = ctx?.getImageData(0, 0, image.width, image.height)
+
+        if (!imageData) {
+          throw new Error('Could not get image data from canvas')
+        }
+
+        // Load image into the parser
+        if (asemic.current) {
+          // Send the image file to the worker thread
+          asemic.current.postMessage({
+            loadImage: {
+              name: 'uploaded',
+              data: imageData
+            }
+          } as AsemicData)
+        }
+      } catch (error) {
+        console.error('Failed to load image:', error)
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error'
+        setErrors([...errors, `Failed to load image: ${errorMessage}`])
+      }
+
+      // Reset the input so the same file can be loaded again
+      event.target.value = ''
+    }
+
     const toggleRecording = () => {
       if (isRecording) {
         stopRecording()
@@ -312,7 +364,10 @@ function AsemicAppInner({
       fileInputRef,
       saveRecordedVideo,
       setIsRecording,
-      stepRecording
+      stepRecording,
+      openImageFile,
+      handleImageLoad,
+      imageInputRef
     ] as const
   }
   const [
@@ -324,7 +379,10 @@ function AsemicAppInner({
     fileInputRef,
     saveRecordedVideo,
     setIsRecording,
-    stepRecording
+    stepRecording,
+    openImageFile,
+    handleImageLoad,
+    imageInputRef
   ] = useRecording()
 
   const setup = () => {
@@ -684,39 +742,6 @@ function AsemicAppInner({
   }
 
   const setupAudio = () => {
-    // renderer = new CanvasRenderer(offscreenCanvas.getContext('2d')!)
-    // const audioRenderer = useRef()
-    // new ElRenderer(
-    //   () => ({}),
-    //   (curves, el, vars) => {
-    //     // const output = el.mul(el.sin(440), 0.5)
-    //     let output = el.in({ channel: 0 })
-    //     output = el.mul(output, el.cycle(700))
-    //     output = el.mul(output, el.cycle(400))
-    //     output = el.mul(output, 0.5)
-    //     output = el.delay({ size: 44100 }, el.ms2samps(200), 0.8, output)
-    //     return [output, output] as const
-    //   }
-    // )
-    // new CSoundRenderer(`<CsoundSynthesizer>
-    //   <CsOptions>
-    //   -odac -iadc --daemon
-    //   </CsOptions>
-    //   <CsInstruments>
-    //     0dbfs=1
-    //     nchnls_i=1
-    //     nchnls=2
-    //     instr 1
-    //       ain = inch(1)
-    //       al, ar  reverbsc ain, ain, 0.7, 10000
-    //       out(al, ar)
-    //     endin
-    //     schedule(1, 0, -1)
-    //   </CsInstruments>
-    //   <CsScore>
-    //   </CsScore>
-    // </CsoundSynthesizer>`)
-
     const [audio, setAudio] = useState<boolean>(false)
     useEffect(() => {
       if (audio) {
@@ -732,10 +757,7 @@ function AsemicAppInner({
   const checkLive = (ev: MouseEvent) => {
     if (ev.altKey) {
       const parser = new Parser()
-      parser.setup(
-        // scenesSourceRef.current.slice(0, editable.current.selectionStart)
-        scenesSourceRef.current
-      )
+      parser.setup(scenesSourceRef.current)
       parser.preProcessing.height = editable.current.clientHeight
       parser.preProcessing.width = editable.current.clientWidth
 
@@ -860,12 +882,26 @@ function AsemicAppInner({
                 <Upload {...lucideProps} />
               </button>
 
+              <button
+                onClick={openImageFile}
+                title='Upload Image for lookup table'>
+                <ImageIcon {...lucideProps} />
+              </button>
+
               <input
                 ref={fileInputRef}
                 type='file'
                 accept='.js,.ts'
                 style={{ display: 'none' }}
                 onChange={handleFileLoad}
+              />
+
+              <input
+                ref={imageInputRef}
+                type='file'
+                accept='image/*'
+                style={{ display: 'none' }}
+                onChange={handleImageLoad}
               />
 
               <button

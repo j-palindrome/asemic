@@ -70,6 +70,10 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.presets)) {
     parser.presets = { ...parser.presets, ...ev.data.presets }
   }
+  if (!isUndefined(ev.data.loadImage)) {
+    const { name, data } = ev.data.loadImage
+    parser.loadImage(name, data)
+  }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
       cancelAnimationFrame(animationFrame)

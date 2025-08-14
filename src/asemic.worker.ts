@@ -1,12 +1,9 @@
 import { flatMap, isUndefined, max } from 'lodash'
-import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import { Parser } from './Parser'
-import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
-import CanvasRenderer from './renderers/visual/CanvasRenderer'
-import Renderer from './renderers/AsemicRenderer'
 import AsemicAudio from './renderers/AsemicAudio'
 import AsemicVisual from './renderers/AsemicVisual'
-import ElRenderer from './renderers/audio/ElRenderer'
+import WebGPURenderer from './renderers/visual/WebGPURenderer'
+import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 
 let parser: Parser = new Parser()
 let renderer: AsemicVisual

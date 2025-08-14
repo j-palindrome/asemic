@@ -1,16 +1,6 @@
 import _, { isEqual, isUndefined } from 'lodash'
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import invariant from 'tiny-invariant'
-import { io, Socket } from 'socket.io-client'
-import {
+  Download,
   Ellipsis,
   Info,
   LucideProps,
@@ -21,19 +11,19 @@ import {
   Power,
   Save,
   Speaker,
-  Video,
-  VideoOff,
-  Download,
-  Upload
+  Upload,
+  Video
 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import invariant from 'tiny-invariant'
 import Asemic from '../Asemic'
-import { AsemicData, FlatTransform, Parser } from '../types'
-import { SocketContext, useSocket } from '../server/schema'
-import { stripComments } from '../utils'
-import { InputSchema, inputSchema } from '../server/inputSchema'
 import Slider from '../components/Slider'
-import CSoundRenderer from '../renderers/audio/cSoundRenderer'
+import { InputSchema } from '../server/inputSchema'
+import { useSocket } from '../server/schema'
 import { splitString } from '../settings'
+import { AsemicData, FlatTransform } from '../types'
+import { stripComments } from '../utils'
+import { Parser } from '../Parser'
 
 function AsemicAppInner({
   source,
@@ -739,6 +729,29 @@ function AsemicAppInner({
   }
   const [audio, setAudio] = setupAudio()
 
+  const checkLive = (ev: MouseEvent) => {
+    if (ev.altKey) {
+      const parser = new Parser()
+      parser.setup(
+        // scenesSourceRef.current.slice(0, editable.current.selectionStart)
+        scenesSourceRef.current
+      )
+      parser.preProcessing.height = editable.current.clientHeight
+      parser.preProcessing.width = editable.current.clientWidth
+
+      const point = parser.processMouse({
+        x: ev.clientX,
+        y: ev.clientY,
+        cursorPosition: editable.current.selectionStart
+      })
+      window.navigator.clipboard.writeText(
+        `${point.x.toFixed(2).replace('.00', '')},${point.y
+          .toFixed(2)
+          .replace('.00', '')}`
+      )
+    }
+  }
+
   return (
     <div className='asemic-container relative group'>
       <div
@@ -772,7 +785,9 @@ function AsemicAppInner({
         />
 
         {!perform ? (
-          <div className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col hidden group-hover:!flex !z-100'>
+          <div
+            className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col hidden group-hover:!flex !z-100'
+            onClick={checkLive}>
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
               <button
                 className={`${isLive ? '!bg-blue-200/40' : ''}`}

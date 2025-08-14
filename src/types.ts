@@ -14,6 +14,7 @@ export type AsemicData = {
     index: { type: 'keys' | 'text'; value: number }
   }
   play?: boolean | { scene: number }
+  mouse?: { x: number; y: number; cursorPosition: number }
   scrub?: number
   offscreenCanvas?: OffscreenCanvas
   startRecording?: boolean

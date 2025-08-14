@@ -449,6 +449,26 @@ export class Parser {
     return this
   }
 
+  processMouse(mouse: NonNullable<AsemicData['mouse']>) {
+    // const sceneSource = this.rawSource.slice(0, mouse.cursorPosition)
+    // this.rawSource = sceneSource
+
+    // this.setup(sceneSource)
+    this.draw()
+
+    const x = mouse.x / this.preProcessing.width
+    const y = mouse.y / this.preProcessing.height
+    console.log(x, y)
+
+    // Update the last point in the temporary parser
+    const point = new AsemicPt(this, x, y)
+
+    // Optionally, apply the current transform to the mouse position
+    this.reverseTransform(point)
+
+    return point
+  }
+
   center(coords: string, callback: () => void) {
     const [centerX, centerY] = this.parsePoint(coords)
     const startCurve = this.curves.length

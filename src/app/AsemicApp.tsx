@@ -325,13 +325,14 @@ function AsemicAppInner({
         if (!imageData) {
           throw new Error('Could not get image data from canvas')
         }
+        canvas.remove()
 
         // Load image into the parser
         if (asemic.current) {
           // Send the image file to the worker thread
           asemic.current.postMessage({
             loadImage: {
-              name: 'uploaded',
+              name: file.name.replace(/\.[^/.]+$/, ''),
               data: imageData
             }
           } as AsemicData)

@@ -117,10 +117,9 @@ export class Parser {
     P: () => this.progress.point,
     px: () => 1 / this.preProcessing.width,
     sin: ([x]) => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
-    table: ([name, x, y, channel]) => {
+    table: ([name, point, channel]) => {
       const imageName = typeof name === 'string' ? name : String(name)
-      const channelName = channel ? String(channel) : 'brightness'
-      return this.table(imageName, x, y, channelName as any)
+      return this.table(imageName, point, channel)
     },
     acc: ([x]) => {
       if (!this.progress.accums[this.progress.accumIndex])
@@ -887,7 +886,8 @@ export class Parser {
       const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
 
       if (functionCall && this.constants[functionCall]) {
-        const args = this.tokenize(expr.substring(functionCall.length))
+        const args = this.tokenize(expr.substring(functionCall.length).trim())
+
         return this.constants[functionCall](args)
       }
 
@@ -1478,9 +1478,9 @@ export class Parser {
    * @param channel - Which channel to return: 'r', 'g', 'b', 'a', or 'brightness' (default)
    * @returns Normalized pixel value (0-1)
    */
-  table(nameCoordChannel: string): number {
-    const [name, coord, channel] = this.tokenize(nameCoordChannel)
+  table(name: string, coord: string, channel: string = 'brightness'): number {
     const [x, y] = this.evalPoint(coord, { basic: true })
+
     const imageData = this.imageLookupTables.get(name)
     if (!imageData) {
       this.error(`Image lookup table '${name}' not found`)
@@ -1503,7 +1503,6 @@ export class Parser {
     const g = imageData.data[index + 1] / 255
     const b = imageData.data[index + 2] / 255
     const a = imageData.data[index + 3] / 255
-
     switch (channel) {
       case 'r':
         return r

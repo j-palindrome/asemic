@@ -147,6 +147,7 @@ export default class WebGPURenderer extends AsemicVisual {
   private brushes: WebGPUBrush[] = []
   ctx: GPUCanvasContext
   device: GPUDevice
+  isSetup = false
 
   constructor(ctx: GPUCanvasContext) {
     super()
@@ -166,9 +167,11 @@ export default class WebGPURenderer extends AsemicVisual {
       device,
       format: navigator.gpu.getPreferredCanvasFormat()
     })
+    this.isSetup = true
   }
 
   render(groups: AsemicGroup[]): void {
+    if (!this.isSetup) return
     const commandEncoder = this.device.createCommandEncoder()
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
@@ -427,19 +430,6 @@ class WebGPUBrush {
 
   render(curves: AsemicGroup, commandEncoder: GPUCommandEncoder) {
     if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
-      // If there are no curves, just clear the canvas and return
-      const renderPass = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: this.ctx.getCurrentTexture().createView(),
-            loadOp: 'clear',
-            clearValue: { r: 0, g: 0, b: 0, a: 1 },
-            storeOp: 'store'
-          }
-        ]
-      })
-      renderPass.end()
-      this.device.queue.submit([commandEncoder.finish()])
       return
     }
 
@@ -463,7 +453,7 @@ class WebGPUBrush {
       colorAttachments: [
         {
           view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
-          loadOp: 'clear',
+          loadOp: 'load',
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           storeOp: 'store'
         }

@@ -148,7 +148,7 @@ export default class WebGPURenderer extends AsemicVisual {
   device: GPUDevice
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
-  shaderModules: Record<string, GPUShaderModule>
+  shaderModule: GPUShaderModule
   dimensions: { buffer: GPUBuffer; size: number }
   widths: { buffer: GPUBuffer; size: number }
   curveStarts: { buffer: GPUBuffer; size: number; array: Uint32Array }
@@ -156,7 +156,7 @@ export default class WebGPURenderer extends AsemicVisual {
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
 
-  protected load(curves: AsemicGroup) {
+  protected load(curves: AsemicPt[][]) {
     // Create a buffer to store vertex data
     const vertexBuffer = this.device.createBuffer({
       size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
@@ -296,11 +296,11 @@ export default class WebGPURenderer extends AsemicVisual {
         bindGroupLayouts: [bindGroupLayout]
       }),
       vertex: {
-        module: this.shaderModules.curve,
+        module: this.shaderModule,
         entryPoint: 'vertexMain'
       },
       fragment: {
-        module: this.shaderModules.curve,
+        module: this.shaderModule,
         entryPoint: 'fragmentMain',
         targets: [
           {
@@ -389,61 +389,60 @@ export default class WebGPURenderer extends AsemicVisual {
   }
 
   render(groups: AsemicGroup[]) {
-    const commandEncoder = this.device.createCommandEncoder()
-    for (let curves of groups) {
-      if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
-        // If there are no curves, just clear the canvas and return
-        const renderPass = commandEncoder.beginRenderPass({
-          colorAttachments: [
-            {
-              view: this.ctx.getCurrentTexture().createView(),
-              loadOp: 'clear',
-              clearValue: { r: 0, g: 0, b: 0, a: 1 },
-              storeOp: 'store'
-            }
-          ]
-        })
-        renderPass.end()
-        this.device.queue.submit([commandEncoder.finish()])
-        return
-      }
-
-      if (!this.vertex) {
-        this.load(curves)
-      } else if (this.curveStarts.size !== curves.length + 1) {
-        this.load(curves)
-      } else {
-        let total = 0
-        for (let i = 0; i < curves.length + 1; i++) {
-          if (this.curveStarts.array[i] !== total) {
-            this.load(curves)
-            break
-          }
-          if (!curves[i]) break
-          total += curves[i].length
-        }
-      }
-      this.reload(curves)
+    const curves = groups.flat()
+    if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
+      // If there are no curves, just clear the canvas and return
+      const commandEncoder = this.device.createCommandEncoder()
       const renderPass = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
-            view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
+            view: this.ctx.getCurrentTexture().createView(),
             loadOp: 'clear',
             clearValue: { r: 0, g: 0, b: 0, a: 1 },
             storeOp: 'store'
           }
         ]
       })
-
-      // These operations could all be done once during init
-      renderPass.setBindGroup(0, this.bindGroup)
-      renderPass.setPipeline(this.pipeline)
-      renderPass.setIndexBuffer(this.index.buffer, 'uint32')
-      // This needs to stay in the render method
-      renderPass.drawIndexed(this.index.size)
       renderPass.end()
+      this.device.queue.submit([commandEncoder.finish()])
+      return
     }
 
+    if (!this.vertex) {
+      this.load(curves)
+    } else if (this.curveStarts.size !== curves.length + 1) {
+      this.load(curves)
+    } else {
+      let total = 0
+      for (let i = 0; i < curves.length + 1; i++) {
+        if (this.curveStarts.array[i] !== total) {
+          this.load(curves)
+          break
+        }
+        if (!curves[i]) break
+        total += curves[i].length
+      }
+    }
+    this.reload(curves)
+    const commandEncoder = this.device.createCommandEncoder()
+    const renderPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        }
+      ]
+    })
+
+    // These operations could all be done once during init
+    renderPass.setBindGroup(0, this.bindGroup)
+    renderPass.setPipeline(this.pipeline)
+    renderPass.setIndexBuffer(this.index.buffer, 'uint32')
+    // This needs to stay in the render method
+    renderPass.drawIndexed(this.index.size)
+    renderPass.end()
     this.device.queue.submit([commandEncoder.finish()])
   }
 
@@ -595,9 +594,8 @@ export default class WebGPURenderer extends AsemicVisual {
     // Create a command encoder just for rendering
     // This could be done once during init
 
-    this.shaderModules = {
-      curve: this.device.createShaderModule({
-        code: /*wgsl*/ `
+    this.shaderModule = this.device.createShaderModule({
+      code: /*wgsl*/ `
       struct VertexOutput {
       @builtin(position) position: vec4<f32>,
       @location(0) color: vec4<f32>,
@@ -646,8 +644,7 @@ export default class WebGPURenderer extends AsemicVisual {
       return input.color;
       }
       `
-      })
-    }
+    })
   }
 
   constructor(ctx: GPUCanvasContext) {

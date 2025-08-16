@@ -3,6 +3,7 @@ import { Color } from 'pts'
 import { AsemicPt } from 'src/blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
+import { AsemicGroup } from 'src/Parser'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -387,7 +388,8 @@ export default class WebGPURenderer extends AsemicVisual {
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
   }
 
-  render(curves: AsemicPt[][]) {
+  render(groups: AsemicGroup[]) {
+    const curves = groups.flat()
     if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
       // If there are no curves, just clear the canvas and return
       const commandEncoder = this.device.createCommandEncoder()
@@ -405,6 +407,7 @@ export default class WebGPURenderer extends AsemicVisual {
       this.device.queue.submit([commandEncoder.finish()])
       return
     }
+
     if (!this.vertex) {
       this.load(curves)
     } else if (this.curveStarts.size !== curves.length + 1) {

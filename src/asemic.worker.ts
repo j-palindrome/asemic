@@ -95,7 +95,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       animationFrame = requestAnimationFrame(animate)
       ready = false
       parser.draw()
-      renderer.render(parser.curves)
+      renderer.render(parser.groups)
 
       let imageBitmap: ImageBitmap | undefined
       // Transfer frame if recording
@@ -133,9 +133,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
 
   if (parser.settings.h === 'auto') {
-    if (parser.curves.length === 0) return
-
-    const maxY = max(flatMap(parser.curves, '1'))! + 0.1
+    const maxY = max(flatMap(parser.groups.flat(), '1'))! + 0.1
 
     if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
       offscreenCanvas.height = offscreenCanvas.width * maxY

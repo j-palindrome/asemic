@@ -41,7 +41,8 @@ const defaultTransform: () => Transform = () => ({
   h: '0',
   s: '0',
   l: '1',
-  a: '1'
+  a: '1',
+  mode: 'curve' as 'curve' | 'fill'
 })
 
 type Expr = string | number
@@ -60,13 +61,27 @@ const defaultOutput = () => ({
   resetPresets: false
 })
 
+// Add Group class
+export class AsemicGroup extends Array<AsemicPt[]> {
+  settings: { mode: 'curve' | 'fill' }
+
+  constructor(parser: Parser, settings: AsemicGroup['settings']) {
+    super()
+    this.settings = settings
+  }
+
+  addCurve(curve: AsemicPt[]) {
+    this.push(curve)
+  }
+}
+
 export class Parser {
   rawSource = ''
   presets: Record<string, InputSchema['params']> = {}
   protected mode = 'normal' as 'normal' | 'blank'
   protected adding = 0
   protected debugged = new Map<string, { errors: string[] }>()
-  curves: AsemicPt[][] = []
+  groups: AsemicGroup[] = []
   settings = defaultSettings()
   static defaultSettings = defaultSettings()
   protected currentCurve: AsemicPt[] = []
@@ -158,7 +173,7 @@ export class Parser {
 
   protected reset({ newFrame = true } = {}) {
     if (newFrame) {
-      this.curves = []
+      this.groups = []
       this.progress.time = performance.now() / 1000
       this.progress.progress += this.pauseAt !== false ? 0 : ONE_FRAME
       if (this.progress.progress >= this.totalLength - ONE_FRAME) {
@@ -367,8 +382,8 @@ export class Parser {
         return str
       }
     }
-    const c = this.curves
-      .concat([this.currentCurve])
+    const allCurves = this.groups.flat().concat([this.currentCurve])
+    const c = allCurves
       .slice(slice)
       .map(
         curve =>
@@ -399,13 +414,13 @@ export class Parser {
     return this
   }
 
-  protected getBounds(fromCurve: number, toCurve?: number) {
+  protected getBounds(fromGroup: number, toGroup?: number) {
     let minX: number | undefined = undefined,
       minY: number | undefined = undefined,
       maxX: number | undefined = undefined,
       maxY: number | undefined = undefined
-    for (let curve of this.curves.slice(fromCurve, toCurve)) {
-      for (const point of curve) {
+    for (let group of this.groups.slice(fromGroup, toGroup)) {
+      for (const point of group.flat()) {
         if (minX === undefined || point[0] < minX) {
           minX = point[0]
         }
@@ -427,9 +442,9 @@ export class Parser {
     const points = this.tokenize(coords)
     const [x, y] = this.parsePoint(points[0])
     const [x2, y2] = this.parsePoint(points[1])
-    const startCurve = this.curves.length
+    const startGroup = this.groups.length
     callback()
-    const [minX, minY, maxX, maxY] = this.getBounds(startCurve)
+    const [minX, minY, maxX, maxY] = this.getBounds(startGroup)
     const newWidth = x2 - x
     const newHeight = y2 - y
     const oldWidth = maxX! - minX!
@@ -437,12 +452,13 @@ export class Parser {
     const scaleX = newWidth / (oldWidth || 1)
     const scaleY = newHeight / (oldHeight || 1)
 
-    for (let i = startCurve; i < this.curves.length; i++) {
-      this.curves[i] = this.curves[i].map(pt => {
-        pt[0] = x + (pt[0] - minX!) * scaleX
-        pt[1] = y + (pt[1] - minY!) * scaleY
-        return pt
-      })
+    for (let i = startGroup; i < this.groups.length; i++) {
+      for (let curve of this.groups[i]) {
+        for (let pt of curve) {
+          pt[0] = x + (pt[0] - minX!) * scaleX
+          pt[1] = y + (pt[1] - minY!) * scaleY
+        }
+      }
     }
 
     if (this.currentCurve.length) {
@@ -477,12 +493,12 @@ export class Parser {
 
   center(coords: string, callback: () => void) {
     const [centerX, centerY] = this.parsePoint(coords)
-    const startCurve = this.curves.length
+    const startGroup = this.groups.length
 
     callback()
-    const addedCurves = this.curves.slice(startCurve)
+    const addedGroups = this.groups.slice(startGroup)
 
-    const [minX, minY, maxX, maxY] = this.getBounds(startCurve)
+    const [minX, minY, maxX, maxY] = this.getBounds(startGroup)
 
     const boundingCenterX = (minX! + maxX!) / 2
     const boundingCenterY = (minY! + maxY!) / 2
@@ -491,8 +507,8 @@ export class Parser {
     const dy = centerY - boundingCenterY
     const difference = new BasicPt(dx, dy)
 
-    for (const curve of addedCurves) {
-      for (const pt of curve) {
+    for (const group of addedGroups) {
+      for (const pt of group.flat()) {
         pt.add(difference)
       }
     }
@@ -501,16 +517,16 @@ export class Parser {
   }
 
   each(makeCurves: () => void, callback: (pt: AsemicPt) => void) {
-    const start = this.curves.length
+    const start = this.groups.length
     const saveProgress = this.progress.curve
     makeCurves()
     const finalProgress = this.progress.curve
     this.progress.curve = saveProgress
-    for (const curve of this.curves.slice(start)) {
+    for (const group of this.groups.slice(start)) {
       this.progress.point = 0
-      for (const pt of curve) {
+      for (const pt of group.flat()) {
         this.progress.curve++
-        this.progress.point += 1 / (curve.length - 1)
+        this.progress.point += 1 / (group.flat().length - 1)
         callback(pt)
       }
     }
@@ -1017,7 +1033,7 @@ export class Parser {
     notation: string | number,
     { save = true, randomize = true, forceRelative = false } = {}
   ): AsemicPt {
-    let prevCurve = this.curves[this.curves.length - 1]
+    let prevCurve: AsemicPt[] | undefined
     let point: AsemicPt
     if (typeof notation === 'number') {
       point = new AsemicPt(this, notation, notation)
@@ -1030,7 +1046,12 @@ export class Parser {
           notation = notation.substring(1)
           count++
         }
-        prevCurve = this.curves[this.curves.length - count]
+        const groupIndex = this.groups.length - count
+        if (groupIndex >= 0 && this.groups[groupIndex]) {
+          const lastCurve =
+            this.groups[groupIndex][this.groups[groupIndex].length - 1]
+          prevCurve = lastCurve
+        }
         if (!prevCurve || prevCurve.length < 2) {
           throw new Error('Intersection requires a previous curve')
         }
@@ -1225,6 +1246,7 @@ export class Parser {
             case 'wid':
               thisTransform.width = value
               break
+              break
             default:
               if (value.includes(',')) {
                 thisTransform[key] = this.evalPoint(value, {
@@ -1304,6 +1326,11 @@ export class Parser {
     return tokens
   }
 
+  group(settings: AsemicGroup['settings']) {
+    this.groups.push(new AsemicGroup(this, settings))
+    return this
+  }
+
   end() {
     if (this.currentCurve.length === 0) return
     if (this.currentCurve.length === 2) {
@@ -1313,9 +1340,10 @@ export class Parser {
       const interpolated = p1.clone().lerp(p2, 0.5)
       this.currentCurve.splice(1, 0, interpolated)
     }
-    if (this.mode !== 'blank') {
-      this.curves.push(this.currentCurve)
+    if (this.groups.length === 0) {
+      this.groups.push(new AsemicGroup(this, { mode: 'curve' }))
     }
+    this.groups[this.groups.length - 1].addCurve(this.currentCurve)
     this.currentCurve = []
     this.progress.point = 0
     this.adding = 0

@@ -300,6 +300,35 @@ function AsemicAppInner({
       imageInputRef.current?.click()
     }
 
+    useEffect(() => {
+      if (asemic.current) {
+        const loadImageKeys = Object.keys(localStorage).filter(key =>
+          key.startsWith('loadImage/')
+        )
+        for (const key of loadImageKeys) {
+          const imageDataString = localStorage.getItem(key)
+          if (imageDataString) {
+            try {
+              const imageData = JSON.parse(imageDataString) as ImageData
+
+              const name = key.replace('loadImage/', '')
+              asemic.current.postMessage({
+                loadImage: {
+                  name,
+                  data: imageData
+                }
+              } as AsemicData)
+            } catch (error) {
+              console.error(
+                'Failed to parse image data from localStorage:',
+                error
+              )
+            }
+          }
+        }
+      }
+    }, [asemic])
+
     const handleImageLoad = async (
       event: React.ChangeEvent<HTMLInputElement>
     ) => {
@@ -316,11 +345,11 @@ function AsemicAppInner({
         })
 
         const canvas = document.createElement('canvas')
-        canvas.width = image.width
-        canvas.height = image.height
+        canvas.width = 512
+        canvas.height = 128
         const ctx = canvas.getContext('2d')
-        ctx?.drawImage(image, 0, 0)
-        const imageData = ctx?.getImageData(0, 0, image.width, image.height)
+        ctx?.drawImage(image, 0, 0, image.width, image.height, 0, 0, 512, 128)
+        const imageData = ctx?.getImageData(0, 0, 512, 128)
 
         if (!imageData) {
           throw new Error('Could not get image data from canvas')
@@ -329,13 +358,15 @@ function AsemicAppInner({
 
         // Load image into the parser
         if (asemic.current) {
+          const name = file.name.replace(/\.[^/.]+$/, '')
           // Send the image file to the worker thread
           asemic.current.postMessage({
             loadImage: {
-              name: file.name.replace(/\.[^/.]+$/, ''),
+              name,
               data: imageData
             }
           } as AsemicData)
+          localStorage.setItem(`loadImage/${name}`, JSON.stringify(imageData))
         }
       } catch (error) {
         console.error('Failed to load image:', error)

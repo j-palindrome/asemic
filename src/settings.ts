@@ -29,5 +29,8 @@ export const splitStringLast = (string: string, at: string) => {
 }
 
 export const splitStringAt = (string: string, at: number) => {
-  return [string.slice(0, at), string.slice(at + 1)] as [string, string]
+  return [string.slice(0, at).trim(), string.slice(at + 1).trim()] as [
+    string,
+    string
+  ]
 }

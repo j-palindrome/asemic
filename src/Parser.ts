@@ -605,7 +605,7 @@ export class Parser {
     let h = 0,
       w = 0
     if (args.length >= 3) {
-      const hwParts = args[2].split(',')
+      const hwParts = this.tokenize(args[2], { separatePoints: true })
       h = this.expr(hwParts[0])!
       w = hwParts.length > 1 ? this.expr(hwParts[1])! : 0
     }
@@ -742,6 +742,7 @@ export class Parser {
         return expr
       }
       expr = expr.trim()
+
       if (expr.length === 0) throw new Error('Empty expression')
 
       this.progress.curve++
@@ -758,8 +759,8 @@ export class Parser {
 
       if (expr.includes('(')) {
         let bracket = 1
-        const start = expr.indexOf('(')
-        let end = start + 1
+        const start = expr.indexOf('(') + 1
+        let end = start
         for (; end < expr.length; end++) {
           if (expr[end] === '(') bracket++
           else if (expr[end] === ')') {
@@ -768,11 +769,22 @@ export class Parser {
           }
         }
 
+        const solvedExpr = expr.substring(start, end)
+
         return this.expr(
-          expr.substring(0, start) +
-            this.expr(expr.substring(start + 1, end)).toFixed(4) +
+          expr.substring(0, start - 1) +
+            this.expr(solvedExpr).toFixed(4) +
             expr.substring(end + 1)
         )
+      }
+
+      if (expr.includes(' ')) {
+        const [funcName, ...args] = this.tokenize(expr)
+        if (this.constants[funcName]) {
+          return this.constants[funcName](args)
+        } else {
+          throw new Error(`Unknown function ${funcName}`)
+        }
       }
 
       if (expr.match(/^\-?[0-9\.]+$/)) {
@@ -802,7 +814,9 @@ export class Parser {
         const fundamental = this.expr(ratios[0])
         const finalRatios = ratios.map(x => {
           if (x.includes(',')) {
-            const [freq, amp] = x.split(',').map(x => this.expr(x, false))
+            const [freq, amp] = this.tokenize(x, { separatePoints: true }).map(
+              x => this.expr(x, false)
+            )
             return Math.cos(freq * fundamental) * amp
           }
           return this.expr(x, false)
@@ -819,7 +833,7 @@ export class Parser {
           if (expr[i] === '-' && expr[i - 1] && '*+/%()'.includes(expr[i - 1]))
             continue
           let operators: [number, number] = splitStringAt(expr, i).map(
-            x => this.expr(x, false)!
+            x => this.expr(x || 0, false)!
           ) as [number, number]
           switch (expr[i]) {
             case '^':
@@ -939,22 +953,22 @@ export class Parser {
 
     if (point.startsWith('[')) {
       const end = point.indexOf(']')
-      point = point
-        .substring(1, end)
-        .split(',')
+      point = this.tokenize(point.substring(1, end), { separatePoints: true })
         .map(x => x.trim() + point.substring(end + 1))
         .join(',')
     }
-    const parts = point.split(',')
-    if (parts.length === 1) {
-      const x = this.expr(parts[0])!
-      return new AsemicPt(this, x, parts[1] ? this.expr(parts[1])! : x)
+
+    try {
+      const parts = this.tokenize(point, { separatePoints: true })
+      if (parts.length === 1) parts.push(parts[0])
+      return (
+        basic
+          ? new BasicPt(...parts.map(x => this.expr(x)!))
+          : new AsemicPt(this, ...parts.map(x => this.expr(x)!))
+      ) as K extends true ? BasicPt : AsemicPt
+    } catch (e) {
+      throw new Error(`Failed to evaluate point: ${point}\n${e.message}`)
     }
-    return (
-      basic
-        ? new BasicPt(...parts.map(x => this.expr(x)!))
-        : new AsemicPt(this, ...parts.map(x => this.expr(x)!))
-    ) as K extends true ? BasicPt : AsemicPt
   }
 
   applyTransform = (
@@ -1232,7 +1246,10 @@ export class Parser {
     return this
   }
 
-  protected tokenize(source: string): string[] {
+  protected tokenize(
+    source: string,
+    { separatePoints = false }: { separatePoints?: boolean } = {}
+  ): string[] {
     source = source + ' '
 
     // Predefined functions
@@ -1274,7 +1291,7 @@ export class Parser {
         !functionCall &&
         !fontDefinition &&
         !hasTotalBrackets &&
-        (char === ' ' || char === '\n')
+        (char === ' ' || char === '\n' || (separatePoints && char === ','))
       ) {
         if (current) {
           tokens.push(current)
@@ -1317,26 +1334,12 @@ export class Parser {
         this.to(pointToken.slice(1, -1))
         return
       } else {
-        try {
-          this.progress.point = (originalEnd + i) / this.adding
-          const point = this.parsePoint(pointToken)
+        this.progress.point = (originalEnd + i) / this.adding
 
-          this.currentCurve.push(point)
-          return
-        } catch (e) {
-          if (
-            Object.keys(this.constants).find(x =>
-              new RegExp(`^\\(?${x}`).test(pointToken)
-            )
-          ) {
-            const evaled = this.expr(pointToken)
-            if (evaled) {
-              this.currentCurve.push(this.parsePoint(evaled))
-            } else {
-              throw new Error(`Function ${pointToken} doesn't return a point`)
-            }
-          }
-        }
+        const point = this.parsePoint(pointToken)
+
+        this.currentCurve.push(point)
+        return
       }
     })
     return this
@@ -1467,6 +1470,8 @@ export class Parser {
    */
   loadImage(name: string, bitmap: ImageData) {
     this.imageLookupTables.set(name, bitmap)
+    // console.log(bitmap)
+
     return this
   }
 
@@ -1480,6 +1485,7 @@ export class Parser {
    */
   table(name: string, coord: string, channel: string = 'brightness'): number {
     const [x, y] = this.evalPoint(coord, { basic: true })
+    // debugger
 
     const imageData = this.imageLookupTables.get(name)
     if (!imageData) {
@@ -1490,14 +1496,9 @@ export class Parser {
     const normalizedX = Math.max(0, Math.min(1, x))
     const normalizedY = Math.max(0, Math.min(1, y))
     // Map to pixel coordinates
-    const pixelX = Math.floor(normalizedX * (imageData.width - 1))
-    const pixelY = Math.floor(normalizedY * (imageData.height - 1))
-    // Get pixel index (RGBA format)
-    const index = (pixelY * imageData.width + pixelX) * 4
-
-    if (index >= imageData.data.length) {
-      return 0
-    }
+    const pixelX = Math.floor(normalizedX * (128 - 1))
+    const pixelY = Math.floor(normalizedY * (128 - 1))
+    const index = (pixelY * 128 + pixelX) * 4
 
     const r = imageData.data[index] / 255
     const g = imageData.data[index + 1] / 255

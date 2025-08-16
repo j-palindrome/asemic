@@ -63,11 +63,11 @@ const defaultOutput = () => ({
 
 // Add Group class
 export class AsemicGroup extends Array<AsemicPt[]> {
-  settings: { mode: 'curve' | 'fill' }
+  settings: { mode: 'curve' | 'fill' } = { mode: 'curve' }
 
-  constructor(parser: Parser, settings: AsemicGroup['settings']) {
+  constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
     super()
-    this.settings = settings
+    this.settings = { ...this.settings, ...settings }
   }
 
   addCurve(curve: AsemicPt[]) {

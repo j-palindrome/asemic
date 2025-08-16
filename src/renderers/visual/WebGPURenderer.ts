@@ -144,6 +144,43 @@ const calcPosition = /*wgsl*/ `
   `
 
 export default class WebGPURenderer extends AsemicVisual {
+  private brushes: WebGPUBrush[] = []
+  ctx: GPUCanvasContext
+  device: GPUDevice
+
+  constructor(ctx: GPUCanvasContext) {
+    super()
+    this.ctx = ctx
+    this.setup()
+  }
+
+  async setup() {
+    const adapter = await navigator.gpu.requestAdapter({
+      featureLevel: 'compatibility'
+    })
+    invariant(adapter)
+    const device = await adapter.requestDevice()
+    invariant(device)
+    this.device = device
+    this.ctx.configure({
+      device,
+      format: navigator.gpu.getPreferredCanvasFormat()
+    })
+  }
+
+  render(groups: AsemicGroup[]): void {
+    const commandEncoder = this.device.createCommandEncoder()
+    for (let i = 0; i < groups.length; i++) {
+      if (!this.brushes[i]) {
+        this.brushes.push(new WebGPUBrush(this.ctx, this.device))
+      }
+      this.brushes[i].render(groups[i], commandEncoder)
+    }
+    this.device.queue.submit([commandEncoder.finish()])
+  }
+}
+
+class WebGPUBrush {
   ctx: GPUCanvasContext
   device: GPUDevice
   pipeline: GPURenderPipeline
@@ -156,7 +193,7 @@ export default class WebGPURenderer extends AsemicVisual {
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
 
-  protected load(curves: AsemicPt[][]) {
+  protected load(curves: AsemicGroup) {
     // Create a buffer to store vertex data
     const vertexBuffer = this.device.createBuffer({
       size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
@@ -388,11 +425,9 @@ export default class WebGPURenderer extends AsemicVisual {
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
   }
 
-  render(groups: AsemicGroup[]) {
-    const curves = groups.flat()
+  render(curves: AsemicGroup, commandEncoder: GPUCommandEncoder) {
     if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
       // If there are no curves, just clear the canvas and return
-      const commandEncoder = this.device.createCommandEncoder()
       const renderPass = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -424,7 +459,6 @@ export default class WebGPURenderer extends AsemicVisual {
       }
     }
     this.reload(curves)
-    const commandEncoder = this.device.createCommandEncoder()
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -443,7 +477,6 @@ export default class WebGPURenderer extends AsemicVisual {
     // This needs to stay in the render method
     renderPass.drawIndexed(this.index.size)
     renderPass.end()
-    this.device.queue.submit([commandEncoder.finish()])
   }
 
   async log() {
@@ -579,18 +612,9 @@ export default class WebGPURenderer extends AsemicVisual {
     readbackBuffer.unmap()
   }
 
-  async setup() {
-    const adapter = await navigator.gpu.requestAdapter({
-      featureLevel: 'compatibility'
-    })
-    invariant(adapter)
-    const device = await adapter.requestDevice()
-    invariant(device)
+  constructor(ctx: GPUCanvasContext, device: GPUDevice) {
+    this.ctx = ctx
     this.device = device
-    this.ctx.configure({
-      device,
-      format: navigator.gpu.getPreferredCanvasFormat()
-    })
     // Create a command encoder just for rendering
     // This could be done once during init
 
@@ -645,10 +669,5 @@ export default class WebGPURenderer extends AsemicVisual {
       }
       `
     })
-  }
-
-  constructor(ctx: GPUCanvasContext) {
-    super()
-    this.ctx = ctx
   }
 }

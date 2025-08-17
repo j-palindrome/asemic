@@ -1,0 +1,24 @@
+// Asemic Language Example
+// This demonstrates the basic features of the Asemic generative writing system
+
+// Simple curve generation
+let curve1 = asemic.curve()
+  .start([50, 100])
+  .to([200, 150])
+  .to([350, 100])
+  .to([500, 180])
+
+// Create text with variation
+let text = "Hello World"
+let variation = asemic.variation(0.3)
+
+// Generate a more complex composition
+let composition = asemic.compose()
+  .add(curve1)
+  .transform({ scale: 1.2, rotate: 15 })
+
+// Render the final result
+asemic.render(composition)
+
+// Export for use
+export { curve1, composition }

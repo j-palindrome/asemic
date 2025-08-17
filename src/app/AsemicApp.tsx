@@ -33,6 +33,7 @@ import { splitString } from '../settings'
 import { AsemicData, FlatTransform } from '../types'
 import { stripComments } from '../utils'
 import { Parser } from '../Parser'
+import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
 
 function AsemicAppInner({
   source,
@@ -44,6 +45,7 @@ function AsemicAppInner({
   getRequire: (file: string) => Promise<string>
 }) {
   const { socket, schema, setSchema } = useSocket()
+  const { saveFile, openFile: openElectronFile } = useElectronFileOperations()
   const [scenesSource, setScenesSource] = useState(source)
   useEffect(() => {
     if (scenesSource !== source) {
@@ -264,24 +266,37 @@ function AsemicAppInner({
       }
     }
 
-    const saveToFile = () => {
+    const saveToFile = async () => {
       const content = editable.current?.value || scenesSource
-      const blob = new Blob([content], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `asemic-${new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/:/g, '-')}.js`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      try {
+        const result = await saveFile(
+          content,
+          `asemic-${new Date()
+            .toISOString()
+            .slice(0, 19)
+            .replace(/:/g, '-')}.asemic`
+        )
+
+        if (result.success && !result.canceled) {
+          console.log('File saved successfully')
+        }
+      } catch (error) {
+        console.error('Failed to save file:', error)
+      }
     }
 
-    const openFile = () => {
-      fileInputRef.current?.click()
+    const openFile = async () => {
+      try {
+        const result = await openElectronFile()
+        if (result.success && result.content) {
+          setScenesSource(result.content)
+          if (editable.current) {
+            editable.current.value = result.content
+          }
+        }
+      } catch (error) {
+        console.error('Failed to open file:', error)
+      }
     }
 
     const handleFileLoad = (event: React.ChangeEvent<HTMLInputElement>) => {

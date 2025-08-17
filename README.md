@@ -12,6 +12,42 @@ pnpm add asemic
 yarn add asemic
 ```
 
+## Development
+
+### Electron App
+
+This project can be run as an Electron desktop application with full file system access:
+
+```bash
+# Development (runs Electron with hot reload)
+pnpm run electron:dev
+
+# Build the library
+pnpm run build
+
+# Build the Electron app
+pnpm run build:electron
+
+# Package the app for distribution
+pnpm run dist
+```
+
+### Web Server
+
+To run the web server for browser development:
+
+```bash
+# Start the development server
+pnpm run dev:server
+```
+
+The Electron app provides:
+
+- Native file dialog for opening/saving .asemic files
+- Better performance for complex visualizations
+- Desktop app experience
+- Cross-platform support (macOS, Windows, Linux)
+
 ## Usage
 
 ### Basic Parser Usage

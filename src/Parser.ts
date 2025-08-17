@@ -58,7 +58,8 @@ const defaultOutput = () => ({
   params: undefined as InputSchema['params'] | undefined,
   presets: undefined as InputSchema['presets'] | undefined,
   resetParams: false,
-  resetPresets: false
+  resetPresets: false,
+  files: [] as string[]
 })
 
 // Add Group class
@@ -156,8 +157,7 @@ export class Parser {
   protected noiseTable: ((x: number) => number)[] = []
   protected noiseValues: number[] = []
   protected noiseIndex = 0
-  protected imageLookupTables: Map<string, ImageData> = new Map()
-  protected images: Record<string, ImageBitmap[]> = {}
+  protected images: Record<string, ImageData[]> = {}
   protected canvas2DContext: OffscreenCanvasRenderingContext2D | null = null
   output = defaultOutput()
   preProcessing = defaultPreProcess()
@@ -1496,19 +1496,8 @@ export class Parser {
    * Load multiple files into the image store
    * @param files - Dictionary of filename to ImageBitmap arrays
    */
-  loadFiles(files: Record<string, ImageBitmap[]>) {
+  loadFiles(files: Partial<Parser['images']>) {
     Object.assign(this.images, files)
-    debugger
-    return this
-  }
-
-  /**
-   * Load an image into a lookup table for pixel access
-   * @param name - The name to store the image lookup table under
-   * @param imageData - The ImageData object containing pixel data
-   */
-  loadImage(name: string, bitmap: ImageData) {
-    this.imageLookupTables.set(name, bitmap)
     return this
   }
 
@@ -1524,66 +1513,30 @@ export class Parser {
     const [x, y] = this.evalPoint(coord, { basic: true })
 
     // First try to get from images cache (ImageBitmap[])
-    if (this.images[name] && this.images[name].length > 0) {
-      const bitmaps = this.images[name]
-      // Use progress or time to select frame for videos
-      const frameIndex =
-        bitmaps.length > 1
-          ? Math.floor(this.progress.scrubTime * 60) % bitmaps.length
-          : 0
-      const bitmap = bitmaps[frameIndex]
 
-      // Convert ImageBitmap to ImageData for pixel access
-      if (!this.canvas2DContext) {
-        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-        this.canvas2DContext = canvas.getContext('2d')!
-      }
+    const bitmaps = this.images[name]
+    // Use progress or time to select frame for videos
+    const frameIndex =
+      bitmaps.length > 1
+        ? Math.floor(this.progress.scrubTime * 60) % bitmaps.length
+        : 0
+    const bitmap = bitmaps[frameIndex]
 
-      const canvas = this.canvas2DContext.canvas
-      canvas.width = bitmap.width
-      canvas.height = bitmap.height
-      this.canvas2DContext.drawImage(bitmap, 0, 0)
-
-      const normalizedX = Math.max(0, Math.min(1, x))
-      const normalizedY = Math.max(0, Math.min(1, y))
-      const pixelX = Math.floor(normalizedX * (bitmap.width - 1))
-      const pixelY = Math.floor(normalizedY * (bitmap.height - 1))
-
-      const imageData = this.canvas2DContext.getImageData(pixelX, pixelY, 1, 1)
-      const [r, g, b, a] = Array.from(imageData.data).map(v => v / 255)
-
-      switch (channel) {
-        case 'r':
-          return r
-        case 'g':
-          return g
-        case 'b':
-          return b
-        case 'a':
-          return a
-        case 'brightness':
-        default:
-          return (0.299 * r + 0.587 * g + 0.114 * b) * a
-      }
-    }
-
-    // Fallback to old imageLookupTables for backward compatibility
-    const imageData = this.imageLookupTables.get(name)
-    if (!imageData) {
-      this.error(`Image '${name}' not found`)
-      return 0
+    // Convert ImageBitmap to ImageData for pixel access
+    if (!this.canvas2DContext) {
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+      this.canvas2DContext = canvas.getContext('2d')!
     }
 
     const normalizedX = Math.max(0, Math.min(1, x))
     const normalizedY = Math.max(0, Math.min(1, y))
-    const pixelX = Math.floor(normalizedX * (128 - 1))
-    const pixelY = Math.floor(normalizedY * (128 - 1))
-    const index = (pixelY * 128 + pixelX) * 4
+    const pixelX = Math.floor(normalizedX * (bitmap.width - 1))
+    const pixelY = Math.floor(normalizedY * (bitmap.height - 1))
 
-    const r = imageData.data[index] / 255
-    const g = imageData.data[index + 1] / 255
-    const b = imageData.data[index + 2] / 255
-    const a = imageData.data[index + 3] / 255
+    const start = pixelY * bitmap.width * 4 + pixelX * 4
+    const [r, g, b, a] = bitmap.data
+      .subarray(start, start + 4)
+      .map(v => v / 255)
 
     switch (channel) {
       case 'r':
@@ -1607,5 +1560,10 @@ export class Parser {
       }
       this.constants[key] = additionalConstants[key]
     }
+  }
+
+  file(filePath: string) {
+    this.output.files.push(filePath)
+    return this
   }
 }

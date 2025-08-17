@@ -21,11 +21,8 @@ export type AsemicData = {
   stopRecording?: boolean
   params?: InputSchema['params']
   presets?: InputSchema['presets']
-  loadImage?: {
-    name: string
-    data: ImageData
-  }
-  loadFiles?: Record<string, ImageBitmap[]>
+  files?: Record<string, string>
+  loadFiles?: Record<string, ImageData[]>
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']
@@ -70,13 +67,15 @@ export interface ReceiveMap {
   'sc:set': (name: string, param: string, value: number) => void
   'sc:on': () => void
   'sc:off': () => void
-  'files:load': (files: Record<string, string>) => void
+  'files:load': (
+    files: string[],
+    callback: (filesBitmaps: Record<string, ImageData[]>) => void
+  ) => void
   disconnect: () => void
 }
 
 export interface SendMap {
   params: (schema: any) => void
-  'files:loaded': (filesBitmaps: Record<string, ImageBitmap[]>) => void
   'asemic:param': (args: any[]) => void
   'osc:message': (data: { address: string; data: any[] }) => void
 }

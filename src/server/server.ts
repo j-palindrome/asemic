@@ -108,11 +108,11 @@ export async function startDevServer() {
       }
     })
 
-    socket.on('files:load', async (files: Record<string, string>) => {
+    socket.on('files:load', async (files, callback) => {
       try {
-        const filesBitmaps: Record<string, ImageBitmap[]> = {}
+        const filesBitmaps: Record<string, ImageData[]> = {}
 
-        for (const [name, filePath] of Object.entries(files)) {
+        for (const filePath of files) {
           try {
             const fileData = await readFile(filePath)
             const ext = extname(filePath).toLowerCase()
@@ -129,12 +129,13 @@ export async function startDevServer() {
               const imageData = {
                 data: new Uint8ClampedArray(imageBuffer.data),
                 width: imageBuffer.info.width,
-                height: imageBuffer.info.height
+                height: imageBuffer.info.height,
+                colorSpace: 'srgb' as PredefinedColorSpace
               }
 
               // Since we can't create actual ImageBitmap in Node.js,
               // we'll send the raw image data and let the client handle it
-              filesBitmaps[name] = [imageData as any]
+              filesBitmaps[filePath] = [imageData]
             } else if (['.mp4', '.webm', '.mov', '.avi'].includes(ext)) {
               // Handle video files (simplified - would need ffmpeg for proper frame extraction)
               // For now, skip video files or handle them differently
@@ -147,7 +148,7 @@ export async function startDevServer() {
           }
         }
 
-        socket.emit('files:loaded', filesBitmaps)
+        callback(filesBitmaps)
       } catch (error) {
         console.error('Error loading files:', error)
       }

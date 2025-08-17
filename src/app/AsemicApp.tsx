@@ -299,33 +299,6 @@ function AsemicAppInner({
       }
     }
 
-    useEffect(() => {
-      const loadFiles = localStorage.getItem('files')
-      socket.emit('files:load', JSON.parse(loadFiles ?? '{}'))
-    }, [socket])
-
-    const openImageFile = async () => {
-      try {
-        const result = await window.electronAPI.showOpenDialog()
-
-        if (!result.canceled && result.filePaths.length > 0) {
-          const filePath = result.filePaths[0]
-
-          // Save file path to localStorage
-          const files = JSON.parse(localStorage.getItem('files') || '{}')
-          localStorage.setItem('files', JSON.stringify(files))
-
-          // Request server to load this specific file
-          socket.emit('files:load', { [filePath]: filePath })
-        }
-      } catch (error) {
-        console.error('Failed to open image file:', error)
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error'
-        setErrors([...errors, `Failed to load image: ${errorMessage}`])
-      }
-    }
-
     const toggleRecording = () => {
       if (isRecording) {
         stopRecording()
@@ -343,8 +316,7 @@ function AsemicAppInner({
       // fileInputRef,
       saveRecordedVideo,
       setIsRecording,
-      stepRecording,
-      openImageFile
+      stepRecording
       // handleImageLoad,
       // imageInputRef
     ] as const
@@ -356,10 +328,8 @@ function AsemicAppInner({
     openFile,
     // handleFileLoad,
     // fileInputRef,
-    saveRecordedVideo,
     setIsRecording,
-    stepRecording,
-    openImageFile
+    stepRecording
     // handleImageLoad,
     // imageInputRef
   ] = useRecording()
@@ -403,7 +373,17 @@ function AsemicAppInner({
               presets: data.presets
             } as InputSchema)
           }
-          if (!isUndefined(data.files)) {
+          if (!isUndefined(data.files) && Object.keys(data.files).length > 0) {
+            // Send file paths to server for loading
+            socket.emit(
+              'files:load',
+              data.files,
+              (loadFiles: Record<string, ImageData[]>) => {
+                asemic.current?.postMessage({
+                  loadFiles
+                })
+              }
+            )
           }
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
@@ -448,7 +428,7 @@ function AsemicAppInner({
             if (data.recordingStarted) {
               console.log('Recording started')
             } else {
-              setIsRecording(false)
+              // setIsRecording(false)
             }
           }
           if (!isUndefined(data.recordingStopped)) {
@@ -460,7 +440,7 @@ function AsemicAppInner({
             ctx.transferFromImageBitmap(data.frameData)
 
             // Step the recorder
-            stepRecording()
+            // stepRecording(1)
           }
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
@@ -861,12 +841,6 @@ function AsemicAppInner({
 
               <button onClick={openFile} title='Open Asemic file'>
                 <Upload {...lucideProps} />
-              </button>
-
-              <button
-                onClick={openImageFile}
-                title='Upload Image for lookup table'>
-                <ImageIcon {...lucideProps} />
               </button>
 
               {/* <input

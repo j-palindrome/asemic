@@ -205,8 +205,11 @@ abstract class WebGPUBrush {
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
 
-  protected abstract load(curves: AsemicGroup): void
-  protected abstract setupShader(): GPUShaderModule
+  protected abstract loadIndex(curves: AsemicGroup): Uint32Array
+  protected abstract loadPipeline(
+    bindGroupLayout: GPUBindGroupLayout
+  ): GPURenderPipeline
+  protected abstract loadShader(): GPUShaderModule
 
   protected reload(curves: AsemicPt[][]) {
     const vertices = new Float32Array(
@@ -231,6 +234,164 @@ abstract class WebGPUBrush {
     ])
 
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
+  }
+
+  load(curves: AsemicGroup) {
+    const vertexBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'vertex'
+    })
+
+    // Create an index buffer
+    const widthsBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'widths'
+    })
+
+    const colorsBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 4),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'colors'
+    })
+
+    const indices = this.loadIndex(curves)
+
+    // Create an index buffer
+    const indexBuffer = this.device.createBuffer({
+      size: indices.byteLength,
+      usage: GPUBufferUsage.INDEX,
+      mappedAtCreation: true,
+      label: 'index buffer'
+    })
+
+    // Write index data
+    new Uint32Array(indexBuffer.getMappedRange()).set(indices)
+    indexBuffer.unmap()
+
+    // Define curve start indices
+    const curveStarts = new Uint32Array(curves.length + 1)
+    let total = 0
+    for (let i = 0; i < curves.length; i++) {
+      curveStarts[i] = total
+      total += curves[i].length
+    }
+    curveStarts[curves.length] = total
+
+    // Create a buffer for curve starts
+    const curveStartsBuffer = this.device.createBuffer({
+      size: curveStarts.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+      label: 'curve starts'
+    })
+
+    // Write curve starts data
+    new Uint32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
+    curveStartsBuffer.unmap()
+
+    const dimensionsBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * 2,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'canvas dimensions'
+    })
+
+    // Update bind group layout to include dimensions uniform
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
+        },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'uniform' }
+        },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' }
+        }
+      ]
+    })
+
+    const pipeline = this.loadPipeline(bindGroupLayout)
+
+    const bindGroup = this.device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: vertexBuffer }
+        },
+        {
+          binding: 1,
+          resource: { buffer: widthsBuffer }
+        },
+        {
+          binding: 2,
+          resource: { buffer: dimensionsBuffer }
+        },
+        {
+          binding: 3,
+          resource: { buffer: curveStartsBuffer }
+        },
+        {
+          binding: 4,
+          resource: { buffer: colorsBuffer }
+        }
+      ]
+    })
+
+    // Store pipeline and resources as instance properties
+    this.pipeline = pipeline
+    this.bindGroup = bindGroup
+    if (this.index) {
+      this.index.buffer.destroy()
+      this.dimensions.buffer.destroy()
+      this.widths.buffer.destroy()
+      this.curveStarts.buffer.destroy()
+      this.vertex.buffer.destroy()
+      this.colors.buffer.destroy()
+    }
+    this.colors = {
+      buffer: colorsBuffer,
+      size: sumBy(curves, x => x.length * 4)
+    }
+
+    this.index = { buffer: indexBuffer, size: indices.length }
+
+    this.dimensions = { buffer: dimensionsBuffer, size: 2 }
+    this.widths = {
+      buffer: widthsBuffer,
+      size: sumBy(curves, x => x.length * 2)
+    }
+    this.curveStarts = {
+      buffer: curveStartsBuffer,
+      size: curveStarts.length,
+      array: curveStarts
+    }
+    this.vertex = {
+      buffer: vertexBuffer,
+      size: sumBy(curves, x => x.length * 2)
+    }
   }
 
   render(curves: AsemicGroup, commandEncoder: GPUCommandEncoder) {
@@ -410,12 +571,12 @@ abstract class WebGPUBrush {
   constructor(ctx: GPUCanvasContext, device: GPUDevice) {
     this.ctx = ctx
     this.device = device
-    this.shaderModule = this.setupShader()
+    this.shaderModule = this.loadShader()
   }
 }
 
 class WebGPULineBrush extends WebGPUBrush {
-  setupShader() {
+  loadShader() {
     return this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
@@ -469,142 +630,8 @@ class WebGPULineBrush extends WebGPUBrush {
     })
   }
 
-  protected load(curves: AsemicGroup) {
-    // Create a buffer to store vertex data
-    const vertexBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'vertex'
-    })
-
-    // Create an index buffer
-    const widthsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'widths'
-    })
-
-    const colorsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 4),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'colors'
-    })
-
-    // Define indices to form two triangles
-    const indices = new Uint32Array(
-      range(curves.length).flatMap(i =>
-        range(99).flatMap(x => [
-          i * 200 + x * 2,
-          i * 200 + x * 2 + 1,
-          i * 200 + x * 2 + 2,
-          i * 200 + x * 2 + 1,
-          i * 200 + x * 2 + 2,
-          i * 200 + x * 2 + 3
-        ])
-      )
-    )
-
-    // Create an index buffer
-    const indexBuffer = this.device.createBuffer({
-      size: indices.byteLength,
-      usage: GPUBufferUsage.INDEX,
-      mappedAtCreation: true,
-      label: 'index buffer'
-    })
-
-    // Write index data
-    new Uint32Array(indexBuffer.getMappedRange()).set(indices)
-    indexBuffer.unmap()
-
-    // Define curve start indices
-    const curveStarts = new Uint32Array(curves.length + 1)
-    let total = 0
-    for (let i = 0; i < curves.length; i++) {
-      curveStarts[i] = total
-      total += curves[i].length
-    }
-    curveStarts[curves.length] = total
-
-    // Create a buffer for curve starts
-    const curveStartsBuffer = this.device.createBuffer({
-      size: curveStarts.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
-      label: 'curve starts'
-    })
-
-    // Write curve starts data
-    new Uint32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
-    curveStartsBuffer.unmap()
-
-    const dimensionsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * 2,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'canvas dimensions'
-    })
-
-    // Update bind group layout to include dimensions uniform
-    const bindGroupLayout = this.device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 2,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'uniform' }
-        },
-        {
-          binding: 3,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 4,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        }
-      ]
-    })
-
-    const bindGroup = this.device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: vertexBuffer }
-        },
-        {
-          binding: 1,
-          resource: { buffer: widthsBuffer }
-        },
-        {
-          binding: 2,
-          resource: { buffer: dimensionsBuffer }
-        },
-        {
-          binding: 3,
-          resource: { buffer: curveStartsBuffer }
-        },
-        {
-          binding: 4,
-          resource: { buffer: colorsBuffer }
-        }
-      ]
-    })
-
-    const pipeline = this.device.createRenderPipeline({
+  protected loadPipeline(bindGroupLayout: GPUBindGroupLayout) {
+    return this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [bindGroupLayout]
       }),
@@ -641,49 +668,37 @@ class WebGPULineBrush extends WebGPUBrush {
         count: 1
       }
     })
+  }
 
-    // Store pipeline and resources as instance properties
-    this.pipeline = pipeline
-    this.bindGroup = bindGroup
-    if (this.index) {
-      this.index.buffer.destroy()
-      this.dimensions.buffer.destroy()
-      this.widths.buffer.destroy()
-      this.curveStarts.buffer.destroy()
-      this.vertex.buffer.destroy()
-      this.colors.buffer.destroy()
-    }
-    this.colors = {
-      buffer: colorsBuffer,
-      size: sumBy(curves, x => x.length * 4)
-    }
+  protected loadIndex(curves: AsemicGroup) {
+    // Create a buffer to store vertex data
 
-    this.index = { buffer: indexBuffer, size: indices.length }
+    // Define indices to form two triangles
+    const indices = new Uint32Array(
+      range(curves.length).flatMap(i =>
+        range(99).flatMap(x => [
+          i * 200 + x * 2,
+          i * 200 + x * 2 + 1,
+          i * 200 + x * 2 + 2,
+          i * 200 + x * 2 + 1,
+          i * 200 + x * 2 + 2,
+          i * 200 + x * 2 + 3
+        ])
+      )
+    )
 
-    this.dimensions = { buffer: dimensionsBuffer, size: 2 }
-    this.widths = {
-      buffer: widthsBuffer,
-      size: sumBy(curves, x => x.length * 2)
-    }
-    this.curveStarts = {
-      buffer: curveStartsBuffer,
-      size: curveStarts.length,
-      array: curveStarts
-    }
-    this.vertex = {
-      buffer: vertexBuffer,
-      size: sumBy(curves, x => x.length * 2)
-    }
+    return indices
   }
 }
 
 class WebGPUFillBrush extends WebGPUBrush {
-  protected setupShader() {
+  protected loadShader() {
     return this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {
-        @builtin(position) position: vec4<f32>,
-        @location(0) color: vec4<f32>,
+      @builtin(position) position: vec4<f32>,
+      @location(0) color: vec4<f32>,
+      @location(1) uv: vec2<f32>
       };
       
       @group(0) @binding(0)
@@ -705,158 +720,52 @@ class WebGPUFillBrush extends WebGPUBrush {
 
       @vertex
       fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-        var output: VertexOutput;
-        
-        let position = normalCoords(vertices[vertex_index]);
-        let color = colors[vertex_index];
-        
-        output.position = vec4<f32>(position.x, position.y, 0.0, 1.0);
-        output.color = hslaToRgba(color);
-        return output;
+      var output: VertexOutput;
+      ${calcPosition}
+      
+      output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
+
+      output.uv = uv; // Pass the UV coordinates to the fragment shader
+      output.color = hslaToRgba(color);
+      return output;
       }
 
       @fragment
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-        return input.color;
+      // Gaussian function parameters
+      // let mean = 0.5;
+      // let sigma = 0.15;
+      // let y = input.uv.y;
+      
+      // // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
+      // let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
+      
+      return input.color;
       }
       `
     })
   }
 
-  protected load(curves: AsemicGroup) {
+  protected loadIndex(curves: AsemicGroup) {
     // Create a buffer to store vertex data
-    const vertexBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'vertex'
-    })
 
-    const widthsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'widths'
-    })
-
-    const colorsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 4),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'colors'
-    })
-
-    // Create triangle fan indices for filled shapes
     const indices = new Uint32Array(
-      curves.flatMap((curve, curveIndex) => {
-        const triangleIndices: number[] = []
-        const baseVertex = sum(curves.slice(0, curveIndex).map(c => c.length))
-
-        // Create triangle fan from first vertex to all other vertices
-        for (let i = 1; i < curve.length - 1; i++) {
-          triangleIndices.push(
-            baseVertex, // First vertex (center of fan)
-            baseVertex + i, // Current vertex
-            baseVertex + i + 1 // Next vertex
-          )
-        }
-        return triangleIndices
-      })
+      range(curves.length).flatMap(i =>
+        range(99).flatMap(x => [
+          i * 200,
+          i * 200 + x * 2 + 1,
+          i * 200 + x * 2 + 3
+        ])
+      )
     )
 
-    const indexBuffer = this.device.createBuffer({
-      size: indices.byteLength,
-      usage: GPUBufferUsage.INDEX,
-      mappedAtCreation: true,
-      label: 'index buffer'
-    })
+    return indices
+  }
 
-    new Uint32Array(indexBuffer.getMappedRange()).set(indices)
-    indexBuffer.unmap()
-
-    // Define curve start indices
-    const curveStarts = new Uint32Array(curves.length + 1)
-    let total = 0
-    for (let i = 0; i < curves.length; i++) {
-      curveStarts[i] = total
-      total += curves[i].length
-    }
-    curveStarts[curves.length] = total
-
-    const curveStartsBuffer = this.device.createBuffer({
-      size: curveStarts.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
-      label: 'curve starts'
-    })
-
-    new Uint32Array(curveStartsBuffer.getMappedRange()).set(curveStarts)
-    curveStartsBuffer.unmap()
-
-    const dimensionsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * 2,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: 'canvas dimensions'
-    })
-
-    const bindGroupLayout = this.device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 2,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'uniform' }
-        },
-        {
-          binding: 3,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 4,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        }
-      ]
-    })
-
-    const bindGroup = this.device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: vertexBuffer }
-        },
-        {
-          binding: 1,
-          resource: { buffer: widthsBuffer }
-        },
-        {
-          binding: 2,
-          resource: { buffer: dimensionsBuffer }
-        },
-        {
-          binding: 3,
-          resource: { buffer: curveStartsBuffer }
-        },
-        {
-          binding: 4,
-          resource: { buffer: colorsBuffer }
-        }
-      ]
-    })
-
-    const pipeline = this.device.createRenderPipeline({
+  protected loadPipeline(
+    bindGroupLayout: GPUBindGroupLayout
+  ): GPURenderPipeline {
+    return this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [bindGroupLayout]
       }),
@@ -893,37 +802,5 @@ class WebGPUFillBrush extends WebGPUBrush {
         count: 1
       }
     })
-
-    // Store pipeline and resources as instance properties
-    this.pipeline = pipeline
-    this.bindGroup = bindGroup
-    if (this.index) {
-      this.index.buffer.destroy()
-      this.dimensions.buffer.destroy()
-      this.widths.buffer.destroy()
-      this.curveStarts.buffer.destroy()
-      this.vertex.buffer.destroy()
-      this.colors.buffer.destroy()
-    }
-    this.colors = {
-      buffer: colorsBuffer,
-      size: sumBy(curves, x => x.length * 4)
-    }
-
-    this.index = { buffer: indexBuffer, size: indices.length }
-    this.dimensions = { buffer: dimensionsBuffer, size: 2 }
-    this.widths = {
-      buffer: widthsBuffer,
-      size: sumBy(curves, x => x.length * 2)
-    }
-    this.curveStarts = {
-      buffer: curveStartsBuffer,
-      size: curveStarts.length,
-      array: curveStarts
-    }
-    this.vertex = {
-      buffer: vertexBuffer,
-      size: sumBy(curves, x => x.length * 2)
-    }
   }
 }

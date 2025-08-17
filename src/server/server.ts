@@ -20,27 +20,27 @@ let schemaState: InputSchema = {
 }
 
 async function startDevServer() {
-  const server = await createServer({
-    // config options
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': resolve(import.meta.dirname, './src')
-      }
-    },
-    worker: {
-      format: 'es' // Use ES modules for workers
-    },
-    server: {
-      port: 3000,
-      host: '0.0.0.0'
-    }
-  })
+  // const server = await createServer({
+  //   // config options
+  //   plugins: [react(), tailwindcss()],
+  //   resolve: {
+  //     alias: {
+  //       '@': resolve(import.meta.dirname, './src')
+  //     }
+  //   },
+  //   worker: {
+  //     format: 'es' // Use ES modules for workers
+  //   },
+  //   server: {
+  //     port: 3000,
+  //     host: '0.0.0.0'
+  //   }
+  // })
 
-  // Create Socket.IO server
-  const httpServer = server.httpServer
-  invariant(httpServer)
-  const io = new SocketIOServer(httpServer, {
+  // // Create Socket.IO server
+  // const httpServer = server.httpServer
+  // invariant(httpServer)
+  const io = new SocketIOServer(3000, {
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
@@ -200,9 +200,9 @@ async function startDevServer() {
     }
   })
 
-  await server.listen()
+  // await server.listen()
 
-  server.printUrls()
+  // server.printUrls()
 }
 
-startDevServer()
+// startDevServer()

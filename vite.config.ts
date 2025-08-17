@@ -16,6 +16,7 @@ export default defineConfig({
         entry: 'electron/main.ts',
         vite: {
           build: {
+            sourcemap: 'inline',
             rollupOptions: {
               external: [
                 'node-osc',

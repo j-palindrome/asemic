@@ -122,7 +122,6 @@ export async function startDevServer() {
             ) {
               // Handle image files using sharp
               const imageBuffer = await sharp(fileData)
-                .resize(512, 128)
                 .raw()
                 .toBuffer({ resolveWithObject: true })
 

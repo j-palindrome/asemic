@@ -97,11 +97,7 @@ ipcMain.handle('write-file', async (_, filePath: string, content: string) => {
 
 ipcMain.handle('show-open-dialog', async () => {
   const result = await dialog.showOpenDialog(win!, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Asemic Files', extensions: ['asemic'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+    properties: ['openFile']
   })
   return result
 })

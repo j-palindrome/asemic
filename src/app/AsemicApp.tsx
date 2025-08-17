@@ -128,8 +128,8 @@ function AsemicAppInner({
 
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)
-    const fileInputRef = useRef<HTMLInputElement>(null)
-    const imageInputRef = useRef<HTMLInputElement>(null)
+    // const fileInputRef = useRef<HTMLInputElement>(null)
+    // const imageInputRef = useRef<HTMLInputElement>(null)
     // const canvasRecorderRef = useRef<Recorder | null>(null) // REMOVE
     const mediaRecorderRef = useRef<MediaRecorder | null>(null) // ADD
     const recordedChunksRef = useRef<BlobPart[]>([])
@@ -299,109 +299,31 @@ function AsemicAppInner({
       }
     }
 
-    const handleFileLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
-
-      const reader = new FileReader()
-      reader.onload = e => {
-        const content = e.target?.result as string
-        if (content) {
-          setScenesSource(content)
-          if (editable.current) {
-            editable.current.value = content
-          }
-        }
-      }
-      reader.readAsText(file)
-
-      // Reset the input so the same file can be loaded again
-      event.target.value = ''
-    }
-
-    const openImageFile = () => {
-      imageInputRef.current?.click()
-    }
-
     useEffect(() => {
-      if (asemic.current) {
-        // Load files from localStorage and request from server
-        const filesString = localStorage.getItem('files')
-        if (filesString) {
-          try {
-            const files = JSON.parse(filesString) as Record<string, string>
-            // Post message to server to load files
-            socket.emit('files:load', files)
-          } catch (error) {
-            console.error('Failed to parse files from localStorage:', error)
-          }
-        }
-      }
-    }, [asemic, socket])
-
-    // Listen for files loaded from server
-    useEffect(() => {
-      if (!socket) return
-
-      const handleFilesLoaded = (
-        filesBitmaps: Record<string, ImageBitmap[]>
-      ) => {
-        if (asemic.current) {
-          asemic.current.postMessage({
-            loadFiles: filesBitmaps
-          } as AsemicData)
-        }
-      }
-
-      socket.on('files:loaded', handleFilesLoaded)
-
-      return () => {
-        socket.off('files:loaded', handleFilesLoaded)
-      }
+      const loadFiles = localStorage.getItem('files')
+      socket.emit('files:load', JSON.parse(loadFiles ?? '{}'))
     }, [socket])
 
-    const handleImageLoad = async (
-      event: React.ChangeEvent<HTMLInputElement>
-    ) => {
-      const file = event.target.files?.[0]
-      debugger
-      if (!file) return
-
+    const openImageFile = async () => {
       try {
-        // Save file path to localStorage
-        const files = JSON.parse(localStorage.getItem('files') || '{}')
-        const name = file.name.replace(/\.[^/.]+$/, '')
+        const result = await window.electronAPI.showOpenDialog()
 
-        // Use File API to get the actual file path
-        let filePath: string
-        if ('webkitRelativePath' in file && file.webkitRelativePath) {
-          filePath = file.webkitRelativePath
-        } else if (file['path']) {
-          filePath = file['path']
-        } else {
-          // For web browsers without direct file path access,
-          // we can't process the file on the server
-          setErrors([
-            ...errors,
-            'File path not available. Please use a desktop environment with file system access.'
-          ])
-          return
+        if (!result.canceled && result.filePaths.length > 0) {
+          const filePath = result.filePaths[0]
+
+          // Save file path to localStorage
+          const files = JSON.parse(localStorage.getItem('files') || '{}')
+          localStorage.setItem('files', JSON.stringify(files))
+
+          // Request server to load this specific file
+          socket.emit('files:load', { [filePath]: filePath })
         }
-
-        files[name] = filePath
-        localStorage.setItem('files', JSON.stringify(files))
-
-        // Request server to load this specific file
-        socket.emit('files:load', { [name]: filePath })
       } catch (error) {
-        console.error('Failed to load image:', error)
+        console.error('Failed to open image file:', error)
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error'
         setErrors([...errors, `Failed to load image: ${errorMessage}`])
       }
-
-      // Reset the input so the same file can be loaded again
-      event.target.value = ''
     }
 
     const toggleRecording = () => {
@@ -417,14 +339,14 @@ function AsemicAppInner({
       toggleRecording,
       saveToFile,
       openFile,
-      handleFileLoad,
-      fileInputRef,
+      // handleFileLoad,
+      // fileInputRef,
       saveRecordedVideo,
       setIsRecording,
       stepRecording,
-      openImageFile,
-      handleImageLoad,
-      imageInputRef
+      openImageFile
+      // handleImageLoad,
+      // imageInputRef
     ] as const
   }
   const [
@@ -432,14 +354,14 @@ function AsemicAppInner({
     toggleRecording,
     saveToFile,
     openFile,
-    handleFileLoad,
-    fileInputRef,
+    // handleFileLoad,
+    // fileInputRef,
     saveRecordedVideo,
     setIsRecording,
     stepRecording,
-    openImageFile,
-    handleImageLoad,
-    imageInputRef
+    openImageFile
+    // handleImageLoad,
+    // imageInputRef
   ] = useRecording()
 
   const setup = () => {
@@ -480,6 +402,8 @@ function AsemicAppInner({
               params: data.params,
               presets: data.presets
             } as InputSchema)
+          }
+          if (!isUndefined(data.files)) {
           }
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
@@ -945,7 +869,7 @@ function AsemicAppInner({
                 <ImageIcon {...lucideProps} />
               </button>
 
-              <input
+              {/* <input
                 ref={fileInputRef}
                 type='file'
                 accept='.js,.ts'
@@ -959,7 +883,7 @@ function AsemicAppInner({
                 accept='image/*,video/*'
                 style={{ display: 'none' }}
                 onChange={handleImageLoad}
-              />
+              /> */}
 
               <button
                 onClick={() => {

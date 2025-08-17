@@ -64,7 +64,12 @@ const defaultOutput = () => ({
 
 // Add Group class
 export class AsemicGroup extends Array<AsemicPt[]> {
-  settings: { mode: 'curve' | 'fill' } = { mode: 'curve' }
+  settings: {
+    mode: 'curve' | 'fill'
+    texture?: string
+    xy?: string
+    wh?: string
+  } = { mode: 'curve' }
 
   constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
     super()
@@ -116,8 +121,7 @@ export class Parser {
     regexCache: {} as Record<string, string[]>
   }
   live = {
-    keys: [''],
-    text: ['']
+    keys: ['']
   }
 
   constants: Record<string, ((args: string[]) => number) | (() => number)> = {

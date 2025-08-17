@@ -136,6 +136,7 @@ export async function startDevServer() {
               // Since we can't create actual ImageBitmap in Node.js,
               // we'll send the raw image data and let the client handle it
               filesBitmaps[filePath] = [imageData]
+            } else if (['.pdf'].includes(ext)) {
             } else if (['.mp4', '.webm', '.mov', '.avi'].includes(ext)) {
               // Handle video files (simplified - would need ffmpeg for proper frame extraction)
               // For now, skip video files or handle them differently

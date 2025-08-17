@@ -11,7 +11,7 @@ export type AsemicData = {
   live: {
     keys: string[]
     text: string[]
-    index: { type: 'keys' | 'text'; value: number }
+    index: { value: number }
   }
   play?: boolean | { scene: number }
   mouse?: { x: number; y: number; cursorPosition: number }

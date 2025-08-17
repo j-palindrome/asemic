@@ -1,6 +1,6 @@
 import { range, sum, sumBy } from 'lodash'
 import { Color } from 'pts'
-import { AsemicPt } from 'src/blocks/AsemicPt'
+import { AsemicPt, BasicPt } from 'src/blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from 'src/Parser'
@@ -204,6 +204,7 @@ abstract class WebGPUBrush {
   vertex: { buffer: GPUBuffer; size: number }
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
+  textures: { src: GPUTexture; xy: BasicPt; wh: BasicPt }[] = []
 
   protected abstract loadIndex(curves: AsemicGroup): Uint32Array
   protected abstract loadPipeline(

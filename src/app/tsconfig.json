@@ -1,13 +1,8 @@
 {
   "compilerOptions": {
-    "paths": {
-      "@main/*": ["./src/main/*"],
-      "@preload/*": ["./src/preload/*"],
-      "@renderer/*": ["./src/renderer/src/*"],
-    },
     "baseUrl": "./",
     "module": "esnext",
-    "target": "esnext", 
+    "target": "esnext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -24,6 +19,6 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "typeRoots": ["./node_modules/@types", "./node_modules/@types/electron"],
-    "types": ["electron", "./src/preload"],
-  },
+    "types": ["electron", "./src/preload", "@webgpu/types"]
+  }
 }

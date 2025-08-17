@@ -509,8 +509,7 @@ function AsemicAppInner({
   const useKeys = () => {
     const [live, setLive] = useState({
       keys: ['', '', '', '', '', '', '', '', '', ''],
-      text: ['', '', '', '', '', '', '', '', '', ''],
-      index: { type: 'keys', value: 0 }
+      index: { value: 0 }
     } as AsemicData['live'])
     const [isLive, setIsLive] = useState(false)
 
@@ -586,57 +585,31 @@ function AsemicAppInner({
             return
           }
         } else if (isLive) {
-          switch (live.index.type) {
-            case 'keys':
-              if (ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey) {
-                keysPressed.current[String(ev.key)] = performance.now()
-              }
-              const newKeys = [...live.keys]
-              newKeys[live.index.value] = Object.keys(keysPressed.current)
-                .sort(x => keysPressed.current[x])
-                .join('')
-
-              setLive({ ...live, keys: newKeys })
-
-              break
-            case 'text':
-              let newText = live.text[live.index.value]
-              if (ev.key === 'Backspace') {
-                if (ev.metaKey) {
-                  newText = ''
-                } else if (ev.altKey) {
-                  newText = newText.slice(
-                    0,
-                    newText.includes(' ') ? newText.lastIndexOf(' ') : 0
-                  )
-                } else {
-                  newText = newText.slice(0, -1)
-                }
-              } else if (ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey) {
-                newText += ev.key
-              }
-              const newTexts = [...live.text]
-              newTexts[live.index.value] = newText
-
-              setLive({ ...live, text: newTexts })
-              break
+          if (ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey) {
+            keysPressed.current[String(ev.key)] = performance.now()
           }
-        }
-      }
-      const onKeyUp = (ev: KeyboardEvent) => {
-        delete keysPressed.current[ev.key]
-        const newKeys = [...live.keys]
-        newKeys[live.index.value] = Object.keys(keysPressed.current)
-          .sort(x => keysPressed.current[x])
-          .join('')
-        setLive({ ...live, keys: newKeys })
-      }
+          const newKeys = [...live.keys]
+          newKeys[live.index.value] = Object.keys(keysPressed.current)
+            .sort(x => keysPressed.current[x])
+            .join('')
 
-      window.addEventListener('keydown', onKeyDown)
-      window.addEventListener('keyup', onKeyUp)
-      return () => {
-        window.removeEventListener('keydown', onKeyDown)
-        window.removeEventListener('keyup', onKeyUp)
+          setLive({ ...live, keys: newKeys })
+        }
+        const onKeyUp = (ev: KeyboardEvent) => {
+          delete keysPressed.current[ev.key]
+          const newKeys = [...live.keys]
+          newKeys[live.index.value] = Object.keys(keysPressed.current)
+            .sort(x => keysPressed.current[x])
+            .join('')
+          setLive({ ...live, keys: newKeys })
+        }
+
+        window.addEventListener('keydown', onKeyDown)
+        window.addEventListener('keyup', onKeyUp)
+        return () => {
+          window.removeEventListener('keydown', onKeyDown)
+          window.removeEventListener('keyup', onKeyUp)
+        }
       }
     }, [live, isLive])
     return [live, isLive, setIsLive] as const
@@ -819,8 +792,8 @@ function AsemicAppInner({
                   ev.currentTarget.blur()
                 }}></input>
               <div className='font-mono truncate max-w-[33%] flex-none whitespace-nowrap text-blue-500'>
-                {live.index.type} {live.index.value}:{' '}
-                {live[live.index.type][live.index.value]?.replace('\n', '/ ')}
+                {live.index.value}:{' '}
+                {live[live.index.value]?.replace('\n', '/ ')}
               </div>
               <div className='grow' />
               <button onClick={() => setHelp(!help)}>

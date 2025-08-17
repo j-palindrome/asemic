@@ -18,6 +18,6 @@
     "noEmit": true,
     "types": ["@webgpu/types"]
   },
-  "include": ["src", "tests"],
+  "include": ["src", "tests", "electron"],
   "exclude": ["_archive", "node_modules", "dist"]
 }

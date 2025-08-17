@@ -1,25 +1,18 @@
-import { createServer } from 'vite'
-import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
-import { Socket, Server as SocketIOServer } from 'socket.io'
-import { z } from 'zod'
-import { Server, Client } from 'node-osc'
-import invariant from 'tiny-invariant'
-import _ from 'lodash'
-import tailwindcss from '@tailwindcss/vite'
-import { InputSchema, inputSchema } from './inputSchema'
-import sc from 'supercolliderjs'
 import { readFile } from 'fs/promises'
+import { Client, Server } from 'node-osc'
 import { extname } from 'path'
 import sharp from 'sharp'
+import { Socket, Server as SocketIOServer } from 'socket.io'
 import { ReceiveMap, SendMap } from 'src/types'
+import sc from 'supercolliderjs'
+import { InputSchema, inputSchema } from './inputSchema'
 
 let schemaState: InputSchema = {
   params: {},
   presets: {}
 }
 
-async function startDevServer() {
+export async function startDevServer() {
   // const server = await createServer({
   //   // config options
   //   plugins: [react(), tailwindcss()],
@@ -53,9 +46,12 @@ async function startDevServer() {
   sc.server.boot().then(
     async thisServer => {
       scServer = thisServer
+      console.log('✅ SuperCollider server started successfully')
     },
     err => {
-      console.error('error' + err.message)
+      console.warn('⚠️ SuperCollider server failed to start:', err.message)
+      console.log('🔄 Continuing without SuperCollider server...')
+      scServer = null
     }
   )
 

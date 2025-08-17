@@ -1,4 +1,57 @@
-"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("ipcRenderer",{on(...e){const[n,t]=e;return r.ipcRenderer.on(n,(o,...d)=>t(o,...d))},off(...e){const[n,...t]=e;return r.ipcRenderer.off(n,...t)},send(...e){const[n,...t]=e;return r.ipcRenderer.send(n,...t)},invoke(...e){const[n,...t]=e;return r.ipcRenderer.invoke(n,...t)}});function s(e=["complete","interactive"]){return new Promise(n=>{e.includes(document.readyState)?n(!0):document.addEventListener("readystatechange",()=>{e.includes(document.readyState)&&n(!0)})})}const i={append(e,n){if(!Array.from(e.children).find(t=>t===n))return e.appendChild(n)},remove(e,n){if(Array.from(e.children).find(t=>t===n))return e.removeChild(n)}};r.contextBridge.exposeInMainWorld("electronAPI",{readFile:e=>r.ipcRenderer.invoke("read-file",e),writeFile:(e,n)=>r.ipcRenderer.invoke("write-file",e,n),showOpenDialog:()=>r.ipcRenderer.invoke("show-open-dialog"),showSaveDialog:()=>r.ipcRenderer.invoke("show-save-dialog")});function c(){const e="loaders-css__square-spin",n=`
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("ipcRenderer", {
+  on(...args) {
+    const [channel, listener] = args;
+    return electron.ipcRenderer.on(channel, (event, ...args2) => listener(event, ...args2));
+  },
+  off(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.off(channel, ...omit);
+  },
+  send(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.send(channel, ...omit);
+  },
+  invoke(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.invoke(channel, ...omit);
+  }
+});
+function domReady(condition = ["complete", "interactive"]) {
+  return new Promise((resolve) => {
+    if (condition.includes(document.readyState)) {
+      resolve(true);
+    } else {
+      document.addEventListener("readystatechange", () => {
+        if (condition.includes(document.readyState)) {
+          resolve(true);
+        }
+      });
+    }
+  });
+}
+const safeDOM = {
+  append(parent, child) {
+    if (!Array.from(parent.children).find((c) => c === child)) {
+      return parent.appendChild(child);
+    }
+  },
+  remove(parent, child) {
+    if (Array.from(parent.children).find((c) => c === child)) {
+      return parent.removeChild(child);
+    }
+  }
+};
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  readFile: (filePath) => electron.ipcRenderer.invoke("read-file", filePath),
+  writeFile: (filePath, content) => electron.ipcRenderer.invoke("write-file", filePath, content),
+  showOpenDialog: () => electron.ipcRenderer.invoke("show-open-dialog"),
+  showSaveDialog: () => electron.ipcRenderer.invoke("show-save-dialog")
+});
+function useLoading() {
+  const className = `loaders-css__square-spin`;
+  const styleContent = `
 @keyframes square-spin {
   25% { 
     transform: perspective(100px) rotateX(180deg) rotateY(0); 
@@ -13,7 +66,7 @@
     transform: perspective(100px) rotateX(0) rotateY(0); 
   }
 }
-.${e} > div {
+.${className} > div {
   animation-fill-mode: both;
   width: 50px;
   height: 50px;
@@ -32,4 +85,27 @@
   background: #282c34;
   z-index: 9;
 }
-    `,t=document.createElement("style"),o=document.createElement("div");return t.id="app-loading-style",t.innerHTML=n,o.className="app-loading-wrap",o.innerHTML=`<div class="${e}"><div></div></div>`,{appendLoading(){i.append(document.head,t),i.append(document.body,o)},removeLoading(){i.remove(document.head,t),i.remove(document.body,o)}}}const{appendLoading:p,removeLoading:a}=c();s().then(p);window.onmessage=e=>{e.data.payload==="removeLoading"&&a()};setTimeout(a,4999);
+    `;
+  const oStyle = document.createElement("style");
+  const oDiv = document.createElement("div");
+  oStyle.id = "app-loading-style";
+  oStyle.innerHTML = styleContent;
+  oDiv.className = "app-loading-wrap";
+  oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
+  return {
+    appendLoading() {
+      safeDOM.append(document.head, oStyle);
+      safeDOM.append(document.body, oDiv);
+    },
+    removeLoading() {
+      safeDOM.remove(document.head, oStyle);
+      safeDOM.remove(document.body, oDiv);
+    }
+  };
+}
+const { appendLoading, removeLoading } = useLoading();
+domReady().then(appendLoading);
+window.onmessage = (ev) => {
+  ev.data.payload === "removeLoading" && removeLoading();
+};
+setTimeout(removeLoading, 4999);

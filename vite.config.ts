@@ -9,10 +9,28 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+
     electron({
       main: {
         // Shortcut of `build.lib.entry`.
-        entry: 'electron/main.ts'
+        entry: 'electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              external: [
+                'node-osc',
+                'sharp',
+                'supercolliderjs',
+                'ws',
+                'socket.io',
+                'engine.io',
+                'engine.io-client',
+                'utf-8-validate',
+                'bufferutil'
+              ]
+            }
+          }
+        }
       },
       preload: {
         // Shortcut of `build.rollupOptions.input`.

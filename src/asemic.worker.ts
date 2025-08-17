@@ -74,6 +74,9 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     const { name, data } = ev.data.loadImage
     parser.loadImage(name, data)
   }
+  if (!isUndefined(ev.data.loadFiles)) {
+    parser.loadFiles(ev.data.loadFiles)
+  }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {
       cancelAnimationFrame(animationFrame)

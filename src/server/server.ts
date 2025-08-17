@@ -9,6 +9,10 @@ import _ from 'lodash'
 import tailwindcss from '@tailwindcss/vite'
 import { InputSchema, inputSchema } from './inputSchema'
 import sc from 'supercolliderjs'
+import { readFile } from 'fs/promises'
+import { extname } from 'path'
+import sharp from 'sharp'
+import { ReceiveMap, SendMap } from 'src/types'
 
 let schemaState: InputSchema = {
   params: {},
@@ -105,6 +109,52 @@ async function startDevServer() {
       for (const key in synths) {
         synths[key].free()
         delete synths[key]
+      }
+    })
+
+    socket.on('files:load', async (files: Record<string, string>) => {
+      try {
+        const filesBitmaps: Record<string, ImageBitmap[]> = {}
+
+        for (const [name, filePath] of Object.entries(files)) {
+          try {
+            const fileData = await readFile(filePath)
+            const ext = extname(filePath).toLowerCase()
+
+            if (
+              ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)
+            ) {
+              // Handle image files using sharp
+              const imageBuffer = await sharp(fileData)
+                .resize(512, 128)
+                .raw()
+                .toBuffer({ resolveWithObject: true })
+
+              // Convert to ImageData-like structure that can be transferred
+              const imageData = {
+                data: new Uint8ClampedArray(imageBuffer.data),
+                width: imageBuffer.info.width,
+                height: imageBuffer.info.height
+              }
+
+              // Since we can't create actual ImageBitmap in Node.js,
+              // we'll send the raw image data and let the client handle it
+              filesBitmaps[name] = [imageData as any]
+            } else if (['.mp4', '.webm', '.mov', '.avi'].includes(ext)) {
+              // Handle video files (simplified - would need ffmpeg for proper frame extraction)
+              // For now, skip video files or handle them differently
+              console.log(
+                `Video file ${filePath} detected - video processing not implemented`
+              )
+            }
+          } catch (error) {
+            console.error(`Error loading file ${filePath}:`, error)
+          }
+        }
+
+        socket.emit('files:loaded', filesBitmaps)
+      } catch (error) {
+        console.error('Error loading files:', error)
       }
     })
 

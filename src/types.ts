@@ -25,6 +25,7 @@ export type AsemicData = {
     name: string
     data: ImageData
   }
+  loadFiles?: Record<string, ImageBitmap[]>
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']
@@ -59,4 +60,23 @@ export type FlatTransform = {
   width: number
   length?: number
   offset?: number
+}
+
+// Add Socket.IO event types for file handling
+export interface ReceiveMap {
+  'params:reset': () => void
+  params: (obj: any) => void
+  'sc:synth': (name: string, synthDef: string) => void
+  'sc:set': (name: string, param: string, value: number) => void
+  'sc:on': () => void
+  'sc:off': () => void
+  'files:load': (files: Record<string, string>) => void
+  disconnect: () => void
+}
+
+export interface SendMap {
+  params: (schema: any) => void
+  'files:loaded': (filesBitmaps: Record<string, ImageBitmap[]>) => void
+  'asemic:param': (args: any[]) => void
+  'osc:message': (data: { address: string; data: any[] }) => void
 }

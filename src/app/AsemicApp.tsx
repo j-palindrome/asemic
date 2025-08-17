@@ -15,7 +15,15 @@ import {
   Upload,
   Video
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  MouseEvent,
+  MouseEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import invariant from 'tiny-invariant'
 import Asemic from '../Asemic'
 import Slider from '../components/Slider'
@@ -302,72 +310,74 @@ function AsemicAppInner({
 
     useEffect(() => {
       if (asemic.current) {
-        const loadImageKeys = Object.keys(localStorage).filter(key =>
-          key.startsWith('loadImage/')
-        )
-        for (const key of loadImageKeys) {
-          const imageDataString = localStorage.getItem(key)
-          if (imageDataString) {
-            try {
-              const imageData = JSON.parse(imageDataString) as ImageData
-
-              const name = key.replace('loadImage/', '')
-              asemic.current.postMessage({
-                loadImage: {
-                  name,
-                  data: imageData
-                }
-              } as AsemicData)
-            } catch (error) {
-              console.error(
-                'Failed to parse image data from localStorage:',
-                error
-              )
-            }
+        // Load files from localStorage and request from server
+        const filesString = localStorage.getItem('files')
+        if (filesString) {
+          try {
+            const files = JSON.parse(filesString) as Record<string, string>
+            // Post message to server to load files
+            socket.emit('files:load', files)
+          } catch (error) {
+            console.error('Failed to parse files from localStorage:', error)
           }
         }
       }
-    }, [asemic])
+    }, [asemic, socket])
+
+    // Listen for files loaded from server
+    useEffect(() => {
+      if (!socket) return
+
+      const handleFilesLoaded = (
+        filesBitmaps: Record<string, ImageBitmap[]>
+      ) => {
+        if (asemic.current) {
+          asemic.current.postMessage({
+            loadFiles: filesBitmaps
+          } as AsemicData)
+        }
+      }
+
+      socket.on('files:loaded', handleFilesLoaded)
+
+      return () => {
+        socket.off('files:loaded', handleFilesLoaded)
+      }
+    }, [socket])
 
     const handleImageLoad = async (
       event: React.ChangeEvent<HTMLInputElement>
     ) => {
       const file = event.target.files?.[0]
+      debugger
       if (!file) return
 
       try {
-        const image = new Image()
-        image.src = URL.createObjectURL(file)
+        // Save file path to localStorage
+        const files = JSON.parse(localStorage.getItem('files') || '{}')
+        const name = file.name.replace(/\.[^/.]+$/, '')
 
-        await new Promise((resolve, reject) => {
-          image.onload = () => resolve(image)
-          image.onerror = error => reject(error)
-        })
-
-        const canvas = document.createElement('canvas')
-        canvas.width = 512
-        canvas.height = 128
-        const ctx = canvas.getContext('2d')
-        ctx?.drawImage(image, 0, 0, image.width, image.height, 0, 0, 512, 128)
-        const imageData = ctx?.getImageData(0, 0, 512, 128)
-
-        if (!imageData) {
-          throw new Error('Could not get image data from canvas')
+        // Use File API to get the actual file path
+        let filePath: string
+        if ('webkitRelativePath' in file && file.webkitRelativePath) {
+          filePath = file.webkitRelativePath
+        } else if (file['path']) {
+          filePath = file['path']
+        } else {
+          // For web browsers without direct file path access,
+          // we can't process the file on the server
+          setErrors([
+            ...errors,
+            'File path not available. Please use a desktop environment with file system access.'
+          ])
+          return
         }
-        canvas.remove()
 
-        // Load image into the parser
-        if (asemic.current) {
-          const name = file.name.replace(/\.[^/.]+$/, '')
-          // Send the image file to the worker thread
-          asemic.current.postMessage({
-            loadImage: {
-              name,
-              data: imageData
-            }
-          } as AsemicData)
-          localStorage.setItem(`loadImage/${name}`, JSON.stringify(imageData))
-        }
+        files[name] = filePath
+        localStorage.setItem('files', JSON.stringify(files))
+
+        // Request server to load this specific file
+        socket.emit('files:load', { [name]: filePath })
       } catch (error) {
         console.error('Failed to load image:', error)
         const errorMessage =
@@ -786,7 +796,7 @@ function AsemicAppInner({
   }
   const [audio, setAudio] = setupAudio()
 
-  const checkLive = (ev: MouseEvent) => {
+  const checkLive: MouseEventHandler<HTMLDivElement> = ev => {
     if (ev.altKey) {
       const parser = new Parser()
       parser.setup(scenesSourceRef.current)
@@ -931,7 +941,7 @@ function AsemicAppInner({
               <input
                 ref={imageInputRef}
                 type='file'
-                accept='image/*'
+                accept='image/*,video/*'
                 style={{ display: 'none' }}
                 onChange={handleImageLoad}
               />

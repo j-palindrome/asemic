@@ -10,6 +10,7 @@ import {
 import { z } from 'zod'
 import { inputSchema, InputSchema } from './inputSchema'
 import { Socket } from 'socket.io-client'
+import { ReceiveMap, SendMap } from 'src/types'
 
 export const SocketContext = createContext<{
   socket: Socket<SendMap, ReceiveMap>

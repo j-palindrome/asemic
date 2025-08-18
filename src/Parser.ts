@@ -151,8 +151,21 @@ export class Parser {
       this.progress.accumIndex++
       return currentAccum
     },
-    '>': () => {}
+    '>': ([fade, ...points]) => {
+      const exprFade = this.expr(fade)
+      const exprPoints = points.map(x => this.expr(x, false))
+
+      let index = (exprPoints.length - 1) * exprFade
+      if (index === exprPoints.length - 1) index -= 0.0001
+
+      return lerp(
+        exprPoints[Math.floor(index)]!,
+        exprPoints[Math.floor(index) + 1]!,
+        (index % 1) ** 2
+      )
+    }
   }
+
   protected reservedConstants = Object.keys(this.constants)
   protected fonts: Record<string, AsemicFont> = {
     default: new DefaultFont(this)

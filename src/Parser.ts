@@ -396,11 +396,7 @@ export class Parser {
   protected debug(slice: number = 0) {
     const toFixed = (x: number) => {
       const str = x.toFixed(2)
-      if (str.endsWith('00')) {
-        return String(Math.floor(x))
-      } else {
-        return str
-      }
+      return str
     }
     const allCurves = this.groups.flat().concat([this.currentCurve])
     const c = allCurves
@@ -1331,7 +1327,6 @@ export class Parser {
   group(settings: AsemicGroup['settings']) {
     const group = new AsemicGroup(this, settings)
     if (group.settings.texture && this.images[group.settings.texture]) {
-      // debugger
       group.imageDatas = this.images[group.settings.texture]
     }
     this.groups.push(group)
@@ -1521,7 +1516,6 @@ export class Parser {
 
     // First try to get from images cache (ImageBitmap[])
 
-    // debugger
     const bitmaps = this.images[name]
     if (!bitmaps) {
       this.error(`Data is not available for ${name}`)
@@ -1533,7 +1527,6 @@ export class Parser {
         ? Math.floor(this.progress.scrubTime * 60) % bitmaps.length
         : 0
     const bitmap = bitmaps[frameIndex]
-    // debugger
 
     const normalizedX = Math.max(0, Math.min(1, x))
     const normalizedY = Math.max(0, Math.min(1, y))
@@ -1541,11 +1534,9 @@ export class Parser {
     const pixelY = Math.floor(normalizedY * (bitmap.height - 1))
 
     const start = pixelY * bitmap.width * 4 + pixelX * 4
-    // debugger
     const [r, g, b, a] = bitmap.data
       .subarray(start, start + 4)
       .map(v => v / 255)
-
     switch (channel) {
       case 'r':
         return r

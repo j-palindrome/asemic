@@ -209,7 +209,65 @@ abstract class WebGPUBrush {
   protected abstract loadPipeline(
     bindGroupLayout: GPUBindGroupLayout
   ): GPURenderPipeline
-  protected abstract loadShader(): GPUShaderModule
+  protected loadShader({ includeTexture = false } = {}) {
+    return this.device.createShaderModule({
+      code: /*wgsl*/ `
+      struct VertexOutput {
+      @builtin(position) position: vec4<f32>,
+      @location(0) color: vec4<f32>,
+      @location(1) uv: vec2<f32>
+      };
+      
+      @group(0) @binding(0)
+      var<storage, read> vertices: array<vec2<f32>>;
+
+      @group(0) @binding(1)
+      var<storage, read> widths: array<f32>;
+
+      @group(0) @binding(2)
+      var<uniform> canvas_dimensions: vec2<f32>;
+
+      @group(0) @binding(3)
+      var<storage, read> curve_starts: array<u32>;
+
+      @group(0) @binding(4)
+      var<storage, read> colors: array<vec4<f32>>;
+
+      ${
+        includeTexture
+          ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
+        @group(0) @binding(6) var texture: texture_2d<f32>;`
+          : ''
+      }
+
+      ${wgslRequires}
+
+      @vertex
+      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+      var output: VertexOutput;
+      ${calcPosition}
+      
+      output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
+
+      output.uv = uv; // Pass the UV coordinates to the fragment shader
+      output.color = hslaToRgba(color);
+      return output;
+      }
+
+      @fragment
+      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+      // Sample texture if present, otherwise use white
+      ${
+        includeTexture
+          ? /*wgsl*/ `texColor = textureSample(texture, textureSampler, input.position.xy / 2. + .5);`
+          : ''
+      }
+      return texColor;
+      }
+      `
+    })
+  }
 
   protected reload(curves: AsemicPt[][]) {
     const vertices = new Float32Array(
@@ -353,7 +411,6 @@ abstract class WebGPUBrush {
 
     if (group.settings.texture && group.imageDatas) {
       const imageBitmap = group.imageDatas[0] as ImageData
-      debugger
       const texture = this.device.createTexture({
         size: [imageBitmap.width, imageBitmap.height, 1],
         format: 'rgba8unorm',
@@ -382,12 +439,12 @@ abstract class WebGPUBrush {
       bindGroupLayoutEntries.push(
         {
           binding: 5,
-          visibility: GPUShaderStage.VERTEX,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           sampler: {}
         },
         {
           binding: 6,
-          visibility: GPUShaderStage.VERTEX,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           texture: {
             // viewDimension: '2d'
           }
@@ -456,9 +513,8 @@ abstract class WebGPUBrush {
     if (!this.vertex) {
       this.load(curves)
     } else if (!this.textures.length && curves.imageDatas) {
-      this.shaderModule = this.loadShader()
+      this.shaderModule = this.loadShader({ includeTexture: true })
       this.load(curves)
-      debugger
     } else if (this.curveStarts.size !== curves.length + 1) {
       this.load(curves)
     } else {
@@ -634,66 +690,6 @@ abstract class WebGPUBrush {
 }
 
 class WebGPULineBrush extends WebGPUBrush {
-  loadShader() {
-    return this.device.createShaderModule({
-      code: /*wgsl*/ `
-      struct VertexOutput {
-      @builtin(position) position: vec4<f32>,
-      @location(0) color: vec4<f32>,
-      @location(1) uv: vec2<f32>
-      };
-      
-      @group(0) @binding(0)
-      var<storage, read> vertices: array<vec2<f32>>;
-
-      @group(0) @binding(1)
-      var<storage, read> widths: array<f32>;
-
-      @group(0) @binding(2)
-      var<uniform> canvas_dimensions: vec2<f32>;
-
-      @group(0) @binding(3)
-      var<storage, read> curve_starts: array<u32>;
-
-      @group(0) @binding(4)
-      var<storage, read> colors: array<vec4<f32>>;
-
-      ${
-        this.textures.length
-          ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
-        @group(0) @binding(6) var texture: texture_2d<f32>;`
-          : ''
-      }
-
-      ${wgslRequires}
-
-      @vertex
-      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-      var output: VertexOutput;
-      ${calcPosition}
-      
-      output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
-
-      output.uv = uv; // Pass the UV coordinates to the fragment shader
-      output.color = hslaToRgba(color);
-      return output;
-      }
-
-      @fragment
-      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-      // Sample texture if present, otherwise use white
-      ${
-        this.textures.length
-          ? /*wgsl*/ `texColor = textureSample(texture, textureSampler, input.uv);`
-          : ''
-      }
-      return input.color * texColor;
-      }
-      `
-    })
-  }
-
   protected loadPipeline(bindGroupLayout: GPUBindGroupLayout) {
     return this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({
@@ -756,60 +752,6 @@ class WebGPULineBrush extends WebGPUBrush {
 }
 
 class WebGPUFillBrush extends WebGPUBrush {
-  loadShader() {
-    return this.device.createShaderModule({
-      code: /*wgsl*/ `
-      struct VertexOutput {
-      @builtin(position) position: vec4<f32>,
-      @location(0) color: vec4<f32>,
-      @location(1) uv: vec2<f32>
-      };
-      
-      @group(0) @binding(0)
-      var<storage, read> vertices: array<vec2<f32>>;
-
-      @group(0) @binding(1)
-      var<storage, read> widths: array<f32>;
-
-      @group(0) @binding(2)
-      var<uniform> canvas_dimensions: vec2<f32>;
-
-      @group(0) @binding(3)
-      var<storage, read> curve_starts: array<u32>;
-
-      @group(0) @binding(4)
-      var<storage, read> colors: array<vec4<f32>>;
-
-      @group(0) @binding(5) var textureSampler: sampler;
-      @group(0) @binding(6) var texture: texture_2d<f32>;
-
-      ${wgslRequires}
-
-      @vertex
-      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-      var output: VertexOutput;
-      ${calcPosition}
-      
-      output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
-
-      output.uv = uv; // Pass the UV coordinates to the fragment shader
-      output.color = hslaToRgba(color);
-      return output;
-      }
-
-      @fragment
-      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-      // Sample texture if present, otherwise use white
-      // if (true) { // Texture always present in this config
-      //   texColor = textureSample(texture, textureSampler, input.uv);
-      // }
-      return input.color * texColor;
-      }
-      `
-    })
-  }
-
   protected loadIndex(curves: AsemicGroup) {
     // Create a buffer to store vertex data
 

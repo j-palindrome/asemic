@@ -1,9 +1,8 @@
 import { range, sum, sumBy } from 'lodash'
-import { Color } from 'pts'
-import { AsemicPt, BasicPt } from 'src/blocks/AsemicPt'
+import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
-import { AsemicGroup } from 'src/Parser'
+import { AsemicGroup } from '../../Parser'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -360,33 +359,34 @@ abstract class WebGPUBrush {
     ]
 
     // Texture setup
-    if (curves.settings.texture) {
-      // Load texture from curves.settings.texture (assume it's an ImageBitmap)
-      const imageBitmap = curves.imageDatas[0] as ImageData
-      const texture = this.device.createTexture({
-        size: [imageBitmap.width, imageBitmap.height, 1],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      })
-      this.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap },
-        { texture: texture },
-        [imageBitmap.width, imageBitmap.height]
-      )
-      this.textures = [
-        {
-          src: texture,
-          xy: new BasicPt(0, 0),
-          wh: new BasicPt(imageBitmap.width, imageBitmap.height)
-        }
-      ]
-      bindGroupEntries.push(
-        { binding: 5, resource: this.textures[0].src.createView() },
-        { binding: 6, resource: this.device.createSampler({}) }
-      )
-    } else {
-      this.textures = []
-    }
+    // if (curves.settings.texture) {
+    //   // Load texture from curves.settings.texture (assume it's an ImageBitmap)
+    //   const imageBitmap = curves.imageDatas[0] as ImageData
+    //   const texture = this.device.createTexture({
+    //     size: [imageBitmap.width, imageBitmap.height, 1],
+    //     format: 'rgba8unorm',
+    //     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    //   })
+    //   this.device.queue.copyExternalImageToTexture(
+    //     { source: imageBitmap },
+    //     { texture: texture },
+    //     [imageBitmap.width, imageBitmap.height]
+    //   )
+    //   this.textures = [
+    //     {
+    //       src: texture,
+    //       xy: new BasicPt(0, 0),
+    //       wh: new BasicPt(imageBitmap.width, imageBitmap.height)
+    //     }
+    //   ]
+    //   bindGroupEntries.push(
+    //     // @ts-ignore
+    //     { binding: 5, resource: this.textures[0].src.createView() },
+    //     { binding: 6, resource: this.device.createSampler({}) }
+    //   )
+    // } else {
+    //   this.textures = []
+    // }
 
     const bindGroup = this.device.createBindGroup({
       layout: bindGroupLayout,

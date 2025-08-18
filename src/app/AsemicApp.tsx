@@ -1,4 +1,4 @@
-import _, { isEqual, isUndefined } from 'lodash'
+import _, { isEqual, isUndefined, mapValues } from 'lodash'
 import {
   Download,
   Ellipsis,
@@ -379,8 +379,14 @@ function AsemicAppInner({
               'files:load',
               data.files,
               (loadFiles: Record<string, ImageData[]>) => {
+                // debugger
                 asemic.current?.postMessage({
-                  loadFiles
+                  loadFiles: mapValues(loadFiles, value =>
+                    value.map(value => ({
+                      ...value,
+                      data: new Uint8ClampedArray(value.data)
+                    }))
+                  )
                 })
               }
             )

@@ -150,7 +150,8 @@ export class Parser {
       const currentAccum = this.progress.accums[this.progress.accumIndex]
       this.progress.accumIndex++
       return currentAccum
-    }
+    },
+    '>': () => {}
   }
   protected reservedConstants = Object.keys(this.constants)
   protected fonts: Record<string, AsemicFont> = {
@@ -754,6 +755,13 @@ export class Parser {
     return this
   }
 
+  noise(value: number, frequencies: number[]) {
+    const val =
+      sum(frequencies.map((x, i) => Math.cos(x * (i + 1) * value) / (i + 1))) /
+      sum(range(frequencies.length).map(x => 1 / (x + 1)))
+    return val
+  }
+
   expr(expr: Expr, replace = true): number {
     try {
       if (expr === undefined || expr === null) {
@@ -810,23 +818,6 @@ export class Parser {
 
       if (expr.match(/^\-?[0-9\.]+$/)) {
         return parseFloat(expr)
-      }
-
-      if (expr.includes('<')) {
-        // 1.1<R>2.4
-        let [firstPoint, fade, ...nextPoints] = expr.split(/[<>]/g).map(x => {
-          return this.expr(x, false)
-        })
-        fade = clamp(fade, 0, 1)
-        const points = [firstPoint, ...nextPoints]
-        let index = (points.length - 1) * fade
-        if (index === points.length - 1) index -= 0.0001
-
-        return lerp(
-          points[Math.floor(index)]!,
-          points[Math.floor(index) + 1]!,
-          (index % 1) ** 2
-        )
       }
 
       if (expr.includes(':')) {
@@ -888,29 +879,21 @@ export class Parser {
             case '~':
               let sampleIndex = this.noiseIndex
               while (sampleIndex > this.noiseTable.length - 1) {
-                const seed = Math.random()
-                const add = Math.random() * Math.PI * 2
-                this.noiseTable.push((x: number) => {
-                  return Math.sin(x * 2 * Math.PI * seed + add)
+                const [wave1, wave2, wave3] = range(3).map(() => Math.random())
+                this.noiseTable.push(x => {
+                  return this.noise(x, [wave1, wave2, wave3]) * 0.5 + 0.5
                 })
                 this.noiseValues.push(0)
               }
-
-              const [spd, val] = splitStringAt(expr, i)
-              const speed = this.expr(spd || '1')
-
-              const value = !val
-                ? this.noiseValues[this.noiseIndex] + (speed * 1) / 60
-                : this.expr(val) ||
-                  this.noiseValues[this.noiseIndex] + (speed * 1) / 60
-              this.noiseValues[this.noiseIndex] = value
+              if (!operators[0]) operators[0] = 1
+              if (!operators[1]) operators[1] = 1
+              const value = this.expr(operators[0]) / 60
+              this.noiseValues[this.noiseIndex] += value
 
               const noise =
                 this.noiseTable[this.noiseIndex](
                   this.noiseValues[this.noiseIndex]
-                ) *
-                  0.5 +
-                0.5
+                ) * operators[1]
               this.noiseIndex++
 
               return noise
@@ -954,23 +937,23 @@ export class Parser {
     { basic = false as any }: { basic?: K } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
     // match 1,1<0.5>2,2>3,3 but not 1,1<0.5>2
-    if (/^[^<]+,[^<]+<[^>,]+\>[^>,]+,[^>,]+/.test(point)) {
-      const [firstPoint, fade, ...nextPoints] = point
-        .split(/[<>]/g)
-        .map((x, i) => {
-          return i === 1 ? this.expr(x) : this.evalPoint(x)
-        })
-      const fadeNm = fade as number
-      const points = [firstPoint, ...nextPoints] as AsemicPt[]
-      let index = (points.length - 1) * fadeNm
-      if (index === points.length - 1) index -= 0.0001
+    // if (/^[^<]+,[^<]+<[^>,]+\>[^>,]+,[^>,]+/.test(point)) {
+    //   const [firstPoint, fade, ...nextPoints] = point
+    //     .split(/[<>]/g)
+    //     .map((x, i) => {
+    //       return i === 1 ? this.expr(x) : this.evalPoint(x)
+    //     })
+    //   const fadeNm = fade as number
+    //   const points = [firstPoint, ...nextPoints] as AsemicPt[]
+    //   let index = (points.length - 1) * fadeNm
+    //   if (index === points.length - 1) index -= 0.0001
 
-      return points[Math.floor(index)].add(
-        points[Math.floor(index) + 1]!.clone()
-          .subtract(points[Math.floor(index)])
-          .scale([index % 1, index % 1])
-      )
-    }
+    //   return points[Math.floor(index)].add(
+    //     points[Math.floor(index) + 1]!.clone()
+    //       .subtract(points[Math.floor(index)])
+    //       .scale([index % 1, index % 1])
+    //   )
+    // }
 
     if (point.startsWith('[')) {
       const end = point.indexOf(']')
@@ -1518,19 +1501,19 @@ export class Parser {
 
     // First try to get from images cache (ImageBitmap[])
 
+    // debugger
     const bitmaps = this.images[name]
+    if (!bitmaps) {
+      this.error(`Data is not available for ${name}`)
+      return 0
+    }
     // Use progress or time to select frame for videos
     const frameIndex =
       bitmaps.length > 1
         ? Math.floor(this.progress.scrubTime * 60) % bitmaps.length
         : 0
     const bitmap = bitmaps[frameIndex]
-
-    // Convert ImageBitmap to ImageData for pixel access
-    if (!this.canvas2DContext) {
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      this.canvas2DContext = canvas.getContext('2d')!
-    }
+    // debugger
 
     const normalizedX = Math.max(0, Math.min(1, x))
     const normalizedY = Math.max(0, Math.min(1, y))
@@ -1538,6 +1521,7 @@ export class Parser {
     const pixelY = Math.floor(normalizedY * (bitmap.height - 1))
 
     const start = pixelY * bitmap.width * 4 + pixelX * 4
+    // debugger
     const [r, g, b, a] = bitmap.data
       .subarray(start, start + 4)
       .map(v => v / 255)

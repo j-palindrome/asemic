@@ -236,9 +236,9 @@ abstract class WebGPUBrush {
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
   }
 
-  load(curves: AsemicGroup) {
+  load(group: AsemicGroup) {
     const vertexBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 2),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'vertex'
@@ -246,20 +246,20 @@ abstract class WebGPUBrush {
 
     // Create an index buffer
     const widthsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 2),
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 2),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'widths'
     })
 
     const colorsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(curves, x => x.length * 4),
+      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 4),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'colors'
     })
 
-    const indices = this.loadIndex(curves)
+    const indices = this.loadIndex(group)
 
     // Create an index buffer
     const indexBuffer = this.device.createBuffer({
@@ -274,13 +274,13 @@ abstract class WebGPUBrush {
     indexBuffer.unmap()
 
     // Define curve start indices
-    const curveStarts = new Uint32Array(curves.length + 1)
+    const curveStarts = new Uint32Array(group.length + 1)
     let total = 0
-    for (let i = 0; i < curves.length; i++) {
+    for (let i = 0; i < group.length; i++) {
       curveStarts[i] = total
-      total += curves[i].length
+      total += group[i].length
     }
-    curveStarts[curves.length] = total
+    curveStarts[group.length] = total
 
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
@@ -301,41 +301,34 @@ abstract class WebGPUBrush {
       label: 'canvas dimensions'
     })
 
-    // Update bind group layout to include dimensions uniform
-    const bindGroupLayout = this.device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 2,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'uniform' }
-        },
-        {
-          binding: 3,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        },
-        {
-          binding: 4,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }
-        }
-      ]
-    })
-
-    // Texture support: add bindings for texture and sampler if textures are available
-    const pipeline = this.loadPipeline(bindGroupLayout)
-
-    const bindGroupEntries = [
+    const bindGroupLayoutEntries: Array<GPUBindGroupLayoutEntry> = [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' }
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' }
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'uniform' }
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' }
+      },
+      {
+        binding: 4,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' }
+      }
+    ]
+    const bindGroupEntries: Array<GPUBindGroupEntry> = [
       {
         binding: 0,
         resource: { buffer: vertexBuffer }
@@ -358,20 +351,17 @@ abstract class WebGPUBrush {
       }
     ]
 
-    // Texture setup
-    if (curves.settings.texture) {
-      // Load texture from curves.settings.texture (assume it's an ImageBitmap)
-      const imageBitmap = curves.imageDatas[0] as ImageData
+    if (group.settings.texture && group.imageDatas) {
+      const imageBitmap = group.imageDatas[0] as ImageData
+      debugger
       const texture = this.device.createTexture({
         size: [imageBitmap.width, imageBitmap.height, 1],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.RENDER_ATTACHMENT
       })
-      this.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap },
-        { texture: texture },
-        [imageBitmap.width, imageBitmap.height]
-      )
       this.textures = [
         {
           src: texture,
@@ -381,18 +371,49 @@ abstract class WebGPUBrush {
       ]
       bindGroupEntries.push(
         // @ts-ignore
-        { binding: 6, resource: this.device.createSampler({}) },
-        { binding: 5, resource: this.textures[0].src.createView() }
+        { binding: 5, resource: this.device.createSampler({}) },
+        {
+          binding: 6,
+          resource: this.textures[0].src.createView({
+            usage: GPUTextureUsage.TEXTURE_BINDING
+          })
+        }
+      )
+      bindGroupLayoutEntries.push(
+        {
+          binding: 5,
+          visibility: GPUShaderStage.VERTEX,
+          sampler: {}
+        },
+        {
+          binding: 6,
+          visibility: GPUShaderStage.VERTEX,
+          texture: {
+            // viewDimension: '2d'
+          }
+        }
+      )
+
+      this.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap },
+        { texture: texture },
+        [imageBitmap.width, imageBitmap.height]
       )
     } else {
       this.textures = []
     }
 
+    // Update bind group layout to include dimensions uniform
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      entries: bindGroupLayoutEntries
+    })
     const bindGroup = this.device.createBindGroup({
       layout: bindGroupLayout,
       entries: bindGroupEntries
     })
 
+    // Texture support: add bindings for texture and sampler if textures are available
+    const pipeline = this.loadPipeline(bindGroupLayout)
     // Store pipeline and resources as instance properties
     this.pipeline = pipeline
     this.bindGroup = bindGroup
@@ -406,7 +427,7 @@ abstract class WebGPUBrush {
     }
     this.colors = {
       buffer: colorsBuffer,
-      size: sumBy(curves, x => x.length * 4)
+      size: sumBy(group, x => x.length * 4)
     }
 
     this.index = { buffer: indexBuffer, size: indices.length }
@@ -414,7 +435,7 @@ abstract class WebGPUBrush {
     this.dimensions = { buffer: dimensionsBuffer, size: 2 }
     this.widths = {
       buffer: widthsBuffer,
-      size: sumBy(curves, x => x.length * 2)
+      size: sumBy(group, x => x.length * 2)
     }
     this.curveStarts = {
       buffer: curveStartsBuffer,
@@ -423,7 +444,7 @@ abstract class WebGPUBrush {
     }
     this.vertex = {
       buffer: vertexBuffer,
-      size: sumBy(curves, x => x.length * 2)
+      size: sumBy(group, x => x.length * 2)
     }
   }
 
@@ -434,6 +455,10 @@ abstract class WebGPUBrush {
 
     if (!this.vertex) {
       this.load(curves)
+    } else if (!this.textures.length && curves.imageDatas) {
+      this.shaderModule = this.loadShader()
+      this.load(curves)
+      debugger
     } else if (this.curveStarts.size !== curves.length + 1) {
       this.load(curves)
     } else {
@@ -731,7 +756,7 @@ class WebGPULineBrush extends WebGPUBrush {
 }
 
 class WebGPUFillBrush extends WebGPUBrush {
-  protected loadShader() {
+  loadShader() {
     return this.device.createShaderModule({
       code: /*wgsl*/ `
       struct VertexOutput {

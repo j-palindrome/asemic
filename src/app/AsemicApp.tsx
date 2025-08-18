@@ -381,12 +381,13 @@ function AsemicAppInner({
               (loadFiles: Record<string, ImageData[]>) => {
                 // debugger
                 asemic.current?.postMessage({
-                  loadFiles: mapValues(loadFiles, value =>
-                    value.map(value => ({
-                      ...value,
-                      data: new Uint8ClampedArray(value.data)
-                    }))
-                  )
+                  loadFiles: mapValues(loadFiles, value => {
+                    return value.map(value => {
+                      const imageData = new ImageData(value.width, value.height)
+                      imageData.data.set(value.data)
+                      return imageData
+                    })
+                  })
                 })
               }
             )

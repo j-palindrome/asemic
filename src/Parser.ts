@@ -70,7 +70,7 @@ export class AsemicGroup extends Array<AsemicPt[]> {
     xy?: string
     wh?: string
   } = { mode: 'curve' }
-  imageDatas: ImageData[] = []
+  imageDatas?: ImageData[]
 
   constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
     super()
@@ -1330,7 +1330,8 @@ export class Parser {
 
   group(settings: AsemicGroup['settings']) {
     const group = new AsemicGroup(this, settings)
-    if (group.settings.texture) {
+    if (group.settings.texture && this.images[group.settings.texture]) {
+      // debugger
       group.imageDatas = this.images[group.settings.texture]
     }
     this.groups.push(group)

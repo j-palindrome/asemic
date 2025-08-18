@@ -236,7 +236,7 @@ abstract class WebGPUBrush {
       ${
         includeTexture
           ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
-        @group(0) @binding(6) var texture: texture_2d<f32>;`
+        @group(0) @binding(6) var tex: texture_2d<f32>;`
           : ''
       }
 
@@ -260,7 +260,7 @@ abstract class WebGPUBrush {
       // Sample texture if present, otherwise use white
       ${
         includeTexture
-          ? /*wgsl*/ `texColor = textureSample(texture, textureSampler, input.position.xy / 2. + .5);`
+          ? /*wgsl*/ `texColor = textureSample(tex, textureSampler, input.position.xy / 2. + .5);`
           : ''
       }
       return texColor;
@@ -410,30 +410,35 @@ abstract class WebGPUBrush {
     ]
 
     if (group.settings.texture && group.imageDatas) {
-      const imageBitmap = group.imageDatas[0] as ImageData
+      const imageData = group.imageDatas[0] as ImageData
       const texture = this.device.createTexture({
-        size: [imageBitmap.width, imageBitmap.height, 1],
+        size: [imageData.width, imageData.height, 1],
         format: 'rgba8unorm',
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.COPY_DST |
           GPUTextureUsage.RENDER_ATTACHMENT
       })
-      this.textures = [
-        {
-          src: texture,
-          xy: new BasicPt(0, 0),
-          wh: new BasicPt(imageBitmap.width, imageBitmap.height)
-        }
-      ]
+      this.device.queue.writeTexture(
+        { texture },
+        imageData.data,
+        { bytesPerRow: imageData.width * 4 },
+        [imageData.width, imageData.height]
+      )
+
       bindGroupEntries.push(
-        // @ts-ignore
-        { binding: 5, resource: this.device.createSampler({}) },
+        {
+          binding: 5,
+          resource: this.device.createSampler({
+            addressModeU: 'repeat',
+            addressModeV: 'repeat',
+            magFilter: 'nearest',
+            minFilter: 'nearest'
+          })
+        },
         {
           binding: 6,
-          resource: this.textures[0].src.createView({
-            usage: GPUTextureUsage.TEXTURE_BINDING
-          })
+          resource: texture.createView()
         }
       )
       bindGroupLayoutEntries.push(
@@ -445,17 +450,17 @@ abstract class WebGPUBrush {
         {
           binding: 6,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          texture: {
-            // viewDimension: '2d'
-          }
+          texture: {}
         }
       )
 
-      this.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap },
-        { texture: texture },
-        [imageBitmap.width, imageBitmap.height]
-      )
+      this.textures = [
+        {
+          src: texture,
+          xy: new BasicPt(0, 0),
+          wh: new BasicPt(imageData.width, imageData.height)
+        }
+      ]
     } else {
       this.textures = []
     }

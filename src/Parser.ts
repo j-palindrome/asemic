@@ -83,6 +83,7 @@ export class AsemicGroup extends Array<AsemicPt[]> {
 }
 
 export class Parser {
+  folderStr = ''
   rawSource = ''
   presets: Record<string, InputSchema['params']> = {}
   protected mode = 'normal' as 'normal' | 'blank'
@@ -344,7 +345,23 @@ export class Parser {
     return this.totalLength
   }
 
-  repeat(count: Expr, callback: (p: this) => void) {
+  repeatGrid(count: string, callback: () => void) {
+    const countNum = this.evalPoint(count, { basic: true })
+
+    const prevIndex = this.progress.index
+    const prevCountNum = this.progress.countNum
+    this.progress.countNum = countNum.x * countNum.y
+    for (let i = 0; i < countNum.x * countNum.y; i++) {
+      this.progress.index = i
+
+      callback()
+    }
+    this.progress.index = prevIndex
+    this.progress.countNum = prevCountNum
+    return this
+  }
+
+  repeat(count: Expr, callback: () => void) {
     const countNum = this.expr(count)
 
     const prevIndex = this.progress.index
@@ -353,7 +370,7 @@ export class Parser {
     for (let i = 0; i < countNum; i++) {
       this.progress.index = i
 
-      callback(this)
+      callback()
     }
     this.progress.index = prevIndex
     this.progress.countNum = prevCountNum
@@ -1516,9 +1533,9 @@ export class Parser {
 
     // First try to get from images cache (ImageBitmap[])
 
-    const bitmaps = this.images[name]
+    const bitmaps = this.images[this.resolveName(name)]
     if (!bitmaps) {
-      this.error(`Data is not available for ${name}`)
+      this.error(`Data is not available for ${this.resolveName(name)}`)
       return 0
     }
     // Use progress or time to select frame for videos
@@ -1561,8 +1578,16 @@ export class Parser {
     }
   }
 
+  resolveName(name: string) {
+    return this.folderStr + name
+  }
+
+  folder(directory: string) {
+    this.folderStr = directory + (directory.endsWith('/') ? '' : '/')
+  }
+
   file(filePath: string) {
-    this.output.files.push(filePath)
+    this.output.files.push(this.resolveName(filePath))
     return this
   }
 }

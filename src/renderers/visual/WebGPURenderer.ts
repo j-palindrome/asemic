@@ -144,7 +144,7 @@ const calcPosition = /*wgsl*/ `
 
 export default class WebGPURenderer extends AsemicVisual {
   private brushes: WebGPUBrush[] = []
-  private textureDebugger: TextureDebugger | null = null
+  private textureDebugger: Background | null = null
   ctx: GPUCanvasContext
   device: GPUDevice
   isSetup = false
@@ -175,17 +175,17 @@ export default class WebGPURenderer extends AsemicVisual {
     const commandEncoder = this.device.createCommandEncoder()
 
     // Debug texture first (background)
-    if (!this.textureDebugger) {
-      this.textureDebugger = new TextureDebugger(this.ctx, this.device)
-    }
+    // if (!this.textureDebugger) {
+    //   this.textureDebugger = new Background(this.ctx, this.device)
+    // }
 
-    // Find first group with texture data for debugging
-    const textureGroup = groups.find(
-      g => g.imageDatas && g.imageDatas.length > 0
-    )
-    if (textureGroup) {
-      this.textureDebugger.render(textureGroup, commandEncoder)
-    }
+    // // Find first group with texture data for debugging
+    // const textureGroup = groups.find(
+    //   g => g.imageDatas && g.imageDatas.length > 0
+    // )
+    // if (textureGroup) {
+    //   this.textureDebugger.render(textureGroup, commandEncoder)
+    // }
 
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
@@ -206,7 +206,7 @@ export default class WebGPURenderer extends AsemicVisual {
   }
 }
 
-class TextureDebugger {
+class Background {
   ctx: GPUCanvasContext
   device: GPUDevice
   pipeline: GPURenderPipeline | null = null
@@ -447,7 +447,8 @@ abstract class WebGPUBrush {
       // Sample texture if present, otherwise use white
       ${
         includeTexture
-          ? /*wgsl*/ `texColor = textureSample(tex, textureSampler, input.position.xy / 2. + .5);`
+          ? /*wgsl*/ `let screenUV = input.position.xy / canvas_dimensions;
+        texColor = textureSample(tex, textureSampler, screenUV);`
           : ''
       }
       return texColor;
@@ -559,7 +560,7 @@ abstract class WebGPUBrush {
       },
       {
         binding: 2,
-        visibility: GPUShaderStage.VERTEX,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: { type: 'uniform' }
       },
       {

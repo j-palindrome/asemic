@@ -333,32 +333,64 @@ abstract class WebGPUBrush {
       ]
     })
 
+    // Texture support: add bindings for texture and sampler if textures are available
     const pipeline = this.loadPipeline(bindGroupLayout)
+
+    const bindGroupEntries = [
+      {
+        binding: 0,
+        resource: { buffer: vertexBuffer }
+      },
+      {
+        binding: 1,
+        resource: { buffer: widthsBuffer }
+      },
+      {
+        binding: 2,
+        resource: { buffer: dimensionsBuffer }
+      },
+      {
+        binding: 3,
+        resource: { buffer: curveStartsBuffer }
+      },
+      {
+        binding: 4,
+        resource: { buffer: colorsBuffer }
+      }
+    ]
+
+    // Texture setup
+    if (curves.settings.texture) {
+      // Load texture from curves.settings.texture (assume it's an ImageBitmap)
+      const imageBitmap = curves.imageDatas[0] as ImageData
+      const texture = this.device.createTexture({
+        size: [imageBitmap.width, imageBitmap.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      })
+      this.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap },
+        { texture: texture },
+        [imageBitmap.width, imageBitmap.height]
+      )
+      this.textures = [
+        {
+          src: texture,
+          xy: new BasicPt(0, 0),
+          wh: new BasicPt(imageBitmap.width, imageBitmap.height)
+        }
+      ]
+      bindGroupEntries.push(
+        { binding: 5, resource: this.textures[0].src.createView() },
+        { binding: 6, resource: this.device.createSampler({}) }
+      )
+    } else {
+      this.textures = []
+    }
 
     const bindGroup = this.device.createBindGroup({
       layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: vertexBuffer }
-        },
-        {
-          binding: 1,
-          resource: { buffer: widthsBuffer }
-        },
-        {
-          binding: 2,
-          resource: { buffer: dimensionsBuffer }
-        },
-        {
-          binding: 3,
-          resource: { buffer: curveStartsBuffer }
-        },
-        {
-          binding: 4,
-          resource: { buffer: colorsBuffer }
-        }
-      ]
+      entries: bindGroupEntries
     })
 
     // Store pipeline and resources as instance properties
@@ -601,6 +633,9 @@ class WebGPULineBrush extends WebGPUBrush {
       @group(0) @binding(4)
       var<storage, read> colors: array<vec4<f32>>;
 
+      @group(0) @binding(5) var textureSampler: sampler;
+      @group(0) @binding(6) var texture: texture_2d<f32>;
+
       ${wgslRequires}
 
       @vertex
@@ -617,15 +652,12 @@ class WebGPULineBrush extends WebGPUBrush {
 
       @fragment
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      // Gaussian function parameters
-      // let mean = 0.5;
-      // let sigma = 0.15;
-      // let y = input.uv.y;
-      
-      // // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
-      // let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
-      
-      return input.color;
+      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+      // Sample texture if present, otherwise use white
+      if (true) { // Texture always present in this config
+        texColor = textureSample(texture, textureSampler, input.uv);
+      }
+      return input.color * texColor;
       }
       `
     })
@@ -717,6 +749,9 @@ class WebGPUFillBrush extends WebGPUBrush {
       @group(0) @binding(4)
       var<storage, read> colors: array<vec4<f32>>;
 
+      @group(0) @binding(5) var textureSampler: sampler;
+      @group(0) @binding(6) var texture: texture_2d<f32>;
+
       ${wgslRequires}
 
       @vertex
@@ -733,15 +768,12 @@ class WebGPUFillBrush extends WebGPUBrush {
 
       @fragment
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      // Gaussian function parameters
-      // let mean = 0.5;
-      // let sigma = 0.15;
-      // let y = input.uv.y;
-      
-      // // Gaussian curve: f(x) = exp(-(x-mean)²/(2*sigma²))
-      // let gaussian = exp(-pow(y - mean, 2.0) / (2.0 * pow(sigma, 2.0)));
-      
-      return input.color;
+      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+      // Sample texture if present, otherwise use white
+      if (true) { // Texture always present in this config
+        texColor = textureSample(texture, textureSampler, input.uv);
+      }
+      return input.color * texColor;
       }
       `
     })

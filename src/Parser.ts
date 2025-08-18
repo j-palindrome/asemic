@@ -1343,8 +1343,11 @@ export class Parser {
 
   group(settings: AsemicGroup['settings']) {
     const group = new AsemicGroup(this, settings)
-    if (group.settings.texture && this.images[group.settings.texture]) {
-      group.imageDatas = this.images[group.settings.texture]
+    if (
+      group.settings.texture &&
+      this.images[this.resolveName(group.settings.texture)]
+    ) {
+      group.imageDatas = this.images[this.resolveName(group.settings.texture)]
     }
     this.groups.push(group)
 

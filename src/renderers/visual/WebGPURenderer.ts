@@ -144,6 +144,7 @@ const calcPosition = /*wgsl*/ `
 
 export default class WebGPURenderer extends AsemicVisual {
   private brushes: WebGPUBrush[] = []
+  private textureDebugger: TextureDebugger | null = null
   ctx: GPUCanvasContext
   device: GPUDevice
   isSetup = false
@@ -172,6 +173,20 @@ export default class WebGPURenderer extends AsemicVisual {
   render(groups: AsemicGroup[]): void {
     if (!this.isSetup) return
     const commandEncoder = this.device.createCommandEncoder()
+
+    // Debug texture first (background)
+    if (!this.textureDebugger) {
+      this.textureDebugger = new TextureDebugger(this.ctx, this.device)
+    }
+
+    // Find first group with texture data for debugging
+    const textureGroup = groups.find(
+      g => g.imageDatas && g.imageDatas.length > 0
+    )
+    if (textureGroup) {
+      this.textureDebugger.render(textureGroup, commandEncoder)
+    }
+
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
         let brush: WebGPUBrush
@@ -188,6 +203,178 @@ export default class WebGPURenderer extends AsemicVisual {
       this.brushes[i].render(groups[i], commandEncoder)
     }
     this.device.queue.submit([commandEncoder.finish()])
+  }
+}
+
+class TextureDebugger {
+  ctx: GPUCanvasContext
+  device: GPUDevice
+  pipeline: GPURenderPipeline | null = null
+  bindGroup: GPUBindGroup | null = null
+  texture: GPUTexture | null = null
+
+  constructor(ctx: GPUCanvasContext, device: GPUDevice) {
+    this.ctx = ctx
+    this.device = device
+  }
+
+  private createPipeline() {
+    const shaderModule = this.device.createShaderModule({
+      code: /*wgsl*/ `
+      struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>
+      };
+      
+      @group(0) @binding(0) var textureSampler: sampler;
+      @group(0) @binding(1) var tex: texture_2d<f32>;
+      
+      @vertex
+      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+        var output: VertexOutput;
+        var positions = array<vec2<f32>, 6>(
+        vec2<f32>(-1.0, -1.0), // Bottom left
+        vec2<f32>( 1.0, -1.0), // Bottom right
+        vec2<f32>(-1.0,  1.0), // Top left
+        vec2<f32>( 1.0, -1.0), // Bottom right
+        vec2<f32>( 1.0,  1.0), // Top right
+        vec2<f32>(-1.0,  1.0)  // Top left
+        );
+        var uvs = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 1.0), // Bottom left
+        vec2<f32>(1.0, 1.0), // Bottom right
+        vec2<f32>(0.0, 0.0), // Top left
+        vec2<f32>(1.0, 1.0), // Bottom right
+        vec2<f32>(1.0, 0.0), // Top right
+        vec2<f32>(0.0, 0.0)  // Top left
+        );
+        
+        output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
+        output.uv = uvs[vertex_index];
+        
+        return output;
+      }
+      
+      @fragment
+      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+        let texColor = textureSample(tex, textureSampler, input.uv);
+        // Make it semi-transparent so we can see curves on top
+        return vec4<f32>(texColor.rgb, texColor.a);
+      }
+      `
+    })
+
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: {}
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {}
+        }
+      ]
+    })
+
+    this.pipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
+      vertex: {
+        module: shaderModule,
+        entryPoint: 'vertexMain'
+      },
+      fragment: {
+        module: shaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: navigator.gpu.getPreferredCanvasFormat(),
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              }
+            }
+          }
+        ]
+      },
+      primitive: {
+        topology: 'triangle-list',
+        cullMode: 'none'
+      }
+    })
+
+    return bindGroupLayout
+  }
+
+  render(group: AsemicGroup, commandEncoder: GPUCommandEncoder) {
+    if (!group.imageDatas || group.imageDatas.length === 0) return
+
+    // Create or update texture
+    const imageData = group.imageDatas[0]
+    if (!this.texture || !this.pipeline) {
+      const bindGroupLayout = this.createPipeline()
+
+      this.texture = this.device.createTexture({
+        size: [imageData.width, imageData.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      })
+
+      this.bindGroup = this.device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: this.device.createSampler({
+              addressModeU: 'repeat',
+              addressModeV: 'repeat',
+              magFilter: 'linear',
+              minFilter: 'linear'
+            })
+          },
+          {
+            binding: 1,
+            resource: this.texture.createView()
+          }
+        ]
+      })
+    }
+
+    // Update texture data
+    this.device.queue.writeTexture(
+      { texture: this.texture },
+      imageData.data,
+      { bytesPerRow: imageData.width * 4 },
+      [imageData.width, imageData.height]
+    )
+
+    // Render the texture
+    const renderPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.ctx.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        }
+      ]
+    })
+
+    renderPass.setBindGroup(0, this.bindGroup!)
+    renderPass.setPipeline(this.pipeline!)
+    renderPass.draw(6) // Draw 6 vertices (2 triangles)
+    renderPass.end()
   }
 }
 
@@ -419,6 +606,7 @@ abstract class WebGPUBrush {
           GPUTextureUsage.COPY_DST |
           GPUTextureUsage.RENDER_ATTACHMENT
       })
+
       this.device.queue.writeTexture(
         { texture },
         imageData.data,
@@ -517,7 +705,11 @@ abstract class WebGPUBrush {
 
     if (!this.vertex) {
       this.load(curves)
-    } else if (!this.textures.length && curves.imageDatas) {
+    } else if (
+      !this.textures.length &&
+      curves.imageDatas &&
+      curves.imageDatas[0].data.find(x => x > 0)
+    ) {
       this.shaderModule = this.loadShader({ includeTexture: true })
       this.load(curves)
     } else if (this.curveStarts.size !== curves.length + 1) {

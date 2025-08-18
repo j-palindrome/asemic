@@ -359,34 +359,34 @@ abstract class WebGPUBrush {
     ]
 
     // Texture setup
-    // if (curves.settings.texture) {
-    //   // Load texture from curves.settings.texture (assume it's an ImageBitmap)
-    //   const imageBitmap = curves.imageDatas[0] as ImageData
-    //   const texture = this.device.createTexture({
-    //     size: [imageBitmap.width, imageBitmap.height, 1],
-    //     format: 'rgba8unorm',
-    //     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    //   })
-    //   this.device.queue.copyExternalImageToTexture(
-    //     { source: imageBitmap },
-    //     { texture: texture },
-    //     [imageBitmap.width, imageBitmap.height]
-    //   )
-    //   this.textures = [
-    //     {
-    //       src: texture,
-    //       xy: new BasicPt(0, 0),
-    //       wh: new BasicPt(imageBitmap.width, imageBitmap.height)
-    //     }
-    //   ]
-    //   bindGroupEntries.push(
-    //     // @ts-ignore
-    //     { binding: 5, resource: this.textures[0].src.createView() },
-    //     { binding: 6, resource: this.device.createSampler({}) }
-    //   )
-    // } else {
-    //   this.textures = []
-    // }
+    if (curves.settings.texture) {
+      // Load texture from curves.settings.texture (assume it's an ImageBitmap)
+      const imageBitmap = curves.imageDatas[0] as ImageData
+      const texture = this.device.createTexture({
+        size: [imageBitmap.width, imageBitmap.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      })
+      this.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap },
+        { texture: texture },
+        [imageBitmap.width, imageBitmap.height]
+      )
+      this.textures = [
+        {
+          src: texture,
+          xy: new BasicPt(0, 0),
+          wh: new BasicPt(imageBitmap.width, imageBitmap.height)
+        }
+      ]
+      bindGroupEntries.push(
+        // @ts-ignore
+        { binding: 6, resource: this.device.createSampler({}) },
+        { binding: 5, resource: this.textures[0].src.createView() }
+      )
+    } else {
+      this.textures = []
+    }
 
     const bindGroup = this.device.createBindGroup({
       layout: bindGroupLayout,
@@ -633,8 +633,12 @@ class WebGPULineBrush extends WebGPUBrush {
       @group(0) @binding(4)
       var<storage, read> colors: array<vec4<f32>>;
 
-      @group(0) @binding(5) var textureSampler: sampler;
-      @group(0) @binding(6) var texture: texture_2d<f32>;
+      ${
+        this.textures.length
+          ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
+        @group(0) @binding(6) var texture: texture_2d<f32>;`
+          : ''
+      }
 
       ${wgslRequires}
 
@@ -654,8 +658,10 @@ class WebGPULineBrush extends WebGPUBrush {
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
       var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
       // Sample texture if present, otherwise use white
-      if (true) { // Texture always present in this config
-        texColor = textureSample(texture, textureSampler, input.uv);
+      ${
+        this.textures.length
+          ? /*wgsl*/ `texColor = textureSample(texture, textureSampler, input.uv);`
+          : ''
       }
       return input.color * texColor;
       }
@@ -770,9 +776,9 @@ class WebGPUFillBrush extends WebGPUBrush {
       fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
       var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
       // Sample texture if present, otherwise use white
-      if (true) { // Texture always present in this config
-        texColor = textureSample(texture, textureSampler, input.uv);
-      }
+      // if (true) { // Texture always present in this config
+      //   texColor = textureSample(texture, textureSampler, input.uv);
+      // }
       return input.color * texColor;
       }
       `

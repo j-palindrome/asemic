@@ -71,6 +71,8 @@ export class AsemicGroup extends Array<AsemicPt[]> {
     wh?: string
   } = { mode: 'curve' }
   imageDatas?: ImageData[]
+  xy: BasicPt = new BasicPt(0, 0)
+  wh: BasicPt = new BasicPt(1, 1)
 
   constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
     super()
@@ -1348,6 +1350,8 @@ export class Parser {
       this.images[this.resolveName(group.settings.texture)]
     ) {
       group.imageDatas = this.images[this.resolveName(group.settings.texture)]
+      group.xy = this.evalPoint(group.settings.xy ?? '0,0')
+      group.wh = this.evalPoint(group.settings.wh ?? '1,1')
     }
     this.groups.push(group)
 

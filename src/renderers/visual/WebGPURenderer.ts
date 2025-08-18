@@ -390,7 +390,14 @@ abstract class WebGPUBrush {
   vertex: { buffer: GPUBuffer; size: number }
   index: { buffer: GPUBuffer; size: number }
   colors: { buffer: GPUBuffer; size: number }
-  textures: { src: GPUTexture; xy: BasicPt; wh: BasicPt }[] = []
+  texture: {
+    src: GPUTexture
+    xy: BasicPt
+    wh: BasicPt
+    imageData: ImageData[]
+    transformBuffer: GPUBuffer
+    transformArray: Float32Array
+  } | null = null
 
   protected abstract loadIndex(curves: AsemicGroup): Uint32Array
   protected abstract loadPipeline(
@@ -399,61 +406,75 @@ abstract class WebGPUBrush {
   protected loadShader({ includeTexture = false } = {}) {
     return this.device.createShaderModule({
       code: /*wgsl*/ `
-      struct VertexOutput {
-      @builtin(position) position: vec4<f32>,
-      @location(0) color: vec4<f32>,
-      @location(1) uv: vec2<f32>
-      };
-      
-      @group(0) @binding(0)
-      var<storage, read> vertices: array<vec2<f32>>;
+    struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) uv: vec2<f32>
+    };
+    
+    @group(0) @binding(0)
+    var<storage, read> vertices: array<vec2<f32>>;
 
-      @group(0) @binding(1)
-      var<storage, read> widths: array<f32>;
+    @group(0) @binding(1)
+    var<storage, read> widths: array<f32>;
 
-      @group(0) @binding(2)
-      var<uniform> canvas_dimensions: vec2<f32>;
+    @group(0) @binding(2)
+    var<uniform> canvas_dimensions: vec2<f32>;
 
-      @group(0) @binding(3)
-      var<storage, read> curve_starts: array<u32>;
+    @group(0) @binding(3)
+    var<storage, read> curve_starts: array<u32>;
 
-      @group(0) @binding(4)
-      var<storage, read> colors: array<vec4<f32>>;
+    @group(0) @binding(4)
+    var<storage, read> colors: array<vec4<f32>>;
 
-      ${
-        includeTexture
-          ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
-        @group(0) @binding(6) var tex: texture_2d<f32>;`
-          : ''
-      }
+    ${
+      includeTexture
+        ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
+      @group(0) @binding(6) var tex: texture_2d<f32>;
+      @group(0) @binding(7)
+      var<uniform> texture_transform: vec4<f32>; // xy offset, wh scale`
+        : ''
+    }
 
-      ${wgslRequires}
+    ${wgslRequires}
 
-      @vertex
-      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-      var output: VertexOutput;
-      ${calcPosition}
-      
-      output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
+    @vertex
+    fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+    var output: VertexOutput;
+    ${calcPosition}
+    
+    output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
 
-      output.uv = uv; // Pass the UV coordinates to the fragment shader
-      output.color = hslaToRgba(color);
-      return output;
-      }
+    output.uv = uv; // Pass the UV coordinates to the fragment shader
+    output.color = hslaToRgba(color);
+    return output;
+    }
 
-      @fragment
-      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-      // Sample texture if present, otherwise use white
-      ${
-        includeTexture
-          ? /*wgsl*/ `let screenUV = input.position.xy / canvas_dimensions;
-        texColor = textureSample(tex, textureSampler, screenUV);`
-          : ''
-      }
-      return texColor;
-      }
-      `
+    @fragment
+    fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+    var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    // Sample texture if present, otherwise use white
+    ${
+      includeTexture
+        ? /*wgsl*/ `
+        // Get screen-space UV coordinates
+        let screenUV = input.position.xy / canvas_dimensions;
+        
+        // Apply texture offset and scale transformation
+        // offset.xy is in 0-1 range, scale it to canvas dimensions
+        let offsetPixels = texture_transform.xy * canvas_dimensions;
+        let scaleFactors = texture_transform.zw;
+        
+        // Transform UV coordinates: offset and scale
+        let transformedUV = (screenUV * canvas_dimensions - offsetPixels) / (scaleFactors * canvas_dimensions);
+        
+        // Sample with wrapping (fract provides the wrapping behavior)
+        texColor = textureSample(tex, textureSampler, fract(transformedUV));`
+        : ''
+    }
+    return texColor;
+    }
+    `
     })
   }
 
@@ -478,8 +499,29 @@ abstract class WebGPUBrush {
       this.ctx.canvas.width,
       this.ctx.canvas.height
     ])
-
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
+
+    if (this.texture) {
+      const texture = this.texture.src
+      const imageData = this.texture.imageData
+      this.device.queue.writeTexture(
+        { texture },
+        imageData[0].data,
+        { bytesPerRow: imageData[0].width * 4 },
+        [imageData[0].width, imageData[0].height]
+      )
+      const textureTransform = new Float32Array([
+        this.texture.xy.x,
+        this.texture.xy.y,
+        this.texture.wh.x,
+        this.texture.wh.y
+      ])
+      this.device.queue.writeBuffer(
+        this.texture.transformBuffer,
+        0,
+        textureTransform
+      )
+    }
   }
 
   load(group: AsemicGroup) {
@@ -608,12 +650,18 @@ abstract class WebGPUBrush {
           GPUTextureUsage.RENDER_ATTACHMENT
       })
 
-      this.device.queue.writeTexture(
-        { texture },
-        imageData.data,
-        { bytesPerRow: imageData.width * 4 },
-        [imageData.width, imageData.height]
-      )
+      // Create texture transform buffer
+      const textureTransformBuffer = this.device.createBuffer({
+        size: Float32Array.BYTES_PER_ELEMENT * 4, // xy offset + wh scale
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: false,
+        label: 'texture transform'
+      })
+
+      // Set texture transform data (xy offset, wh scale)
+      const xy = group.xy
+      const wh = group.wh
+      const textureTransform = new Float32Array([xy[0], xy[1], wh[0], wh[1]])
 
       bindGroupEntries.push(
         {
@@ -621,13 +669,17 @@ abstract class WebGPUBrush {
           resource: this.device.createSampler({
             addressModeU: 'repeat',
             addressModeV: 'repeat',
-            magFilter: 'nearest',
-            minFilter: 'nearest'
+            magFilter: 'linear',
+            minFilter: 'linear'
           })
         },
         {
           binding: 6,
           resource: texture.createView()
+        },
+        {
+          binding: 7,
+          resource: { buffer: textureTransformBuffer }
         }
       )
       bindGroupLayoutEntries.push(
@@ -640,18 +692,24 @@ abstract class WebGPUBrush {
           binding: 6,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           texture: {}
+        },
+        {
+          binding: 7,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' }
         }
       )
 
-      this.textures = [
-        {
-          src: texture,
-          xy: new BasicPt(0, 0),
-          wh: new BasicPt(imageData.width, imageData.height)
-        }
-      ]
+      this.texture = {
+        src: texture,
+        xy: new BasicPt(xy[0], xy[1]),
+        wh: new BasicPt(wh[0], wh[1]),
+        transformBuffer: textureTransformBuffer,
+        transformArray: textureTransform,
+        imageData: [imageData]
+      }
     } else {
-      this.textures = []
+      this.texture = null
     }
 
     // Update bind group layout to include dimensions uniform
@@ -707,7 +765,7 @@ abstract class WebGPUBrush {
     if (!this.vertex) {
       this.load(curves)
     } else if (
-      !this.textures.length &&
+      !this.texture &&
       curves.imageDatas &&
       curves.imageDatas[0].data.find(x => x > 0)
     ) {

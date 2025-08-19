@@ -206,6 +206,7 @@ export default class WebGPURenderer extends AsemicVisual {
       } else if (this.brushes[i].mode !== groups[i].settings.mode) {
         this.brushes[i].destroy()
         this.brushes[i] = this.generateBrush(groups[i])
+        this.brushes[i].load(groups[i])
       }
       this.brushes[i].render(groups[i], commandEncoder)
     }

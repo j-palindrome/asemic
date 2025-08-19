@@ -886,9 +886,9 @@ export class Parser {
 
       const operatorsList = ['_', '+', '-', '*', '/', '%', '^']
 
-      if (expr.includes(',')) {
+      if (expr.includes('_')) {
         const [funcName, ...args] = this.tokenize(expr, {
-          separatePoints: true
+          separateFragments: true
         })
         const sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
         const foundKey = sortedKeys.find(x => funcName.startsWith(x))
@@ -909,7 +909,7 @@ export class Parser {
             case '^':
               return operators[0] ** operators[1]
 
-            case '_':
+            case '#':
               let [round, after] = operators
 
               const afterNum = this.expr(after || 0, false)
@@ -1293,7 +1293,10 @@ export class Parser {
 
   protected tokenize(
     source: string,
-    { separatePoints = false }: { separatePoints?: boolean } = {}
+    {
+      separatePoints = false,
+      separateFragments = false
+    }: { separatePoints?: boolean; separateFragments?: boolean } = {}
   ): string[] {
     source = source + ' '
 
@@ -1336,7 +1339,10 @@ export class Parser {
         !functionCall &&
         !fontDefinition &&
         !hasTotalBrackets &&
-        (char === ' ' || char === '\n' || (separatePoints && char === ','))
+        (char === ' ' ||
+          char === '\n' ||
+          (separatePoints && char === ',') ||
+          (separateFragments && char === '_'))
       ) {
         if (current) {
           tokens.push(current)

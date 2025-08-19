@@ -170,6 +170,19 @@ export default class WebGPURenderer extends AsemicVisual {
     this.isSetup = true
   }
 
+  protected generateBrush(group: AsemicGroup) {
+    let brush: WebGPUBrush
+    switch (group.settings.mode) {
+      case 'line':
+        brush = new WebGPULineBrush(this.ctx, this.device)
+        break
+      case 'fill':
+        brush = new WebGPUFillBrush(this.ctx, this.device)
+        break
+    }
+    return brush
+  }
+
   render(groups: AsemicGroup[]): void {
     if (!this.isSetup) return
     const commandEncoder = this.device.createCommandEncoder()
@@ -189,16 +202,10 @@ export default class WebGPURenderer extends AsemicVisual {
 
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
-        let brush: WebGPUBrush
-        switch (groups[i].settings.mode) {
-          case 'curve':
-            brush = new WebGPULineBrush(this.ctx, this.device)
-            break
-          case 'fill':
-            brush = new WebGPUFillBrush(this.ctx, this.device)
-            break
-        }
-        this.brushes.push(brush)
+        this.brushes.push(this.generateBrush(groups[i]))
+      } else if (this.brushes[i].mode !== groups[i].settings.mode) {
+        this.brushes[i].destroy()
+        this.brushes[i] = this.generateBrush(groups[i])
       }
       this.brushes[i].render(groups[i], commandEncoder)
     }
@@ -392,12 +399,22 @@ abstract class WebGPUBrush {
   colors: { buffer: GPUBuffer; size: number }
   texture: {
     src: GPUTexture
-    xy: BasicPt
-    wh: BasicPt
     imageData: ImageData[]
     transformBuffer: GPUBuffer
-    transformArray: Float32Array
   } | null = null
+
+  abstract get mode(): string
+
+  destroy() {
+    this.vertex?.buffer.destroy()
+    this.index?.buffer.destroy()
+    this.dimensions?.buffer.destroy()
+    this.widths?.buffer.destroy()
+    this.curveStarts?.buffer.destroy()
+    this.colors?.buffer.destroy()
+    this.texture?.src.destroy()
+    this.texture?.transformBuffer.destroy()
+  }
 
   protected abstract loadIndex(curves: AsemicGroup): Uint32Array
   protected abstract loadPipeline(
@@ -478,7 +495,7 @@ abstract class WebGPUBrush {
     })
   }
 
-  protected reload(curves: AsemicPt[][]) {
+  protected reload(curves: AsemicGroup) {
     const vertices = new Float32Array(
       curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
     )
@@ -510,12 +527,9 @@ abstract class WebGPUBrush {
         { bytesPerRow: imageData[0].width * 4 },
         [imageData[0].width, imageData[0].height]
       )
-      const textureTransform = new Float32Array([
-        this.texture.xy.x,
-        this.texture.xy.y,
-        this.texture.wh.x,
-        this.texture.wh.y
-      ])
+      const xy = curves.xy
+      const wh = curves.wh
+      const textureTransform = new Float32Array([xy[0], xy[1], wh[0], wh[1]])
       this.device.queue.writeBuffer(
         this.texture.transformBuffer,
         0,
@@ -658,11 +672,6 @@ abstract class WebGPUBrush {
         label: 'texture transform'
       })
 
-      // Set texture transform data (xy offset, wh scale)
-      const xy = group.xy
-      const wh = group.wh
-      const textureTransform = new Float32Array([xy[0], xy[1], wh[0], wh[1]])
-
       bindGroupEntries.push(
         {
           binding: 5,
@@ -700,12 +709,10 @@ abstract class WebGPUBrush {
         }
       )
 
+      // Set texture transform data (xy offset, wh scale)
       this.texture = {
         src: texture,
-        xy: new BasicPt(xy[0], xy[1]),
-        wh: new BasicPt(wh[0], wh[1]),
         transformBuffer: textureTransformBuffer,
-        transformArray: textureTransform,
         imageData: [imageData]
       }
     } else {
@@ -946,6 +953,9 @@ abstract class WebGPUBrush {
 }
 
 class WebGPULineBrush extends WebGPUBrush {
+  get mode() {
+    return 'line'
+  }
   protected loadPipeline(bindGroupLayout: GPUBindGroupLayout) {
     return this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({
@@ -1008,6 +1018,9 @@ class WebGPULineBrush extends WebGPUBrush {
 }
 
 class WebGPUFillBrush extends WebGPUBrush {
+  get mode() {
+    return 'fill'
+  }
   protected loadIndex(curves: AsemicGroup) {
     // Create a buffer to store vertex data
 

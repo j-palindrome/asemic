@@ -42,7 +42,7 @@ const defaultTransform: () => Transform = () => ({
   s: '0',
   l: '1',
   a: '1',
-  mode: 'curve' as 'curve' | 'fill'
+  mode: 'line' as 'line' | 'fill'
 })
 
 type Expr = string | number
@@ -65,11 +65,11 @@ const defaultOutput = () => ({
 // Add Group class
 export class AsemicGroup extends Array<AsemicPt[]> {
   settings: {
-    mode: 'curve' | 'fill'
+    mode: 'line' | 'fill'
     texture?: string
     xy?: string
     wh?: string
-  } = { mode: 'curve' }
+  } = { mode: 'line' }
   imageDatas?: ImageData[]
   xy: BasicPt = new BasicPt(0, 0)
   wh: BasicPt = new BasicPt(1, 1)
@@ -114,8 +114,8 @@ export class Parser {
     time: performance.now() / 1000,
     curve: 0,
     seed: Math.random(),
-    index: 0,
-    countNum: 0,
+    indexes: range(3).map(x => 0),
+    countNums: range(3).map(x => 0),
     accums: [] as number[],
     accumIndex: 0,
     letter: 0,
@@ -128,47 +128,50 @@ export class Parser {
     keys: ['']
   }
 
-  constants: Record<string, ((args: string[]) => number) | (() => number)> = {
-    N: () => this.progress.countNum,
-    I: () => this.progress.index,
-    T: () => this.progress.time,
-    H: () => this.preProcessing.height / this.preProcessing.width,
-    Hpx: () => this.preProcessing.height,
-    Wpx: () => this.preProcessing.height,
-    S: () => this.progress.scrubTime,
-    C: () => this.progress.curve,
-    L: () => this.progress.letter,
-    P: () => this.progress.point,
-    px: () => 1 / this.preProcessing.width,
-    sin: ([x]) => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
-    table: ([name, point, channel]) => {
-      const imageName = typeof name === 'string' ? name : String(name)
-      return this.table(imageName, point, channel)
-    },
-    acc: ([x]) => {
-      if (!this.progress.accums[this.progress.accumIndex])
-        this.progress.accums.push(0)
-      const value = this.expr(x, false)
-      // correct for 60fps
-      this.progress.accums[this.progress.accumIndex] += value / 60
-      const currentAccum = this.progress.accums[this.progress.accumIndex]
-      this.progress.accumIndex++
-      return currentAccum
-    },
-    '>': ([fade, ...points]) => {
-      const exprFade = this.expr(fade)
-      const exprPoints = points.map(x => this.expr(x, false))
+  constants: Record<string, ((...args: string[]) => number) | (() => number)> =
+    {
+      N: (index = 0) => this.progress.countNums[index],
+      I: (index = 0) => this.progress.indexes[index],
+      i: (index = 0) =>
+        this.progress.indexes[index] / (this.progress.countNums[index] - 1),
+      T: () => this.progress.time,
+      H: () => this.preProcessing.height / this.preProcessing.width,
+      Hpx: () => this.preProcessing.height,
+      Wpx: () => this.preProcessing.height,
+      S: () => this.progress.scrubTime,
+      C: () => this.progress.curve,
+      L: () => this.progress.letter,
+      P: () => this.progress.point,
+      px: () => 1 / this.preProcessing.width,
+      sin: x => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
+      table: (name, point, channel) => {
+        const imageName = typeof name === 'string' ? name : String(name)
+        return this.table(imageName, point, channel)
+      },
+      acc: x => {
+        if (!this.progress.accums[this.progress.accumIndex])
+          this.progress.accums.push(0)
+        const value = this.expr(x, false)
+        // correct for 60fps
+        this.progress.accums[this.progress.accumIndex] += value / 60
+        const currentAccum = this.progress.accums[this.progress.accumIndex]
+        this.progress.accumIndex++
+        return currentAccum
+      },
+      '>': (fade, ...points) => {
+        const exprFade = this.expr(fade)
+        const exprPoints = points.map(x => this.expr(x, false))
 
-      let index = (exprPoints.length - 1) * exprFade
-      if (index === exprPoints.length - 1) index -= 0.0001
+        let index = (exprPoints.length - 1) * exprFade
+        if (index === exprPoints.length - 1) index -= 0.0001
 
-      return lerp(
-        exprPoints[Math.floor(index)]!,
-        exprPoints[Math.floor(index) + 1]!,
-        (index % 1) ** 2
-      )
+        return lerp(
+          exprPoints[Math.floor(index)]!,
+          exprPoints[Math.floor(index) + 1]!,
+          (index % 1) ** 2
+        )
+      }
     }
-  }
 
   protected reservedConstants = Object.keys(this.constants)
   protected fonts: Record<string, AsemicFont> = {
@@ -215,6 +218,10 @@ export class Parser {
     this.currentFont = 'default'
     this.progress.point = 0
     this.progress.curve = 0
+    for (let i = 0; i < 3; i++) {
+      this.progress.indexes[i] = 0
+      this.progress.countNums[i] = 0
+    }
     this.noiseIndex = 0
     this.progress.accumIndex = 0
     this.progress.seed = 1
@@ -347,35 +354,18 @@ export class Parser {
     return this.totalLength
   }
 
-  repeatGrid(count: string, callback: () => void) {
-    const countNum = this.evalPoint(count, { basic: true })
-
-    const prevIndex = this.progress.index
-    const prevCountNum = this.progress.countNum
-    this.progress.countNum = countNum.x * countNum.y
-    for (let i = 0; i < countNum.x * countNum.y; i++) {
-      this.progress.index = i
-
-      callback()
-    }
-    this.progress.index = prevIndex
-    this.progress.countNum = prevCountNum
-    return this
-  }
-
   repeat(count: Expr, callback: () => void) {
     const countNum = this.expr(count)
 
-    const prevIndex = this.progress.index
-    const prevCountNum = this.progress.countNum
-    this.progress.countNum = countNum
+    const prevIndex = this.progress.indexes[0]
+    const prevCountNum = this.progress.countNums[0]
+    this.progress.countNums[0] = countNum
     for (let i = 0; i < countNum; i++) {
-      this.progress.index = i
-
+      this.progress.indexes[0] = i
       callback()
     }
-    this.progress.index = prevIndex
-    this.progress.countNum = prevCountNum
+    this.progress.indexes[0] = prevIndex
+    this.progress.countNums[0] = prevCountNum
     return this
   }
 
@@ -837,11 +827,16 @@ export class Parser {
       }
 
       if (expr.includes(' ')) {
-        const [funcName, ...args] = this.tokenize(expr)
+        // const sortedKeys = sortBy(
+        //   Object.keys(this.constants),
+        //   x => x.length * -1
+        // )
+        const [funcName, ...args] = this.tokenize(expr, {
+          separatePoints: false
+        })
         if (this.constants[funcName]) {
-          return this.constants[funcName](args)
-        } else {
-          throw new Error(`Unknown function ${funcName}`)
+          debugger
+          return this.constants[funcName](...args)
         }
       }
 
@@ -930,15 +925,14 @@ export class Parser {
         }
       }
 
-      const functionCall = expr.match(/^[a-zA-Z0-9]+/)?.[0]
-
-      if (functionCall && this.constants[functionCall]) {
-        const args = this.tokenize(expr.substring(functionCall.length).trim())
-
-        return this.constants[functionCall](args)
+      const sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
+      const [funcName, ...args] = this.tokenize(expr, { separatePoints: true })
+      const foundKey = sortedKeys.find(x => funcName.startsWith(x))
+      if (foundKey) {
+        const arg1 = funcName.slice(foundKey.length).trim()
+        return this.constants[foundKey](arg1, ...args)
       }
-
-      throw new Error(`Invalid expression`)
+      throw new Error(`Unknown function ${funcName}`)
     } catch (e) {
       throw new Error(`Expression failed ${expr}:\n${e.message}`)
     }
@@ -1368,7 +1362,7 @@ export class Parser {
       this.currentCurve.splice(1, 0, interpolated)
     }
     if (this.groups.length === 0) {
-      this.groups.push(new AsemicGroup(this, { mode: 'curve' }))
+      this.groups.push(new AsemicGroup(this, { mode: 'line' }))
     }
     this.groups[this.groups.length - 1].addCurve(this.currentCurve)
     this.currentCurve = []
@@ -1424,7 +1418,7 @@ export class Parser {
       throw new Error(`Reserved constant: ${key}`)
     }
 
-    this.constants[key] = () => this.expr(definition)
+    this.constants[key] = (...args) => this.expr(definition)
 
     return this
   }

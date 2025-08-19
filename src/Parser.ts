@@ -23,6 +23,7 @@ import { AsemicData, Transform } from './types'
 import { InputSchema } from './server/inputSchema'
 import { log } from 'console'
 import { expand } from 'regex-to-strings'
+import invariant from 'tiny-invariant'
 
 const TransformAliases = {
   scale: ['\\*', 'sca', 'scale'],
@@ -130,11 +131,25 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
-      N: (index = 0) => this.progress.countNums[index],
-      I: (index = 0) => this.progress.indexes[index],
-      i: (index = 0) =>
-        this.progress.indexes[index] / (this.progress.countNums[index] - 1),
-      T: () => this.progress.time,
+      N: (index = 0) => {
+        if (!index) index = 0
+        return this.progress.countNums[this.expr(index, false)]
+      },
+      I: (index = 0) => {
+        if (!index) index = 0
+        return this.progress.indexes[this.expr(index, false)]
+      },
+      i: (index = 0) => {
+        if (!index) index = 0
+        const solveIndex = this.expr(index, false)
+        return (
+          this.progress.indexes[solveIndex] /
+          (this.progress.countNums[solveIndex] - 1)
+        )
+      },
+      T: () => {
+        return this.progress.time
+      },
       H: () => this.preProcessing.height / this.preProcessing.width,
       Hpx: () => this.preProcessing.height,
       Wpx: () => this.preProcessing.height,
@@ -158,18 +173,44 @@ export class Parser {
         this.progress.accumIndex++
         return currentAccum
       },
-      '>': (fade, ...points) => {
-        const exprFade = this.expr(fade)
-        const exprPoints = points.map(x => this.expr(x, false))
+      '>': (...args) => {
+        let exprFade = this.expr(args[0])
+        if (exprFade >= 1) exprFade = 0.999
+        else if (exprFade < 0) exprFade = 0
+        const exprPoints = [...args.slice(1)].map(x => this.expr(x, false))
 
         let index = (exprPoints.length - 1) * exprFade
-        if (index === exprPoints.length - 1) index -= 0.0001
 
         return lerp(
           exprPoints[Math.floor(index)]!,
           exprPoints[Math.floor(index) + 1]!,
-          (index % 1) ** 2
+          index % 1
         )
+      },
+      '~': (speed = 1, ...freqs) => {
+        let sampleIndex = this.noiseIndex
+        while (sampleIndex > this.noiseTable.length - 1) {
+          let frequencies: number[]
+          if (freqs.length) {
+            frequencies = freqs.map(x => this.expr(x, false))
+          } else {
+            frequencies = range(3).map(() => Math.random())
+          }
+          this.noiseTable.push(x => {
+            return this.noise(x, frequencies) * 0.5 + 0.5
+          })
+          this.noiseValues.push(0)
+        }
+
+        const value = this.expr(speed) / 60
+        this.noiseValues[this.noiseIndex] += value
+
+        const noise = this.noiseTable[this.noiseIndex](
+          this.noiseValues[this.noiseIndex]
+        )
+        this.noiseIndex++
+
+        return noise
       }
     }
 
@@ -826,6 +867,10 @@ export class Parser {
         )
       }
 
+      if (expr.match(/^\-?[0-9\.]+$/)) {
+        return parseFloat(expr)
+      }
+
       if (expr.includes(' ')) {
         // const sortedKeys = sortBy(
         //   Object.keys(this.constants),
@@ -835,35 +880,24 @@ export class Parser {
           separatePoints: false
         })
         if (this.constants[funcName]) {
-          debugger
           return this.constants[funcName](...args)
         }
       }
 
-      if (expr.match(/^\-?[0-9\.]+$/)) {
-        return parseFloat(expr)
-      }
+      const operatorsList = ['_', '+', '-', '*', '/', '%', '^']
 
-      if (expr.includes(':')) {
-        // take averages
-        let ratios = expr.split(':')
-        const fundamental = this.expr(ratios[0])
-        const finalRatios = ratios.map(x => {
-          if (x.includes(',')) {
-            const [freq, amp] = this.tokenize(x, { separatePoints: true }).map(
-              x => this.expr(x, false)
-            )
-            return Math.cos(freq * fundamental) * amp
-          }
-          return this.expr(x, false)
+      if (expr.includes(',')) {
+        const [funcName, ...args] = this.tokenize(expr, {
+          separatePoints: true
         })
-        return (
-          Math.cos(fundamental) / finalRatios.length +
-          sumBy(finalRatios.slice(1), x => Math.cos(x) / ratios.length)
-        )
+        const sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
+        const foundKey = sortedKeys.find(x => funcName.startsWith(x))
+        if (foundKey) {
+          const arg1 = funcName.slice(foundKey.length).trim()
+          return this.constants[foundKey](arg1, ...args)
+        }
       }
 
-      const operatorsList = ['_', '+', '-', '*', '/', '%', '^', '#', '~']
       for (let i = expr.length - 1; i >= 0; i--) {
         if (operatorsList.includes(expr[i])) {
           if (expr[i] === '-' && expr[i - 1] && '*+/%()'.includes(expr[i - 1]))
@@ -899,40 +933,18 @@ export class Parser {
 
             case '%':
               return operators[0] % operators[1]
-
-            case '~':
-              let sampleIndex = this.noiseIndex
-              while (sampleIndex > this.noiseTable.length - 1) {
-                const [wave1, wave2, wave3] = range(3).map(() => Math.random())
-                this.noiseTable.push(x => {
-                  return this.noise(x, [wave1, wave2, wave3]) * 0.5 + 0.5
-                })
-                this.noiseValues.push(0)
-              }
-              if (!operators[0]) operators[0] = 1
-              if (!operators[1]) operators[1] = 1
-              const value = this.expr(operators[0]) / 60
-              this.noiseValues[this.noiseIndex] += value
-
-              const noise =
-                this.noiseTable[this.noiseIndex](
-                  this.noiseValues[this.noiseIndex]
-                ) * operators[1]
-              this.noiseIndex++
-
-              return noise
           }
         }
       }
 
       const sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
-      const [funcName, ...args] = this.tokenize(expr, { separatePoints: true })
-      const foundKey = sortedKeys.find(x => funcName.startsWith(x))
+      const foundKey = sortedKeys.find(x => (expr as string).startsWith(x))
       if (foundKey) {
-        const arg1 = funcName.slice(foundKey.length).trim()
-        return this.constants[foundKey](arg1, ...args)
+        const arg1 = expr.slice(foundKey.length).trim()
+        return this.constants[foundKey](arg1)
       }
-      throw new Error(`Unknown function ${funcName}`)
+
+      throw new Error(`Unknown function ${expr}`)
     } catch (e) {
       throw new Error(`Expression failed ${expr}:\n${e.message}`)
     }

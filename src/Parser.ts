@@ -33,7 +33,7 @@ const TransformAliases = {
 }
 
 const ONE_FRAME = 1 / 60
-
+const CACHED = range(100).map(x => sum(range(x).map(x => 1 / (x + 1))))
 const defaultTransform: () => Transform = () => ({
   translation: new BasicPt(0, 0),
   scale: new BasicPt(1, 1),
@@ -86,7 +86,6 @@ export class AsemicGroup extends Array<AsemicPt[]> {
 }
 
 export class Parser {
-  folderStr = ''
   rawSource = ''
   presets: Record<string, InputSchema['params']> = {}
   protected mode = 'normal' as 'normal' | 'blank'
@@ -131,17 +130,17 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
-      N: (index = 0) => {
-        if (!index) index = 0
-        return this.progress.countNums[this.expr(index, false)]
+      N: (index = 1) => {
+        if (!index) index = 1
+        return this.progress.countNums[this.expr(index, false) - 1]
       },
-      I: (index = 0) => {
-        if (!index) index = 0
-        return this.progress.indexes[this.expr(index, false)]
+      I: (index = 1) => {
+        if (!index) index = 1
+        return this.progress.indexes[this.expr(index, false) - 1]
       },
-      i: (index = 0) => {
-        if (!index) index = 0
-        const solveIndex = this.expr(index, false)
+      i: (index = 1) => {
+        if (!index) index = 1
+        const solveIndex = this.expr(index, false) - 1
         return (
           this.progress.indexes[solveIndex] /
           (this.progress.countNums[solveIndex] - 1)
@@ -149,6 +148,10 @@ export class Parser {
       },
       T: () => {
         return this.progress.time
+      },
+      '!': continuing => {
+        const continuingSolved = this.expr(continuing, false)
+        return continuingSolved ? 0 : 1
       },
       H: () => this.preProcessing.height / this.preProcessing.width,
       Hpx: () => this.preProcessing.height,
@@ -213,6 +216,7 @@ export class Parser {
         return noise
       }
     }
+  sortedKeys: string[] = Object.keys(this.constants).sort(x => x.length - 1)
 
   protected reservedConstants = Object.keys(this.constants)
   protected fonts: Record<string, AsemicFont> = {
@@ -295,6 +299,16 @@ export class Parser {
         this.pauseAt = false
       }
     }
+  }
+
+  test(condition: Expr, callback?: () => void, callback2?: () => void) {
+    const exprCondition = this.expr(condition, false)
+    if (exprCondition) {
+      callback && callback()
+    } else {
+      callback2 && callback2()
+    }
+    return this
   }
 
   toPreset(presetName: string, amount: Expr = 1) {
@@ -395,18 +409,26 @@ export class Parser {
     return this.totalLength
   }
 
-  repeat(count: Expr, callback: () => void) {
-    const countNum = this.expr(count)
-
-    const prevIndex = this.progress.indexes[0]
-    const prevCountNum = this.progress.countNums[0]
-    this.progress.countNums[0] = countNum
-    for (let i = 0; i < countNum; i++) {
-      this.progress.indexes[0] = i
-      callback()
+  repeat(count: string, callback: () => void) {
+    const counts = this.tokenize(count, { separatePoints: true }).map(x =>
+      this.expr(x)
+    )
+    const iterate = (index: number) => {
+      const prevIndex = this.progress.indexes[index]
+      const prevCountNum = this.progress.countNums[index]
+      this.progress.countNums[index] = counts[index]
+      for (let i = 0; i < this.progress.countNums[index]; i++) {
+        this.progress.indexes[index] = i
+        callback()
+        if (counts[index + 1]) {
+          iterate(index + 1)
+        }
+      }
+      this.progress.indexes[index] = prevIndex
+      this.progress.countNums[index] = prevCountNum
     }
-    this.progress.indexes[0] = prevIndex
-    this.progress.countNums[0] = prevCountNum
+    iterate(0)
+
     return this
   }
 
@@ -619,7 +641,7 @@ export class Parser {
       'source',
       `
       with (this) {
-        ${source}
+        ${source.replaceAll('->', '()=>')}
       }
     `
     ).bind(this)
@@ -628,6 +650,7 @@ export class Parser {
     this.output.resetPresets = true
     try {
       setupFunction(source)
+      this.sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
     } catch (e) {
       this.output.errors.push(e.message)
     }
@@ -815,11 +838,45 @@ export class Parser {
     return this
   }
 
-  noise(value: number, frequencies: number[]) {
-    const val =
-      sum(frequencies.map((x, i) => Math.cos(x * (i + 1) * value) / (i + 1))) /
-      sum(range(frequencies.length).map(x => 1 / (x + 1)))
-    return val
+  noise(value: number, frequencies: number[], phases: number[] = []) {
+    let sum = 0
+    for (let i = 0; i < frequencies.length; i++) {
+      sum +=
+        Math.cos(
+          frequencies[i] * (i + 1) * (value + (phases[i] || this.hash(i + 10)))
+        ) /
+        (i + 1)
+    }
+    return sum / CACHED[frequencies.length]
+  }
+
+  pipeline(text: string, args: string[] = []) {
+    for (let i = 0; i < args.length; i++) {
+      text = text.replaceAll(`$${i}`, args[i])
+    }
+    const tokenization: string[] = this.tokenize(text)
+    for (let token of tokenization) {
+      let sliced = token.substring(1, -1)
+      switch (token[0]) {
+        case '/':
+          this.regex(sliced)
+          break
+        case '"':
+          this.text(sliced)
+        case '`':
+          const [functionCall, funcArgs] = splitString(sliced, /\s/)
+          this[functionCall](...this.tokenize(funcArgs))
+          break
+        case '{':
+          this.font(sliced)
+          this.to(sliced)
+          break
+        case '[':
+          this.line(sliced)
+          break
+      }
+    }
+    return this
   }
 
   expr(expr: Expr, replace = true): number {
@@ -871,7 +928,10 @@ export class Parser {
         return parseFloat(expr)
       }
 
-      if (expr.includes(' ')) {
+      invariant(typeof expr === 'string')
+      let stringExpr = expr as string
+
+      if (stringExpr.includes(' ')) {
         // const sortedKeys = sortBy(
         //   Object.keys(this.constants),
         //   x => x.length * -1
@@ -884,28 +944,43 @@ export class Parser {
         }
       }
 
-      const operatorsList = ['_', '+', '-', '*', '/', '%', '^']
+      const operatorsList = ['&&', '^^', '_', '+', '-', '*', '/', '%', '^']
 
       if (expr.includes('_')) {
         const [funcName, ...args] = this.tokenize(expr, {
           separateFragments: true
         })
-        const sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
-        const foundKey = sortedKeys.find(x => funcName.startsWith(x))
+
+        const foundKey = this.sortedKeys.find(x => funcName.startsWith(x))
         if (foundKey) {
           const arg1 = funcName.slice(foundKey.length).trim()
           return this.constants[foundKey](arg1, ...args)
         }
       }
 
-      for (let i = expr.length - 1; i >= 0; i--) {
-        if (operatorsList.includes(expr[i])) {
-          if (expr[i] === '-' && expr[i - 1] && '*+/%()'.includes(expr[i - 1]))
+      for (let i = stringExpr.length - 1; i >= 0; i--) {
+        let operator = operatorsList.find(
+          x => stringExpr.substring(i, i + x.length) === x
+        )
+        if (operator) {
+          if (
+            stringExpr[i] === '-' &&
+            stringExpr[i - 1] &&
+            '*+/%()'.includes(stringExpr[i - 1])
+          )
             continue
-          let operators: [number, number] = splitStringAt(expr, i).map(
-            x => this.expr(x || 0, false)!
-          ) as [number, number]
-          switch (expr[i]) {
+          let operators: [number, number] = splitStringAt(
+            stringExpr,
+            i,
+            operator.length
+          ).map(x => this.expr(x || 0, false)!) as [number, number]
+          switch (operator) {
+            case '&':
+              return operators[0] && operators[1] ? 1 : 0
+
+            case '|':
+              return operators[0] || operators[1] ? 1 : 0
+
             case '^':
               return operators[0] ** operators[1]
 
@@ -1295,10 +1370,17 @@ export class Parser {
     source: string,
     {
       separatePoints = false,
-      separateFragments = false
-    }: { separatePoints?: boolean; separateFragments?: boolean } = {}
+      separateFragments = false,
+      regEx = /^\s/
+    }: {
+      separatePoints?: boolean
+      separateFragments?: boolean
+      regEx?: RegExp
+    } = {}
   ): string[] {
     source = source + ' '
+    if (separatePoints) regEx = /^\,/
+    else if (separateFragments) regEx = /^\_/
 
     // Predefined functions
 
@@ -1310,19 +1392,17 @@ export class Parser {
     let inBraces = 0
     let quote = false
     let evaling = false
-    let functionCall = false
-    let fontDefinition = false
-    let or = false
+    let regex = false
 
     for (let i = 0; i < source.length; i++) {
       const char = source[i]
+      if (source.includes('_')) debugger
 
       if (char === '"' && source[i - 1] !== '\\') quote = !quote
       else if (char === '`' && source[i - 1] !== '\\') {
         evaling = !evaling
-      } else if (char === '{' && source[i + 1] === '{') fontDefinition = true
-      else if (char === '}' && source[i - 1] === '}') fontDefinition = false
-      else if (!quote && !evaling && !functionCall && !fontDefinition) {
+      } else if (char === '/' && source[i - 1] !== '\\') regex = !regex
+      else if (!quote && !evaling && !regex) {
         if (char === '[') inBrackets++
         else if (char === ']') inBrackets--
         else if (char === '(') inParentheses++
@@ -1336,13 +1416,9 @@ export class Parser {
       if (
         !quote &&
         !evaling &&
-        !functionCall &&
-        !fontDefinition &&
+        !regex &&
         !hasTotalBrackets &&
-        (char === ' ' ||
-          char === '\n' ||
-          (separatePoints && char === ',') ||
-          (separateFragments && char === '_'))
+        regEx.test(source.substring(i))
       ) {
         if (current) {
           tokens.push(current)
@@ -1371,7 +1447,7 @@ export class Parser {
   }
 
   end() {
-    if (this.currentCurve.length === 0) return
+    if (this.currentCurve.length === 0) return this
     if (this.currentCurve.length === 2) {
       this.progress.point = 0.5
       const p1 = this.currentCurve[0]
@@ -1386,6 +1462,7 @@ export class Parser {
     this.currentCurve = []
     this.progress.point = 0
     this.adding = 0
+    return this
   }
 
   points(token: string) {
@@ -1453,7 +1530,24 @@ export class Parser {
     return this
   }
 
-  font(name: string, chars?: AsemicFont['characters']) {
+  font(sliced: string) {
+    let chars: AsemicFont['characters'] = {}
+
+    const [name, characterString] = splitString(sliced, /\s/)
+    const characterMatches = this.tokenize(characterString, {
+      regEx: /\n\;\s*/
+    })
+    for (let charMatch of characterMatches) {
+      const [name, matches] = this.tokenize(charMatch, { regEx: /\=/ })
+      chars[name] = () => this.pipeline(matches)
+    }
+
+    this.processFont(name, chars)
+
+    return this
+  }
+
+  processFont(name: string, chars: AsemicFont['characters']) {
     this.currentFont = name
     if (chars) {
       if (!this.fonts[name]) {
@@ -1462,7 +1556,6 @@ export class Parser {
         this.fonts[name].parseCharacters(chars)
       }
     }
-
     return this
   }
 
@@ -1598,11 +1691,7 @@ export class Parser {
   }
 
   resolveName(name: string) {
-    return this.folderStr + name
-  }
-
-  folder(directory: string) {
-    this.folderStr = directory + (directory.endsWith('/') ? '' : '/')
+    return this.settings.folder + name
   }
 
   file(filePath: string) {

@@ -1,8 +1,9 @@
 export const defaultPreProcess = () =>
-  ({ replacements: {}, width: 1, height: 1 } as {
+  ({ replacements: {}, width: 1, height: 1, directory: '' } as {
     replacements: Record<string, string>
     width: number
     height: number
+    directory: string
   })
 
 export const lerp = (a: number, b: number, t: number) => {

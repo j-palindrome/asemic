@@ -10,16 +10,7 @@ import { isEqual } from 'lodash'
 import './standalone/index.css'
 
 // Default source code for the Asemic app
-const defaultSource = `// Asemic Language Example
-// This is a simple generative writing system
-
-let text = "Hello World"
-let curve = asemic.curve()
-  .start([50, 50])
-  .to([200, 100])
-  .to([350, 50])
-
-asemic.render(curve)`
+const defaultSource = ``
 
 function AsemicWrapper() {
   const [source, setSource] = useState(() => {

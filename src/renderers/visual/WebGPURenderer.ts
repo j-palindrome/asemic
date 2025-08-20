@@ -470,7 +470,7 @@ abstract class WebGPUBrush {
 
     @fragment
     fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    var texColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    var texColor = input.color;
     // Sample texture if present, otherwise use white
     ${
       includeTexture
@@ -487,7 +487,7 @@ abstract class WebGPUBrush {
         let transformedUV = (screenUV * canvas_dimensions - offsetPixels) / (scaleFactors * canvas_dimensions);
         
         // Sample with wrapping (fract provides the wrapping behavior)
-        texColor = textureSample(tex, textureSampler, fract(transformedUV));`
+        texColor = texColor * textureSample(tex, textureSampler, fract(transformedUV));`
         : ''
     }
     return texColor;
@@ -957,6 +957,7 @@ class WebGPULineBrush extends WebGPUBrush {
   get mode() {
     return 'line'
   }
+
   protected loadPipeline(bindGroupLayout: GPUBindGroupLayout) {
     return this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({

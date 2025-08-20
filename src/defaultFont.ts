@@ -20,7 +20,7 @@ export class AsemicFont {
 
   parseCharacters(chars: AsemicFont['characters']) {
     for (let name of Object.keys(chars)) {
-      const reservedCharacters = ['START', 'END', 'EACH']
+      const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE']
       if (name.length > 1 && !reservedCharacters.includes(name)) {
         const multipleChars = name.split('')
         const countNum = multipleChars.length
@@ -89,8 +89,8 @@ export class DefaultFont extends AsemicFont {
       m: () =>
         parser
           .line('0,0 0,-1')
-          .line('+0,0 +.25,-.2 +.25,.2 .5,0')
-          .line('<.65 +.25,-.2 +.25,.2 1,0'),
+          .tri('0,-.9 @0,1 -0.2', { add: true })
+          .line('1,0'),
       n: () =>
         parser
           .line('0,0 0,-1')

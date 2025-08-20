@@ -279,7 +279,7 @@ export class Parser {
         this.pauseAt = false
       }
     } else if (typeof play === 'object') {
-      if (!isUndefined(play.scene)) {
+      if (!isUndefined(play.scene) && this.scenes[play.scene]) {
         this.reset()
         this.setup(this.rawSource)
         for (let i = 0; i < play.scene; i++) {
@@ -856,19 +856,19 @@ export class Parser {
     }
     const tokenization: string[] = this.tokenize(text)
     for (let token of tokenization) {
-      let sliced = token.substring(1, -1)
+      let sliced = token.substring(1, token.length - 1)
       switch (token[0]) {
         case '/':
           this.regex(sliced)
           break
         case '"':
           this.text(sliced)
-        case '`':
+          break
+        case '(':
           const [functionCall, funcArgs] = splitString(sliced, /\s/)
           this[functionCall](...this.tokenize(funcArgs))
           break
         case '{':
-          this.font(sliced)
           this.to(sliced)
           break
         case '[':
@@ -1443,13 +1443,14 @@ export class Parser {
 
   group(settings: AsemicGroup['settings']) {
     const group = new AsemicGroup(this, settings)
-    if (
-      group.settings.texture &&
-      this.images[this.resolveName(group.settings.texture)]
-    ) {
-      group.imageDatas = this.images[this.resolveName(group.settings.texture)]
-      group.xy = this.evalPoint(group.settings.xy ?? '0,0')
-      group.wh = this.evalPoint(group.settings.wh ?? '1,1')
+    if (group.settings.texture) {
+      if (this.images[this.resolveName(group.settings.texture)]) {
+        group.imageDatas = this.images[this.resolveName(group.settings.texture)]
+        group.xy = this.evalPoint(group.settings.xy ?? '0,0')
+        group.wh = this.evalPoint(group.settings.wh ?? '1,1')
+      } else {
+        this.error(`No texture available for ${group.settings.texture}`)
+      }
     }
     this.groups.push(group)
 
@@ -1604,6 +1605,11 @@ export class Parser {
     }
 
     for (let i = 0; i < token.length; i++) {
+      if (token[i] === '\n') {
+        if (font.characters['NEWLINE']) {
+          ;(font.characters['NEWLINE'] as any)(this)
+        }
+      }
       if (token[i] === '{') {
         const start = i
         while (token[i] !== '}') {
@@ -1701,6 +1707,7 @@ export class Parser {
   }
 
   resolveName(name: string) {
+    if (!this.settings.folder.endsWith('/')) this.settings.folder += '/'
     return this.settings.folder + name
   }
 

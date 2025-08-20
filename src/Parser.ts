@@ -855,6 +855,7 @@ export class Parser {
       text = text.replaceAll(`$${i}`, args[i])
     }
     const tokenization: string[] = this.tokenize(text)
+
     for (let token of tokenization) {
       let sliced = token.substring(1, token.length - 1)
       switch (token[0]) {
@@ -1394,9 +1395,6 @@ export class Parser {
     let inBrackets = 0
     let inParentheses = 0
     let inBraces = 0
-    let quote = false
-    let evaling = false
-    let regex = false
 
     let isEscaped = false
     for (let i = 0; i < source.length; i++) {
@@ -1410,25 +1408,33 @@ export class Parser {
         continue
       }
       const hasTotalBrackets = inBraces + inParentheses + inBrackets > 0
-      const isEvaling = quote || evaling || regex
-      if (/\[\]\(\)\{\}\'\"\`/.test(source[i])) {
-        if (!hasTotalBrackets) {
-          if (char === '"') quote = !quote
-          else if (char === '`') {
-            evaling = !evaling
-          } else if (char === '/') regex = !regex
-        }
-        if (!isEvaling) {
-          if (char === '[') inBrackets++
-          else if (char === ']') inBrackets--
-          else if (char === '(') inParentheses++
-          else if (char === ')') inParentheses--
-          else if (char === '{') inBraces++
-          else if (char === '}') inBraces--
+      if (current === '' && !hasTotalBrackets) {
+        if (['"', '/'].includes(char)) {
+          current += source[i]
+          i++
+          while (true) {
+            current += source[i]
+            if (source[i] === '\\') i++
+            if (source[i] === char) {
+              break
+            }
+            i++
+          }
+          tokens.push(current)
+          current = ''
+          i++
+          continue
         }
       }
 
-      if (!isEvaling && !hasTotalBrackets && regEx.test(source.substring(i))) {
+      if (char === '[') inBrackets++
+      else if (char === ']') inBrackets--
+      else if (char === '(') inParentheses++
+      else if (char === ')') inParentheses--
+      else if (char === '{') inBraces++
+      else if (char === '}') inBraces--
+
+      if (!hasTotalBrackets && regEx.test(source.substring(i))) {
         if (current) {
           tokens.push(current)
           current = ''
@@ -1607,7 +1613,7 @@ export class Parser {
     for (let i = 0; i < token.length; i++) {
       if (token[i] === '\n') {
         if (font.characters['NEWLINE']) {
-          ;(font.characters['NEWLINE'] as any)(this)
+          ;(font.characters['NEWLINE'] as any)()
         }
       }
       if (token[i] === '{') {
@@ -1627,9 +1633,9 @@ export class Parser {
       if (!font.characters[token[i]]) {
         continue
       }
-      ;(font.characters[token[i]] as any)(this)
+      ;(font.characters[token[i]] as any)()
       if (font.characters['EACH']) {
-        ;(font.characters['EACH'] as any)(this)
+        ;(font.characters['EACH'] as any)()
       }
     }
     if (font.characters['END'] && !add) {

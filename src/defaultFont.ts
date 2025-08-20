@@ -49,8 +49,7 @@ export class AsemicFont {
 export class DefaultFont extends AsemicFont {
   constructor(parser: Parser) {
     super(parser, {
-      START: () => parser.to('w=1 +0,2'),
-
+      START: () => parser.to('w=1 +0,2 >'),
       a: () => parser.squ('1,-1 1,0 1').tri('1,-1 +0,1 .05'),
       b: () => parser.line('0,-2 0,0').squ('0,-1 0,0 -1'),
       c: () => parser.pen('1,-.8 +0,.6 1,.2'),
@@ -90,7 +89,10 @@ export class DefaultFont extends AsemicFont {
         parser
           .line('0,0 0,-1')
           .tri('0,-.9 @0,1 -0.2', { add: true })
-          .line('1,0'),
+          .line('1,0 {+.6,0}')
+          .tri('0,-.9 @0,1 -0.2', { add: true })
+          .line('1,0')
+          .to('+-.6,0'),
       n: () =>
         parser
           .line('0,0 0,-1')
@@ -157,7 +159,7 @@ export class DefaultFont extends AsemicFont {
       Z: () => parser.line('0,-2 +1,0').line('+0,0 0,0').line('+0,0 1,0'),
       ' ': () => parser.to('+-.25,0'),
       END: () => parser.to('+0,2'),
-      '\\n': () => parser.to('< +0,3 >'),
+      NEWLINE: () => parser.to('< +0,3 >'),
       '\\': () => parser.to('< +0,3 >'),
       EACH: () => parser.to('+1.25,0'),
       '1': () => parser.line('.5,0 +0,-2').line('+0,0 0,-1.5'),

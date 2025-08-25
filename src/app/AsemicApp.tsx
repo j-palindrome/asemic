@@ -34,6 +34,7 @@ import { AsemicData, FlatTransform } from '../types'
 import { stripComments } from '../utils'
 import { Parser } from '../Parser'
 import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
+import AsemicEditor from '../components/Editor'
 
 function AsemicAppInner({
   source,
@@ -1010,43 +1011,13 @@ function AsemicAppInner({
             )}
 
             <div className='flex h-full w-full relative *:flex-none'>
-              <textarea
-                ref={editable}
+              <AsemicEditor
                 defaultValue={scenesSource}
-                className={`editor text-white ${
-                  errors.length > 0 ? 'w-2/3' : 'w-full'
-                }`}
-                onBlur={ev => {
-                  ev.preventDefault()
-                  ev.stopPropagation()
+                onChange={value => {
+                  setScenesSource(value!)
                 }}
-                onFocus={ev => {
-                  if (isLive) setIsLive(false)
-                }}
-                onKeyDown={ev => {
-                  if (ev.key === 'Enter' && ev.metaKey) {
-                    const textBeforeCursor = stripComments(
-                      ev.currentTarget.value.substring(
-                        0,
-                        ev.currentTarget.selectionStart
-                      )
-                    )
-                    const sceneNumber =
-                      (textBeforeCursor.match(/\n---/g) || ['']).length - 1
-                    asemic.current!.postMessage({
-                      play: { scene: sceneNumber }
-                    } as AsemicData)
-                    setScenesSource(ev.currentTarget.value)
-                    window.navigator.clipboard.writeText(ev.currentTarget.value)
-                  } else if (ev.key === 'f' && ev.metaKey) {
-                    ev.currentTarget.blur()
-                  }
-                }}></textarea>
-              {errors.length > 0 && (
-                <div className='editor !text-red-400 w-1/3'>
-                  {errors.join('\n---\n')}
-                </div>
-              )}
+                errors={errors}
+              />
             </div>
           </div>
         ) : (

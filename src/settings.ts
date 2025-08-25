@@ -13,10 +13,10 @@ export const splitString = (string: string, at: string | RegExp) => {
     return [string, ''] as [string, string]
   }
   let index = atExp.index!
-  return [
-    string.slice(0, index),
-    string.slice(index + atExp.groups![0].length)
-  ] as [string, string]
+  return [string.slice(0, index), string.slice(index + atExp.length)] as [
+    string,
+    string
+  ]
 }
 
 export const splitStringLast = (string: string, at: string) => {

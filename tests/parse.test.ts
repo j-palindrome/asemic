@@ -315,6 +315,6 @@ describe('Scene Processing', () => {
 [0,0 1,0]`)
 
     expect(parser.settings.h).toBe(2)
-    expect(parser.scenes.length).toBe(2)
+    expect(parser.sceneList.length).toBe(2)
   })
 })

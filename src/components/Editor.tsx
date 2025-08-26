@@ -23,27 +23,24 @@ export default function AsemicEditor({
       allowNonTsExtensions: true
     })
 
-    // Add type definitions for DOM APIs
-    fetch(
-      'https://raw.githubusercontent.com/microsoft/TypeScript/main/lib/lib.dom.d.ts'
-    )
-      .then(res => res.text())
-      .then(text => {
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          text,
-          'lib.dom.d.ts'
-        )
-      })
-
     monaco.editor.defineTheme('asemic-theme', {
       base: 'vs-dark',
       inherit: true,
       rules: [],
       colors: {
-        'editor.background': '#00000000'
+        'editor.background': '#00000000',
+        focusBorder: '#00000000', // Transparent border
+        'editorWidget.border': '#00000000',
+        'editorGroup.border': '#00000000',
+        'editor.lineHighlightBackground': '#00000000',
+        'editor.lineHighlightBorder': '#00000000'
       }
     })
     monaco.editor.setTheme('asemic-theme')
+
+    const model = monaco.editor.createModel(defaultValue, 'javascript')
+    editor.setModel(model)
+
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       onChange(editor.getValue())
     })
@@ -70,10 +67,9 @@ export default function AsemicEditor({
             lineNumbers: 'off',
             glyphMargin: false,
             folding: true,
-            language: 'javascript',
             scrollBeyondLastLine: false,
             scrollbar: {
-              vertical: 'hidden',
+              vertical: 'auto',
               horizontal: 'hidden'
             }
           }}

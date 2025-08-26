@@ -1010,15 +1010,13 @@ function AsemicAppInner({
               </div>
             )}
 
-            <div className='flex h-full w-full relative *:flex-none'>
-              <AsemicEditor
-                defaultValue={scenesSource}
-                onChange={value => {
-                  setScenesSource(value!)
-                }}
-                errors={errors}
-              />
-            </div>
+            <AsemicEditor
+              defaultValue={scenesSource}
+              onChange={value => {
+                setScenesSource(value!)
+              }}
+              errors={errors}
+            />
           </div>
         ) : (
           <div className='fixed top-1 right-10'>

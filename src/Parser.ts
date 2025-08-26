@@ -24,7 +24,7 @@ import { InputSchema } from './server/inputSchema'
 import { log } from 'console'
 import { expand } from 'regex-to-strings'
 import invariant from 'tiny-invariant'
-import { GalleryThumbnails } from 'lucide-react'
+import { GalleryThumbnails, X } from 'lucide-react'
 type ExprFunc = (() => void) | string
 
 const TransformAliases = {
@@ -103,12 +103,14 @@ export class Parser {
   protected totalLength = 0
   protected pausedAt: string[] = []
   protected pauseAt: string | false = false
-  protected scenes: {
+  protected sceneList: {
     start: number
     length: number
-    callback: (p: Parser) => void
+    draw: (p: Parser) => void
     pause: false | number
     offset: number
+    isSetup: boolean
+    setup?: (p: Parser) => void
   }[] = []
   params = {} as InputSchema['params']
   progress = {
@@ -336,21 +338,21 @@ export class Parser {
         this.pauseAt = false
       }
     } else if (typeof play === 'object') {
-      if (!isUndefined(play.scene) && this.scenes[play.scene]) {
+      if (!isUndefined(play.scene) && this.sceneList[play.scene]) {
         this.reset()
         this.setup(this.rawSource)
         for (let i = 0; i < play.scene; i++) {
           // parse each scene until now to get OSC messages
           this.mode = 'blank'
           try {
-            this.scenes[i].callback(this)
+            this.sceneList[i].draw(this)
           } catch (e) {
             this.output.errors.push(`Error in scene ${i}: ${e.message}`)
           }
         }
         this.mode = 'normal'
         this.progress.progress =
-          this.scenes[play.scene].start + this.scenes[play.scene].offset
+          this.sceneList[play.scene].start + this.sceneList[play.scene].offset
         const fixedProgress = this.progress.progress.toFixed(5)
         this.pausedAt = this.pausedAt.filter(x => x <= fixedProgress)
         this.pauseAt = false
@@ -492,8 +494,8 @@ export class Parser {
 
   draw() {
     this.reset()
-
-    for (let object of this.scenes) {
+    let i = 0
+    for (let object of this.sceneList) {
       if (
         this.progress.progress >= object.start &&
         this.progress.progress < object.start + object.length
@@ -503,10 +505,13 @@ export class Parser {
           (this.progress.progress - object.start) / object.length
         this.progress.scrubTime = this.progress.progress - object.start
         try {
-          object.callback(this)
+          object.draw(this)
         } catch (e) {
-          this.output.errors.push(e instanceof Error ? e.message : String(e))
+          this.error(
+            `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)}`
+          )
         }
+        i++
 
         if (
           this.pauseAt === false &&
@@ -541,17 +546,26 @@ export class Parser {
   }
 
   scene(
-    callback: (p: this) => void,
-    { length = 0.1, offset = 0, pause = 0 } = {}
+    ...scenes: {
+      draw: () => void
+      setup?: () => void
+      length?: number
+      offset?: number
+      pause?: number
+    }[]
   ) {
-    this.scenes.push({
-      callback,
-      start: this.totalLength,
-      length,
-      offset,
-      pause
-    })
-    this.totalLength += length - offset
+    for (let { length = 0.1, offset = 0, pause = 0, draw, setup } of scenes) {
+      this.sceneList.push({
+        draw,
+        setup,
+        isSetup: false,
+        start: this.totalLength,
+        length,
+        offset,
+        pause
+      })
+      this.totalLength += length - offset
+    }
     return this
   }
 
@@ -696,7 +710,7 @@ export class Parser {
     this.totalLength = 0
 
     this.settings = defaultSettings()
-    this.scenes = []
+    this.sceneList = []
     this.rawSource = source
 
     // Use Function constructor with 'this' bound to the Parser instance
@@ -715,7 +729,7 @@ export class Parser {
       setupFunction(source)
       this.sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
     } catch (e) {
-      this.output.errors.push(e.message)
+      this.output.errors.push(`Setup failed: ${e.message}`)
     }
   }
 
@@ -932,7 +946,7 @@ export class Parser {
     for (let i = 0; i < args.length; i++) {
       text = text.replaceAll(`$${i}`, args[i])
     }
-    text = text.replaceAll(/^\/\/.*/gm, '').trim()
+    text = text.replaceAll(/^\s*\/\/.*/gm, '').trim()
     const tokenization: string[] = this.tokenize(text)
 
     for (let token of tokenization) {
@@ -946,7 +960,9 @@ export class Parser {
           break
         case '(':
           const [functionCall, funcArgs] = splitString(sliced, /\s/)
-          // if (functionCall === 'within') debugger
+          if (!this.curveConstants[functionCall]) {
+            throw new Error(`Unknown function: ${functionCall}`)
+          }
           this.curveConstants[functionCall](funcArgs)
           break
         case '{':
@@ -1134,23 +1150,57 @@ export class Parser {
   ): K extends true ? BasicPt : AsemicPt {
     if (
       point.startsWith('(') &&
-      point.endsWith(')') &&
-      this.tokenize(point, { stopAt0: true })[0].length === point.length
+      point.endsWith(')')
+      // this.tokenize(point, { stopAt0: true })[0].length === point.length
     ) {
       const sliced = point.substring(1, point.length - 1)
       const tokens = this.tokenize(sliced)
       if (tokens.length > 1) {
         for (let key in this.pointConstants) {
           if (tokens[0] === key) {
-            return basic
-              ? (this.pointConstants[tokens[0]](...tokens.slice(1)) as any)
-              : new AsemicPt(
-                  this,
-                  ...(this.pointConstants[tokens[0]](...tokens.slice(1)) as any)
-                )
+            return (
+              basic
+                ? this.pointConstants[tokens[0]](...tokens.slice(1))
+                : new AsemicPt(
+                    this,
+                    ...this.pointConstants[tokens[0]](...tokens.slice(1))
+                  )
+            ) as K extends true ? BasicPt : AsemicPt
           }
         }
       }
+    } else if (point.startsWith('@')) {
+      const [theta, radius] = this.tokenize(point.slice(1), {
+        separatePoints: true
+      }).map(X => this.expr(X))
+      return (
+        basic
+          ? new BasicPt(radius, 0).rotate(theta)
+          : new AsemicPt(this, radius, 0).rotate(theta)
+      ) as K extends true ? BasicPt : AsemicPt
+    } else if (point.startsWith('<')) {
+      const groupIndex = this.groups.length - 1
+      let [pointN, thisN = -1] = this.tokenize(point.slice(1), {
+        separatePoints: true
+      })
+      const exprN = this.expr(thisN)
+      const lastCurve =
+        this.groups[groupIndex][
+          exprN < 0 ? this.groups[groupIndex].length + exprN : exprN
+        ]
+      const count = Math.floor(this.expr(pointN) * (lastCurve.length - 1))
+      if (!lastCurve) throw new Error(`No curve at ${exprN}`)
+      if (!lastCurve[count])
+        throw new Error(
+          `No point at curve ${lastCurve} point ${count} (${lastCurve.length} long)`
+        )
+
+      return this.reverseTransform(lastCurve[count].clone())
+    } else if (point.startsWith('[')) {
+      const end = point.indexOf(']')
+      point = this.tokenize(point.substring(1, end), { separatePoints: true })
+        .map(x => x.trim() + point.substring(end + 1))
+        .join(',')
     }
 
     try {
@@ -1224,20 +1274,9 @@ export class Parser {
       point = new AsemicPt(this, notation, notation)
     } else {
       // Polar coordinates: @t,r
-      if (notation.startsWith('@')) {
-        const [theta, radius] = this.evalPoint(notation.substring(1))
-
-        point = this.applyTransform(
-          new AsemicPt(this, radius, 0).rotate(theta),
-          {
-            relative: true,
-            randomize
-          }
-        )
-      }
 
       // Relative coordinates: +x,y
-      else if (notation.startsWith('+')) {
+      if (notation.startsWith('+')) {
         point = this.applyTransform(
           this.evalPoint(notation.substring(1), { basic: false }),
           {

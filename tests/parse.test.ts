@@ -1,5 +1,5 @@
 import { Pt } from 'pts'
-import { Parser } from '../src/Parser'
+import { Parser } from '../src/parser/Parser'
 import { AsemicPt } from '../src/blocks/AsemicPt'
 let parser: Parser
 

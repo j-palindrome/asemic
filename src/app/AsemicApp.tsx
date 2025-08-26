@@ -32,7 +32,7 @@ import { useSocket } from '../server/schema'
 import { splitString } from '../settings'
 import { AsemicData, FlatTransform } from '../types'
 import { stripComments } from '../utils'
-import { Parser } from '../Parser'
+import { Parser } from '../parser/Parser'
 import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
 import AsemicEditor from '../components/Editor'
 

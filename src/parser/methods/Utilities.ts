@@ -1,0 +1,150 @@
+import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
+import { lerp } from '../../utils'
+import { CACHED } from '../constants/ExpressionConstants'
+
+export class UtilityMethods {
+  parser: any
+
+  constructor(parser: any) {
+    this.parser = parser
+  }
+
+  repeat(count: string, callback: (() => void) | string) {
+    const counts = this.parser
+      .tokenize(count, { separatePoints: true })
+      .map((x: string) => this.parser.expr(x))
+
+    const iterate = (index: number) => {
+      const prevIndex = this.parser.progress.indexes[index]
+      const prevCountNum = this.parser.progress.countNums[index]
+      this.parser.progress.countNums[index] = counts[index]
+      for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
+        this.parser.progress.indexes[index] = i
+        this.parser.evalExprFunc(callback)
+        if (counts[index + 1]) {
+          iterate(index + 1)
+        }
+      }
+      this.parser.progress.indexes[index] = prevIndex
+      this.parser.progress.countNums[index] = prevCountNum
+    }
+    iterate(0)
+
+    return this.parser
+  }
+
+  within(coord0: string, coord1: string, callback: (() => void) | string) {
+    const [x, y] = this.parser.parsePoint(coord0)
+    const [x2, y2] = this.parser.parsePoint(coord1)
+    const startGroup = this.parser.groups.length
+    this.parser.evalExprFunc(callback)
+    const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
+    const newWidth = x2 - x
+    const newHeight = y2 - y
+    const oldWidth = maxX! - minX!
+    const oldHeight = maxY! - minY!
+    const scaleX = newWidth / (oldWidth || 1)
+    const scaleY = newHeight / (oldHeight || 1)
+
+    for (let i = startGroup; i < this.parser.groups.length; i++) {
+      for (let curve of this.parser.groups[i]) {
+        for (let pt of curve) {
+          pt[0] = x + (pt[0] - minX!) * scaleX
+          pt[1] = y + (pt[1] - minY!) * scaleY
+        }
+      }
+    }
+
+    if (this.parser.currentCurve.length) {
+      this.parser.currentCurve = this.parser.currentCurve.map(
+        (pt: AsemicPt) => {
+          pt[0] = x + (pt[0] - minX!) * scaleX
+          pt[1] = y + (pt[1] - minY!) * scaleY
+          return pt
+        }
+      )
+    }
+    return this.parser
+  }
+
+  center(coords: string, callback: () => void) {
+    const [centerX, centerY] = this.parser.parsePoint(coords)
+    const startGroup = this.parser.groups.length
+
+    callback()
+    const addedGroups = this.parser.groups.slice(startGroup)
+
+    const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
+
+    const boundingCenterX = (minX! + maxX!) / 2
+    const boundingCenterY = (minY! + maxY!) / 2
+
+    const dx = centerX - boundingCenterX
+    const dy = centerY - boundingCenterY
+    const difference = new BasicPt(dx, dy)
+
+    for (const group of addedGroups) {
+      for (const pt of group.flat()) {
+        pt.add(difference)
+      }
+    }
+
+    return this.parser
+  }
+
+  each(makeCurves: () => void, callback: (pt: AsemicPt) => void) {
+    const start = this.parser.groups.length
+    const saveProgress = this.parser.progress.curve
+    makeCurves()
+    const finalProgress = this.parser.progress.curve
+    this.parser.progress.curve = saveProgress
+    for (const group of this.parser.groups.slice(start)) {
+      this.parser.progress.point = 0
+      for (const pt of group.flat()) {
+        this.parser.progress.curve++
+        this.parser.progress.point += 1 / (group.flat().length - 1)
+        callback(pt)
+      }
+    }
+    return this.parser
+  }
+
+  test(
+    condition: string | number,
+    callback?: () => void,
+    callback2?: () => void
+  ) {
+    const exprCondition = this.parser.expr(condition, false)
+    if (exprCondition) {
+      callback && callback()
+    } else {
+      callback2 && callback2()
+    }
+    return this.parser
+  }
+
+  or(value: number, ...callbacks: ((p: any) => void)[]) {
+    const divisions = callbacks.length
+    for (let i = 0; i < divisions; i++) {
+      if (value <= i / divisions) {
+        callbacks[i](this.parser)
+        return
+      }
+    }
+    callbacks[divisions - 1](this.parser)
+  }
+
+  noise(value: number, frequencies: number[], phases: number[] = []) {
+    let sum = 0
+    for (let i = 0; i < frequencies.length; i++) {
+      sum +=
+        Math.cos(
+          frequencies[i] *
+            (i + 1) *
+            (value + (phases[i] || this.parser.hash(i + 10)))
+        ) /
+        (i + 1)
+    }
+    return sum / CACHED[frequencies.length]
+  }
+}

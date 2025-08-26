@@ -1,7 +1,6 @@
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import type { Monaco } from '@monaco-editor/react'
-import { Parser } from '../Parser'
 
 interface Props {
   defaultValue: string

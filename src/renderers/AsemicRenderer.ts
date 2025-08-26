@@ -1,4 +1,4 @@
-import { AsemicGroup } from 'src/Parser'
+import { AsemicGroup } from '../parser/Parser'
 import { AsemicPt } from '../blocks/AsemicPt'
 
 export default abstract class AsemicRenderer {

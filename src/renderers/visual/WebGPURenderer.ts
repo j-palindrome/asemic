@@ -2,7 +2,7 @@ import { range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
-import { AsemicGroup } from '../../Parser'
+import { AsemicGroup } from '../../parser/Parser'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {

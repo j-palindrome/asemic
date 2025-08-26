@@ -28,17 +28,13 @@ export default function AsemicEditor({
       sc: 'sc(args: string): this',
       param:
         "param(paramName: string, { value, min, max, exponent }: InputSchema['params'][string]): this",
-      scrub: 'scrub(progress: number): this',
       repeat: 'repeat(count: string, callback: ExprFunc): this',
-      draw: 'draw(): void',
       debug: 'debug(slice?: number): string',
       scene:
         'scene(...scenes: { draw: () => void; setup?: () => void; length?: number; offset?: number; pause?: number }[]): this',
       set: "set(settings: Partial<this['settings']>): this",
       within:
         'within(coord0: string, coord1: string, callback: ExprFunc): this',
-      processMouse:
-        "processMouse(mouse: NonNullable<AsemicData['mouse']>): AsemicPt",
       center: 'center(coords: string, callback: () => void): this',
       each: 'each(makeCurves: () => void, callback: (pt: AsemicPt) => void): this',
       setup: 'setup(source: string): void',
@@ -73,7 +69,9 @@ export default function AsemicEditor({
         const suggestions = Object.keys(parserSignatures).map(key => ({
           label: key,
           kind: monaco.languages.CompletionItemKind.Function,
-          insertText: key,
+          insertText: `${key}($0)`,
+          insertTextRules:
+            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
           detail: parserSignatures[key],
           range: {
             startLineNumber: position.lineNumber,
@@ -134,6 +132,18 @@ export default function AsemicEditor({
       }
     })
 
+    // Extend JavaScript tokenizer to highlight brackets and commas within strings
+    monaco.languages.setMonarchTokensProvider('javascript', {
+      tokenizer: {
+        root: [
+          // ...existing rules...
+          [/"([^"\\]|\\.)*"/, 'string']
+          // ...existing rules...
+        ]
+        // ...existing tokenizer states...
+      }
+    })
+
     monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ESNext,
       allowNonTsExtensions: true,
@@ -143,14 +153,29 @@ export default function AsemicEditor({
     monaco.editor.defineTheme('asemic-theme', {
       base: 'vs-dark',
       inherit: true,
-      rules: [],
+      rules: [
+        { token: 'delimiter.parenthesis', foreground: '#4FC3F7' },
+        { token: 'delimiter.bracket', foreground: '#1976D2' },
+        { token: 'delimiter.brace', foreground: '#0D47A1' },
+        { token: 'string', foreground: '#A0ABD9' }, // light blue for quoted strings
+        { token: 'string.delimiter', foreground: '#FFD600' }, // yellow for quotes
+        { token: 'string.comma', foreground: '#FFD600' }, // yellow for commas in strings
+        { token: 'string.brace', foreground: '#FFD600' }, // yellow for {} in strings
+        { token: 'string.bracket', foreground: '#FFD600' }, // yellow for [] in strings
+        { token: 'string.parenthesis', foreground: '#FFD600' } // yellow for () in strings
+      ],
       colors: {
         'editor.background': '#00000000',
         focusBorder: '#00000000', // Transparent border
         'editorWidget.border': '#00000000',
         'editorGroup.border': '#00000000',
         'editor.lineHighlightBackground': '#00000000',
-        'editor.lineHighlightBorder': '#00000000'
+        'editor.lineHighlightBorder': '#00000000',
+        // Bracket highlight colors for nesting levels
+        'editorBracketHighlight.foreground1': '#71CAF5',
+        'editorBracketHighlight.foreground2': '#49AFDE',
+        'editorBracketHighlight.foreground3': '#1994CF',
+        'editorCodeLens.foreground': '#4FC3F7'
       }
     })
     monaco.editor.setTheme('asemic-theme')

@@ -5,47 +5,74 @@ import { expand } from 'regex-to-strings'
 export class TextMethods {
   parser: any
 
+  // Performance caches
+  private fontCache = new Map<string, AsemicFont>()
+  private characterCache = new Map<string, string>()
+  private regexCache = new Map<string, RegExp>()
+
+  // Pre-compiled regex for bracket replacements
+  private static readonly BRACKET_REGEX =
+    /[^\\]\[([^\]]+[^\\])\](?:\{([^\}]+)\})?/g
+
   constructor(parser: any) {
     this.parser = parser
   }
 
   text(token: string, { add = false }: { add?: boolean } = {}) {
     const font = this.parser.fonts[this.parser.currentFont]
-    // Randomly select one character from each set of brackets for the text
-    token = token.replace(
-      /[^\\]\[([^\]]+[^\\])\](?:\{([^\}]+)\})?/g,
-      (options: string, substring: string, count: string) => {
-        if (count) {
-          const numTimes = parseFloat(count)
-          let newString = ''
-          for (let i = 0; i < numTimes; i++) {
+
+    // Cache key for character replacement
+    const cacheKey = `${token}:${this.parser.progress.seed}`
+    if (this.characterCache.has(cacheKey)) {
+      token = this.characterCache.get(cacheKey)!
+    } else {
+      const originalToken = token
+      // Randomly select one character from each set of brackets for the text
+      token = token.replace(
+        TextMethods.BRACKET_REGEX,
+        (options: string, substring: string, count: string) => {
+          if (count) {
+            const numTimes = parseFloat(count)
+            let newString = ''
+            for (let i = 0; i < numTimes; i++) {
+              this.parser.progress.seed++
+              newString +=
+                substring[Math.floor(this.parser.hash(1) * substring.length)]
+            }
+            return newString
+          } else {
             this.parser.progress.seed++
-            newString +=
-              substring[Math.floor(this.parser.hash(1) * substring.length)]
+            return substring[Math.floor(this.parser.hash(1) * substring.length)]
           }
-          return newString
-        } else {
-          this.parser.progress.seed++
-          return substring[Math.floor(this.parser.hash(1) * substring.length)]
         }
+      )
+
+      // Cache the result if it's not too large
+      if (originalToken.length < 1000) {
+        this.characterCache.set(cacheKey, token)
       }
-    )
+    }
 
     if (font.characters['START'] && !add) {
       font.characters['START']()
     }
 
-    for (let i = 0; i < token.length; i++) {
-      if (token[i] === '\n') {
+    const tokenLength = token.length
+    for (let i = 0; i < tokenLength; i++) {
+      const char = token[i]
+
+      if (char === '\n') {
         if (font.characters['NEWLINE']) {
           ;(font.characters['NEWLINE'] as any)()
         }
+        continue
       }
-      if (token[i] === '{') {
+
+      if (char === '{') {
         const start = i
         while (token[i] !== '}') {
           i++
-          if (i >= token.length) {
+          if (i >= tokenLength) {
             throw new Error('Missing } in text')
           }
         }
@@ -53,16 +80,18 @@ export class TextMethods {
         this.parser.to(token.substring(start + 1, end))
         continue
       }
-      this.parser.progress.letter = i / (token.length - 1)
 
-      if (!font.characters[token[i]]) {
+      this.parser.progress.letter = i / (tokenLength - 1)
+
+      if (!font.characters[char]) {
         continue
       }
-      ;(font.characters[token[i]] as any)()
+      ;(font.characters[char] as any)()
       if (font.characters['EACH']) {
         ;(font.characters['EACH'] as any)()
       }
     }
+
     if (font.characters['END'] && !add) {
       font.characters['END']()
     }
@@ -74,6 +103,14 @@ export class TextMethods {
     let chars: AsemicFont['characters'] = {}
 
     const [name, characterString] = splitString(sliced, /\s/)
+
+    // Check if font is already cached
+    if (this.fontCache.has(name)) {
+      this.parser.currentFont = name
+      this.parser.fonts[name] = this.fontCache.get(name)!
+      return this.parser
+    }
+
     const characterMatches = this.parser.tokenize(characterString, {
       separateObject: true
     })
@@ -83,6 +120,11 @@ export class TextMethods {
     }
 
     this.processFont(name, chars)
+
+    // Cache the font
+    if (this.parser.fonts[name]) {
+      this.fontCache.set(name, this.parser.fonts[name])
+    }
 
     return this.parser
   }
@@ -117,7 +159,7 @@ export class TextMethods {
       this.parser.progress.regexCache[regex] = cache
     }
     const cache = this.parser.progress.regexCache[regex]
-    this.text(
+    const selectedText =
       cache[
         Math.floor(
           this.parser.hash(
@@ -125,7 +167,24 @@ export class TextMethods {
           ) * cache.length
         )
       ]!
-    )
+
+    this.text(selectedText)
     return this.parser
+  }
+
+  // Clear caches when needed
+  clearCaches() {
+    this.fontCache.clear()
+    this.characterCache.clear()
+    this.regexCache.clear()
+  }
+
+  // Get cache statistics for monitoring
+  getCacheStats() {
+    return {
+      fontCache: this.fontCache.size,
+      characterCache: this.characterCache.size,
+      regexCache: this.regexCache.size
+    }
   }
 }

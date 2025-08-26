@@ -5,16 +5,64 @@ import { AsemicGroup } from '../core/AsemicGroup'
 export class ParsingMethods {
   parser: any
 
+  // Performance caches
+  private tokenizeCache = new Map<string, string[]>()
+  private regexCache = new Map<string, RegExp>()
+
+  // Pre-compiled regex patterns
+  private static readonly COMMENT_REGEX = /^\s*\/\/.*/gm
+  private static readonly WHITESPACE_REGEX = /^\s/
+  private static readonly COMMA_REGEX = /^\,/
+  private static readonly UNDERSCORE_REGEX = /^\_/
+  private static readonly SEMICOLON_REGEX = /^\;/
+
+  // Object pool for BasicPt to reduce allocations
+  private basicPtPool: BasicPt[] = []
+
   constructor(parser: any) {
     this.parser = parser
   }
 
-  parse(text: string, args: string[] = []) {
-    for (let i = 0; i < args.length; i++) {
-      text = text.replaceAll(`$${i}`, args[i])
+  private getBasicPt(x: number, y: number): BasicPt {
+    const pt = this.basicPtPool.pop() || new BasicPt(0, 0)
+    pt.x = x
+    pt.y = y
+    return pt
+  }
+
+  private releaseBasicPt(pt: BasicPt): void {
+    if (this.basicPtPool.length < 100) {
+      // Limit pool size
+      this.basicPtPool.push(pt)
     }
-    text = text.replaceAll(/^\s*\/\/.*/gm, '').trim()
-    const tokenization: string[] = this.parser.tokenize(text)
+  }
+
+  private getCachedRegex(pattern: string): RegExp {
+    if (!this.regexCache.has(pattern)) {
+      this.regexCache.set(pattern, new RegExp(pattern))
+    }
+    return this.regexCache.get(pattern)!
+  }
+
+  parse(text: string, args: string[] = []) {
+    // Optimize argument replacement
+    if (args.length > 0) {
+      for (let i = 0; i < args.length; i++) {
+        text = text.replaceAll(`$${i}`, args[i])
+      }
+    }
+
+    text = text.replaceAll(ParsingMethods.COMMENT_REGEX, '').trim()
+
+    // Use cached tokenization if available
+    const cacheKey = `parse:${text}`
+    let tokenization: string[]
+    if (this.tokenizeCache.has(cacheKey)) {
+      tokenization = this.tokenizeCache.get(cacheKey)!
+    } else {
+      tokenization = this.parser.tokenize(text)
+      this.tokenizeCache.set(cacheKey, tokenization)
+    }
 
     for (let token of tokenization) {
       let sliced = token.substring(1, token.length - 1)
@@ -50,7 +98,7 @@ export class ParsingMethods {
       separatePoints = false,
       separateFragments = false,
       separateObject = false,
-      regEx = /^\s/,
+      regEx = ParsingMethods.WHITESPACE_REGEX,
       stopAt0 = false
     }: {
       separatePoints?: boolean
@@ -60,9 +108,16 @@ export class ParsingMethods {
       stopAt0?: boolean
     } = {}
   ): string[] {
-    if (separatePoints) regEx = /^\,/
-    else if (separateFragments) regEx = /^\_/
-    else if (separateObject) regEx = /^\;/
+    // Use pre-compiled regex patterns
+    if (separatePoints) regEx = ParsingMethods.COMMA_REGEX
+    else if (separateFragments) regEx = ParsingMethods.UNDERSCORE_REGEX
+    else if (separateObject) regEx = ParsingMethods.SEMICOLON_REGEX
+
+    // Check cache first
+    const cacheKey = `${source}:${separatePoints}:${separateFragments}:${separateObject}:${stopAt0}`
+    if (this.tokenizeCache.has(cacheKey)) {
+      return this.tokenizeCache.get(cacheKey)!
+    }
 
     // Tokenize the source
     let tokens: string[] = []
@@ -72,7 +127,8 @@ export class ParsingMethods {
     let inBraces = 0
 
     let isEscaped = false
-    for (let i = 0; i < source.length; i++) {
+    const sourceLength = source.length
+    for (let i = 0; i < sourceLength; i++) {
       const char = source[i]
 
       if (isEscaped) {
@@ -109,7 +165,7 @@ export class ParsingMethods {
           case '/':
             current += source[i]
             i++
-            while (true) {
+            while (i < sourceLength) {
               current += source[i]
               if (source[i] === '\\') i++
               if (source[i] === char) {
@@ -122,7 +178,9 @@ export class ParsingMethods {
       }
 
       if (stopAt0 && i > 0 && !hasTotalBrackets) {
-        return [current, source.slice(i + 1)]
+        const result = [current, source.slice(i + 1)]
+        this.tokenizeCache.set(cacheKey, result)
+        return result
       } else if (!hasTotalBrackets && regEx.test(source.substring(i))) {
         if (current) {
           tokens.push(current)
@@ -133,6 +191,9 @@ export class ParsingMethods {
       }
     }
     if (current.length) tokens.push(current)
+
+    // Cache the result
+    this.tokenizeCache.set(cacheKey, tokens)
     return tokens
   }
 
@@ -190,13 +251,15 @@ export class ParsingMethods {
     point: string,
     { basic = false as any }: { basic?: K } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
+    let result: BasicPt | AsemicPt
+
     if (point.startsWith('(') && point.endsWith(')')) {
       const sliced = point.substring(1, point.length - 1)
       const tokens = this.parser.tokenize(sliced)
       if (tokens.length > 1) {
         for (let key in this.parser.pointConstants) {
           if (tokens[0] === key) {
-            return (
+            result = (
               basic
                 ? this.parser.pointConstants[tokens[0]](...tokens.slice(1))
                 : new AsemicPt(
@@ -204,6 +267,7 @@ export class ParsingMethods {
                     ...this.parser.pointConstants[tokens[0]](...tokens.slice(1))
                   )
             ) as K extends true ? BasicPt : AsemicPt
+            break
           }
         }
       }
@@ -213,9 +277,9 @@ export class ParsingMethods {
           separatePoints: true
         })
         .map((X: string) => this.parser.expr(X))
-      return (
+      result = (
         basic
-          ? new BasicPt(radius, 0).rotate(theta)
+          ? this.getBasicPt(radius, 0).rotate(theta)
           : new AsemicPt(this.parser, radius, 0).rotate(theta)
       ) as K extends true ? BasicPt : AsemicPt
     } else if (point.startsWith('<')) {
@@ -246,27 +310,30 @@ export class ParsingMethods {
         .join(',')
     }
 
-    try {
-      const parts = this.parser.tokenize(point, { separatePoints: true })
-      if (parts.length === 1) {
-        const coord = this.parser.expr(parts[0])!
-        return (
-          basic
-            ? new BasicPt(coord, coord)
-            : new AsemicPt(this.parser, coord, coord)
-        ) as K extends true ? BasicPt : AsemicPt
+    if (!result!) {
+      try {
+        const parts = this.parser.tokenize(point, { separatePoints: true })
+        if (parts.length === 1) {
+          const coord = this.parser.expr(parts[0])!
+          result = (
+            basic
+              ? this.getBasicPt(coord, coord)
+              : new AsemicPt(this.parser, coord, coord)
+          ) as K extends true ? BasicPt : AsemicPt
+        } else {
+          const coords = parts.map((x: string) => this.parser.expr(x)!)
+          result = (
+            basic
+              ? this.getBasicPt(coords[0], coords[1])
+              : new AsemicPt(this.parser, ...coords)
+          ) as K extends true ? BasicPt : AsemicPt
+        }
+      } catch (e: any) {
+        throw new Error(`Failed to evaluate point: ${point}\n${e.message}`)
       }
-      return (
-        basic
-          ? new BasicPt(...parts.map((x: string) => this.parser.expr(x)!))
-          : new AsemicPt(
-              this.parser,
-              ...parts.map((x: string) => this.parser.expr(x)!)
-            )
-      ) as K extends true ? BasicPt : AsemicPt
-    } catch (e: any) {
-      throw new Error(`Failed to evaluate point: ${point}\n${e.message}`)
     }
+
+    return result as K extends true ? BasicPt : AsemicPt
   }
 
   group(settings: AsemicGroup['settings']) {
@@ -329,5 +396,21 @@ export class ParsingMethods {
       }
     })
     return this.parser
+  }
+
+  // Clear caches when needed (call this periodically or when memory is needed)
+  clearCaches() {
+    this.tokenizeCache.clear()
+    this.regexCache.clear()
+    this.basicPtPool.length = 0
+  }
+
+  // Get cache statistics for monitoring
+  getCacheStats() {
+    return {
+      tokenizeCache: this.tokenizeCache.size,
+      regexCache: this.regexCache.size,
+      basicPtPool: this.basicPtPool.length
+    }
   }
 }

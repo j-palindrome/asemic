@@ -265,154 +265,124 @@ export class Parser {
   }
 
   private mixinMethods() {
-    // Expression methods
-    this.expr = this.expressions.expr.bind(this.expressions)
-    this.exprEval = this.expressions.exprEval.bind(this.expressions)
-    this.choose = this.expressions.choose.bind(this.expressions)
-    this.def = this.expressions.def.bind(this.expressions)
-    this.defStatic = this.expressions.defStatic.bind(this.expressions)
+    // Procedurally bind all methods from method classes
+    const methodClasses = [
+      {
+        instance: this.expressions,
+        methods: ['expr', 'exprEval', 'choose', 'def', 'defStatic']
+      },
+      {
+        instance: this.drawing,
+        methods: ['tri', 'squ', 'pen', 'hex', 'circle', 'seq', 'line']
+      },
+      {
+        instance: this.transformMethods,
+        methods: ['to', 'parseTransform', 'applyTransform', 'reverseTransform']
+      },
+      {
+        instance: this.textMethods,
+        methods: ['text', 'font', 'processFont', 'keys', 'regex'],
+        aliases: { text: 'textMethod' }
+      },
+      {
+        instance: this.utilities,
+        methods: ['repeat', 'within', 'center', 'each', 'test', 'or', 'noise']
+      },
+      {
+        instance: this.scenes,
+        methods: ['scene', 'play', 'param', 'preset', 'toPreset', 'scrub']
+      },
+      {
+        instance: this.oscMethods,
+        methods: ['osc', 'sc', 'synth', 'file'],
+        aliases: { osc: 'oscMethod' }
+      },
+      {
+        instance: this.parsing,
+        methods: [
+          'parse',
+          'tokenize',
+          'parsePoint',
+          'parseArgs',
+          'evalPoint',
+          'group',
+          'end',
+          'points'
+        ]
+      },
+      {
+        instance: this.data,
+        methods: ['loadFiles', 'table', 'processMouse', 'resolveName']
+      }
+    ]
 
-    // Drawing methods
-    this.tri = this.drawing.tri.bind(this.drawing)
-    this.squ = this.drawing.squ.bind(this.drawing)
-    this.pen = this.drawing.pen.bind(this.drawing)
-    this.hex = this.drawing.hex.bind(this.drawing)
-    this.circle = this.drawing.circle.bind(this.drawing)
-    this.seq = this.drawing.seq.bind(this.drawing)
-    this.line = this.drawing.line.bind(this.drawing)
-
-    // Transform methods
-    this.to = this.transformMethods.to.bind(this.transformMethods)
-    this.parseTransform = this.transformMethods.parseTransform.bind(
-      this.transformMethods
-    )
-    this.applyTransform = this.transformMethods.applyTransform.bind(
-      this.transformMethods
-    )
-    this.reverseTransform = this.transformMethods.reverseTransform.bind(
-      this.transformMethods
-    )
-
-    // Text methods
-    this.textMethod = this.textMethods.text.bind(this.textMethods)
-    this.font = this.textMethods.font.bind(this.textMethods)
-    this.processFont = this.textMethods.processFont.bind(this.textMethods)
-    this.keys = this.textMethods.keys.bind(this.textMethods)
-    this.regex = this.textMethods.regex.bind(this.textMethods)
-
-    // Utility methods
-    this.repeat = this.utilities.repeat.bind(this.utilities)
-    this.within = this.utilities.within.bind(this.utilities)
-    this.center = this.utilities.center.bind(this.utilities)
-    this.each = this.utilities.each.bind(this.utilities)
-    this.test = this.utilities.test.bind(this.utilities)
-    this.or = this.utilities.or.bind(this.utilities)
-    this.noise = this.utilities.noise.bind(this.utilities)
-
-    // Scene methods
-    this.scene = this.scenes.scene.bind(this.scenes)
-    this.play = this.scenes.play.bind(this.scenes)
-    this.param = this.scenes.param.bind(this.scenes)
-    this.preset = this.scenes.preset.bind(this.scenes)
-    this.toPreset = this.scenes.toPreset.bind(this.scenes)
-    this.scrub = this.scenes.scrub.bind(this.scenes)
-
-    // OSC methods
-    this.oscMethod = this.oscMethods.osc.bind(this.oscMethods)
-    this.sc = this.oscMethods.sc.bind(this.oscMethods)
-    this.synth = this.oscMethods.synth.bind(this.oscMethods)
-    this.file = this.oscMethods.file.bind(this.oscMethods)
-
-    // Parsing methods
-    this.parse = this.parsing.parse.bind(this.parsing)
-    this.tokenize = this.parsing.tokenize.bind(this.parsing)
-    this.parsePoint = this.parsing.parsePoint.bind(this.parsing)
-    this.parseArgs = this.parsing.parseArgs.bind(this.parsing)
-    this.evalPoint = this.parsing.evalPoint.bind(this.parsing)
-    this.group = this.parsing.group.bind(this.parsing)
-    this.end = this.parsing.end.bind(this.parsing)
-    this.points = this.parsing.points.bind(this.parsing)
-
-    // Data methods
-    this.loadFiles = this.data.loadFiles.bind(this.data)
-    this.table = this.data.table.bind(this.data)
-    this.processMouse = this.data.processMouse.bind(this.data)
-    this.resolveName = this.data.resolveName.bind(this.data)
+    methodClasses.forEach(({ instance, methods, aliases = {} }) => {
+      methods.forEach(method => {
+        const targetMethod = aliases[method] || method
+        ;(this as any)[targetMethod] = (instance as any)[method].bind(instance)
+      })
+    })
   }
 
   // Method declarations for TypeScript compatibility
-  expr!: (expr: string | number, replace?: boolean) => number
-  exprEval!: (expr: string | number, replace?: boolean) => number
-  choose!: (value0To1: string | number, ...callbacks: (() => void)[]) => this
-  def!: (key: string, definition: string) => this
-  defStatic!: (key: string, definition: string) => this
+  expr!: ExpressionMethods['expr']
+  exprEval!: ExpressionMethods['exprEval']
+  choose!: ExpressionMethods['choose']
+  def!: ExpressionMethods['def']
+  defStatic!: ExpressionMethods['defStatic']
 
-  tri!: (argsStr: string, options?: { add?: boolean }) => this
-  squ!: (argsStr: string, options?: { add?: boolean }) => this
-  pen!: (argsStr: string, options?: { add?: boolean }) => this
-  hex!: (argsStr: string) => this
-  circle!: (argsStr: string) => this
-  seq!: (argsStr: string) => this
-  line!: (...tokens: string[]) => this
+  tri!: DrawingMethods['tri']
+  squ!: DrawingMethods['squ']
+  pen!: DrawingMethods['pen']
+  hex!: DrawingMethods['hex']
+  circle!: DrawingMethods['circle']
+  seq!: DrawingMethods['seq']
+  line!: DrawingMethods['line']
 
-  to!: (token: string) => this
-  parseTransform!: (
-    token: string,
-    options?: { thisTransform?: Transform }
-  ) => Transform
-  applyTransform!: (point: AsemicPt, options?: any) => AsemicPt
-  reverseTransform!: (point: AsemicPt, options?: any) => AsemicPt
+  to!: TransformMethods['to']
+  parseTransform!: TransformMethods['parseTransform']
+  applyTransform!: TransformMethods['applyTransform']
+  reverseTransform!: TransformMethods['reverseTransform']
 
-  textMethod!: (token: string, options?: { add?: boolean }) => this
-  font!: (sliced: string) => this
-  processFont!: (name: string, chars: AsemicFont['characters']) => this
-  keys!: (index: string | number) => this
-  regex!: (regex: string, seed?: string | number) => this
+  textMethod!: TextMethods['text']
+  font!: TextMethods['font']
+  processFont!: TextMethods['processFont']
+  keys!: TextMethods['keys']
+  regex!: TextMethods['regex']
 
-  repeat!: (count: string, callback: (() => void) | string) => this
-  within!: (
-    coord0: string,
-    coord1: string,
-    callback: (() => void) | string
-  ) => this
-  center!: (coords: string, callback: () => void) => this
-  each!: (makeCurves: () => void, callback: (pt: AsemicPt) => void) => this
-  test!: (
-    condition: string | number,
-    callback?: () => void,
-    callback2?: () => void
-  ) => this
-  or!: (value: number, ...callbacks: ((p: any) => void)[]) => void
-  noise!: (value: number, frequencies: number[], phases?: number[]) => number
+  repeat!: UtilityMethods['repeat']
+  within!: UtilityMethods['within']
+  center!: UtilityMethods['center']
+  each!: UtilityMethods['each']
+  test!: UtilityMethods['test']
+  or!: UtilityMethods['or']
+  noise!: UtilityMethods['noise']
 
-  scene!: (...scenes: any[]) => this
-  play!: (play: AsemicData['play']) => void
-  param!: (paramName: string, options: InputSchema['params'][string]) => this
-  preset!: (presetName: string, values: string) => this
-  toPreset!: (presetName: string, amount?: string | number) => this
-  scrub!: (progress: number) => this
+  scene!: SceneMethods['scene']
+  play!: SceneMethods['play']
+  param!: SceneMethods['param']
+  preset!: SceneMethods['preset']
+  toPreset!: SceneMethods['toPreset']
+  scrub!: SceneMethods['scrub']
 
-  oscMethod!: (args: string) => this
-  sc!: (args: string) => this
-  synth!: (name: string, code: string) => this
-  file!: (filePath: string) => this
+  oscMethod!: OSCMethods['osc']
+  sc!: OSCMethods['sc']
+  synth!: OSCMethods['synth']
+  file!: OSCMethods['file']
 
-  parse!: (text: string, args?: string[]) => this
-  tokenize!: (source: string, options?: any) => string[]
-  parsePoint!: (notation: string | number, options?: any) => AsemicPt
-  parseArgs!: (args: string[]) => [AsemicPt, AsemicPt, number, number]
-  evalPoint!: <K extends boolean>(
-    point: string,
-    options?: { basic?: K }
-  ) => K extends true ? BasicPt : AsemicPt
-  group!: (settings: AsemicGroup['settings']) => this
-  end!: () => this
-  points!: (token: string) => this
+  parse!: ParsingMethods['parse']
+  tokenize!: ParsingMethods['tokenize']
+  parsePoint!: ParsingMethods['parsePoint']
+  parseArgs!: ParsingMethods['parseArgs']
+  evalPoint!: ParsingMethods['evalPoint']
+  group!: ParsingMethods['group']
+  end!: ParsingMethods['end']
+  points!: ParsingMethods['points']
 
-  loadFiles!: (files: Partial<any>) => this
-  table!: (name: string, coord: string, channel?: string) => number
-  processMouse!: (mouse: NonNullable<any>) => AsemicPt
-  resolveName!: (name: string) => string
+  loadFiles!: DataMethods['loadFiles']
+  table!: DataMethods['table']
+  processMouse!: DataMethods['processMouse']
+  resolveName!: DataMethods['resolveName']
 
   // Core methods that remain in the main class
   text(token: string, options?: { add?: boolean }) {
@@ -521,30 +491,6 @@ export class Parser {
     return this
   }
 
-  getBounds(fromGroup: number, toGroup?: number) {
-    let minX: number | undefined = undefined,
-      minY: number | undefined = undefined,
-      maxX: number | undefined = undefined,
-      maxY: number | undefined = undefined
-    for (let group of this.groups.slice(fromGroup, toGroup)) {
-      for (const point of group.flat()) {
-        if (minX === undefined || point[0] < minX) {
-          minX = point[0]
-        }
-        if (maxX === undefined || point[0] > maxX) {
-          maxX = point[0]
-        }
-        if (minY === undefined || point[1] < minY) {
-          minY = point[1]
-        }
-        if (maxY === undefined || point[1] > maxY) {
-          maxY = point[1]
-        }
-      }
-    }
-    return [minX, minY, maxX, maxY]
-  }
-
   evalExprFunc(callback: ExprFunc) {
     if (typeof callback === 'string') this.parse(callback)
     else callback()
@@ -583,40 +529,6 @@ export class Parser {
     // Convert to string, multiply by a prime number, and take the fractional part
     const val = Math.sin(n) * (43758.5453123 + this.progress.seed)
     return Math.abs(val - Math.floor(val)) // Return the fractional part (0-1)
-  }
-
-  mapCurve(
-    multiplyPoints: AsemicPt[],
-    addPoints: AsemicPt[],
-    start: AsemicPt,
-    end: AsemicPt,
-    { add = false } = {}
-  ) {
-    const angle = end.clone(true).subtract(start).angle0to1()
-    const distance = end.clone(true).subtract(start).magnitude()
-
-    const previousLength = this.adding
-    this.adding += multiplyPoints.length + 2
-    multiplyPoints = multiplyPoints.map((x, i) => {
-      this.progress.point = (previousLength + 1 + i) / this.adding
-      return x
-        .clone()
-        .scale([distance, 1])
-        .add(addPoints[i])
-        .rotate(angle)
-        .add(start)
-    })
-    const mappedCurve = add
-      ? [start, ...multiplyPoints, end]
-      : [start, ...multiplyPoints, end]
-    mappedCurve.forEach((x, i) => {
-      this.applyTransform(x, { relative: false })
-    })
-    this.currentCurve.push(...(add ? mappedCurve.slice(0, -1) : mappedCurve))
-
-    if (!add) {
-      this.end()
-    }
   }
 
   cloneTransform = cloneTransform

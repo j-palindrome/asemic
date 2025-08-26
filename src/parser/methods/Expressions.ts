@@ -5,6 +5,23 @@ import { clamp } from 'lodash'
 export class ExpressionMethods {
   parser: any
 
+  // Cache regex patterns for better performance
+  private static readonly BACKTICK_REGEX = /`([^`]+)`/g
+  private static readonly NUMBER_REGEX = /^\-?[0-9\.]+$/
+
+  // Cache operator precedence for faster lookup
+  private static readonly OPERATORS = new Map([
+    ['&&', { length: 2 }],
+    ['^^', { length: 2 }],
+    ['_', { length: 1 }],
+    ['+', { length: 1 }],
+    ['-', { length: 1 }],
+    ['*', { length: 1 }],
+    ['/', { length: 1 }],
+    ['%', { length: 1 }],
+    ['^', { length: 1 }]
+  ])
+
   constructor(parser: any) {
     this.parser = parser
   }
@@ -24,51 +41,54 @@ export class ExpressionMethods {
     if (typeof expr === 'number') {
       return expr
     }
-    expr = expr.trim()
 
+    expr = expr.trim()
     if (expr.length === 0) throw new Error('Empty expression')
 
     this.parser.progress.curve++
 
-    if (replace) {
-      if (expr.includes('`')) {
-        const matches = expr.matchAll(/`([^`]+)`/g)
-        for (let match of matches) {
-          const [original, expression] = match
-          expr = expr.replace(original, eval(expression))
-        }
-      }
-    }
-
-    if (expr.includes('(')) {
-      let bracket = 1
-      const start = expr.indexOf('(') + 1
-      let end = start
-      for (; end < expr.length; end++) {
-        if (expr[end] === '(') bracket++
-        else if (expr[end] === ')') {
-          bracket--
-          if (bracket === 0) break
-        }
-      }
-
-      const solvedExpr = expr.substring(start, end)
-
-      return this.expr(
-        expr.substring(0, start - 1) +
-          this.expr(solvedExpr).toFixed(4) +
-          expr.substring(end + 1)
-      )
-    }
-
-    if (expr.match(/^\-?[0-9\.]+$/)) {
+    // Early number check before any processing
+    if (ExpressionMethods.NUMBER_REGEX.test(expr)) {
       return parseFloat(expr)
+    }
+
+    if (replace && expr.includes('`')) {
+      const matches = expr.matchAll(ExpressionMethods.BACKTICK_REGEX)
+      for (let match of matches) {
+        const [original, expression] = match
+        expr = expr.replace(original, eval(expression))
+      }
+    }
+
+    // Optimized parentheses handling
+    const parenIndex = expr.indexOf('(')
+    if (parenIndex !== -1) {
+      let bracket = 1
+      let end = parenIndex + 1
+
+      while (end < expr.length && bracket > 0) {
+        const char = expr[end]
+        if (char === '(') bracket++
+        else if (char === ')') bracket--
+        end++
+      }
+
+      if (bracket === 0) {
+        const solvedExpr = expr.substring(parenIndex + 1, end - 1)
+        return this.expr(
+          expr.substring(0, parenIndex) +
+            this.expr(solvedExpr).toFixed(4) +
+            expr.substring(end)
+        )
+      }
     }
 
     invariant(typeof expr === 'string')
     let stringExpr = expr as string
 
-    if (stringExpr.includes(' ')) {
+    // Cache space check
+    const hasSpace = stringExpr.includes(' ')
+    if (hasSpace) {
       const [funcName, ...args] = this.parser.tokenize(expr, {
         separatePoints: false
       })
@@ -77,9 +97,8 @@ export class ExpressionMethods {
       }
     }
 
-    const operatorsList = ['&&', '^^', '_', '+', '-', '*', '/', '%', '^']
-
-    if (expr.includes('_')) {
+    // Optimized underscore handling
+    if (stringExpr.includes('_')) {
       const [funcName, ...args] = this.parser.tokenize(expr, {
         separateFragments: true
       })
@@ -91,64 +110,63 @@ export class ExpressionMethods {
       }
     }
 
+    // Optimized operator parsing - scan right to left for first operator found
     for (let i = stringExpr.length - 1; i >= 0; i--) {
-      let operator = operatorsList.find(
-        x => stringExpr.substring(i, i + x.length) === x
-      )
-      if (operator) {
+      for (const [op, { length }] of ExpressionMethods.OPERATORS) {
         if (
-          stringExpr[i] === '-' &&
-          stringExpr[i - 1] &&
-          '*+/%()'.includes(stringExpr[i - 1])
-        )
-          continue
-        let operators: [number, number] = splitStringAt(
-          stringExpr,
-          i,
-          operator.length
-        ).map(x => this.expr(x || 0, false)!) as [number, number]
-        switch (operator) {
-          case '&':
-            return operators[0] && operators[1] ? 1 : 0
+          i + length <= stringExpr.length &&
+          stringExpr.substr(i, length) === op
+        ) {
+          // Skip negative signs that are part of numbers
+          if (op === '-' && i > 0 && '*+/%()'.includes(stringExpr[i - 1])) {
+            continue
+          }
 
-          case '|':
-            return operators[0] || operators[1] ? 1 : 0
+          const operatorLength = length
+          let operators: [number, number] = splitStringAt(
+            stringExpr,
+            i,
+            operatorLength
+          ).map(x => this.expr(x || 0, false)!) as [number, number]
 
-          case '^':
-            return operators[0] ** operators[1]
-
-          case '#':
-            let [round, after] = operators
-
-            const afterNum = this.expr(after || 0, false)
-            if (!afterNum) {
-              return this.expr(round, false)
-            } else {
-              return Math.floor(this.expr(round) / afterNum) * afterNum
-            }
-
-          case '+':
-            return operators[0] + operators[1]
-
-          case '-':
-            return operators[0] - operators[1]
-
-          case '*':
-            return operators[0] * operators[1]
-
-          case '/':
-            return operators[0] / operators[1]
-
-          case '%':
-            return operators[0] % operators[1]
+          switch (op) {
+            case '&&':
+              return operators[0] && operators[1] ? 1 : 0
+            case '^^':
+              return operators[0] || operators[1] ? 1 : 0
+            case '^':
+              return operators[0] ** operators[1]
+            case '#':
+              let [round, after] = operators
+              const afterNum = this.expr(after || 0, false)
+              if (!afterNum) {
+                return this.expr(round, false)
+              } else {
+                return Math.floor(this.expr(round) / afterNum) * afterNum
+              }
+            case '+':
+              return operators[0] + operators[1]
+            case '-':
+              return operators[0] - operators[1]
+            case '*':
+              return operators[0] * operators[1]
+            case '/':
+              return operators[0] / operators[1]
+            case '%':
+              return operators[0] % operators[1]
+          }
         }
       }
     }
 
-    const sortedKeys = Object.keys(this.parser.constants).sort(
-      x => x.length * -1
-    )
-    const foundKey = sortedKeys.find(x => (expr as string).startsWith(x))
+    // Use cached sortedKeys if available, otherwise compute once
+    if (!this.parser.sortedKeys) {
+      this.parser.sortedKeys = Object.keys(this.parser.constants).sort(
+        (a, b) => b.length - a.length
+      )
+    }
+
+    const foundKey = this.parser.sortedKeys.find(x => stringExpr.startsWith(x))
     if (foundKey) {
       const arg1 = expr.slice(foundKey.length).trim()
       return this.parser.constants[foundKey](arg1)

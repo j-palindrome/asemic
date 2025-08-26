@@ -1,13 +1,35 @@
 import { last } from 'lodash'
-import { Transform } from '../../types'
+import { Parser, Transform } from '../../types'
 import { TransformAliases } from '../constants/Aliases'
 import { defaultTransform, cloneTransform } from '../core/Transform'
 
 export class TransformMethods {
-  parser: any
+  parser: Parser
 
-  constructor(parser: any) {
+  // Performance caches
+  private regexCache = new Map<string, RegExp>()
+
+  // Pre-compiled regex patterns for common transform operations
+  private static readonly SCALE_REGEX = new RegExp(
+    `^(${TransformAliases.scale.join('|')})(.+)`
+  )
+  private static readonly ROTATION_REGEX = new RegExp(
+    `^(${TransformAliases.rotation.join('|')})(.+)`
+  )
+  private static readonly TRANSLATION_REGEX = new RegExp(
+    `^(${TransformAliases.translation.join('|')})(.+)`
+  )
+  private static readonly KEY_CALL_REGEX = /^([a-z]+)\=(.+)/
+
+  constructor(parser: Parser) {
     this.parser = parser
+  }
+
+  private getCachedRegex(pattern: string): RegExp {
+    if (!this.regexCache.has(pattern)) {
+      this.regexCache.set(pattern, new RegExp(pattern))
+    }
+    return this.regexCache.get(pattern)!
   }
 
   to(token: string) {
@@ -73,39 +95,21 @@ export class TransformMethods {
         thisTransform.add = transform.substring(3)
       } else if (transform.startsWith('@=>')) {
         thisTransform.rotate = transform.substring(3)
-      } else if (
-        transform.match(
-          new RegExp(`^(${TransformAliases.scale.join('|')})(.+)`)
-        )
-      ) {
-        // Scale
-        const match = transform.match(
-          new RegExp(`^(${TransformAliases.scale.join('|')})(.+)`)
-        )
+      } else if (transform.match(TransformMethods.SCALE_REGEX)) {
+        // Scale - use pre-compiled regex
+        const match = transform.match(TransformMethods.SCALE_REGEX)
         if (match) {
           thisTransform.scale.scale(this.parser.evalPoint(match[2]))
         }
-      } else if (
-        transform.match(
-          new RegExp(`^(${TransformAliases.rotation.join('|')})(.+)`)
-        )
-      ) {
-        // Rotation
-        let match = transform.match(
-          new RegExp(`^(${TransformAliases.rotation.join('|')})(.+)`)
-        )
+      } else if (transform.match(TransformMethods.ROTATION_REGEX)) {
+        // Rotation - use pre-compiled regex
+        const match = transform.match(TransformMethods.ROTATION_REGEX)
         if (match) {
           thisTransform.rotation += this.parser.expr(match[2])!
         }
-      } else if (
-        transform.match(
-          new RegExp(`^(${TransformAliases.translation.join('|')})(.+)`)
-        )
-      ) {
-        // Translation
-        const match = transform.match(
-          new RegExp(`^(${TransformAliases.translation.join('|')})(.+)`)
-        )
+      } else if (transform.match(TransformMethods.TRANSLATION_REGEX)) {
+        // Translation - use pre-compiled regex
+        const match = transform.match(TransformMethods.TRANSLATION_REGEX)
         if (match) {
           thisTransform.translation.add(
             this.parser
@@ -115,7 +119,7 @@ export class TransformMethods {
           )
         }
       } else {
-        const keyCall = transform.match(/^([a-z]+)\=(.+)/)
+        const keyCall = transform.match(TransformMethods.KEY_CALL_REGEX)
         if (keyCall) {
           const key = keyCall[1]
           const value = keyCall[2]
@@ -138,6 +142,7 @@ export class TransformMethods {
         }
       }
     })
+
     return thisTransform
   }
 
@@ -181,5 +186,17 @@ export class TransformMethods {
     }
     point.divide(transform.scale).rotate(transform.rotation * -1)
     return point
+  }
+
+  // Clear caches when needed
+  clearCaches() {
+    this.regexCache.clear()
+  }
+
+  // Get cache statistics for monitoring
+  getCacheStats() {
+    return {
+      regexCache: this.regexCache.size
+    }
   }
 }

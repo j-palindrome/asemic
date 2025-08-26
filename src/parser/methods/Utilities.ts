@@ -9,6 +9,30 @@ export class UtilityMethods {
     this.parser = parser
   }
 
+  getBounds(fromGroup: number, toGroup?: number) {
+    let minX: number | undefined = undefined,
+      minY: number | undefined = undefined,
+      maxX: number | undefined = undefined,
+      maxY: number | undefined = undefined
+    for (let group of this.parser.groups.slice(fromGroup, toGroup)) {
+      for (const point of group.flat()) {
+        if (minX === undefined || point[0] < minX) {
+          minX = point[0]
+        }
+        if (maxX === undefined || point[0] > maxX) {
+          maxX = point[0]
+        }
+        if (minY === undefined || point[1] < minY) {
+          minY = point[1]
+        }
+        if (maxY === undefined || point[1] > maxY) {
+          maxY = point[1]
+        }
+      }
+    }
+    return [minX, minY, maxX, maxY]
+  }
+
   repeat(count: string, callback: (() => void) | string) {
     const counts = this.parser
       .tokenize(count, { separatePoints: true })

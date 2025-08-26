@@ -5,7 +5,6 @@ import { Parser } from '../Parser'
 
 interface Props {
   defaultValue: string
-  onKeyDown: (ev: React.KeyboardEvent<HTMLDivElement>) => void
   onChange: (value: string | undefined) => void
   errors: string[]
 }

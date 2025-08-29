@@ -4,6 +4,7 @@ import AsemicVisual from './renderers/AsemicVisual'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import { Parser } from './parser/Parser'
+import { noise } from './hydra-compiler/index-fragment'
 
 let parser: Parser = new Parser()
 let renderer: AsemicVisual
@@ -12,6 +13,8 @@ let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
 let ready = true
 
+const noiseFrag = noise()
+debugger
 // Video recording state
 let isRecording = false
 

@@ -1,9 +1,11 @@
+import invariant from 'tiny-invariant'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { splitString } from '../../settings'
 import { AsemicGroup } from '../core/AsemicGroup'
+import { Parser } from '../Parser'
 
 export class ParsingMethods {
-  parser: any
+  parser: Parser
 
   // Performance caches
   private tokenizeCache = new Map<string, string[]>()
@@ -19,7 +21,7 @@ export class ParsingMethods {
   // Object pool for BasicPt to reduce allocations
   private basicPtPool: BasicPt[] = []
 
-  constructor(parser: any) {
+  constructor(parser: Parser) {
     this.parser = parser
   }
 
@@ -30,70 +32,8 @@ export class ParsingMethods {
     return pt
   }
 
-  private releaseBasicPt(pt: BasicPt): void {
-    if (this.basicPtPool.length < 100) {
-      // Limit pool size
-      this.basicPtPool.push(pt)
-    }
-  }
-
-  private getCachedRegex(pattern: string): RegExp {
-    if (!this.regexCache.has(pattern)) {
-      this.regexCache.set(pattern, new RegExp(pattern))
-    }
-    return this.regexCache.get(pattern)!
-  }
-
-  parse(text: string, args: string[] = []) {
-    // Optimize argument replacement
-    if (args.length > 0) {
-      for (let i = 0; i < args.length; i++) {
-        text = text.replaceAll(`$${i}`, args[i])
-      }
-    }
-
-    text = text.replaceAll(ParsingMethods.COMMENT_REGEX, '').trim()
-
-    // Use cached tokenization if available
-    const cacheKey = `parse:${text}`
-    let tokenization: string[]
-    if (this.tokenizeCache.has(cacheKey)) {
-      tokenization = this.tokenizeCache.get(cacheKey)!
-    } else {
-      tokenization = this.parser.tokenize(text)
-      this.tokenizeCache.set(cacheKey, tokenization)
-    }
-
-    for (let token of tokenization) {
-      let sliced = token.substring(1, token.length - 1)
-      switch (token[0]) {
-        case '/':
-          this.parser.regex(sliced)
-          break
-        case '"':
-          this.parser.text(sliced)
-          break
-        case '(':
-          const [functionCall, funcArgs] = splitString(sliced, /\s/)
-          if (!this.parser.curveConstants[functionCall]) {
-            throw new Error(`Unknown function: ${functionCall}`)
-          }
-          this.parser.curveConstants[functionCall](funcArgs)
-          break
-        case '{':
-          this.parser.to(sliced)
-          break
-        case '[':
-          this.parser.line(sliced)
-          break
-      }
-    }
-
-    return this.parser
-  }
-
   tokenize(
-    source: string,
+    source: string | number,
     {
       separatePoints = false,
       separateFragments = false,
@@ -108,6 +48,7 @@ export class ParsingMethods {
       stopAt0?: boolean
     } = {}
   ): string[] {
+    if (typeof source === 'number') return [source.toString()]
     // Use pre-compiled regex patterns
     if (separatePoints) regEx = ParsingMethods.COMMA_REGEX
     else if (separateFragments) regEx = ParsingMethods.UNDERSCORE_REGEX
@@ -248,10 +189,15 @@ export class ParsingMethods {
   }
 
   evalPoint<K extends boolean>(
-    point: string,
+    thisPoint: string | BasicPt,
     { basic = false as any }: { basic?: K } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
     let result: BasicPt | AsemicPt
+    if (thisPoint instanceof BasicPt)
+      return (
+        basic ? thisPoint : new AsemicPt(this.parser, thisPoint.x, thisPoint.y)
+      ) as K extends true ? BasicPt : AsemicPt
+    let point = thisPoint as string
 
     if (point.startsWith('(') && point.endsWith(')')) {
       const sliced = point.substring(1, point.length - 1)
@@ -292,16 +238,10 @@ export class ParsingMethods {
         this.parser.groups[groupIndex][
           exprN < 0 ? this.parser.groups[groupIndex].length + exprN : exprN
         ]
-      const count = Math.floor(
-        this.parser.expr(pointN) * (lastCurve.length - 1)
-      )
       if (!lastCurve) throw new Error(`No curve at ${exprN}`)
-      if (!lastCurve[count])
-        throw new Error(
-          `No point at curve ${lastCurve} point ${count} (${lastCurve.length} long)`
-        )
-
-      return this.parser.reverseTransform(lastCurve[count].clone())
+      return this.parser.reverseTransform(
+        this.parser.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
+      )
     } else if (point.startsWith('[')) {
       const end = point.indexOf(']')
       point = this.parser

@@ -1,11 +1,12 @@
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { lerp } from '../../utils'
 import { CACHED } from '../constants/ExpressionConstants'
+import { Parser } from '../Parser'
 
 export class UtilityMethods {
-  parser: any
+  parser: Parser
 
-  constructor(parser: any) {
+  constructor(parser: Parser) {
     this.parser = parser
   }
 
@@ -33,7 +34,7 @@ export class UtilityMethods {
     return [minX, minY, maxX, maxY]
   }
 
-  repeat(count: string, callback: (() => void) | string) {
+  repeat(count: string, callback: () => void) {
     const counts = this.parser
       .tokenize(count, { separatePoints: true })
       .map((x: string) => this.parser.expr(x))
@@ -44,7 +45,7 @@ export class UtilityMethods {
       this.parser.progress.countNums[index] = counts[index]
       for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
         this.parser.progress.indexes[index] = i
-        this.parser.evalExprFunc(callback)
+        callback()
         if (counts[index + 1]) {
           iterate(index + 1)
         }
@@ -57,11 +58,11 @@ export class UtilityMethods {
     return this.parser
   }
 
-  within(coord0: string, coord1: string, callback: (() => void) | string) {
+  within(coord0: string, coord1: string, callback: () => void) {
     const [x, y] = this.parser.parsePoint(coord0)
     const [x2, y2] = this.parser.parsePoint(coord1)
     const startGroup = this.parser.groups.length
-    this.parser.evalExprFunc(callback)
+    callback()
     const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
     const newWidth = x2 - x
     const newHeight = y2 - y
@@ -91,7 +92,9 @@ export class UtilityMethods {
     return this.parser
   }
 
-  center(coords: string, callback: () => void) {
+  center(argsStr: string, callback: () => void) {
+    const [coords, type = 'xy'] = this.parser.tokenize(argsStr)
+
     const [centerX, centerY] = this.parser.parsePoint(coords)
     const startGroup = this.parser.groups.length
 
@@ -105,7 +108,10 @@ export class UtilityMethods {
 
     const dx = centerX - boundingCenterX
     const dy = centerY - boundingCenterY
-    const difference = new BasicPt(dx, dy)
+    const difference = new BasicPt(
+      type.includes('x') ? dx : 0,
+      type.includes('y') ? dy : 0
+    )
 
     for (const group of addedGroups) {
       for (const pt of group.flat()) {

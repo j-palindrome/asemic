@@ -131,16 +131,16 @@ export default function AsemicEditor({
     })
 
     // Extend JavaScript tokenizer to highlight brackets and commas within strings
-    monaco.languages.setMonarchTokensProvider('javascript', {
-      tokenizer: {
-        root: [
-          // ...existing rules...
-          [/"([^"\\]|\\.)*"/, 'string']
-          // ...existing rules...
-        ]
-        // ...existing tokenizer states...
-      }
-    })
+    // monaco.languages.setMonarchTokensProvider('javascript', {
+    //   tokenizer: {
+    //     root: [
+    //       // ...existing rules...
+    //       // [/"([^"\\]|\\.)*"/, 'string']
+    //       // ...existing rules...
+    //     ]
+    //     // ...existing tokenizer states...
+    //   }
+    // })
 
     monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ESNext,

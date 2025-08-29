@@ -20,7 +20,7 @@ export class AsemicFont {
 
   parseCharacters(chars: AsemicFont['characters']) {
     for (let name of Object.keys(chars)) {
-      const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE']
+      const reservedCharacters = ['START', 'END', 'EACH', 'EACH2', 'NEWLINE']
       if (name.length > 1 && !reservedCharacters.includes(name)) {
         const multipleChars = name.split('')
         const countNum = multipleChars.length
@@ -49,7 +49,7 @@ export class AsemicFont {
 export class DefaultFont extends AsemicFont {
   constructor(parser: Parser) {
     super(parser, {
-      START: () => parser.to('w=1 +0,2 >'),
+      START: () => parser.to('+0,2 >line'),
       a: () => parser.squ('1,-1 1,0 1').tri('1,-1 +0,1 .05'),
       b: () => parser.line('0,-2 0,0').squ('0,-1 0,0 -1'),
       c: () => parser.pen('1,-.8 +0,.6 1,.2'),
@@ -65,7 +65,7 @@ export class DefaultFont extends AsemicFont {
       g: () =>
         parser
           .circle('.5,-.5 .5,.5')
-          .points('+0,0 1,-.5')
+          .points('1,-.5 1,0')
           .tri('+@1/4,1 +-1,0 -.5'),
       h: () => parser.line('0,0 0,-2').line('0,-.8 1,-1 1,0'),
       i: () =>
@@ -159,9 +159,11 @@ export class DefaultFont extends AsemicFont {
       Z: () => parser.line('0,-2 +1,0').line('+0,0 0,0').line('+0,0 1,0'),
       ' ': () => parser.to('+-.25,0'),
       END: () => parser.to('+0,2'),
-      NEWLINE: () => parser.to('< +0,3 >'),
+      NEWLINE: () => parser.to('<line +0,3 >line'),
       '\\': () => parser.to('< +0,3 >'),
       EACH: () => parser.to('+1.25,0'),
+      EACH2: () => {},
+      '0': () => parser.circle('0.5,-.8 .5,.8'),
       '1': () => parser.line('.5,0 +0,-2').line('+0,0 0,-1.5'),
       '2': () => parser.line('1,0 0,0', '0,0 1,-.2 1,-1 0,-1 0,-.8'),
       '3': () => parser.hex('0,-.7 .8,-.5 .5,.2').hex('+0,0 0,0 .5 .2'),

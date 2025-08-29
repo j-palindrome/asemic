@@ -53,8 +53,9 @@ export class TransformMethods {
         if (transform.slice(1)) {
           const name = transform.slice(1)
           this.parser.namedTransforms[name] = cloneTransform(thisTransform)
+        } else {
+          this.parser.transformStack.push(cloneTransform(thisTransform))
         }
-        this.parser.transformStack.push(cloneTransform(thisTransform))
       } else if (transform === '!') {
         // Reset all transformations
         thisTransform.scale.set([1, 1])

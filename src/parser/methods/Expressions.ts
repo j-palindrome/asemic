@@ -10,17 +10,17 @@ export class ExpressionMethods {
   private static readonly NUMBER_REGEX = /^\-?[0-9\.]+$/
 
   // Cache operator precedence for faster lookup
-  private static readonly OPERATORS = new Map([
-    ['&&', { length: 2 }],
-    ['^^', { length: 2 }],
-    ['_', { length: 1 }],
-    ['+', { length: 1 }],
-    ['-', { length: 1 }],
-    ['*', { length: 1 }],
-    ['/', { length: 1 }],
-    ['%', { length: 1 }],
-    ['^', { length: 1 }]
-  ])
+  private static readonly OPERATORS = [
+    '&&',
+    '^^',
+    '^',
+    '#',
+    '+',
+    '-',
+    '*',
+    '/',
+    '%'
+  ]
 
   constructor(parser: any) {
     this.parser = parser
@@ -112,33 +112,28 @@ export class ExpressionMethods {
 
     // Optimized operator parsing - scan right to left for first operator found
     for (let i = stringExpr.length - 1; i >= 0; i--) {
-      for (const [op, { length }] of ExpressionMethods.OPERATORS) {
-        if (
-          i + length <= stringExpr.length &&
-          stringExpr.substr(i, length) === op
-        ) {
+      for (const op of ExpressionMethods.OPERATORS) {
+        if (stringExpr[i] === op) {
           // Skip negative signs that are part of numbers
-          if (op === '-' && i > 0 && '*+/%()'.includes(stringExpr[i - 1])) {
+          if (op === '-' && i > 0 && '*+/%()#'.includes(stringExpr[i - 1])) {
             continue
           }
 
-          const operatorLength = length
-          let operators: [number, number] = splitStringAt(
-            stringExpr,
-            i,
-            operatorLength
-          ).map(x => this.expr(x || 0, false)!) as [number, number]
+          let operators: [number, number] = splitStringAt(stringExpr, i, 1).map(
+            x => this.expr(x || 0, false)!
+          ) as [number, number]
 
           switch (op) {
-            case '&&':
+            case '&':
               return operators[0] && operators[1] ? 1 : 0
-            case '^^':
+            case '|':
               return operators[0] || operators[1] ? 1 : 0
             case '^':
               return operators[0] ** operators[1]
             case '#':
               let [round, after] = operators
-              const afterNum = this.expr(after || 0, false)
+              // debugger
+              const afterNum = this.expr(after || 1, false)
               if (!afterNum) {
                 return this.expr(round, false)
               } else {

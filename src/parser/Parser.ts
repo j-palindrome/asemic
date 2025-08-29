@@ -48,11 +48,11 @@ export class Parser {
   sceneList: {
     start: number
     length: number
-    draw: (p: Parser) => void
+    draw: () => void
     pause: false | number
     offset: number
     isSetup: boolean
-    setup?: (p: Parser) => void
+    setup?: () => void
   }[] = []
   params = {} as InputSchema['params']
   progress = {
@@ -74,21 +74,6 @@ export class Parser {
     keys: ['']
   }
 
-  curveConstants: Record<string, (args: string) => void> = {
-    repeat: args => {
-      const [count, evaluation] = splitString(args, /\s/)
-      this.repeat(count, evaluation)
-    },
-    within: args => {
-      const [coord0, coord1, ...rest] = this.tokenize(args)
-      this.within(coord0, coord1, rest.join(' '))
-    },
-    circle: args => {
-      this.circle(args)
-    },
-    debug: () => this.debug()
-  }
-
   pointConstants: Record<string, (...args: string[]) => BasicPt> = {
     '>': (progress, ...points) => {
       const exprPoints = points.map(x => this.evalPoint(x, { basic: true }))
@@ -105,7 +90,14 @@ export class Parser {
         point3: BasicPt,
         amount: number
       ) => {
-        const u = 1 - amount
+        const t = amount % 1
+        const u = 1 - t
+        if (amount >= 1) {
+          point1 = point1.clone().lerp(point2, 0.5)
+        }
+        if (amount < points.length - 3) {
+          point3 = point3.clone().lerp(point2, 0.5)
+        }
 
         return point1
           .clone()
@@ -113,8 +105,8 @@ export class Parser {
           .add(
             point2
               .clone()
-              .scale([2 * u * amount, 2 * u * amount])
-              .add(point3.clone().scale([amount ** 2, amount ** 2]))
+              .scale([2 * u * t, 2 * u * t])
+              .add(point3.clone().scale([t ** 2, t ** 2]))
           )
       }
 
@@ -122,7 +114,7 @@ export class Parser {
         exprPoints[start],
         exprPoints[start + 1],
         exprPoints[start + 2],
-        index % 1
+        index
       )
     }
   }
@@ -164,6 +156,12 @@ export class Parser {
       table: (name, point, channel) => {
         const imageName = typeof name === 'string' ? name : String(name)
         return this.table(imageName, point, channel)
+      },
+      or: (...args) => {
+        const [condition, trueValue, falseValue] = args.map(x =>
+          this.expr(x, false)
+        )
+        return condition > 0 ? trueValue : falseValue
       },
       acc: x => {
         if (!this.progress.accums[this.progress.accumIndex])
@@ -281,12 +279,20 @@ export class Parser {
       },
       {
         instance: this.textMethods,
-        methods: ['text', 'font', 'processFont', 'keys', 'regex'],
-        aliases: { text: 'textMethod' }
+        methods: ['text', 'font', 'resetFont', 'keys', 'regex']
       },
       {
         instance: this.utilities,
-        methods: ['repeat', 'within', 'center', 'each', 'test', 'or', 'noise']
+        methods: [
+          'repeat',
+          'within',
+          'center',
+          'each',
+          'test',
+          'or',
+          'noise',
+          'getBounds'
+        ]
       },
       {
         instance: this.scenes,
@@ -294,13 +300,11 @@ export class Parser {
       },
       {
         instance: this.oscMethods,
-        methods: ['osc', 'sc', 'synth', 'file'],
-        aliases: { osc: 'oscMethod' }
+        methods: ['osc', 'sc', 'synth', 'file']
       },
       {
         instance: this.parsing,
         methods: [
-          'parse',
           'tokenize',
           'parsePoint',
           'parseArgs',
@@ -316,10 +320,9 @@ export class Parser {
       }
     ]
 
-    methodClasses.forEach(({ instance, methods, aliases = {} }) => {
+    methodClasses.forEach(({ instance, methods }) => {
       methods.forEach(method => {
-        const targetMethod = aliases[method] || method
-        ;(this as any)[targetMethod] = (instance as any)[method].bind(instance)
+        ;(this as any)[method] = (instance as any)[method].bind(instance)
       })
     })
   }
@@ -346,7 +349,7 @@ export class Parser {
 
   textMethod!: TextMethods['text']
   font!: TextMethods['font']
-  processFont!: TextMethods['processFont']
+  resetFont!: TextMethods['resetFont']
   keys!: TextMethods['keys']
   regex!: TextMethods['regex']
 
@@ -357,6 +360,7 @@ export class Parser {
   test!: UtilityMethods['test']
   or!: UtilityMethods['or']
   noise!: UtilityMethods['noise']
+  getBounds!: UtilityMethods['getBounds']
 
   scene!: SceneMethods['scene']
   play!: SceneMethods['play']
@@ -370,7 +374,6 @@ export class Parser {
   synth!: OSCMethods['synth']
   file!: OSCMethods['file']
 
-  parse!: ParsingMethods['parse']
   tokenize!: ParsingMethods['tokenize']
   parsePoint!: ParsingMethods['parsePoint']
   parseArgs!: ParsingMethods['parseArgs']
@@ -383,11 +386,6 @@ export class Parser {
   table!: DataMethods['table']
   processMouse!: DataMethods['processMouse']
   resolveName!: DataMethods['resolveName']
-
-  // Core methods that remain in the main class
-  text(token: string, options?: { add?: boolean }) {
-    return this.textMethod(token, options)
-  }
 
   osc(args: string) {
     return this.oscMethod(args)
@@ -418,7 +416,6 @@ export class Parser {
     }
     this.transformStack = []
     this.lastPoint = new AsemicPt(this as any, 0, 0)
-    for (let font in this.fonts) this.fonts[font].reset()
     this.currentTransform = defaultTransform()
     this.currentCurve = []
     this.currentFont = 'default'
@@ -446,7 +443,11 @@ export class Parser {
           (this.progress.progress - object.start) / object.length
         this.progress.scrubTime = this.progress.progress - object.start
         try {
-          object.draw(this)
+          if (!object.isSetup) {
+            object.setup?.()
+            object.isSetup = true
+          }
+          object.draw()
         } catch (e) {
           this.error(
             `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)}`
@@ -491,11 +492,6 @@ export class Parser {
     return this
   }
 
-  evalExprFunc(callback: ExprFunc) {
-    if (typeof callback === 'string') this.parse(callback)
-    else callback()
-  }
-
   setup(source: string) {
     this.progress.seed = Math.random()
     this.fonts = { default: new DefaultFont(this as any) }
@@ -504,6 +500,7 @@ export class Parser {
     this.settings = defaultSettings()
     this.sceneList = []
     this.rawSource = source
+    for (let font in this.fonts) this.resetFont(font)
 
     // Use Function constructor with 'this' bound to the Parser instance
     const setupFunction = new Function(
@@ -536,6 +533,4 @@ export class Parser {
   get duration() {
     return this.totalLength
   }
-
-  index() {}
 }

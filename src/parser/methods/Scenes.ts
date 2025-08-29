@@ -1,11 +1,11 @@
 import { isUndefined } from 'lodash'
-import { AsemicData } from '../../types'
+import { AsemicData, Parser } from '../../types'
 import { InputSchema } from '../../server/inputSchema'
 
 export class SceneMethods {
-  parser: any
+  parser: Parser
 
-  constructor(parser: any) {
+  constructor(parser: Parser) {
     this.parser = parser
   }
 
@@ -44,10 +44,9 @@ export class SceneMethods {
         this.parser.reset()
         this.parser.setup(this.parser.rawSource)
         for (let i = 0; i < play.scene; i++) {
-          // parse each scene until now to get OSC messages
-          this.parser.mode = 'blank'
           try {
-            this.parser.sceneList[i].draw(this.parser)
+            this.parser.sceneList[i].setup?.()
+            this.parser.sceneList[i].isSetup = true
           } catch (e: any) {
             this.parser.output.errors.push(`Error in scene ${i}: ${e.message}`)
           }

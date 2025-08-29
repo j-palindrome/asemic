@@ -97,6 +97,7 @@ const calcPosition = /*wgsl*/ `
     + u32(fract(point_progress) * f32(curve_length - 2));
   let t = fract(fract(point_progress) * f32(curve_length - 2));
 
+  
   var p0: vec2<f32> = (select(
     vertices[start_at_point], 
     (vertices[start_at_point] + vertices[start_at_point + 1]) / 2.,
@@ -116,6 +117,14 @@ const calcPosition = /*wgsl*/ `
     widths[start_at_point + 2],
     (widths[start_at_point + 1] + widths[start_at_point + 2]) / 2.,
     start_at_point < curve_starts[curve] + curve_length - 3);
+  if (start_at_point == curve_starts[curve]) {
+    let direction = normalize(p1 - p0);
+    p0 = p0 - direction * width0 * .9 / canvas_dimensions.x;
+  }
+  if (start_at_point == curve_starts[curve] + curve_length - 3) {
+    let direction = normalize(p1 - p2);
+    p2 = p2 - direction * width2 * .9 / canvas_dimensions.x;
+  }
   
   var width = select(
     mix(width1, width0, pow(1 - t * 2, 2)), 

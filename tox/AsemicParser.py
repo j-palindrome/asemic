@@ -9,6 +9,7 @@ import re
 import time
 from typing import Any, Dict, List, Callable, Optional, Union, Tuple
 from functools import lru_cache
+import shlex
 
 
 class AsemicPt:
@@ -108,11 +109,11 @@ class Scene:
     def __init__(self):
         self.start = 0.0
         self.length = 0.0
-        self.draw: Optional[Callable] = None
+        self.draw: str = ''
         self.pause: Union[float, bool] = False
         self.offset = 0.0
         self.isSetup = False
-        self.setup: Optional[Callable] = None
+        self.setup: Optional[str] = None
 
 
 class AsemicParser:
@@ -208,14 +209,6 @@ class AsemicParser:
         # Point constants
         self.pointConstants: Dict[str, Callable] = {
             ">": self._bezier_interpolate
-        }
-
-        # Curve constants
-        self.curveConstants: Dict[str, Callable[[str], None]] = {
-            "repeat": self._repeat_curve,
-            "within": self._within_curve,
-            "circle": self._circle_curve,
-            "debug": self._debug_curve
         }
 
     def expr(self, expression: Union[str, int, float], replace: bool = True) -> float:
@@ -398,66 +391,59 @@ class AsemicParser:
                 i += 1
                 continue
 
-            # Check if this line contains a callback block
-            if '{' in line:
-                # Find the complete callback block
-                callback_start = i
-                brace_count = 0
-                callback_lines = []
+            # Parse function calls: functionName [args] or functionName {args}
+            if ' ' in line:
+                parts = line.split(' ', 1)
+                func_name = parts[0]
+                args_part = parts[1].strip()
 
-                # Process the current line and count braces
-                current_line = line
-                j = i
+                # Handle bracketed arguments {args}
+                if args_part.endswith('{'):
+                    full_args: List[str] = []
+                    # Multi-line bracketed argument
+                    bracket_count = 0
 
-                while j < len(lines):
-                    current_line = lines[j].strip()
+                    j = i + 1
+                    while j < len(lines) and bracket_count > 0:
+                        line_content = lines[j]
+                        full_args.append(line_content)
+                        bracket_count += line_content.count(
+                            '{') - line_content.count('}')
+                        j += 1
 
-                    # Count braces
-                    brace_count += current_line.count('{')
-                    brace_count -= current_line.count('}')
-
-                    # Extract content inside braces
-                    if '{' in current_line:
-                        # Get everything after the opening brace
-                        brace_pos = current_line.find('{')
-                        before_brace = current_line[:brace_pos].strip()
-                        after_brace = current_line[brace_pos + 1:].strip()
-
-                        if after_brace:
-                            callback_lines.append(after_brace)
+                    if bracket_count == 0 and full_args:
+                        # Remove closing brace from last line
+                        last_line = full_args[-1]
+                        if last_line.rstrip().endswith('}'):
+                            full_args[-1] = last_line.rstrip()[:-1]
+                        args_str = '\n'.join(full_args)
+                        i = j - 1  # Skip the lines we've consumed
                     else:
-                        callback_lines.append(current_line)
+                        self.error(
+                            f"Unmatched braces in function '{func_name}'")
+                        args_str = args_part[1:] if len(args_part) > 1 else ""
+                else:
+                    args_str = args_part
 
-                    # If braces are balanced, we found the complete block
-                    if brace_count == 0:
-                        # Remove the closing brace from the last line
-                        if callback_lines and '}' in callback_lines[-1]:
-                            last_line = callback_lines[-1]
-                            brace_pos = last_line.rfind('}')
-                            callback_lines[-1] = last_line[:brace_pos].strip()
-                            if not callback_lines[-1]:
-                                callback_lines.pop()
+                # Check if it's a curve function
 
-                        # Execute the command with callback
-                        command_part = lines[callback_start].split('{')[
-                            0].strip()
-                        callback_code = '\n'.join(callback_lines)
-
-                        try:
-                            self._execute_line_with_callback(
-                                command_part, callback_code)
-                        except Exception as e:
-                            self.error(f"Callback execution error: {str(e)}")
-
-                        i = j + 1
-                        break
-
-                    j += 1
-
-                if brace_count != 0:
+                try:
+                    if hasattr(self, func_name) and callable(getattr(self, func_name)):
+                        method = getattr(self, func_name)
+                        if args_str:
+                            # Parse arguments
+                            try:
+                                args = shlex.split(args_str)
+                            except:
+                                args = args_str.split()
+                            method(*args)
+                        else:
+                            method()
+                except Exception as e:
                     self.error(
-                        f"Unmatched braces starting at line {callback_start + 1}")
-                    i += 1
+                        f"Curve function '{func_name}' failed: {str(e)}")
+
+            i += 1
 
     def line(self, *args):
         """Draw a line between points"""
@@ -506,7 +492,7 @@ class AsemicParser:
 
         return transformed
 
-    def _repeat_curve(self, args: str):
+    def repeat(self, args: str):
         """Repeat curve command"""
         parts = args.split(' ', 1)
         if len(parts) >= 2:
@@ -516,7 +502,7 @@ class AsemicParser:
         else:
             self.error("Repeat requires count and evaluation arguments")
 
-    def _within_curve(self, args: str):
+    def within(self, args: str):
         """Within curve command"""
         tokens = self.tokenize(args)
         if len(tokens) >= 3:
@@ -527,11 +513,11 @@ class AsemicParser:
             self.error(
                 "Within requires at least 3 arguments: coord0, coord1, and evaluation")
 
-    def _circle_curve(self, args: str):
+    def circle(self, args: str):
         """Circle curve command"""
         self.circle(args)
 
-    def _debug_curve(self, args: str):
+    def debug(self, args: str):
         """Debug curve command"""
         self.debug()
 
@@ -632,24 +618,9 @@ class AsemicParser:
         except Exception as e:
             self.output.errors.append(f"Setup failed: {str(e)}")
 
-    def scene(self, *args):
-        """Create a scene"""
+    def scene(self, callback_code: str, length: float = 1.0):
+        """Create a scene with callback code and optional length"""
         try:
-            # Parse arguments
-            length = 1.0  # Default length
-            callback_code = ""
-
-            if len(args) >= 1:
-                # First argument could be length or callback
-                if isinstance(args[0], str) and not args[0].replace('.', '').isdigit():
-                    # It's callback code
-                    callback_code = args[0]
-                else:
-                    # It's length
-                    length = float(self.expr(args[0]))
-                    if len(args) >= 2:
-                        callback_code = args[1]
-
             # Create scene object
             scene = Scene()
             scene.start = self.totalLength
@@ -657,14 +628,7 @@ class AsemicParser:
             scene.pause = False
             scene.offset = 0.0
             scene.isSetup = False
-
-            # Create draw function that executes the callback
-            if callback_code:
-                def scene_draw(parser):
-                    parser.parse(callback_code)
-                scene.draw = scene_draw
-            else:
-                scene.draw = None
+            scene.draw = callback_code
 
             # Add to scene list
             self.sceneList.append(scene)
@@ -674,118 +638,6 @@ class AsemicParser:
 
         except Exception as e:
             self.error(f"Scene creation failed: {str(e)}")
-
-    def _execute_line_with_callback(self, command: str, callback_code: str):
-        """Execute a command that has a callback block"""
-        command = command.strip()
-
-        # Handle commands that accept callbacks
-        if command.startswith('repeat '):
-            args = command[7:].strip()
-            tokens = self.tokenize(args)
-            if tokens:
-                count = tokens[0]
-                self.repeat(count, callback_code)
-        elif command.startswith('within '):
-            args = command[7:].strip()
-            tokens = self.tokenize(args)
-            if len(tokens) >= 2:
-                coord0, coord1 = tokens[0], tokens[1]
-                self.within(coord0, coord1, callback_code)
-        elif command.startswith('scene'):
-            # Parse scene arguments
-            args = command[5:].strip() if len(command) > 5 else ""
-            if args:
-                self.scene(args, callback_code)
-            else:
-                self.scene(callback_code)
-        else:
-            # Try to execute as a regular command with the callback as argument
-            self._execute_line(f"{command} {callback_code}")
-
-    def _execute_line(self, line: str):
-        """Execute a single line of code"""
-        line = line.strip()
-        if not line or line.startswith('#'):
-            return
-
-        # Handle curve constants
-        for const_name, const_func in self.curveConstants.items():
-            if line.startswith(const_name + ' '):
-                args = line[len(const_name):].strip()
-                const_func(args)
-                return
-
-        # Handle basic drawing commands
-        if line.startswith('line '):
-            args = line[5:].strip()
-            points = self.tokenize(args)
-            self.line(*points)
-        elif line.startswith('repeat '):
-            args = line[7:].strip()
-            self._repeat_curve(args)
-        elif line.startswith('circle'):
-            args = line[6:].strip() if len(line) > 6 else ""
-            self.circle(args)
-        elif line.startswith('within '):
-            args = line[7:].strip()
-            self._within_curve(args)
-        elif line.startswith('scene'):
-            args = line[5:].strip() if len(line) > 5 else ""
-            if args:
-                self.scene(args)
-            else:
-                self.scene()
-        elif line.startswith('debug'):
-            self.debug()
-        elif line.startswith('pen '):
-            args = line[4:].strip()
-            self.pen(args)
-        elif line.startswith('to '):
-            args = line[3:].strip()
-            self.to(args)
-        else:
-            # Try to evaluate as expression
-            try:
-                self.expr(line)
-            except Exception as e:
-                self.error(f"Unknown command or expression: {line}")
-
-    def pen(self, args: str):
-        """Set pen position"""
-        try:
-            coords = args.split(',')
-            if len(coords) >= 2:
-                x = self.expr(coords[0].strip())
-                y = self.expr(coords[1].strip())
-                point = AsemicPt(self, x, y)
-                transformed_point = self._apply_current_transform(point)
-                self.lastPoint = transformed_point.clone()
-            else:
-                self.error("Pen requires x,y coordinates")
-        except Exception as e:
-            self.error(f"Pen command failed: {str(e)}")
-
-    def to(self, args: str):
-        """Draw line to position"""
-        try:
-            coords = args.split(',')
-            if len(coords) >= 2:
-                x = self.expr(coords[0].strip())
-                y = self.expr(coords[1].strip())
-                point = AsemicPt(self, x, y)
-                transformed_point = self._apply_current_transform(point)
-
-                # Add both current position and new position to create line
-                self.currentCurve.append(self.lastPoint.clone())
-                self.currentCurve.append(transformed_point)
-
-                self.lastPoint = transformed_point.clone()
-                self.progress.point += 1
-            else:
-                self.error("To requires x,y coordinates")
-        except Exception as e:
-            self.error(f"To command failed: {str(e)}")
 
     def draw(self):
         """Draw current frame"""
@@ -802,7 +654,8 @@ class AsemicParser:
 
                 try:
                     if scene.draw:
-                        scene.draw(self)
+                        # Remove the breakpoint that was causing freezing
+                        self.parse(scene.draw)
 
                     # Finalize current curve into a group
                     if self.currentCurve:
@@ -856,6 +709,51 @@ class AsemicParser:
     def play(self, value: Any):
         """Play command"""
         # TODO: Implement play logic
+        pass
+
+    def scrub(self, value: float):
+        """Scrub to specific time"""
+        self.progress.progress = value
+
+    def error(self, text: str):
+        """Add error message"""
+        if text not in self.output.errors:
+            self.output.errors.append(text)
+
+    def debug(self, slice_val: int = 0) -> str:
+        """Debug output"""
+        def to_fixed(x: float) -> str:
+            return f"{x:.2f}"
+
+        all_curves = [group.flat() for group in self.groups] + \
+            [[[pt.x, pt.y] for pt in self.currentCurve]]
+        curves_text = []
+
+        for curve in all_curves[slice_val:]:
+            points_text = []
+            for point in curve:
+                points_text.append(
+                    f"{to_fixed(point[0])},{to_fixed(point[1])}")
+            curves_text.append(f"[{' '.join(points_text)}]")
+
+        result = '\n'.join(curves_text)
+        self.output.errors.append(result)
+        return result
+
+    def hash(self, n: float) -> float:
+        """Hash function for random generation"""
+        val = math.sin(n) * (43758.5453123 + self.progress.seed)
+        return abs(val - math.floor(val))
+
+    @property
+    def duration(self) -> float:
+        """Get total duration"""
+        return self.totalLength
+
+    def loadFiles(self, files: Dict[str, Any]):
+        """Load external files"""
+        # TODO: Implement file loading
+        pass
         pass
 
     def scrub(self, value: float):

@@ -1,9 +1,10 @@
 import { splitString } from '../../settings'
 import { AsemicFont } from '../../defaultFont'
 import { expand } from 'regex-to-strings'
+import { Parser } from '../Parser'
 
 export class TextMethods {
-  parser: any
+  parser: Parser
 
   // Performance caches
   private fontCache = new Map<string, AsemicFont>()
@@ -14,44 +15,36 @@ export class TextMethods {
   private static readonly BRACKET_REGEX =
     /[^\\]\[([^\]]+[^\\])\](?:\{([^\}]+)\})?/g
 
-  constructor(parser: any) {
+  constructor(parser: Parser) {
     this.parser = parser
   }
 
-  text(token: string, { add = false }: { add?: boolean } = {}) {
-    const font = this.parser.fonts[this.parser.currentFont]
-
-    // Cache key for character replacement
-    const cacheKey = `${token}:${this.parser.progress.seed}`
-    if (this.characterCache.has(cacheKey)) {
-      token = this.characterCache.get(cacheKey)!
-    } else {
-      const originalToken = token
-      // Randomly select one character from each set of brackets for the text
-      token = token.replace(
-        TextMethods.BRACKET_REGEX,
-        (options: string, substring: string, count: string) => {
-          if (count) {
-            const numTimes = parseFloat(count)
-            let newString = ''
-            for (let i = 0; i < numTimes; i++) {
-              this.parser.progress.seed++
-              newString +=
-                substring[Math.floor(this.parser.hash(1) * substring.length)]
-            }
-            return newString
-          } else {
-            this.parser.progress.seed++
-            return substring[Math.floor(this.parser.hash(1) * substring.length)]
-          }
-        }
-      )
-
-      // Cache the result if it's not too large
-      if (originalToken.length < 1000) {
-        this.characterCache.set(cacheKey, token)
-      }
+  text(token: string) {
+    let add = false
+    if (token.startsWith('+')) {
+      add = true
+      token = token.slice(1)
     }
+    const font = this.parser.fonts[this.parser.currentFont]
+    // Randomly select one character from each set of brackets for the text
+    token = token.replace(
+      TextMethods.BRACKET_REGEX,
+      (options: string, substring: string, count: string) => {
+        if (count) {
+          const numTimes = parseFloat(count)
+          let newString = ''
+          for (let i = 0; i < numTimes; i++) {
+            this.parser.progress.seed++
+            newString +=
+              substring[Math.floor(this.parser.hash(1) * substring.length)]
+          }
+          return newString
+        } else {
+          this.parser.progress.seed++
+          return substring[Math.floor(this.parser.hash(1) * substring.length)]
+        }
+      }
+    )
 
     if (font.characters['START'] && !add) {
       font.characters['START']()
@@ -60,13 +53,6 @@ export class TextMethods {
     const tokenLength = token.length
     for (let i = 0; i < tokenLength; i++) {
       const char = token[i]
-
-      if (char === '\n') {
-        if (font.characters['NEWLINE']) {
-          ;(font.characters['NEWLINE'] as any)()
-        }
-        continue
-      }
 
       if (char === '{') {
         const start = i
@@ -83,12 +69,25 @@ export class TextMethods {
 
       this.parser.progress.letter = i / (tokenLength - 1)
 
-      if (!font.characters[char]) {
+      if (char === '\n') {
+        if (font.characters['NEWLINE']) {
+          ;(font.characters['NEWLINE'] as any)()
+        }
+        continue
+      } else if (!font.characters[char]) {
         continue
       }
-      ;(font.characters[char] as any)()
+
       if (font.characters['EACH']) {
         ;(font.characters['EACH'] as any)()
+      }
+      if (font.characters['EACH2']) {
+        this.parser.to('>')
+        ;(font.characters['EACH2'] as any)()
+      }
+      ;(font.characters[char] as any)()
+      if (font.characters['EACH2']) {
+        this.parser.to('<')
       }
     }
 
@@ -99,41 +98,18 @@ export class TextMethods {
     return this.parser
   }
 
-  font(sliced: string) {
-    let chars: AsemicFont['characters'] = {}
-
-    const [name, characterString] = splitString(sliced, /\s/)
-
-    // Check if font is already cached
-    if (this.fontCache.has(name)) {
-      this.parser.currentFont = name
-      this.parser.fonts[name] = this.fontCache.get(name)!
-      return this.parser
-    }
-
-    const characterMatches = this.parser.tokenize(characterString, {
-      separateObject: true
-    })
-    for (let charMatch of characterMatches) {
-      const [name, matches] = splitString(charMatch, '=')
-      chars[name] = () => this.parser.parse(matches)
-    }
-
-    this.processFont(name, chars)
-
-    // Cache the font
+  resetFont(name: string) {
     if (this.parser.fonts[name]) {
-      this.fontCache.set(name, this.parser.fonts[name])
+      this.parser.fonts[name].reset()
     }
-
     return this.parser
   }
 
-  processFont(name: string, chars: AsemicFont['characters']) {
+  font(name: string, chars: AsemicFont['characters']) {
     this.parser.currentFont = name
     if (chars) {
       if (!this.parser.fonts[name]) {
-        this.parser.fonts[name] = new AsemicFont(this.parser, chars as any)
+        this.parser.fonts[name] = new AsemicFont(this.parser, chars)
       } else {
         this.parser.fonts[name].parseCharacters(chars)
       }

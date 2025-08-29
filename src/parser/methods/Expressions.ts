@@ -1,6 +1,6 @@
 import invariant from 'tiny-invariant'
 import { splitStringAt } from '../../settings'
-import { clamp } from 'lodash'
+import { clamp, lastIndexOf } from 'lodash'
 
 export class ExpressionMethods {
   parser: any
@@ -11,8 +11,8 @@ export class ExpressionMethods {
 
   // Cache operator precedence for faster lookup
   private static readonly OPERATORS = [
-    '&&',
-    '^^',
+    '&',
+    '|',
     '^',
     '#',
     '+',
@@ -21,20 +21,37 @@ export class ExpressionMethods {
     '/',
     '%'
   ]
+  private static readonly OPERATOR_REGEX = /([&|^#+\-*/%])/
+  // Cache for operator splits
+  private operatorSplitCache: Record<
+    string,
+    { string: string; operatorType: string }[]
+  > = {}
 
   constructor(parser: any) {
     this.parser = parser
   }
 
-  expr(expr: string | number, replace = true): number {
-    const returnedExpr = this.exprEval(expr, replace)
-    if (Number.isNaN(returnedExpr)) {
-      throw new Error(`Expr ${expr} is NaN`)
+  fastExpr(stringExpr: string) {
+    if (!/[\D\.]/.test(stringExpr)) {
+      const value = parseFloat(stringExpr)
+      if (Number.isNaN(value)) {
+        throw new Error(`Unknown function ${stringExpr}`)
+      }
+      return value
+    } else {
+      // no splits, just parse the float
+      const foundKey = this.parser.sortedKeys.find(x =>
+        stringExpr.startsWith(x)
+      )
+      if (foundKey) {
+        const arg1 = stringExpr.slice(foundKey.length)
+        return this.parser.constants[foundKey](arg1)
+      } else throw new Error(`Unknown function ${stringExpr}`)
     }
-    return returnedExpr
   }
 
-  exprEval(expr: string | number, replace = true): number {
+  expr(expr: string | number, replace = true): number {
     if (expr === undefined || expr === null) {
       throw new Error('undefined or null expression')
     }
@@ -61,113 +78,104 @@ export class ExpressionMethods {
     }
 
     // Optimized parentheses handling
-    const parenIndex = expr.indexOf('(')
-    if (parenIndex !== -1) {
-      let bracket = 1
-      let end = parenIndex + 1
+    let parenIndex = expr.lastIndexOf('(')
+    while (parenIndex !== -1) {
+      let closeParen = expr.indexOf(')', parenIndex + 1)
+      const solvedExpr = expr.substring(parenIndex + 1, closeParen - 1)
+      expr =
+        expr.substring(0, parenIndex) +
+        this.expr(solvedExpr).toFixed(4) +
+        expr.substring(closeParen)
 
-      while (end < expr.length && bracket > 0) {
-        const char = expr[end]
-        if (char === '(') bracket++
-        else if (char === ')') bracket--
-        end++
-      }
-
-      if (bracket === 0) {
-        const solvedExpr = expr.substring(parenIndex + 1, end - 1)
-        return this.expr(
-          expr.substring(0, parenIndex) +
-            this.expr(solvedExpr).toFixed(4) +
-            expr.substring(end)
-        )
-      }
+      parenIndex = expr.lastIndexOf('(')
     }
 
     invariant(typeof expr === 'string')
     let stringExpr = expr as string
 
+    // NO PARENTHESES NOW
+
     // Cache space check
-    const hasSpace = stringExpr.includes(' ')
-    if (hasSpace) {
-      const [funcName, ...args] = this.parser.tokenize(expr, {
-        separatePoints: false
-      })
+    if (stringExpr.includes(' ')) {
+      const [funcName, ...args] = stringExpr.split(' ')
       if (this.parser.constants[funcName]) {
         return this.parser.constants[funcName](...args)
+      } else {
+        throw new Error(`Unknown function ${funcName}`)
       }
-    }
-
-    // Optimized underscore handling
-    if (stringExpr.includes('_')) {
-      const [funcName, ...args] = this.parser.tokenize(expr, {
-        separateFragments: true
-      })
+    } else if (stringExpr.includes('_')) {
+      const [funcName, ...args] = stringExpr.split('_')
 
       const foundKey = this.parser.sortedKeys.find(x => funcName.startsWith(x))
       if (foundKey) {
         const arg1 = funcName.slice(foundKey.length).trim()
         return this.parser.constants[foundKey](arg1, ...args)
+      } else {
+        throw new Error(`Unknown function ${funcName}`)
       }
-    }
+    } else if (!ExpressionMethods.OPERATOR_REGEX.test(stringExpr)) {
+      return this.fastExpr(stringExpr)
+    } else {
+      // Optimized operator parsing - split by operator RegExp, cache, and process
+      let splitResult: { string: string; operatorType: string }[] =
+        this.operatorSplitCache[stringExpr]
+      if (splitResult === undefined) {
+        // Find operator splits in the string
+        splitResult = []
+        let operators = stringExpr.matchAll(ExpressionMethods.OPERATOR_REGEX)
+        let lastIndex = 0
+        while (true) {
+          const { value, done } = operators.next()
+          const [operator] = value
 
-    // Optimized operator parsing - scan right to left for first operator found
-    for (let i = stringExpr.length - 1; i >= 0; i--) {
-      for (const op of ExpressionMethods.OPERATORS) {
-        if (stringExpr[i] === op) {
-          // Skip negative signs that are part of numbers
-          if (op === '-' && i > 0 && '*+/%()#'.includes(stringExpr[i - 1])) {
-            continue
-          }
+          splitResult.push({
+            string: stringExpr.slice(lastIndex, value.index),
+            operatorType: operator
+          })
+          lastIndex = value.index + 1
+          if (done) break
+        }
+        splitResult.push({
+          string: stringExpr.slice(lastIndex),
+          operatorType: 'LAST'
+        })
+        this.operatorSplitCache[stringExpr] = splitResult
+      }
+      invariant(splitResult)
+      let i = splitResult.length - 1
+      let rightVal: number = this.fastExpr(splitResult[i].string)
+      i--
+      // Find the split index for the operator
+      for (; i >= 0; i--) {
+        const result = splitResult[i]
+        const { string, operatorType } = result
+        const leftVal = this.fastExpr(string)
 
-          let operators: [number, number] = splitStringAt(stringExpr, i, 1).map(
-            x => this.expr(x || 0, false)!
-          ) as [number, number]
+        switch (operatorType) {
+          case '&':
+            return string && rightVal ? 1 : 0
+          case '|':
+            return leftVal || rightVal ? 1 : 0
+          case '^':
+            return leftVal ** rightVal
+          case '#':
+            return Math.floor(leftVal / rightVal) * rightVal
 
-          switch (op) {
-            case '&':
-              return operators[0] && operators[1] ? 1 : 0
-            case '|':
-              return operators[0] || operators[1] ? 1 : 0
-            case '^':
-              return operators[0] ** operators[1]
-            case '#':
-              let [round, after] = operators
-              // debugger
-              const afterNum = this.expr(after || 1, false)
-              if (!afterNum) {
-                return this.expr(round, false)
-              } else {
-                return Math.floor(this.expr(round) / afterNum) * afterNum
-              }
-            case '+':
-              return operators[0] + operators[1]
-            case '-':
-              return operators[0] - operators[1]
-            case '*':
-              return operators[0] * operators[1]
-            case '/':
-              return operators[0] / operators[1]
-            case '%':
-              return operators[0] % operators[1]
-          }
+          case '+':
+            return leftVal + rightVal
+          case '-':
+            return leftVal - rightVal
+          case '*':
+            return leftVal * rightVal
+          case '/':
+            return leftVal / rightVal
+          case '%':
+            return leftVal % rightVal
         }
       }
-    }
 
-    // Use cached sortedKeys if available, otherwise compute once
-    if (!this.parser.sortedKeys) {
-      this.parser.sortedKeys = Object.keys(this.parser.constants).sort(
-        (a, b) => b.length - a.length
-      )
+      return rightVal
     }
-
-    const foundKey = this.parser.sortedKeys.find(x => stringExpr.startsWith(x))
-    if (foundKey) {
-      const arg1 = expr.slice(foundKey.length).trim()
-      return this.parser.constants[foundKey](arg1)
-    }
-
-    throw new Error(`Unknown function ${expr}`)
   }
 
   choose(value0To1: string | number, ...callbacks: (() => void)[]) {

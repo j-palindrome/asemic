@@ -61,40 +61,40 @@ export class TransformMethods {
         thisTransform.scale.set([1, 1])
         thisTransform.translation.set([0, 0])
         thisTransform.rotation = 0
-        thisTransform.a = '1'
-        thisTransform.h = '0'
-        thisTransform.s = '0'
-        thisTransform.l = '1'
-        thisTransform.width = '1'
+        thisTransform.a = 1
+        thisTransform.h = 0
+        thisTransform.s = 0
+        thisTransform.l = 1
+        thisTransform.width = 1
         thisTransform.add = undefined
         thisTransform.rotate = undefined
-      } else if (transform.startsWith('*<')) {
+      } else if (transform === '*<') {
         const lastTransform = last(this.parser.transformStack) as
           | Transform
           | undefined
         thisTransform.scale.set(lastTransform?.scale ?? [1, 1])
-      } else if (transform.startsWith('+<')) {
+      } else if (transform === '+<') {
         const lastTransform = last(this.parser.transformStack) as
           | Transform
           | undefined
         thisTransform.translation.set(lastTransform?.translation ?? [0, 0])
-      } else if (transform.startsWith('@<')) {
+      } else if (transform === '@<') {
         const lastTransform = last(this.parser.transformStack) as
           | Transform
           | undefined
         thisTransform.rotation = lastTransform?.rotation ?? 0
-      } else if (transform.startsWith('*!')) {
+      } else if (transform === '*!') {
         // Reset scale
         thisTransform.scale.set([1, 1])
-      } else if (transform.startsWith('@!')) {
+      } else if (transform === '@!') {
         // Reset rotation
         thisTransform.rotation = 0
-      } else if (transform.startsWith('+!')) {
+      } else if (transform === '+!') {
         // Reset translation
         thisTransform.translation.set([0, 0])
-      } else if (transform.startsWith('+=>')) {
+      } else if (transform === '+=>') {
         thisTransform.add = transform.substring(3)
-      } else if (transform.startsWith('@=>')) {
+      } else if (transform === '@=>') {
         thisTransform.rotate = transform.substring(3)
       } else if (transform.match(TransformMethods.SCALE_REGEX)) {
         // Scale - use pre-compiled regex
@@ -124,21 +124,16 @@ export class TransformMethods {
         if (keyCall) {
           const key = keyCall[1]
           const value = keyCall[2]
-          switch (key) {
-            case 'width':
-            case 'w':
-            case 'wid':
-              thisTransform.width = value
-              break
-            default:
-              if (value.includes(',')) {
-                thisTransform[key] = this.parser.evalPoint(value, {
-                  basic: true
-                })
-              } else {
-                thisTransform[key] = value
-              }
-              break
+          if (value.includes(',')) {
+            thisTransform[key] = this.parser.evalPoint(value, {
+              basic: true
+            })
+          } else {
+            if (key === 'w') {
+              thisTransform.width = this.parser.expr(value)
+            } else {
+              thisTransform[key] = this.parser.expr(value)
+            }
           }
         }
       }

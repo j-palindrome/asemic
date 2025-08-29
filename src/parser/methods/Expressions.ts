@@ -203,8 +203,12 @@ export class ExpressionMethods {
     }
 
     const solvedDefinition = this.expr(definition)
-
     this.parser.constants[key] = () => solvedDefinition
+
+    if (!this.parser.sortedKeys.includes(key))
+      this.parser.sortedKeys = Object.keys(this.parser.constants).sort(
+        (a, b) => b.length - a.length
+      )
 
     return this.parser
   }

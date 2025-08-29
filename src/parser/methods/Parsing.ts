@@ -230,15 +230,20 @@ export class ParsingMethods {
       ) as K extends true ? BasicPt : AsemicPt
     } else if (point.startsWith('<')) {
       const groupIndex = this.parser.groups.length - 1
-      let [pointN, thisN = -1] = this.parser.tokenize(point.slice(1), {
+      let [pointN, thisN] = this.parser.tokenize(point.slice(1), {
         separatePoints: true
       })
-      const exprN = this.parser.expr(thisN)
-      const lastCurve =
-        this.parser.groups[groupIndex][
-          exprN < 0 ? this.parser.groups[groupIndex].length + exprN : exprN
-        ]
-      if (!lastCurve) throw new Error(`No curve at ${exprN}`)
+      let lastCurve: AsemicPt[]
+      if (thisN === undefined) {
+        lastCurve = this.parser.currentCurve
+      } else {
+        const exprN = this.parser.expr(thisN)
+        lastCurve =
+          this.parser.groups[groupIndex][
+            exprN < 0 ? this.parser.groups[groupIndex].length + exprN : exprN
+          ]
+      }
+      if (!lastCurve) throw new Error(`No curve at ${thisN}`)
       return this.parser.reverseTransform(
         this.parser.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
       )

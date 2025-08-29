@@ -163,23 +163,20 @@ export class DrawingMethods {
     return this.parser
   }
 
-  seq(argsStr: string) {
-    const args = this.parser.tokenize(argsStr)
-    const count = this.parser.expr(args[0])
-    const expression = args[1]
-
-    // Pre-allocate array with known size
-    const points: AsemicPt[] = new Array(count)
-    const divisor = count - 1 || 1
-
-    for (let i = 0; i < count; i++) {
-      this.parser.progress.point = i / divisor
-      const value = this.parser.expr(expression)
-      points[i] = new AsemicPt(this.parser, value, value)
+  seq(
+    countA: string,
+    expressionA: string,
+    { closed = false, end = true }: { closed?: boolean; end?: boolean } = {}
+  ) {
+    this.parser.repeat(countA, () => {
+      this.parser.points(expressionA)
+    })
+    if (closed) {
+      this.parser.currentCurve.push(this.parser.currentCurve[0].clone())
     }
-
-    this.parser.currentCurve.push(...points)
-    this.parser.end()
+    if (end) {
+      this.parser.end()
+    }
     return this.parser
   }
 

@@ -44,11 +44,11 @@ export type Transform = {
   rotation: number
   add?: string
   rotate?: string
-  width: string
-  h: string
-  s: string
-  l: string
-  a: string
+  width: number
+  h: number
+  s: number
+  l: number
+  a: number
 }
 export type FlatTransform = {
   scale: BasicPt

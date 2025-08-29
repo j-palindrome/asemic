@@ -24,6 +24,7 @@ import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
+import { l } from 'node_modules/react-router/dist/development/lib-C1JSsICm.mjs'
 
 type ExprFunc = (() => void) | string
 
@@ -148,7 +149,7 @@ export class Parser {
       Hpx: () => this.preProcessing.height,
       Wpx: () => this.preProcessing.height,
       S: () => this.progress.scrubTime,
-      C: () => this.progress.curve,
+      C: () => this.groups[this.groups.length - 1].length,
       L: () => this.progress.letter,
       P: () => this.progress.point,
       px: () => 1 / this.preProcessing.width,
@@ -211,6 +212,66 @@ export class Parser {
         this.noiseIndex++
 
         return noise
+      },
+      tangent: (progress, curve) => {
+        let lastCurve: AsemicPt[]
+        if (!curve) {
+          lastCurve = this.currentCurve
+        } else {
+          const exprN = this.expr(curve)
+          lastCurve =
+            this.groups[this.groups.length - 1][
+              exprN < 0
+                ? this.groups[this.groups.length - 1].length + exprN
+                : exprN
+            ]
+        }
+
+        if (!lastCurve || lastCurve.length < 3) {
+          return new AsemicPt(this as any, 0, 0)
+        }
+
+        let exprFade = this.expr(progress)
+        if (exprFade >= 1) exprFade = 0.999
+        else if (exprFade < 0) exprFade = 0
+
+        let index = (lastCurve.length - 2) * exprFade
+        let start = Math.floor(index)
+        const localT = index % 1
+
+        // Get control points for this segment
+        const p0 = lastCurve[start]
+        const p1 = lastCurve[start + 1]
+        const p2 = lastCurve[start + 2]
+
+        // Quadratic Bezier tangent: derivative of B(t) = (1-t)²P₀ + 2(1-t)tP₁ + t²P₂
+        // B'(t) = 2(1-t)(P₁ - P₀) + 2t(P₂ - P₁)
+        const tangentX =
+          2 * (1 - localT) * (p1.x - p0.x) + 2 * localT * (p2.x - p1.x)
+        const tangentY =
+          2 * (1 - localT) * (p1.y - p0.y) + 2 * localT * (p2.y - p1.y)
+
+        // Normalize the tangent vector
+        const magnitude = Math.sqrt(tangentX * tangentX + tangentY * tangentY)
+        if (magnitude === 0) {
+          return 0
+        }
+
+        const normalizedTangentX = tangentX / magnitude
+        const normalizedTangentY = tangentY / magnitude
+
+        // Calculate angle in radians and normalize to 0-1
+        const angle = Math.atan2(normalizedTangentY, normalizedTangentX)
+        const normalizedAngle = (angle + Math.PI) / (2 * Math.PI)
+
+        return normalizedAngle
+      },
+      hash: x => {
+        const val = Math.sin(
+          this.expr(x || 'C') * (43758.5453123 + this.progress.seed)
+        )
+        const hash = (val + 1) / 2
+        return hash
       }
     }
 

@@ -4,7 +4,7 @@ import AsemicVisual from './renderers/AsemicVisual'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import { Parser } from './parser/Parser'
-import { noise } from './hydra-compiler/index-fragment'
+import { noise } from './hydra-compiler'
 
 let parser: Parser = new Parser()
 let renderer: AsemicVisual

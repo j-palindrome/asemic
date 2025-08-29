@@ -1,12 +1,1 @@
-export { Hydra } from './src/Hydra';
-export { Source } from './src/Source';
-export { Output } from './src/Output';
-export * as generators from './src/glsl';
-export {
-  generatorTransforms as defaultGenerators,
-  modifierTransforms as defaultModifiers,
-} from './src/glsl/transformDefinitions';
-export {
-  createGenerators,
-  createTransformChainClass,
-} from './src/glsl/createGenerators';
+export { gradient, noise, osc, shape, solid, src, voronoi } from './src/glsl'

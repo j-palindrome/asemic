@@ -1,58 +1,58 @@
 import {
   ProcessedTransformDefinition,
   TransformDefinition,
-  TransformDefinitionType,
-} from './transformDefinitions.js';
-import { Glsl } from './Glsl';
-import ImmutableList from './ImmutableList.js';
+  TransformDefinitionType
+} from './transformDefinitions.js'
+import { Glsl } from './Glsl'
+import ImmutableList from './ImmutableList.js'
 
-type Generator = (...args: unknown[]) => Glsl;
+type Generator = (...args: unknown[]) => Glsl
 
 export function createTransformChainClass<
-  T extends readonly TransformDefinition[],
+  T extends readonly TransformDefinition[]
 >(modifierTransforms: T): typeof Glsl {
-  const sourceClass = class extends Glsl {};
+  const sourceClass = class extends Glsl {}
 
   for (const transform of modifierTransforms) {
-    const processed = processGlsl(transform);
+    const processed = processGlsl(transform)
 
-    addTransformChainMethod(sourceClass, processed);
+    addTransformChainMethod(sourceClass, processed)
   }
 
-  return sourceClass;
+  return sourceClass
 }
 
 export function createGenerator(
   generatorTransform: TransformDefinition,
-  TransformChainClass: typeof Glsl,
+  TransformChainClass: typeof Glsl
 ): Generator {
-  const processed = processGlsl(generatorTransform);
+  const processed = processGlsl(generatorTransform)
 
   return (...args: unknown[]) =>
     new TransformChainClass(
       new ImmutableList({
         transform: processed,
-        userArgs: args,
-      }),
-    );
+        userArgs: args
+      })
+    )
 }
 
 export function createGenerators(
   generatorTransforms: readonly TransformDefinition[],
-  sourceClass: typeof Glsl,
+  sourceClass: typeof Glsl
 ): Record<string, Generator> {
-  const generatorMap: Record<string, Generator> = {};
+  const generatorMap: Record<string, Generator> = {}
 
   for (const transform of generatorTransforms) {
-    generatorMap[transform.name] = createGenerator(transform, sourceClass);
+    generatorMap[transform.name] = createGenerator(transform, sourceClass)
   }
 
-  return generatorMap;
+  return generatorMap
 }
 
 export function addTransformChainMethod(
   cls: typeof Glsl,
-  processedTransformDefinition: ProcessedTransformDefinition,
+  processedTransformDefinition: ProcessedTransformDefinition
 ) {
   function addTransformApplicationToInternalChain(
     this: Glsl,
@@ -60,15 +60,15 @@ export function addTransformChainMethod(
   ): Glsl {
     const transform = {
       transform: processedTransformDefinition,
-      userArgs: args,
-    };
+      userArgs: args
+    }
 
-    return new cls(this.transforms.append(transform));
+    return new cls(this.transforms.append(transform))
   }
 
   // @ts-ignore
   cls.prototype[processedTransformDefinition.name] =
-    addTransformApplicationToInternalChain;
+    addTransformApplicationToInternalChain
 }
 
 const typeLookup: Record<
@@ -77,45 +77,45 @@ const typeLookup: Record<
 > = {
   src: {
     returnType: 'vec4',
-    implicitFirstArg: 'vec2 _st',
+    implicitFirstArg: 'vec2 _st'
   },
   coord: {
     returnType: 'vec2',
-    implicitFirstArg: 'vec2 _st',
+    implicitFirstArg: 'vec2 _st'
   },
   color: {
     returnType: 'vec4',
-    implicitFirstArg: 'vec4 _c0',
+    implicitFirstArg: 'vec4 _c0'
   },
   combine: {
     returnType: 'vec4',
-    implicitFirstArg: 'vec4 _c0',
+    implicitFirstArg: 'vec4 _c0'
   },
   combineCoord: {
     returnType: 'vec2',
-    implicitFirstArg: 'vec2 _st',
-  },
-};
+    implicitFirstArg: 'vec2 _st'
+  }
+}
 
 export function processGlsl(
-  transformDefinition: TransformDefinition,
+  transformDefinition: TransformDefinition
 ): ProcessedTransformDefinition {
-  const { implicitFirstArg, returnType } = typeLookup[transformDefinition.type];
+  const { implicitFirstArg, returnType } = typeLookup[transformDefinition.type]
 
   const signature = [
     implicitFirstArg,
-    ...transformDefinition.inputs.map((input) => `${input.type} ${input.name}`),
-  ].join(', ');
+    ...transformDefinition.inputs.map(input => `${input.type} ${input.name}`)
+  ].join(', ')
 
   const glslFunction = `
   ${returnType} ${transformDefinition.name}(${signature}) {
       ${transformDefinition.glsl}
   }
-`;
+`
 
   return {
     ...transformDefinition,
     glsl: glslFunction,
-    processed: true,
-  };
+    processed: true
+  }
 }

@@ -63,7 +63,6 @@
     "react-dom": "^19.1.0",
     "react-router": "^7.6.2",
     "regex-to-strings": "^2.1.0",
-    "regl": "^2.1.1",
     "sharp": "^0.34.3",
     "simplex-noise": "^4.0.3",
     "socket.io": "^4.8.1",

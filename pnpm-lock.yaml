@@ -77,9 +77,6 @@ importers:
       regex-to-strings:
         specifier: ^2.1.0
         version: 2.1.0
-      regl:
-        specifier: ^2.1.1
-        version: 2.1.1
       sharp:
         specifier: ^0.34.3
         version: 0.34.3
@@ -3872,9 +3869,6 @@ packages:
   regexpp@3.2.0:
     resolution: {integrity: sha512-pq2bWo9mVD43nbts2wGv17XLiNLya+GklZ8kaDLV2Z08gDCsGpnKn9BFMepvWuHCbyVvY7J5o5+BVvoQbmlJLg==}
     engines: {node: '>=8'}
-
-  regl@2.1.1:
-    resolution: {integrity: sha512-+IOGrxl3FZ8ZM9ixCWQZzFRiRn7Rzn9bu3iFHwg/yz4tlOUQgbO4PHLgG+1ZT60zcIV8tief6Qrmyl8qcoJP0g==}
 
   remove-trailing-separator@1.1.0:
     resolution: {integrity: sha512-/hS+Y0u3aOfIETiaiirUFwDBDzmXPvO+jAfKTitUngIPzdKc6Z0LoFjM/CK5PL4C+eKwHohlHAb6H0VFfmmUsw==}
@@ -8579,8 +8573,6 @@ snapshots:
   regexp-tree@0.1.27: {}
 
   regexpp@3.2.0: {}
-
-  regl@2.1.1: {}
 
   remove-trailing-separator@1.1.0: {}
 

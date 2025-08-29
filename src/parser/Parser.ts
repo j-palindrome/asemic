@@ -228,7 +228,7 @@ export class Parser {
         }
 
         if (!lastCurve || lastCurve.length < 3) {
-          return new AsemicPt(this as any, 0, 0)
+          return 0
         }
 
         let exprFade = this.expr(progress)
@@ -275,7 +275,6 @@ export class Parser {
       }
     }
 
-  sortedKeys: string[] = Object.keys(this.constants).sort(x => x.length - 1)
   reservedConstants = Object.keys(this.constants)
   fonts: Record<string, AsemicFont> = {
     default: new DefaultFont(this as any)
@@ -328,7 +327,7 @@ export class Parser {
     const methodClasses = [
       {
         instance: this.expressions,
-        methods: ['expr', 'exprEval', 'choose', 'def', 'defStatic']
+        methods: ['expr', 'choose', 'def', 'defStatic']
       },
       {
         instance: this.drawing,
@@ -390,7 +389,6 @@ export class Parser {
 
   // Method declarations for TypeScript compatibility
   expr!: ExpressionMethods['expr']
-  exprEval!: ExpressionMethods['exprEval']
   choose!: ExpressionMethods['choose']
   def!: ExpressionMethods['def']
   defStatic!: ExpressionMethods['defStatic']
@@ -577,7 +575,6 @@ export class Parser {
     this.output.resetPresets = true
     try {
       setupFunction(source)
-      this.sortedKeys = Object.keys(this.constants).sort(x => x.length * -1)
     } catch (e: any) {
       this.output.errors.push(`Setup failed: ${e.message}`)
     }

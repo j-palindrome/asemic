@@ -18,20 +18,9 @@ export class ParsingMethods {
   private static readonly UNDERSCORE_REGEX = /^\_/
   private static readonly SEMICOLON_REGEX = /^\;/
 
-  // Object pool for BasicPt to reduce allocations
-  private basicPtPool: BasicPt[] = []
-
   constructor(parser: Parser) {
     this.parser = parser
   }
-
-  private getBasicPt(x: number, y: number): BasicPt {
-    const pt = this.basicPtPool.pop() || new BasicPt(0, 0)
-    pt.x = x
-    pt.y = y
-    return pt
-  }
-
   tokenize(
     source: string | number,
     {
@@ -225,9 +214,10 @@ export class ParsingMethods {
         .map((X: string) => this.parser.expr(X))
       result = (
         basic
-          ? this.getBasicPt(radius, 0).rotate(theta)
+          ? new BasicPt(radius, 0).rotate(theta)
           : new AsemicPt(this.parser, radius, 0).rotate(theta)
       ) as K extends true ? BasicPt : AsemicPt
+      // debugger
     } else if (point.startsWith('<')) {
       const groupIndex = this.parser.groups.length - 1
       let [pointN, thisN] = this.parser.tokenize(point.slice(1), {
@@ -242,8 +232,8 @@ export class ParsingMethods {
           this.parser.groups[groupIndex][
             exprN < 0 ? this.parser.groups[groupIndex].length + exprN : exprN
           ]
+        if (!lastCurve) throw new Error(`No curve at ${thisN} - ${exprN}`)
       }
-      if (!lastCurve) throw new Error(`No curve at ${thisN}`)
       return this.parser.reverseTransform(
         this.parser.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
       )
@@ -262,14 +252,14 @@ export class ParsingMethods {
           const coord = this.parser.expr(parts[0])!
           result = (
             basic
-              ? this.getBasicPt(coord, coord)
+              ? new BasicPt(coord, coord)
               : new AsemicPt(this.parser, coord, coord)
           ) as K extends true ? BasicPt : AsemicPt
         } else {
           const coords = parts.map((x: string) => this.parser.expr(x)!)
           result = (
             basic
-              ? this.getBasicPt(coords[0], coords[1])
+              ? new BasicPt(coords[0], coords[1])
               : new AsemicPt(this.parser, ...coords)
           ) as K extends true ? BasicPt : AsemicPt
         }
@@ -347,15 +337,13 @@ export class ParsingMethods {
   clearCaches() {
     this.tokenizeCache.clear()
     this.regexCache.clear()
-    this.basicPtPool.length = 0
   }
 
   // Get cache statistics for monitoring
   getCacheStats() {
     return {
       tokenizeCache: this.tokenizeCache.size,
-      regexCache: this.regexCache.size,
-      basicPtPool: this.basicPtPool.length
+      regexCache: this.regexCache.size
     }
   }
 }

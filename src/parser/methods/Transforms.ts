@@ -41,103 +41,141 @@ export class TransformMethods {
     token = token.trim()
     const transforms = this.parser.tokenize(token)
 
-    transforms.forEach((transform: string) => {
-      if (transform.startsWith('<')) {
-        if (transform.slice(1)) {
-          const name = transform.slice(1)
-          Object.assign(thisTransform, this.parser.namedTransforms[name])
-        } else {
-          Object.assign(thisTransform, this.parser.transformStack.pop())
-        }
-      } else if (transform.startsWith('>')) {
-        if (transform.slice(1)) {
-          const name = transform.slice(1)
-          this.parser.namedTransforms[name] = cloneTransform(thisTransform)
-        } else {
-          this.parser.transformStack.push(cloneTransform(thisTransform))
-        }
-      } else if (transform === '!') {
-        // Reset all transformations
-        thisTransform.scale.set([1, 1])
-        thisTransform.translation.set([0, 0])
-        thisTransform.rotation = 0
-        thisTransform.a = 1
-        thisTransform.h = 0
-        thisTransform.s = 0
-        thisTransform.l = 1
-        thisTransform.width = 1
-        thisTransform.add = undefined
-        thisTransform.rotate = undefined
-      } else if (transform === '*<') {
-        const lastTransform = last(this.parser.transformStack) as
-          | Transform
-          | undefined
-        thisTransform.scale.set(lastTransform?.scale ?? [1, 1])
-      } else if (transform === '+<') {
-        const lastTransform = last(this.parser.transformStack) as
-          | Transform
-          | undefined
-        thisTransform.translation.set(lastTransform?.translation ?? [0, 0])
-      } else if (transform === '@<') {
-        const lastTransform = last(this.parser.transformStack) as
-          | Transform
-          | undefined
-        thisTransform.rotation = lastTransform?.rotation ?? 0
-      } else if (transform === '*!') {
-        // Reset scale
-        thisTransform.scale.set([1, 1])
-      } else if (transform === '@!') {
-        // Reset rotation
-        thisTransform.rotation = 0
-      } else if (transform === '+!') {
-        // Reset translation
-        thisTransform.translation.set([0, 0])
-      } else if (transform === '+=>') {
-        thisTransform.add = transform.substring(3)
-      } else if (transform === '@=>') {
-        thisTransform.rotate = transform.substring(3)
-      } else if (transform.match(TransformMethods.SCALE_REGEX)) {
-        // Scale - use pre-compiled regex
-        const match = transform.match(TransformMethods.SCALE_REGEX)
-        if (match) {
-          thisTransform.scale.scale(this.parser.evalPoint(match[2]))
-        }
-      } else if (transform.match(TransformMethods.ROTATION_REGEX)) {
-        // Rotation - use pre-compiled regex
-        const match = transform.match(TransformMethods.ROTATION_REGEX)
-        if (match) {
-          thisTransform.rotation += this.parser.expr(match[2])!
-        }
-      } else if (transform.match(TransformMethods.TRANSLATION_REGEX)) {
-        // Translation - use pre-compiled regex
-        const match = transform.match(TransformMethods.TRANSLATION_REGEX)
-        if (match) {
-          thisTransform.translation.add(
-            this.parser
-              .evalPoint(match[2])
-              .scale(thisTransform.scale)
-              .rotate(thisTransform.rotation)
-          )
-        }
-      } else {
-        const keyCall = transform.match(TransformMethods.KEY_CALL_REGEX)
-        if (keyCall) {
-          const key = keyCall[1]
-          const value = keyCall[2]
-          if (value.includes(',')) {
-            thisTransform[key] = this.parser.evalPoint(value, {
-              basic: true
-            })
+    for (let transform of transforms) {
+      // Check for special character prefixes first
+      const firstChar = transform[0]
+      const restOfTransform = transform.slice(1)
+
+      switch (firstChar) {
+        case '<':
+          if (restOfTransform) {
+            Object.assign(
+              thisTransform,
+              this.parser.namedTransforms[restOfTransform]
+            )
           } else {
-            if (key === 'w') {
-              thisTransform.width = this.parser.expr(value)
-            } else {
-              thisTransform[key] = this.parser.expr(value)
-            }
+            Object.assign(thisTransform, this.parser.transformStack.pop())
           }
-        }
+          break
+
+        case '>':
+          if (restOfTransform) {
+            this.parser.namedTransforms[restOfTransform] =
+              cloneTransform(thisTransform)
+          } else {
+            this.parser.transformStack.push(cloneTransform(thisTransform))
+          }
+          break
+
+        default:
+          // Handle multi-character tokens and regex matches
+          switch (transform) {
+            case '!':
+              // Reset all transformations
+              thisTransform.scale.set([1, 1])
+              thisTransform.translation.set([0, 0])
+              thisTransform.rotation = 0
+              thisTransform.a = 1
+              thisTransform.h = 0
+              thisTransform.s = 0
+              thisTransform.l = 1
+              thisTransform.width = 1
+              thisTransform.add = undefined
+              thisTransform.rotate = undefined
+              break
+
+            case '*<':
+              const lastTransformScale = last(this.parser.transformStack) as
+                | Transform
+                | undefined
+              thisTransform.scale.set(lastTransformScale?.scale ?? [1, 1])
+              break
+
+            case '+<':
+              const lastTransformTranslation = last(
+                this.parser.transformStack
+              ) as Transform | undefined
+              thisTransform.translation.set(
+                lastTransformTranslation?.translation ?? [0, 0]
+              )
+              break
+
+            case '@<':
+              const lastTransformRotation = last(this.parser.transformStack) as
+                | Transform
+                | undefined
+              thisTransform.rotation = lastTransformRotation?.rotation ?? 0
+              break
+
+            case '*!':
+              // Reset scale
+              thisTransform.scale.set([1, 1])
+              break
+
+            case '@!':
+              // Reset rotation
+              thisTransform.rotation = 0
+              break
+
+            case '+!':
+              // Reset translation
+              thisTransform.translation.set([0, 0])
+              break
+
+            default:
+              // Handle regex patterns and key-value pairs
+              if (transform.startsWith('+=>')) {
+                thisTransform.add = transform.substring(3)
+              } else if (transform.startsWith('@=>')) {
+                thisTransform.rotate = transform.substring(3)
+              } else if (transform.match(TransformMethods.SCALE_REGEX)) {
+                // Scale - use pre-compiled regex
+                const match = transform.match(TransformMethods.SCALE_REGEX)
+                if (match) {
+                  thisTransform.scale.scale(this.parser.evalPoint(match[2]))
+                }
+              } else if (transform.match(TransformMethods.ROTATION_REGEX)) {
+                // Rotation - use pre-compiled regex
+                const match = transform.match(TransformMethods.ROTATION_REGEX)
+                if (match) {
+                  thisTransform.rotation += this.parser.expr(match[2])!
+                }
+              } else if (transform.match(TransformMethods.TRANSLATION_REGEX)) {
+                // Translation - use pre-compiled regex
+                const match = transform.match(
+                  TransformMethods.TRANSLATION_REGEX
+                )
+                if (match) {
+                  thisTransform.translation.add(
+                    this.parser
+                      .evalPoint(match[2])
+                      .scale(thisTransform.scale)
+                      .rotate(thisTransform.rotation)
+                  )
+                }
+              } else {
+                const keyCall = transform.match(TransformMethods.KEY_CALL_REGEX)
+                if (keyCall) {
+                  const key = keyCall[1]
+                  const value = keyCall[2]
+                  if (value.includes(',')) {
+                    thisTransform[key] = this.parser.evalPoint(value, {
+                      basic: true
+                    })
+                  } else {
+                    if (key === 'w') {
+                      thisTransform.width = this.parser.expr(value)
+                    } else {
+                      thisTransform[key] = this.parser.expr(value)
+                    }
+                  }
+                }
+              }
+              break
+          }
+          break
       }
-    })
+    }
 
     return thisTransform
   }

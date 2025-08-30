@@ -130,7 +130,33 @@ export const generatorTransforms = [
         default: 0.1
       }
     ],
-    glsl: `   return vec4(vec3(_noise(vec3(_st*scale, offset*time))), 1.0);`
+    glsl: `var color: vec3<f32> = vec3<f32>(0.);
+	_st = _st * (scale);
+	let i_st: vec2<f32> = floor(_st);
+	let f_st: vec2<f32> = fract(_st);
+	var m_dist: f32 = 10.;
+	var m_point: vec2<f32>;
+
+	for (var j: i32 = -1; j <= 1; j = j + 1) {
+
+		for (var i: i32 = -1; i <= 1; i = i + 1) {
+			let neighbor: vec2<f32> = vec2<f32>(f32(i), f32(j));
+			let p: vec2<f32> = i_st + neighbor;
+			var point: vec2<f32> = fract(sin(vec2<f32>(dot(p, vec2<f32>(127.1, 311.7)), dot(p, vec2<f32>(269.5, 183.3)))) * 43758.547);
+			point = 0.5 + 0.5 * sin(time * speed + 6.2831 * point);
+			let diff: vec2<f32> = neighbor + point - f_st;
+			let dist: f32 = length(diff);
+			if (dist < m_dist) {
+				m_dist = dist;
+				m_point = point;
+			}
+		}
+
+	}
+
+	color = color + (dot(m_point, vec2<f32>(0.3, 0.6)));
+	color = color * (1. - blending * m_dist);
+	return vec4<f32>(color, 1.);`
   },
   {
     name: 'voronoi',
@@ -152,32 +178,33 @@ export const generatorTransforms = [
         default: 0.3
       }
     ],
-    glsl: `   vec3 color = vec3(.0);
-   // Scale
-   _st *= scale;
-   // Tile the space
-   vec2 i_st = floor(_st);
-   vec2 f_st = fract(_st);
-   float m_dist = 10.;  // minimun distance
-   vec2 m_point;        // minimum point
-   for (int j=-1; j<=1; j++ ) {
-   for (int i=-1; i<=1; i++ ) {
-   vec2 neighbor = vec2(float(i),float(j));
-   vec2 p = i_st + neighbor;
-   vec2 point = fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
-   point = 0.5 + 0.5*sin(time*speed + 6.2831*point);
-   vec2 diff = neighbor + point - f_st;
-   float dist = length(diff);
-   if( dist < m_dist ) {
-   m_dist = dist;
-   m_point = point;
-   }
-   }
-   }
-   // Assign a color using the closest point position
-   color += dot(m_point,vec2(.3,.6));
-   color *= 1.0 - blending*m_dist;
-   return vec4(color, 1.0);`
+    glsl: `	var color: vec3<f32> = vec3<f32>(0.);
+	_st = _st * (scale);
+	let i_st: vec2<f32> = floor(_st);
+	let f_st: vec2<f32> = fract(_st);
+	var m_dist: f32 = 10.;
+	var m_point: vec2<f32>;
+
+	for (var j: i32 = -1; j <= 1; j = j + 1) {
+
+		for (var i: i32 = -1; i <= 1; i = i + 1) {
+			let neighbor: vec2<f32> = vec2<f32>(f32(i), f32(j));
+			let p: vec2<f32> = i_st + neighbor;
+			var point: vec2<f32> = fract(sin(vec2<f32>(dot(p, vec2<f32>(127.1, 311.7)), dot(p, vec2<f32>(269.5, 183.3)))) * 43758.547);
+			point = 0.5 + 0.5 * sin(time * speed + 6.2831 * point);
+			let diff: vec2<f32> = neighbor + point - f_st;
+			let dist: f32 = length(diff);
+			if (dist < m_dist) {
+				m_dist = dist;
+				m_point = point;
+			}
+		}
+
+	}
+
+	color = color + (dot(m_point, vec2<f32>(0.3, 0.6)));
+	color = color * (1. - blending * m_dist);
+	return vec4<f32>(color, 1.);`
   },
   {
     name: 'osc',
@@ -199,11 +226,11 @@ export const generatorTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 st = _st;
-   float r = sin((st.x-offset/frequency+time*sync)*frequency)*0.5  + 0.5;
-   float g = sin((st.x+time*sync)*frequency)*0.5 + 0.5;
-   float b = sin((st.x+offset/frequency+time*sync)*frequency)*0.5  + 0.5;
-   return vec4(r, g, b, 1.0);`
+    glsl: `let st: vec2<f32> = _st;
+	let r: f32 = sin((st.x - offset / frequency + time * sync) * frequency) * 0.5 + 0.5;
+	let g: f32 = sin((st.x + time * sync) * frequency) * 0.5 + 0.5;
+	let b: f32 = sin((st.x + offset / frequency + time * sync) * frequency) * 0.5 + 0.5;
+	return vec4<f32>(r, g, b, 1.);`
   },
   {
     name: 'shape',
@@ -225,12 +252,11 @@ export const generatorTransforms = [
         default: 0.01
       }
     ],
-    glsl: `   vec2 st = _st * 2. - 1.;
-   // Angle and radius from the current pixel
-   float a = atan(st.x,st.y)+3.1416;
-   float r = (2.*3.1416)/sides;
-   float d = cos(floor(.5+a/r)*r-a)*length(st);
-   return vec4(vec3(1.0-smoothstep(radius,radius + smoothing + 0.0000001,d)), 1.0);`
+    glsl: `let st: vec2<f32> = _st * 2. - 1.;
+	let a: f32 = atan(st.x, st.y) + 3.1416;
+	let r: f32 = 2. * 3.1416 / sides;
+	let d: f32 = cos(floor(0.5 + a / r) * r - a) * length(st);
+	return vec4<f32>(vec3<f32>(1. - smoothstep(radius, radius + smoothing + 0.0000001, d)), 1.);`
   },
   {
     name: 'gradient',
@@ -242,7 +268,7 @@ export const generatorTransforms = [
         default: 0
       }
     ],
-    glsl: `   return vec4(_st, sin(time*speed), 1.0);`
+    glsl: `	return vec4<f32>(_st, sin(time * speed), 1.);`
   },
   {
     name: 'src',
@@ -254,7 +280,7 @@ export const generatorTransforms = [
         default: NaN
       }
     ],
-    glsl: `return texture2D(tex, fract(_st));`
+    glsl: `	return texture2D(tex, fract(_st));`
   },
   {
     name: 'solid',
@@ -281,7 +307,7 @@ export const generatorTransforms = [
         default: 1
       }
     ],
-    glsl: `   return vec4(r, g, b, a);`
+    glsl: `return vec4<f32>(r, g, b, a);`
   }
 ] as const
 
@@ -301,11 +327,11 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 xy = _st - vec2(0.5);
-   float ang = angle + speed *time;
-   xy = mat2(cos(ang),-sin(ang), sin(ang),cos(ang))*xy;
-   xy += 0.5;
-   return xy;`
+    glsl: `var xy: vec2<f32> = _st - vec2<f32>(0.5);
+	let ang: f32 = angle + speed * time;
+	xy = mat2x2<f32>(cos(ang), -sin(ang), sin(ang), cos(ang)) * xy;
+	xy = xy + (0.5);
+	return xy;`
   },
   {
     name: 'scale',
@@ -337,10 +363,10 @@ export const modifierTransforms = [
         default: 0.5
       }
     ],
-    glsl: `   vec2 xy = _st - vec2(offsetX, offsetY);
-   xy*=(1.0/vec2(amount*xMult, amount*yMult));
-   xy+=vec2(offsetX, offsetY);
-   return xy;
+    glsl: `var xy: vec2<f32> = _st - vec2<f32>(offsetX, offsetY);
+	xy = xy * (1. / vec2<f32>(amount * xMult, amount * yMult));
+	xy = xy + (vec2<f32>(offsetX, offsetY));
+	return xy;
    `
   },
   {
@@ -358,8 +384,8 @@ export const modifierTransforms = [
         default: 20
       }
     ],
-    glsl: `   vec2 xy = vec2(pixelX, pixelY);
-   return (floor(_st * xy) + 0.5)/xy;`
+    glsl: `let xy: vec2<f32> = vec2<f32>(pixelX, pixelY);
+	return (floor(_st * xy) + 0.5) / xy;`
   },
   {
     name: 'posterize',
@@ -376,12 +402,12 @@ export const modifierTransforms = [
         default: 0.6
       }
     ],
-    glsl: `   vec4 c2 = pow(_c0, vec4(gamma));
-   c2 *= vec4(bins);
-   c2 = floor(c2);
-   c2/= vec4(bins);
-   c2 = pow(c2, vec4(1.0/gamma));
-   return vec4(c2.xyz, _c0.a);`
+    glsl: `var c2: vec4<f32> = pow(_c0, vec4<f32>(gamma));
+	c2 = c2 * (vec4<f32>(bins));
+	c2 = floor(c2);
+	c2 = c2 / (vec4<f32>(bins));
+	c2 = pow(c2, vec4<f32>(1. / gamma));
+	return vec4<f32>(c2.xyz, _c0.a);`
   },
   {
     name: 'shift',
@@ -408,12 +434,12 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec4 c2 = vec4(_c0);
-   c2.r = fract(c2.r + r);
-   c2.g = fract(c2.g + g);
-   c2.b = fract(c2.b + b);
-   c2.a = fract(c2.a + a);
-   return vec4(c2.rgba);`
+    glsl: `var c2: vec4<f32> = vec4<f32>(_c0);
+	c2.r = fract(c2.r + r);
+	c2.g = fract(c2.g + g);
+	c2.b = fract(c2.b + b);
+	c2.a = fract(c2.a + a);
+	return vec4<f32>(c2.rgba);`
   },
   {
     name: 'repeat',
@@ -440,10 +466,10 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 st = _st * vec2(repeatX, repeatY);
-   st.x += step(1., mod(st.y,2.0)) * offsetX;
-   st.y += step(1., mod(st.x,2.0)) * offsetY;
-   return fract(st);`
+    glsl: `var st: vec2<f32> = _st * vec2<f32>(repeatX, repeatY);
+	st.x = st.x + (step(1., ((st.y) % (2.))) * offsetX);
+	st.y = st.y + (step(1., ((st.x) % (2.))) * offsetY);
+	return fract(st);`
   },
   {
     name: 'modulateRepeat',
@@ -475,10 +501,10 @@ export const modifierTransforms = [
         default: 0.5
       }
     ],
-    glsl: `   vec2 st = _st * vec2(repeatX, repeatY);
-   st.x += step(1., mod(st.y,2.0)) + color.r * offsetX;
-   st.y += step(1., mod(st.x,2.0)) + color.g * offsetY;
-   return fract(st);`
+    glsl: `var st: vec2<f32> = _st * vec2<f32>(repeatX, repeatY);
+	st.x = st.x + (step(1., ((st.y) % (2.))) + color.r * offsetX);
+	st.y = st.y + (step(1., ((st.x) % (2.))) + color.g * offsetY);
+	return fract(st);`
   },
   {
     name: 'repeatX',
@@ -495,10 +521,9 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 st = _st * vec2(reps, 1.0);
-   //  float f =  mod(_st.y,2.0);
-   st.y += step(1., mod(st.x,2.0))* offset;
-   return fract(st);`
+    glsl: `var st: vec2<f32> = _st * vec2<f32>(reps, 1.);
+	st.y = st.y + (step(1., ((st.x) % (2.))) * offset);
+	return fract(st);`
   },
   {
     name: 'modulateRepeatX',
@@ -520,10 +545,9 @@ export const modifierTransforms = [
         default: 0.5
       }
     ],
-    glsl: `   vec2 st = _st * vec2(reps, 1.0);
-   //  float f =  mod(_st.y,2.0);
-   st.y += step(1., mod(st.x,2.0)) + color.r * offset;
-   return fract(st);`
+    glsl: `var st: vec2<f32> = _st * vec2<f32>(reps, 1.);
+	st.y = st.y + (step(1., ((st.x) % (2.))) + color.r * offset);
+	return fract(st);`
   },
   {
     name: 'repeatY',
@@ -540,10 +564,9 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 st = _st * vec2(1.0, reps);
-   //  float f =  mod(_st.y,2.0);
-   st.x += step(1., mod(st.y,2.0))* offset;
-   return fract(st);`
+    glsl: ` var st: vec2<f32> = _st * vec2<f32>(1., reps);
+	st.x = st.x + (step(1., ((st.y) % (2.))) * offset);
+	return fract(st);`
   },
   {
     name: 'modulateRepeatY',
@@ -565,10 +588,9 @@ export const modifierTransforms = [
         default: 0.5
       }
     ],
-    glsl: `   vec2 st = _st * vec2(reps, 1.0);
-   //  float f =  mod(_st.y,2.0);
-   st.x += step(1., mod(st.y,2.0)) + color.r * offset;
-   return fract(st);`
+    glsl: `var st: vec2<f32> = _st * vec2<f32>(1., reps);
+	st.x = st.x + (step(1., ((st.y) % (2.))) * offset);
+	return fract(st);`
   },
   {
     name: 'kaleid',
@@ -580,14 +602,14 @@ export const modifierTransforms = [
         default: 4
       }
     ],
-    glsl: `   vec2 st = _st;
-   st -= 0.5;
-   float r = length(st);
-   float a = atan(st.y, st.x);
-   float pi = 2.*3.1416;
-   a = mod(a,pi/nSides);
-   a = abs(a-pi/nSides/2.);
-   return r*vec2(cos(a), sin(a));`
+    glsl: `var st: vec2<f32> = _st;
+	st = st - (0.5);
+	let r: f32 = length(st);
+	var a: f32 = atan(st.y, st.x);
+	let pi: f32 = 2. * 3.1416;
+	a = ((a) % (pi / nSides));
+	a = abs(a - pi / nSides / 2.);
+	return r * vec2<f32>(cos(a), sin(a));`
   },
   {
     name: 'modulateKaleid',
@@ -604,13 +626,13 @@ export const modifierTransforms = [
         default: 4
       }
     ],
-    glsl: `   vec2 st = _st - 0.5;
-   float r = length(st);
-   float a = atan(st.y, st.x);
-   float pi = 2.*3.1416;
-   a = mod(a,pi/nSides);
-   a = abs(a-pi/nSides/2.);
-   return (color.r+r)*vec2(cos(a), sin(a));`
+    glsl: `let st: vec2<f32> = _st - 0.5;
+	let r: f32 = length(st);
+	var a: f32 = atan(st.y, st.x);
+	let pi: f32 = 2. * 3.1416;
+	a = ((a) % (pi / nSides));
+	a = abs(a - pi / nSides / 2.);
+	return (color.r + r) * vec2<f32>(cos(a), sin(a));`
   },
   {
     name: 'scroll',
@@ -638,9 +660,9 @@ export const modifierTransforms = [
       }
     ],
     glsl: `
-   _st.x += scrollX + time*speedX;
-   _st.y += scrollY + time*speedY;
-   return fract(_st);`
+   _st.x = _st.x + (scrollX + time * speedX);
+	_st.y = _st.y + (scrollY + time * speedY);
+	return fract(_st);`
   },
   {
     name: 'scrollX',
@@ -657,8 +679,8 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   _st.x += scrollX + time*speed;
-   return fract(_st);`
+    glsl: `_st.x = _st.x + (scrollX + time * speed);
+	return fract(_st);`
   },
   {
     name: 'modulateScrollX',
@@ -680,8 +702,8 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   _st.x += color.r*scrollX + time*speed;
-   return fract(_st);`
+    glsl: `_st.x = _st.x + (color.r * scrollX + time * speed);
+	return fract(_st);`
   },
   {
     name: 'scrollY',
@@ -698,8 +720,8 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   _st.y += scrollY + time*speed;
-   return fract(_st);`
+    glsl: `_st.y = _st.y + (scrollY + time * speed);
+	return fract(_st);`
   },
   {
     name: 'modulateScrollY',
@@ -721,8 +743,8 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   _st.y += color.r*scrollY + time*speed;
-   return fract(_st);`
+    glsl: `_st.y = _st.y + (color.r * scrollY + time * speed);
+	return fract(_st);`
   },
   {
     name: 'add',
@@ -739,7 +761,7 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   return (_c0+color)*amount + _c0*(1.0-amount);`
+    glsl: `	return (_c0 + color) * amount + _c0 * (1. - amount);`
   },
   {
     name: 'sub',
@@ -756,7 +778,7 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   return (_c0-color)*amount + _c0*(1.0-amount);`
+    glsl: `  return (_c0 - color) * amount + _c0 * (1. - amount);`
   },
   {
     name: 'layer',
@@ -768,7 +790,7 @@ export const modifierTransforms = [
         vecLen: 4
       }
     ],
-    glsl: `   return vec4(mix(_c0.rgb, color.rgb, color.a), _c0.a+color.a);`
+    glsl: `   return vec4<f32>(mix(_c0.rgb, color.rgb, color.a), _c0.a + color.a);`
   },
   {
     name: 'blend',
@@ -785,7 +807,7 @@ export const modifierTransforms = [
         default: 0.5
       }
     ],
-    glsl: `   return _c0*(1.0-amount)+color*amount;`
+    glsl: `   return _c0 * (1. - amount) + color * amount;`
   },
   {
     name: 'mult',
@@ -802,7 +824,7 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   return _c0*(1.0-amount)+(_c0*color)*amount;`
+    glsl: `   return _c0 * (1. - amount) + _c0 * color * amount;`
   },
   {
     name: 'diff',
@@ -814,7 +836,7 @@ export const modifierTransforms = [
         vecLen: 4
       }
     ],
-    glsl: `   return vec4(abs(_c0.rgb-color.rgb), max(_c0.a, color.a));`
+    glsl: `   return vec4<f32>(abs(_c0.rgb - color.rgb), max(_c0.a, color.a));`
   },
   {
     name: 'modulate',
@@ -831,8 +853,7 @@ export const modifierTransforms = [
         default: 0.1
       }
     ],
-    glsl: `   //  return fract(st+(color.xy-0.5)*amount);
-   return _st + color.xy*amount;`
+    glsl: `   return _st + color.xy * amount;`
   },
   {
     name: 'modulateScale',
@@ -854,10 +875,10 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   vec2 xy = _st - vec2(0.5);
-   xy*=(1.0/vec2(offset + multiple*color.r, offset + multiple*color.g));
-   xy+=vec2(0.5);
-   return xy;`
+    glsl: `   var xy: vec2<f32> = _st - vec2<f32>(0.5);
+	xy = xy * (1. / vec2<f32>(offset + multiple * color.r, offset + multiple * color.g));
+	xy = xy + (vec2<f32>(0.5));
+	return xy;`
   },
   {
     name: 'modulatePixelate',
@@ -879,8 +900,8 @@ export const modifierTransforms = [
         default: 3
       }
     ],
-    glsl: `   vec2 xy = vec2(offset + color.x*multiple, offset + color.y*multiple);
-   return (floor(_st * xy) + 0.5)/xy;`
+    glsl: `   let xy: vec2<f32> = vec2<f32>(offset + color.x * multiple, offset + color.y * multiple);
+	return (floor(_st * xy) + 0.5) / xy;`
   },
   {
     name: 'modulateRotate',
@@ -902,11 +923,11 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   vec2 xy = _st - vec2(0.5);
-   float angle = offset + color.x * multiple;
-   xy = mat2(cos(angle),-sin(angle), sin(angle),cos(angle))*xy;
-   xy += 0.5;
-   return xy;`
+    glsl: `   var xy: vec2<f32> = _st - vec2<f32>(0.5);
+	let angle: f32 = offset + color.x * multiple;
+	xy = mat2x2<f32>(cos(angle), -sin(angle), sin(angle), cos(angle)) * xy;
+	xy = xy + (0.5);
+	return xy;`
   },
   {
     name: 'modulateHue',
@@ -923,7 +944,7 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   return _st + (vec2(color.g - color.r, color.b - color.g) * amount * 1.0/resolution);`
+    glsl: `   return _st + vec2<f32>(color.g - color.r, color.b - color.g) * amount * 1. / resolution;`
   },
   {
     name: 'invert',
@@ -935,7 +956,7 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   return vec4((1.0-_c0.rgb)*amount + _c0.rgb*(1.0-amount), _c0.a);`
+    glsl: `   return vec4<f32>((1. - _c0.rgb) * amount + _c0.rgb * (1. - amount), _c0.a);`
   },
   {
     name: 'contrast',
@@ -947,8 +968,8 @@ export const modifierTransforms = [
         default: 1.6
       }
     ],
-    glsl: `   vec4 c = (_c0-vec4(0.5))*vec4(amount) + vec4(0.5);
-   return vec4(c.rgb, _c0.a);`
+    glsl: `   let c: vec4<f32> = (_c0 - vec4<f32>(0.5)) * vec4<f32>(amount) + vec4<f32>(0.5);
+	return vec4<f32>(c.rgb, _c0.a);`
   },
   {
     name: 'brightness',
@@ -960,7 +981,7 @@ export const modifierTransforms = [
         default: 0.4
       }
     ],
-    glsl: `   return vec4(_c0.rgb + vec3(amount), _c0.a);`
+    glsl: `   return vec4<f32>(_c0.rgb + vec3<f32>(amount), _c0.a);`
   },
   {
     name: 'mask',
@@ -972,8 +993,8 @@ export const modifierTransforms = [
         vecLen: 4
       }
     ],
-    glsl: `   float a = _luminance(color.rgb);
-   return vec4(_c0.rgb*a, a);`
+    glsl: `let a: f32 = _luminance(color.rgb);
+	return vec4<f32>(_c0.rgb * a, a);`
   },
   {
     name: 'luma',
@@ -990,8 +1011,8 @@ export const modifierTransforms = [
         default: 0.1
       }
     ],
-    glsl: `   float a = smoothstep(threshold-(tolerance+0.0000001), threshold+(tolerance+0.0000001), _luminance(_c0.rgb));
-   return vec4(_c0.rgb*a, a);`
+    glsl: `let a: f32 = smoothstep(threshold - (tolerance + 0.0000001), threshold + (tolerance + 0.0000001), _luminance(_c0.rgb));
+	return vec4<f32>(_c0.rgb * a, a);`
   },
   {
     name: 'thresh',
@@ -1008,7 +1029,7 @@ export const modifierTransforms = [
         default: 0.04
       }
     ],
-    glsl: `   return vec4(vec3(smoothstep(threshold-(tolerance+0.0000001), threshold+(tolerance+0.0000001), _luminance(_c0.rgb))), _c0.a);`
+    glsl: `return vec4<f32>(vec3<f32>(smoothstep(threshold - (tolerance + 0.0000001), threshold + (tolerance + 0.0000001), _luminance(_c0.rgb))), _c0.a);`
   },
   {
     name: 'color',
@@ -1035,11 +1056,9 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   vec4 c = vec4(r, g, b, a);
-   vec4 pos = step(0.0, c); // detect whether negative
-   // if > 0, return r * _c0
-   // if < 0 return (1.0-r) * _c0
-   return vec4(mix((1.0-_c0)*abs(c), c*_c0, pos));`
+    glsl: `let c: vec4<f32> = vec4<f32>(r, g, b, a);
+	let pos: vec4<f32> = step(0., c);
+	return vec4<f32>(mix((1. - _c0) * abs(c), c * _c0, pos));`
   },
   {
     name: 'saturate',
@@ -1051,9 +1070,9 @@ export const modifierTransforms = [
         default: 2
       }
     ],
-    glsl: `   const vec3 W = vec3(0.2125, 0.7154, 0.0721);
-   vec3 intensity = vec3(dot(_c0.rgb, W));
-   return vec4(mix(intensity, _c0.rgb, amount), _c0.a);`
+    glsl: `let W: vec3<f32> = vec3<f32>(0.2125, 0.7154, 0.0721);
+	let intensity: vec3<f32> = vec3<f32>(dot(_c0.rgb, W));
+	return vec4<f32>(mix(intensity, _c0.rgb, amount), _c0.a);`
   },
   {
     name: 'hue',
@@ -1065,10 +1084,9 @@ export const modifierTransforms = [
         default: 0.4
       }
     ],
-    glsl: `   vec3 c = _rgbToHsv(_c0.rgb);
-   c.r += hue;
-   //  c.r = fract(c.r);
-   return vec4(_hsvToRgb(c), _c0.a);`
+    glsl: `var c: vec3<f32> = _rgbToHsv(_c0.rgb);
+	c.r = c.r + (hue);
+	return vec4<f32>(_hsvToRgb(c), _c0.a);`
   },
   {
     name: 'colorama',
@@ -1080,11 +1098,11 @@ export const modifierTransforms = [
         default: 0.005
       }
     ],
-    glsl: `   vec3 c = _rgbToHsv(_c0.rgb);
-   c += vec3(amount);
-   c = _hsvToRgb(c);
-   c = fract(c);
-   return vec4(c, _c0.a);`
+    glsl: `var c: vec3<f32> = _rgbToHsv(_c0.rgb);
+	c = c + (vec3<f32>(amount));
+	c = _hsvToRgb(c);
+	c = fract(c);
+	return vec4<f32>(c, _c0.a);`
   },
   {
     name: 'sum',
@@ -1096,12 +1114,14 @@ export const modifierTransforms = [
         default: 1
       }
     ],
-    glsl: `   vec4 v = _c0 * s;
-   return v.r + v.g + v.b + v.a;
-   }
-   float sum(vec2 _st, vec4 s) { // vec4 is not a typo, because argument type is not overloaded
-   vec2 v = _st.xy * s.xy;
-   return v.x + v.y;`
+    glsl: `var v: vec4<f32> = _c0 * s;
+	return v.r + v.g + v.b + v.a;
+} 
+
+fn sum(_st: vec2<f32>, s: vec4<f32>) -> f32 {
+	let v: vec2<f32> = _st.xy * s.xy;
+	return v.x + v.y;
+} `
   },
   {
     name: 'r',
@@ -1118,7 +1138,7 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   return vec4(_c0.r * scale + offset);`
+    glsl: `return vec4<f32>(_c0.r * scale + offset);`
   },
   {
     name: 'g',
@@ -1135,7 +1155,7 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   return vec4(_c0.g * scale + offset);`
+    glsl: `return vec4<f32>(_c0.g * scale + offset);`
   },
   {
     name: 'b',
@@ -1152,7 +1172,7 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   return vec4(_c0.b * scale + offset);`
+    glsl: `return vec4<f32>(_c0.b * scale + offset);`
   },
   {
     name: 'a',
@@ -1169,6 +1189,6 @@ export const modifierTransforms = [
         default: 0
       }
     ],
-    glsl: `   return vec4(_c0.a * scale + offset);`
+    glsl: `return vec4<f32>(_c0.a * scale + offset);`
   }
 ] as const

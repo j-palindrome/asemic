@@ -1,7 +1,6 @@
 import { Glsl, TransformApplication } from '../glsl/Glsl'
-import arrayUtils from '../lib/array-utils'
 import { TransformDefinitionInput } from '../glsl/transformDefinitions'
-import { src } from '../glsl/index'
+import arrayUtils from '../lib/array-utils'
 
 export interface TypedArg {
   value: TransformDefinitionInput['default']

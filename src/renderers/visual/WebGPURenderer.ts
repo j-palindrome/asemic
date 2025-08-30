@@ -157,6 +157,9 @@ export default class WebGPURenderer extends AsemicVisual {
   ctx: GPUCanvasContext
   device: GPUDevice
   isSetup = false
+  private postProcess: PostProcessQuad | null = null
+  private offscreenTexture: GPUTexture | null = null
+  private offscreenView: GPUTextureView | null = null
 
   constructor(ctx: GPUCanvasContext) {
     super()
@@ -176,7 +179,22 @@ export default class WebGPURenderer extends AsemicVisual {
       device,
       format: navigator.gpu.getPreferredCanvasFormat()
     })
+    // Create postprocess quad
+    this.postProcess = new PostProcessQuad(this.ctx, this.device)
+    // Create offscreen texture
+    this.createOffscreenTexture()
     this.isSetup = true
+  }
+
+  private createOffscreenTexture() {
+    const width = this.ctx.canvas.width
+    const height = this.ctx.canvas.height
+    this.offscreenTexture = this.device.createTexture({
+      size: [width, height, 1],
+      format: navigator.gpu.getPreferredCanvasFormat(),
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+    })
+    this.offscreenView = this.offscreenTexture.createView()
   }
 
   protected generateBrush(group: AsemicGroup) {
@@ -194,20 +212,29 @@ export default class WebGPURenderer extends AsemicVisual {
 
   render(groups: AsemicGroup[]): void {
     if (!this.isSetup) return
+
+    // Recreate offscreen texture if canvas size changed
+    if (
+      !this.offscreenTexture ||
+      this.ctx.canvas.width !== this.offscreenTexture.width ||
+      this.ctx.canvas.height !== this.offscreenTexture.height
+    ) {
+      this.createOffscreenTexture()
+    }
+
     const commandEncoder = this.device.createCommandEncoder()
 
-    // Debug texture first (background)
-    // if (!this.textureDebugger) {
-    //   this.textureDebugger = new Background(this.ctx, this.device)
-    // }
-
-    // // Find first group with texture data for debugging
-    // const textureGroup = groups.find(
-    //   g => g.imageDatas && g.imageDatas.length > 0
-    // )
-    // if (textureGroup) {
-    //   this.textureDebugger.render(textureGroup, commandEncoder)
-    // }
+    // Render groups to offscreen texture
+    const offscreenPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.offscreenView!,
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        }
+      ]
+    })
 
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
@@ -217,8 +244,14 @@ export default class WebGPURenderer extends AsemicVisual {
         this.brushes[i] = this.generateBrush(groups[i])
         this.brushes[i].load(groups[i])
       }
-      this.brushes[i].render(groups[i], commandEncoder)
+      // Render to offscreen pass
+      this.brushes[i].render(groups[i], offscreenPass)
     }
+    offscreenPass.end()
+
+    // Postprocess: render screen quad with offscreen texture to canvas
+    this.postProcess!.render(this.offscreenView!, commandEncoder)
+
     this.device.queue.submit([commandEncoder.finish()])
   }
 }
@@ -774,7 +807,7 @@ abstract class WebGPUBrush {
     }
   }
 
-  render(curves: AsemicGroup, commandEncoder: GPUCommandEncoder) {
+  render(curves: AsemicGroup, renderPass: GPURenderPassEncoder) {
     if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
       return
     }
@@ -802,24 +835,14 @@ abstract class WebGPUBrush {
       }
     }
     this.reload(curves)
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: this.ctx.getCurrentTexture().createView(), // This needs to be fresh each frame
-          loadOp: 'load',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          storeOp: 'store'
-        }
-      ]
-    })
 
+    
     // These operations could all be done once during init
     renderPass.setBindGroup(0, this.bindGroup)
     renderPass.setPipeline(this.pipeline)
     renderPass.setIndexBuffer(this.index.buffer, 'uint32')
     // This needs to stay in the render method
     renderPass.drawIndexed(this.index.size)
-    renderPass.end()
   }
 
   async log() {
@@ -1013,7 +1036,7 @@ class WebGPULineBrush extends WebGPUBrush {
     // Define indices to form two triangles
     const indices = new Uint32Array(
       range(curves.length).flatMap(i =>
-        range(99).flatMap(x => [
+        range(99).flatMap x => [
           i * 200 + x * 2,
           i * 200 + x * 2 + 1,
           i * 200 + x * 2 + 2,
@@ -1037,7 +1060,7 @@ class WebGPUFillBrush extends WebGPUBrush {
 
     const indices = new Uint32Array(
       range(curves.length).flatMap(i =>
-        range(99).flatMap(x => [
+        range(99).flatMap x => [
           i * 200,
           i * 200 + x * 2 + 1,
           i * 200 + x * 2 + 3
@@ -1088,5 +1111,150 @@ class WebGPUFillBrush extends WebGPUBrush {
         count: 1
       }
     })
+  }
+}
+
+// --- PostProcessQuad class ---
+class PostProcessQuad {
+  ctx: GPUCanvasContext
+  device: GPUDevice
+  pipeline: GPURenderPipeline
+  bindGroup: GPUBindGroup
+
+  constructor(ctx: GPUCanvasContext, device: GPUDevice) {
+    this.ctx = ctx
+    this.device = device
+
+    const shaderModule = device.createShaderModule({
+      code: /*wgsl*/ `
+      struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>
+      };
+
+      @group(0) @binding(0) var texSampler: sampler;
+      @group(0) @binding(1) var tex: texture_2d<f32>;
+
+      @vertex
+      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+        var positions = array<vec2<f32>, 6>(
+          vec2<f32>(-1.0, -1.0),
+          vec2<f32>( 1.0, -1.0),
+          vec2<f32>(-1.0,  1.0),
+          vec2<f32>( 1.0, -1.0),
+          vec2<f32>( 1.0,  1.0),
+          vec2<f32>(-1.0,  1.0)
+        );
+        var uvs = array<vec2<f32>, 6>(
+          vec2<f32>(0.0, 1.0),
+          vec2<f32>(1.0, 1.0),
+          vec2<f32>(0.0, 0.0),
+          vec2<f32>(1.0, 1.0),
+          vec2<f32>(1.0, 0.0),
+          vec2<f32>(0.0, 0.0)
+        );
+        var output: VertexOutput;
+        output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
+        output.uv = uvs[vertex_index];
+        return output;
+      }
+
+      @fragment
+      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+        let color = textureSample(tex, texSampler, input.uv);
+        // Example postprocess: simple gamma correction
+        let gamma = 2.2;
+        let rgb = pow(color.rgb, vec3<f32>(1.0 / gamma));
+        return vec4<f32>(rgb, color.a);
+      }
+      `
+    })
+
+    const bindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: {}
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {}
+        }
+      ]
+    })
+
+    this.pipeline = device.createRenderPipeline({
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
+      vertex: {
+        module: shaderModule,
+        entryPoint: 'vertexMain'
+      },
+      fragment: {
+        module: shaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: navigator.gpu.getPreferredCanvasFormat(),
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add'
+              }
+            }
+          }
+        ]
+      },
+      primitive: {
+        topology: 'triangle-list',
+        cullMode: 'none'
+      }
+    })
+  }
+
+  render(textureView: GPUTextureView, commandEncoder: GPUCommandEncoder) {
+    // Create bind group for current texture view
+    this.bindGroup = this.device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: this.device.createSampler({
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+            magFilter: 'linear',
+            minFilter: 'linear'
+          })
+        },
+        {
+          binding: 1,
+          resource: textureView
+        }
+      ]
+    })
+
+    const pass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.ctx.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        }
+      ]
+    })
+    pass.setPipeline(this.pipeline)
+    pass.setBindGroup(0, this.bindGroup)
+    pass.draw(6)
+    pass.end()
   }
 }

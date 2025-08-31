@@ -45,33 +45,27 @@ export class ExpressionMethods {
     this.generateSortedKeys()
   }
 
-  protected fastExpr(stringExpr: string, replace?: string) {
+  protected fastExpr(stringExpr: string, replace?: string[]) {
     if (stringExpr.length === 0) {
       throw new Error('Empty expression')
     }
-    if (stringExpr.includes('RESOLVE')) {
+    if (stringExpr.includes('RESOLVED')) {
       if (!replace) throw new Error('no replace')
-      stringExpr = stringExpr.replace('RESOLVE', replace)
+      for (let i = 0; i < replace.length; i++) {
+        stringExpr = stringExpr.replace('RESOLVED', replace[i])
+      }
     }
     if (/[^\-\d\.]/.test(stringExpr)) {
       // Cache space check
-      if (stringExpr.includes(' ')) {
-        const [funcName, ...args] = stringExpr.split(' ')
-        if (this.parser.constants[funcName]) {
-          return this.parser.constants[funcName](...args)
-        } else {
-          throw new Error(`Unknown function ${stringExpr}`)
-        }
-      } else {
-        const [funcName, ...args] = stringExpr.split('_')
 
-        const foundKey = this.sortedKeys.find(x => funcName.startsWith(x))
-        if (foundKey) {
-          const arg1 = funcName.slice(foundKey.length).trim()
-          return this.parser.constants[foundKey](arg1, ...args)
-        } else {
-          throw new Error(`Unknown function ${stringExpr}`)
-        }
+      const [funcName, ...args] = stringExpr.split('_')
+
+      const foundKey = this.sortedKeys.find(x => funcName.startsWith(x))
+      if (foundKey) {
+        const arg1 = funcName.slice(foundKey.length).trim()
+        return this.parser.constants[foundKey](arg1, ...args)
+      } else {
+        throw new Error(`Unknown function ${stringExpr}`)
       }
     } else {
       const value = parseFloat(stringExpr)
@@ -116,6 +110,25 @@ export class ExpressionMethods {
 
       let operatorArray = Array.from(operators)
       const splitResult: (typeof splitResults)[number] = []
+
+      if (stringExpr.includes(' ')) {
+        const foundKey = this.sortedKeys.find(x =>
+          (stringExpr as string).startsWith(x)
+        )
+        if (foundKey) {
+          const [funcName, ...args] = this.parser.tokenize(stringExpr)
+          if (this.parser.constants[funcName]) {
+            splitResult.push({
+              string: stringExpr,
+              operatorType: ''
+            })
+            return splitResult
+          } else {
+            throw new Error(`Unknown function ${expr}`)
+          }
+        }
+      }
+
       for (let i = 0; i < operatorArray.length; i++) {
         const match = operatorArray[i]
         const operatorIndex = match.index!
@@ -166,7 +179,7 @@ export class ExpressionMethods {
 
     const processExpr = (
       splitResult: (typeof splitResults)[number],
-      replace?: string
+      replace?: string[]
     ) => {
       if (splitResult.length === 1) {
         if (splitResult[0].string.length === 0)
@@ -228,11 +241,12 @@ export class ExpressionMethods {
 
     // let stringExpr = expr as string
     if (!splitResults) {
+      // debugger
       splitResults = []
       // Optimized parentheses handling
       let originalExpr = expr
       let parenIndex = expr.lastIndexOf('(')
-      if (parenIndex !== -1) {
+      while (parenIndex !== -1) {
         let closeParen = expr.indexOf(')', parenIndex + 1)
         const solvedExpr = expr.substring(parenIndex + 1, closeParen)
         splitResults.push(createSplitResult(solvedExpr))
@@ -243,13 +257,16 @@ export class ExpressionMethods {
 
         parenIndex = expr.lastIndexOf('(')
       }
+      splitResults.push(createSplitResult(expr))
       this.operatorSplitCache[originalExpr] = splitResults
+      debugger
     }
 
     let stringExpr = ''
-    let newExpr = processExpr(splitResults[0]).toFixed(4)
+    const newExpr = [processExpr(splitResults[0]).toFixed(4)]
+
     for (let i = 1; i < splitResults.length; i++) {
-      newExpr = processExpr(splitResults[i], newExpr).toFixed(4)
+      newExpr.push(processExpr(splitResults[i], newExpr).toFixed(4))
       i++
     }
     return parseFloat(newExpr)

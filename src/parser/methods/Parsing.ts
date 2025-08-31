@@ -217,7 +217,6 @@ export class ParsingMethods {
           ? new BasicPt(radius, 0).rotate(theta)
           : new AsemicPt(this.parser, radius, 0).rotate(theta)
       ) as K extends true ? BasicPt : AsemicPt
-      // debugger
     } else if (point.startsWith('<')) {
       const groupIndex = this.parser.groups.length - 1
       let [pointN, thisN] = this.parser.tokenize(point.slice(1), {

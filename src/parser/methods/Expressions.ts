@@ -96,6 +96,64 @@ export class ExpressionMethods {
     // Optimized operator parsing - split by operator RegExp, cache, and process
     let splitResult: { string: string; operatorType: string }[] =
       this.operatorSplitCache[expr]
+    let stringExpr = expr as string
+    if (splitResult === undefined) {
+      debugger
+      // Find operator splits in the string
+      splitResult = []
+      ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
+      let operators = stringExpr.matchAll(ExpressionMethods.OPERATOR_REGEX)
+
+      let operatorArray = Array.from(operators)
+
+      for (let i = 0; i < operatorArray.length; i++) {
+        const match = operatorArray[i]
+        const operatorIndex = match.index!
+
+        // Add the text before this operator
+        if (i === 0) {
+          splitResult.push({
+            string: stringExpr.substring(0, operatorIndex),
+            operatorType: ''
+          })
+        }
+        // if the previous operator was immediately before this one, and this is a negative sign, we need to merge it with the previous operator
+        if (
+          match[0] === '-' &&
+          (operatorIndex === 0 ||
+            (i > 0 && operatorIndex === operatorArray[i - 1].index + 1))
+        ) {
+          last(splitResult)!.string += stringExpr.substring(
+            operatorIndex,
+            i < operatorArray.length - 1
+              ? operatorArray[i + 1].index
+              : stringExpr.length
+          )
+          continue
+        }
+
+        // Add the text after this operator with the operator type
+        splitResult.push({
+          string: stringExpr.substring(
+            operatorIndex + 1,
+            i < operatorArray.length - 1
+              ? operatorArray[i + 1].index
+              : stringExpr.length
+          ),
+          operatorType: match[0]
+        })
+      }
+
+      // If no operators found, add the entire string
+      if (operatorArray.length === 0) {
+        splitResult.push({
+          string: stringExpr,
+          operatorType: ''
+        })
+      }
+
+      this.operatorSplitCache[expr] = splitResult
+    }
     // Optimized parentheses handling
     let parenIndex = expr.lastIndexOf('(')
     while (parenIndex !== -1) {
@@ -108,7 +166,6 @@ export class ExpressionMethods {
 
       parenIndex = expr.lastIndexOf('(')
     }
-    let stringExpr = expr as string
 
     // NO PARENTHESES NOW
 
@@ -131,63 +188,6 @@ export class ExpressionMethods {
         throw new Error(`Unknown function ${stringExpr}`)
       }
     } else {
-      if (splitResult === undefined) {
-        // Find operator splits in the string
-        splitResult = []
-        ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
-        let operators = stringExpr.matchAll(ExpressionMethods.OPERATOR_REGEX)
-
-        let operatorArray = Array.from(operators)
-
-        for (let i = 0; i < operatorArray.length; i++) {
-          const match = operatorArray[i]
-          const operatorIndex = match.index!
-
-          // Add the text before this operator
-          if (i === 0) {
-            splitResult.push({
-              string: stringExpr.substring(0, operatorIndex),
-              operatorType: ''
-            })
-          }
-          // if the previous operator was immediately before this one, and this is a negative sign, we need to merge it with the previous operator
-          if (
-            match[0] === '-' &&
-            (operatorIndex === 0 ||
-              (i > 0 && operatorIndex === operatorArray[i - 1].index + 1))
-          ) {
-            last(splitResult)!.string += stringExpr.substring(
-              operatorIndex,
-              i < operatorArray.length - 1
-                ? operatorArray[i + 1].index
-                : stringExpr.length
-            )
-            continue
-          }
-
-          // Add the text after this operator with the operator type
-          splitResult.push({
-            string: stringExpr.substring(
-              operatorIndex + 1,
-              i < operatorArray.length - 1
-                ? operatorArray[i + 1].index
-                : stringExpr.length
-            ),
-            operatorType: match[0]
-          })
-        }
-
-        // If no operators found, add the entire string
-        if (operatorArray.length === 0) {
-          splitResult.push({
-            string: stringExpr,
-            operatorType: ''
-          })
-        }
-        // if (splitResult.length > 2) debugger
-
-        this.operatorSplitCache[expr] = splitResult
-      }
       invariant(splitResult)
       if (splitResult.length === 1) {
         if (splitResult[0].string.length === 0)

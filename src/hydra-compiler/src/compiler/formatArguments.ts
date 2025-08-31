@@ -23,7 +23,7 @@ export function formatArguments(
     let value: any = input.default
     let isUniform = false
 
-    if (input.type === 'float') {
+    if (input.type === 'f32') {
       value = ensureDecimalDot(value)
     }
 
@@ -68,7 +68,7 @@ export function formatArguments(
       // GLSLSource
 
       isUniform = false
-    } else if (input.type === 'float' && typeof value === 'number') {
+    } else if (input.type === 'f32' && typeof value === 'number') {
       // Number
 
       value = ensureDecimalDot(value)
@@ -77,7 +77,7 @@ export function formatArguments(
 
       isUniform = false
       value = `${input.type}(${value.map(ensureDecimalDot).join(', ')})`
-    } else if (input.type === 'sampler2D') {
+    } else if (input.type === 'texture_2d') {
       const ref = value
 
       value = () => ref.getTexture()

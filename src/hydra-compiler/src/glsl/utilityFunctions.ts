@@ -57,7 +57,7 @@ fn _noise(v: vec3<f32>) -> f32 {
 	p1 = p1 * (norm.y);
 	p2 = p2 * (norm.z);
 	p3 = p3 * (norm.w);
-	var m: vec4<f32> = max(0.6 - vec4<f32>(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.);
+	var m: vec4<f32> = max(0.6 - vec4<f32>(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), vec4<f32>(0.));
 	m = m * m;
 	return 42. * dot(m * m, vec4<f32>(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
@@ -74,10 +74,8 @@ fn _rgbToHsv(c: vec3<f32>) -> vec3<f32> {
 	let d: f32 = q.x - min(q.w, q.y);
 	let e: f32 = 0.0000000001;
 	return vec3<f32>(abs(q.z + (q.w - q.y) / (6. * d + e)), d / (q.x + e), q.x);
-} 
-
-
-        }`
+}
+	`
   },
   _hsvToRgb: {
     type: 'util',
@@ -85,7 +83,7 @@ fn _rgbToHsv(c: vec3<f32>) -> vec3<f32> {
 fn _hsvToRgb(c: vec3<f32>) -> vec3<f32> {
 	let K: vec4<f32> = vec4<f32>(1., 2. / 3., 1. / 3., 3.);
 	let p: vec3<f32> = abs(fract(c.xxx + K.xyz) * 6. - K.www);
-	return c.z * mix(K.xxx, clamp(p - K.xxx, 0., 1.), c.y);
+	return c.z * mix(K.xxx, clamp(p - K.xxx, vec3<f32>(0.), vec3<f32>(1.)), c.y);
 } 
 
 `

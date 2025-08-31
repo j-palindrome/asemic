@@ -7,17 +7,17 @@ Format for adding functions to hydra. For each entry in this file, hydra automat
   inputs: [
     {
       name: 'freq',
-      type: 'float',
+      type: 'f32',
       default: 0.2
     },
     {
       name: 'sync',
-      type: 'float',
+      type: 'f32',
       default: 0.1
     },
     {
       name: 'offset',
-      type: 'float',
+      type: 'f32',
       default: 0.0
     }
   ],
@@ -45,23 +45,23 @@ The value in the 'type' field lets the parser know which type the function will 
 
 const types = {
   'src': {
-    returnType: 'vec4',
+    returnType: 'vec4<f32>',
     implicitFirstArg: ['vec2 _st']
   },
   'coord': {
-    returnType: 'vec2',
+    returnType: 'vec2<f32>',
     implicitFirstArg: ['vec2 _st']
   },
   'color': {
-    returnType: 'vec4',
+    returnType: 'vec4<f32>',
     implicitFirstArg: ['vec4 _c0']
   },
   'combine': {
-    returnType: 'vec4',
+    returnType: 'vec4<f32>',
     implicitFirstArg: ['vec4 _c0', 'vec4 _c1']
   },
   'combineCoord': {
-    returnType: 'vec2',
+    returnType: 'vec2<f32>',
     implicitFirstArg: ['vec2 _st', 'vec4 _c0']
   }
 }
@@ -76,7 +76,7 @@ export type TransformDefinitionType =
   | 'combineCoord'
 
 export type TransformDefinitionInputTypeFloat = {
-  type: 'float'
+  type: 'f32'
   default?:
     | number
     | number[]
@@ -84,12 +84,12 @@ export type TransformDefinitionInputTypeFloat = {
 }
 
 export type TransformDefinitionInputTypeSampler2D = {
-  type: 'sampler2D'
+  type: 'texture_2d'
   default?: number
 }
 
 export type TransformDefinitionInputTypeVec4 = {
-  type: 'vec4'
+  type: 'vec4<f32>'
   default?: string | number
 }
 
@@ -120,20 +120,20 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 10
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0.1
       }
     ],
     glsl: `var color: vec3<f32> = vec3<f32>(0.);
-	_st = _st * (scale);
-	let i_st: vec2<f32> = floor(_st);
-	let f_st: vec2<f32> = fract(_st);
+	let scaled_st = _st * (scale);
+	let i_st: vec2<f32> = floor(scaled_st);
+	let f_st: vec2<f32> = fract(scaled_st);
 	var m_dist: f32 = 10.;
 	var m_point: vec2<f32>;
 
@@ -163,17 +163,17 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0.3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'blending',
         default: 0.3
       }
@@ -211,17 +211,17 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'frequency',
         default: 60
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'sync',
         default: 0.1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -237,17 +237,17 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'sides',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'radius',
         default: 0.3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'smoothing',
         default: 0.01
       }
@@ -263,7 +263,7 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -275,7 +275,7 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'sampler2D',
+        type: 'texture_2d',
         name: 'tex',
         default: NaN
       }
@@ -287,22 +287,22 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'r',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'g',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'b',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'a',
         default: 1
       }
@@ -317,12 +317,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'angle',
         default: 10
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -338,27 +338,27 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'xMult',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'yMult',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetX',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetY',
         default: 0.5
       }
@@ -374,12 +374,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'pixelX',
         default: 20
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'pixelY',
         default: 20
       }
@@ -392,12 +392,12 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'bins',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'gamma',
         default: 0.6
       }
@@ -414,22 +414,22 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'r',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'g',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'b',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'a',
         default: 0
       }
@@ -446,22 +446,22 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'repeatX',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'repeatY',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetX',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetY',
         default: 0
       }
@@ -477,26 +477,26 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'repeatX',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'repeatY',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetX',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offsetY',
         default: 0.5
       }
@@ -511,12 +511,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'reps',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -531,16 +531,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'reps',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0.5
       }
@@ -554,12 +554,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'reps',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -574,16 +574,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'reps',
         default: 3
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0.5
       }
@@ -597,7 +597,7 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'nSides',
         default: 4
       }
@@ -617,11 +617,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'nSides',
         default: 4
       }
@@ -639,22 +639,22 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollX',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollY',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speedX',
         default: 0
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speedY',
         default: 0
       }
@@ -669,12 +669,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollX',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -688,16 +688,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollX',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -710,12 +710,12 @@ export const modifierTransforms = [
     type: 'coord',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollY',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -729,16 +729,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'scrollY',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'speed',
         default: 0
       }
@@ -752,11 +752,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1
       }
@@ -769,11 +769,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1
       }
@@ -786,7 +786,7 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       }
     ],
@@ -798,11 +798,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 0.5
       }
@@ -815,11 +815,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1
       }
@@ -832,7 +832,7 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       }
     ],
@@ -844,11 +844,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 0.1
       }
@@ -861,16 +861,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'multiple',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 1
       }
@@ -886,16 +886,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'multiple',
         default: 10
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 3
       }
@@ -909,16 +909,16 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'multiple',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -935,11 +935,11 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1
       }
@@ -951,7 +951,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1
       }
@@ -963,7 +963,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 1.6
       }
@@ -976,7 +976,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 0.4
       }
@@ -989,7 +989,7 @@ export const modifierTransforms = [
     inputs: [
       {
         name: 'color',
-        type: 'vec4',
+        type: 'vec4<f32>',
         vecLen: 4
       }
     ],
@@ -1001,12 +1001,12 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'threshold',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'tolerance',
         default: 0.1
       }
@@ -1019,12 +1019,12 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'threshold',
         default: 0.5
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'tolerance',
         default: 0.04
       }
@@ -1036,22 +1036,22 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'r',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'g',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'b',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'a',
         default: 1
       }
@@ -1065,7 +1065,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 2
       }
@@ -1079,7 +1079,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'hue',
         default: 0.4
       }
@@ -1093,7 +1093,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'amount',
         default: 0.005
       }
@@ -1109,7 +1109,7 @@ export const modifierTransforms = [
     type: 'color',
     inputs: [
       {
-        type: 'vec4',
+        type: 'vec4<f32>',
         name: 'scale',
         default: 1
       }
@@ -1128,12 +1128,12 @@ fn sum(_st: vec2<f32>, s: vec4<f32>) -> f32 {
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -1145,12 +1145,12 @@ fn sum(_st: vec2<f32>, s: vec4<f32>) -> f32 {
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -1162,12 +1162,12 @@ fn sum(_st: vec2<f32>, s: vec4<f32>) -> f32 {
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }
@@ -1179,12 +1179,12 @@ fn sum(_st: vec2<f32>, s: vec4<f32>) -> f32 {
     type: 'color',
     inputs: [
       {
-        type: 'float',
+        type: 'f32',
         name: 'scale',
         default: 1
       },
       {
-        type: 'float',
+        type: 'f32',
         name: 'offset',
         default: 0
       }

@@ -3,6 +3,8 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from '../../parser/Parser'
+import { ShaderParams } from '../../hydra-compiler/src/compiler/compileWithEnvironment'
+import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -160,10 +162,16 @@ export default class WebGPURenderer extends AsemicVisual {
   private postProcess: PostProcessQuad | null = null
   private offscreenTexture: GPUTexture | null = null
   private offscreenView: GPUTextureView | null = null
+  fragmentGenerator: (...args: any[]) => ShaderParams
 
-  constructor(ctx: GPUCanvasContext) {
+  constructor(
+    ctx: GPUCanvasContext,
+    fragmentGenerator: (...args: any[]) => ShaderParams
+  ) {
     super()
     this.ctx = ctx
+    this.fragmentGenerator = fragmentGenerator
+
     this.setup()
   }
 
@@ -180,7 +188,9 @@ export default class WebGPURenderer extends AsemicVisual {
       format: navigator.gpu.getPreferredCanvasFormat()
     })
     // Create postprocess quad
-    this.postProcess = new PostProcessQuad(this.ctx, this.device)
+    this.postProcess = new PostProcessQuad(this.ctx, this.device, {
+      fragmentGenerator: this.fragmentGenerator
+    })
     // Create offscreen texture
     this.createOffscreenTexture()
     this.isSetup = true
@@ -836,7 +846,6 @@ abstract class WebGPUBrush {
     }
     this.reload(curves)
 
-    
     // These operations could all be done once during init
     renderPass.setBindGroup(0, this.bindGroup)
     renderPass.setPipeline(this.pipeline)
@@ -1036,7 +1045,7 @@ class WebGPULineBrush extends WebGPUBrush {
     // Define indices to form two triangles
     const indices = new Uint32Array(
       range(curves.length).flatMap(i =>
-        range(99).flatMap x => [
+        range(99).flatMap(x => [
           i * 200 + x * 2,
           i * 200 + x * 2 + 1,
           i * 200 + x * 2 + 2,
@@ -1060,7 +1069,7 @@ class WebGPUFillBrush extends WebGPUBrush {
 
     const indices = new Uint32Array(
       range(curves.length).flatMap(i =>
-        range(99).flatMap x => [
+        range(99).flatMap(x => [
           i * 200,
           i * 200 + x * 2 + 1,
           i * 200 + x * 2 + 3
@@ -1121,53 +1130,74 @@ class PostProcessQuad {
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
 
-  constructor(ctx: GPUCanvasContext, device: GPUDevice) {
+  constructor(
+    ctx: GPUCanvasContext,
+    device: GPUDevice,
+    {
+      fragmentGenerator
+    }: { fragmentGenerator: (...args: any[]) => ShaderParams }
+  ) {
     this.ctx = ctx
     this.device = device
 
-    const shaderModule = device.createShaderModule({
-      code: /*wgsl*/ `
+    const fragment = fragmentGenerator()
+    // debugger
+
+    const code = /*wgsl*/ `
       struct VertexOutput {
-        @builtin(position) position: vec4<f32>,
-        @location(0) uv: vec2<f32>
+      @builtin(position) position: vec4<f32>,
+      @location(0) uv: vec2<f32>
       };
 
       @group(0) @binding(0) var texSampler: sampler;
       @group(0) @binding(1) var tex: texture_2d<f32>;
+      @group(0) @binding(2) var<uniform> time: f32;
 
-      @vertex
-      fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-        var positions = array<vec2<f32>, 6>(
-          vec2<f32>(-1.0, -1.0),
-          vec2<f32>( 1.0, -1.0),
-          vec2<f32>(-1.0,  1.0),
-          vec2<f32>( 1.0, -1.0),
-          vec2<f32>( 1.0,  1.0),
-          vec2<f32>(-1.0,  1.0)
-        );
-        var uvs = array<vec2<f32>, 6>(
-          vec2<f32>(0.0, 1.0),
-          vec2<f32>(1.0, 1.0),
-          vec2<f32>(0.0, 0.0),
-          vec2<f32>(1.0, 1.0),
-          vec2<f32>(1.0, 0.0),
-          vec2<f32>(0.0, 0.0)
-        );
-        var output: VertexOutput;
-        output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
-        output.uv = uvs[vertex_index];
-        return output;
+      const speed: f32 = 1.;
+      const blending: f32 = 1.;
+
+      @vertex fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+      var positions = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>( 1.0, -1.0),
+      vec2<f32>(-1.0,  1.0),
+      vec2<f32>( 1.0, -1.0),
+      vec2<f32>( 1.0,  1.0),
+      vec2<f32>(-1.0,  1.0)
+      );
+      var uvs = array<vec2<f32>, 6>(
+      vec2<f32>(0.0, 1.0),
+      vec2<f32>(1.0, 1.0),
+      vec2<f32>(0.0, 0.0),
+      vec2<f32>(1.0, 1.0),
+      vec2<f32>(1.0, 0.0),
+      vec2<f32>(0.0, 0.0)
+      );
+      var output: VertexOutput;
+      output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
+      output.uv = uvs[vertex_index];
+      return output;
       }
 
-      @fragment
-      fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-        let color = textureSample(tex, texSampler, input.uv);
-        // Example postprocess: simple gamma correction
-        let gamma = 2.2;
-        let rgb = pow(color.rgb, vec3<f32>(1.0 / gamma));
-        return vec4<f32>(rgb, color.a);
+      ${Object.values(utilityFunctions)
+        .map(x => x.glsl)
+        .join('\n')} 
+      
+      ${Object.values(fragment.transformApplications)
+        .map(x => x.transform.glsl)
+        .join('\n')} 
+
+      @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+      let color = textureSample(tex, texSampler, input.uv);
+      let st = input.uv;
+      ${fragment.fragColor};
+      // Example postprocess: simple gamma correction
+      return color;
       }
       `
+
+    const shaderModule = device.createShaderModule({
+      code
     })
 
     const bindGroupLayout = device.createBindGroupLayout({
@@ -1181,6 +1211,11 @@ class PostProcessQuad {
           binding: 1,
           visibility: GPUShaderStage.FRAGMENT,
           texture: {}
+        },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' }
         }
       ]
     })
@@ -1238,6 +1273,16 @@ class PostProcessQuad {
         {
           binding: 1,
           resource: textureView
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: this.device.createBuffer({
+              size: Float32Array.BYTES_PER_ELEMENT,
+              usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+              mappedAtCreation: false
+            })
+          }
         }
       ]
     })

@@ -76,24 +76,24 @@ const typeLookup: Record<
   { returnType: string; implicitFirstArg: string }
 > = {
   src: {
-    returnType: 'vec4',
-    implicitFirstArg: 'vec2 _st'
+    returnType: 'vec4<f32>',
+    implicitFirstArg: '_st: vec2<f32>'
   },
   coord: {
-    returnType: 'vec2',
-    implicitFirstArg: 'vec2 _st'
+    returnType: 'vec2<f32>',
+    implicitFirstArg: '_st: vec2<f32>'
   },
   color: {
-    returnType: 'vec4',
-    implicitFirstArg: 'vec4 _c0'
+    returnType: 'vec4<f32>',
+    implicitFirstArg: '_c0: vec4<f32>'
   },
   combine: {
-    returnType: 'vec4',
-    implicitFirstArg: 'vec4 _c0'
+    returnType: 'vec4<f32>',
+    implicitFirstArg: '_c0: vec4<f32>'
   },
   combineCoord: {
-    returnType: 'vec2',
-    implicitFirstArg: 'vec2 _st'
+    returnType: 'vec2<f32>',
+    implicitFirstArg: '_st: vec2<f32>'
   }
 }
 
@@ -104,11 +104,11 @@ export function processGlsl(
 
   const signature = [
     implicitFirstArg,
-    ...transformDefinition.inputs.map(input => `${input.type} ${input.name}`)
+    ...transformDefinition.inputs.map(input => `${input.name}: ${input.type}`)
   ].join(', ')
 
   const glslFunction = `
-  ${returnType} ${transformDefinition.name}(${signature}) {
+  fn ${transformDefinition.name}(${signature}) -> ${returnType} {
       ${transformDefinition.glsl}
   }
 `

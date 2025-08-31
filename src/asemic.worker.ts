@@ -12,9 +12,6 @@ let audioRenderer: AsemicAudio
 let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
 let ready = true
-
-const noiseFrag = noise()
-debugger
 // Video recording state
 let isRecording = false
 
@@ -33,7 +30,10 @@ const stopRecording = async () => {
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
-    renderer = new WebGPURenderer(ev.data.offscreenCanvas.getContext('webgpu')!)
+    renderer = new WebGPURenderer(
+      ev.data.offscreenCanvas.getContext('webgpu')!,
+      () => noise()
+    )
     renderer.setup().then(() => {
       self.postMessage({
         ready: true

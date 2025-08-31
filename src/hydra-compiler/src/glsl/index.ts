@@ -11,26 +11,7 @@ function toFragmentShader(generatorFn: (...args: any[]) => any) {
     const glslObj = generatorFn(...args)
     const shaderParams = compileGlsl(glslObj.transforms.toArray())
 
-    return `
-    ${Object.values(shaderParams.uniforms)
-      .map(uniform => {
-        return `
-          uniform ${uniform.type} ${uniform.name};`
-      })
-      .join('')}
-      uniform float time;
-      uniform vec2 resolution;
-      varying vec2 uv;
-    
-      ${Object.values(utilityFunctions)
-        .map(transform => {
-          return `
-                ${transform.glsl}
-              `
-        })
-        .join('')}
-    ${shaderParams.includes}
-    ${shaderParams.fragColor}`
+    return shaderParams
   }
 }
 

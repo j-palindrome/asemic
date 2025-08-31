@@ -30,7 +30,7 @@ export class ExpressionMethods {
   // Cache for operator splits
   private operatorSplitCache: Record<
     string,
-    { string: string; operatorType: string }[][]
+    { string: string; operatorType: string }[]
   > = {}
 
   sortedKeys: string[]
@@ -45,25 +45,15 @@ export class ExpressionMethods {
     this.generateSortedKeys()
   }
 
-  protected fastExpr(stringExpr: string, replace?: string[]) {
+  protected fastExpr(stringExpr: string) {
     if (stringExpr.length === 0) {
       throw new Error('Empty expression')
     }
-    if (stringExpr.includes('RESOLVED')) {
-      if (!replace) throw new Error('no replace')
-      for (let i = 0; i < replace.length; i++) {
-        stringExpr = stringExpr.replace('RESOLVED', replace[i])
-      }
-    }
     if (/[^\-\d\.]/.test(stringExpr)) {
-      // Cache space check
-
-      const [funcName, ...args] = stringExpr.split('_')
-
-      const foundKey = this.sortedKeys.find(x => funcName.startsWith(x))
+      const foundKey = this.sortedKeys.find(x => stringExpr.startsWith(x))
       if (foundKey) {
-        const arg1 = funcName.slice(foundKey.length).trim()
-        return this.parser.constants[foundKey](arg1, ...args)
+        const arg1 = stringExpr.slice(foundKey.length)
+        return this.parser.constants[foundKey](arg1)
       } else {
         throw new Error(`Unknown function ${stringExpr}`)
       }
@@ -102,85 +92,103 @@ export class ExpressionMethods {
       }
     }
 
+    // invariant(typeof expr === 'string')
+    // Optimized operator parsing - split by operator RegExp, cache, and process
+    let splitResult: { string: string; operatorType: string }[] =
+      this.operatorSplitCache[expr]
+    // Optimized parentheses handling
+    let parenIndex = expr.lastIndexOf('(')
+    while (parenIndex !== -1) {
+      let closeParen = expr.indexOf(')', parenIndex + 1)
+      const solvedExpr = expr.substring(parenIndex + 1, closeParen)
+      expr =
+        expr.substring(0, parenIndex) +
+        this.expr(solvedExpr).toFixed(4) +
+        expr.substring(closeParen + 1)
+
+      parenIndex = expr.lastIndexOf('(')
+    }
+    let stringExpr = expr as string
+
     // NO PARENTHESES NOW
 
-    const createSplitResult = (stringExpr: string) => {
-      ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
-      let operators = stringExpr.matchAll(ExpressionMethods.OPERATOR_REGEX)
+    // Cache space check
+    if (stringExpr.includes(' ')) {
+      const [funcName, ...args] = stringExpr.split(' ')
+      if (this.parser.constants[funcName]) {
+        return this.parser.constants[funcName](...args)
+      } else {
+        throw new Error(`Unknown function ${stringExpr}`)
+      }
+    } else if (stringExpr.includes('_')) {
+      const [funcName, ...args] = stringExpr.split('_')
 
-      let operatorArray = Array.from(operators)
-      const splitResult: (typeof splitResults)[number] = []
+      const foundKey = this.sortedKeys.find(x => funcName.startsWith(x))
+      if (foundKey) {
+        const arg1 = funcName.slice(foundKey.length).trim()
+        return this.parser.constants[foundKey](arg1, ...args)
+      } else {
+        throw new Error(`Unknown function ${stringExpr}`)
+      }
+    } else {
+      if (splitResult === undefined) {
+        // Find operator splits in the string
+        splitResult = []
+        ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
+        let operators = stringExpr.matchAll(ExpressionMethods.OPERATOR_REGEX)
 
-      if (stringExpr.includes(' ')) {
-        const foundKey = this.sortedKeys.find(x =>
-          (stringExpr as string).startsWith(x)
-        )
-        if (foundKey) {
-          const [funcName, ...args] = this.parser.tokenize(stringExpr)
-          if (this.parser.constants[funcName]) {
+        let operatorArray = Array.from(operators)
+
+        for (let i = 0; i < operatorArray.length; i++) {
+          const match = operatorArray[i]
+          const operatorIndex = match.index!
+
+          // Add the text before this operator
+          if (i === 0) {
             splitResult.push({
-              string: stringExpr,
+              string: stringExpr.substring(0, operatorIndex),
               operatorType: ''
             })
-            return splitResult
-          } else {
-            throw new Error(`Unknown function ${expr}`)
           }
-        }
-      }
+          // if the previous operator was immediately before this one, and this is a negative sign, we need to merge it with the previous operator
+          if (
+            match[0] === '-' &&
+            (operatorIndex === 0 ||
+              (i > 0 && operatorIndex === operatorArray[i - 1].index + 1))
+          ) {
+            last(splitResult)!.string += stringExpr.substring(
+              operatorIndex,
+              i < operatorArray.length - 1
+                ? operatorArray[i + 1].index
+                : stringExpr.length
+            )
+            continue
+          }
 
-      for (let i = 0; i < operatorArray.length; i++) {
-        const match = operatorArray[i]
-        const operatorIndex = match.index!
-
-        // Add the text before this operator
-        if (i === 0) {
+          // Add the text after this operator with the operator type
           splitResult.push({
-            string: stringExpr.substring(0, operatorIndex),
+            string: stringExpr.substring(
+              operatorIndex + 1,
+              i < operatorArray.length - 1
+                ? operatorArray[i + 1].index
+                : stringExpr.length
+            ),
+            operatorType: match[0]
+          })
+        }
+
+        // If no operators found, add the entire string
+        if (operatorArray.length === 0) {
+          splitResult.push({
+            string: stringExpr,
             operatorType: ''
           })
         }
-        // if the previous operator was immediately before this one, and this is a negative sign, we need to merge it with the previous operator
-        if (
-          match[0] === '-' &&
-          (operatorIndex === 0 ||
-            (i > 0 && operatorIndex === operatorArray[i - 1].index + 1))
-        ) {
-          last(splitResult)!.string += stringExpr.substring(
-            operatorIndex,
-            i < operatorArray.length - 1
-              ? operatorArray[i + 1].index
-              : stringExpr.length
-          )
-          continue
-        }
+        // if (splitResult.length > 2) debugger
 
-        // Add the text after this operator with the operator type
-        splitResult.push({
-          string: stringExpr.substring(
-            operatorIndex + 1,
-            i < operatorArray.length - 1
-              ? operatorArray[i + 1].index
-              : stringExpr.length
-          ),
-          operatorType: match[0]
-        })
+        this.operatorSplitCache[expr] = splitResult
       }
-
-      // If no operators found, add the entire string
-      if (operatorArray.length === 0) {
-        splitResult.push({
-          string: stringExpr,
-          operatorType: ''
-        })
-      }
-      return splitResult
-    }
-
-    const processExpr = (
-      splitResult: (typeof splitResults)[number],
-      replace?: string[]
-    ) => {
+      invariant(splitResult)
       if (splitResult.length === 1) {
         if (splitResult[0].string.length === 0)
           throw new Error(`Empty expression beginning ${stringExpr}`)
@@ -197,7 +205,7 @@ export class ExpressionMethods {
               `Empty expression after operator ${operatorType} in ${expr}`
             )
           }
-          const rightVal = this.fastExpr(string, replace)
+          const rightVal = this.fastExpr(string)
 
           switch (operatorType) {
             case '&':
@@ -233,43 +241,6 @@ export class ExpressionMethods {
         return leftVal
       }
     }
-
-    // invariant(typeof expr === 'string')
-    // Optimized operator parsing - split by operator RegExp, cache, and process
-    let splitResults: { string: string; operatorType: string }[][] =
-      this.operatorSplitCache[expr]
-
-    // let stringExpr = expr as string
-    if (!splitResults) {
-      // debugger
-      splitResults = []
-      // Optimized parentheses handling
-      let originalExpr = expr
-      let parenIndex = expr.lastIndexOf('(')
-      while (parenIndex !== -1) {
-        let closeParen = expr.indexOf(')', parenIndex + 1)
-        const solvedExpr = expr.substring(parenIndex + 1, closeParen)
-        splitResults.push(createSplitResult(solvedExpr))
-        expr =
-          expr.substring(0, parenIndex) +
-          `RESOLVED` +
-          expr.substring(closeParen + 1)
-
-        parenIndex = expr.lastIndexOf('(')
-      }
-      splitResults.push(createSplitResult(expr))
-      this.operatorSplitCache[originalExpr] = splitResults
-      debugger
-    }
-
-    let stringExpr = ''
-    const newExpr = [processExpr(splitResults[0]).toFixed(4)]
-
-    for (let i = 1; i < splitResults.length; i++) {
-      newExpr.push(processExpr(splitResults[i], newExpr).toFixed(4))
-      i++
-    }
-    return parseFloat(newExpr)
   }
 
   choose(value0To1: string | number, ...callbacks: (() => void)[]) {

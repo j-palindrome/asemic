@@ -187,7 +187,7 @@ export default function AsemicEditor({
   }
 
   return (
-    <div className='flex h-full w-full relative *:flex-none'>
+    <div className='flex h-0 grow w-full relative'>
       <div
         className={`editor text-white ${
           errors.length > 0 ? 'w-2/3' : 'w-full'

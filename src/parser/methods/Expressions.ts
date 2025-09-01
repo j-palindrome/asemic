@@ -141,6 +141,8 @@ export class ExpressionMethods {
     //   }
     // } else {
     if (splitResult === undefined) {
+      console.log('newSplit')
+
       // Find operator splits in the string
       splitResult = []
       ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
@@ -268,7 +270,7 @@ export class ExpressionMethods {
         )
         splitResult2 = [
           ...splitResult2.slice(0, index - 1),
-          { ...splitResult2[index - 1], string: innerResult.toString() },
+          { ...splitResult2[index - 1], string: innerResult.toFixed(4) },
           ...splitResult2.slice(closingIndex + 1)
         ]
         index = splitResult2.findLastIndex(x => x.operatorType === '(')

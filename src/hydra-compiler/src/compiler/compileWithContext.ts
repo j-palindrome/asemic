@@ -44,6 +44,11 @@ export function compileWithContext(
   @group(0) @binding(2) var<uniform> time: f32;
   @group(0) @binding(3) var<uniform> resolution: vec2<f32>;
 
+  struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>
+  }
+
   ${Object.values(utilityFunctions)
     .map(transform => {
       return `
@@ -61,7 +66,7 @@ export function compileWithContext(
     .join('')}
 
   @vertex
-  fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
+  fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
     var pos = array<vec2<f32>, 6>(
       vec2<f32>(-1.0, -1.0),
       vec2<f32>( 1.0, -1.0),
@@ -70,14 +75,16 @@ export function compileWithContext(
       vec2<f32>( 1.0,  1.0),
       vec2<f32>(-1.0,  1.0)
     );
-    return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+    return VertexOutput(vec4<f32>(pos[vertexIndex], 0.0, 1.0), (pos[vertexIndex] + 1.0) / 2.0);
   }
 
   @fragment
-  fn fragmentMain(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
-    var c = vec4<f32>(1.0, 0.0, 0.0, 1.0);
-    var st = fragCoord.xy / resolution.xy;
+  fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+    var c = textureSample(inputTexture, textureSampler, input.uv);
+    var st = input.uv;
+    // var c = vec4<f32>(input.uv, 0.0, 1.0);
     return ${shaderParams.fragColor};
+    // return c;
   }
   `
 

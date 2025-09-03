@@ -3,9 +3,6 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from '../../parser/Parser'
-import { ShaderParams } from '../../hydra-compiler1/src/compiler/compileWithEnvironment'
-import { utilityFunctions } from '../../hydra-compiler1/src/glsl/utilityFunctions'
-import { toFragmentShader } from '../../hydra-compiler1/src/glsl'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -171,7 +168,7 @@ export default class WebGPURenderer extends AsemicVisual {
   ) {
     super()
     this.ctx = ctx
-    this.fragmentGenerator = toFragmentShader(fragmentGenerator)
+    this.fragmentGenerator = fragmentGenerator().glsl
 
     this.setup()
   }

@@ -156,7 +156,7 @@ const calcPosition = /*wgsl*/ `
   `
 
 export default class WebGPURenderer extends AsemicVisual {
-  private brushes: WebGPUBrush[] = []
+  private brushes: (WebGPUBrush | undefined)[] = []
   private textureDebugger: Background | null = null
   ctx: GPUCanvasContext
   device: GPUDevice
@@ -224,6 +224,8 @@ export default class WebGPURenderer extends AsemicVisual {
       case 'fill':
         brush = new WebGPUFillBrush(this.ctx, this.device)
         break
+      case 'blank':
+        return
     }
     return brush
   }
@@ -257,13 +259,13 @@ export default class WebGPURenderer extends AsemicVisual {
     for (let i = 0; i < groups.length; i++) {
       if (!this.brushes[i]) {
         this.brushes.push(this.generateBrush(groups[i]))
-      } else if (this.brushes[i].mode !== groups[i].settings.mode) {
-        this.brushes[i].destroy()
+      } else if (this.brushes[i]?.mode !== groups[i].settings.mode) {
+        this.brushes[i]?.destroy()
         this.brushes[i] = this.generateBrush(groups[i])
-        this.brushes[i].load(groups[i])
+        this.brushes[i]?.load(groups[i])
       }
       // Render to offscreen pass
-      this.brushes[i].render(groups[i], offscreenPass)
+      this.brushes[i]?.render(groups[i], offscreenPass)
     }
     offscreenPass.end()
 

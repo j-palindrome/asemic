@@ -64,7 +64,7 @@ export interface ReceiveMap {
   'params:reset': () => void
   params: (obj: any) => void
   'sc:synth': (name: string, synthDef: string) => void
-  'sc:set': (name: string, param: string, value: number) => void
+  'sc:set': (name: string, param: string, value: number | number[]) => void
   'sc:on': () => void
   'sc:off': () => void
   'files:load': (

@@ -2,7 +2,7 @@ import { InputSchema } from '../../server/inputSchema'
 
 export const defaultOutput = () => ({
   osc: [] as { path: string; args: (string | number | [number, number])[] }[],
-  sc: [] as { path: string; value: number }[],
+  sc: [] as { path: string; value: number | number[] }[],
   scSynthDefs: {} as Record<string, string>,
   curves: [],
   errors: [] as string[],

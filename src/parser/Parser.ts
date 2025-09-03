@@ -24,7 +24,6 @@ import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
-import { l } from 'node_modules/react-router/dist/development/lib-C1JSsICm.mjs'
 
 type ExprFunc = (() => void) | string
 

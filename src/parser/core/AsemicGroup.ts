@@ -2,8 +2,10 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 
 export class AsemicGroup extends Array<AsemicPt[]> {
   settings: {
-    mode: 'line' | 'fill'
+    mode: 'line' | 'fill' | 'blank'
     texture?: string
+    fragment?: string
+    synth?: string
     xy?: string
     wh?: string
   } = { mode: 'line' }

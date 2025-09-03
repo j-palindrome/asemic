@@ -111,6 +111,14 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       animationFrame = requestAnimationFrame(animate)
       ready = false
       parser.draw()
+      for (let group of parser.groups) {
+        if (group.settings.synth) {
+          parser.output.sc.push({
+            path: `${group.settings.synth}/buffer`,
+            value: group[0].flatMap(x => [x[0], x[1]])
+          })
+        }
+      }
       renderer.render(parser.groups)
 
       let imageBitmap: ImageBitmap | undefined

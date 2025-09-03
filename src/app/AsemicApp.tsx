@@ -428,20 +428,7 @@ function AsemicAppInner({
             Object.keys(data.scSynthDefs).length > 0
           ) {
             for (let synth in data.scSynthDefs) {
-              debugger
-              socket.emit(
-                'sc:synth',
-                synth,
-                `{ 
-  var x = NamedControl.kr(\\x, [${range(10)
-    .map(x => '0')
-    .join(', ')}]);
-  var y = NamedControl.kr(\\y, [${range(10)
-    .map(x => '0')
-    .join(', ')}]);
-  ${data.scSynthDefs[synth]}
-              }`
-              )
+              socket.emit('sc:synth', synth, `${data.scSynthDefs[synth]}`)
             }
           }
           if (!isUndefined(data.recordingStarted)) {

@@ -55,7 +55,7 @@ export async function startDevServer() {
     }
   )
 
-  const synths: Record<string, any> = {}
+  const synths: Record<string, { synth: any; buffer: any }> = {}
   const synthDefs: Record<string, any> = {}
 
   io.on('connection', (socket: Socket<ReceiveMap, SendMap>) => {
@@ -77,9 +77,14 @@ export async function startDevServer() {
       if (!scServer) return
 
       try {
-        debugger
         // Compile a SynthDef from inline SuperCollider language code and send it to the server
-        const def = await scServer.synthDef(name, synthDef)
+        const def = await scServer.synthDef(
+          name,
+          `| buf |
+          buf.getn(0, 20, { | vals |
+            ${synthDef}
+          });`
+        )
         synthDefs[name] = def
       } catch (err) {
         console.error('Error compiling SynthDef:', err)
@@ -87,24 +92,42 @@ export async function startDevServer() {
       }
     })
 
-    socket.on('sc:set', async (name: string, param: string, value: number) => {
-      try {
-        if (!synths[name]) return false
-        synths[name].set({ [param]: value })
-      } catch (err) {
-        console.error('Error setting Synth parameter:', err)
+    socket.on(
+      'sc:set',
+      async (name: string, param: string, value: number | number[]) => {
+        try {
+          if (!synths[name]) return false
+          if (value instanceof Array) {
+            // synths[name].setn({ [param]: value })
+            // @ts-ignore
+            scServer.send.msg(
+              sc.msg.bufferSetn(synths[name].buffer.id, 0, value)
+            )
+            synths[name].buffer.set({ [param]: value[0] })
+            debugger
+          } else {
+            synths[name].synth.set({ [param]: value })
+          }
+        } catch (err) {
+          console.error('Error setting Synth parameter:', err)
+        }
       }
-    })
+    )
 
     socket.on('sc:on', async () => {
       for (let synth in synthDefs) {
-        synths[synth] = await scServer.synth(synthDefs[synth])
+        const buffer = await scServer.buffer(10, 2)
+        synths[synth] = {
+          synth: await scServer.synth(synthDefs[synth], { buffer: buffer.id }),
+          buffer
+        }
       }
     })
 
     socket.on('sc:off', () => {
       for (const key in synths) {
-        synths[key].free()
+        synths[key].synth.free()
+        synths[key].buffer.free()
         delete synths[key]
       }
     })

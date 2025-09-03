@@ -166,7 +166,10 @@ export default class WebGPURenderer extends AsemicVisual {
   private offscreenView: GPUTextureView | null = null
   fragmentGenerator: (src: Glsl) => Glsl
 
-  constructor(ctx: GPUCanvasContext, fragmentGenerator: (src: Glsl) => Glsl) {
+  constructor(
+    ctx: GPUCanvasContext,
+    fragmentGenerator: (src: Glsl) => Glsl = src => src
+  ) {
     super()
     this.ctx = ctx
     this.fragmentGenerator = fragmentGenerator

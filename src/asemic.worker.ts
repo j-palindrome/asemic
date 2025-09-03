@@ -34,8 +34,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     renderer = new WebGPURenderer(
       ev.data.offscreenCanvas.getContext('webgpu')!,
       src => {
-        debugger
-
         const saved = src.mult(
           osc(13, 0, 1)
             .kaleid()

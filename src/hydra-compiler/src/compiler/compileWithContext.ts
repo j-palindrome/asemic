@@ -82,9 +82,7 @@ export function compileWithContext(
   fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var c = textureSample(inputTexture, textureSampler, input.uv);
     var st = input.uv;
-    // var c = vec4<f32>(input.uv, 0.0, 1.0);
-    return ${shaderParams.fragColor};
-    // return c;
+    return ${shaderParams.fragColor} * c;
   }
   `
 

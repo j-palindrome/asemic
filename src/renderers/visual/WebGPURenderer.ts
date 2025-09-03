@@ -4,7 +4,7 @@ import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from '../../parser/Parser'
 import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
-import { compileWithContext } from '../../hydra-compiler'
+import { compileWithContext, src } from '../../hydra-compiler'
 import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
 import { CompiledTransform } from '../../hydra-compiler/src/compiler/compileWithContext'
 
@@ -164,12 +164,9 @@ export default class WebGPURenderer extends AsemicVisual {
   private postProcess: PostProcessQuad | null = null
   private offscreenTexture: GPUTexture | null = null
   private offscreenView: GPUTextureView | null = null
-  fragmentGenerator: (...args: any[]) => Glsl
+  fragmentGenerator: (src: Glsl) => Glsl
 
-  constructor(
-    ctx: GPUCanvasContext,
-    fragmentGenerator: (...args: any[]) => Glsl
-  ) {
+  constructor(ctx: GPUCanvasContext, fragmentGenerator: (src: Glsl) => Glsl) {
     super()
     this.ctx = ctx
     this.fragmentGenerator = fragmentGenerator
@@ -1146,14 +1143,12 @@ class PostProcessQuad {
     ctx: GPUCanvasContext,
     device: GPUDevice,
     textureView: GPUTextureView,
-    {
-      fragmentGenerator
-    }: { fragmentGenerator: (...args: any[]) => CompiledTransform }
+    { fragmentGenerator }: { fragmentGenerator: (src: Glsl) => Glsl }
   ) {
     this.ctx = ctx
     this.device = device
 
-    const code = compileWithContext(fragmentGenerator().transforms, {
+    const code = compileWithContext(fragmentGenerator(src()).transforms, {
       defaultUniforms: {
         time: 0,
         resolution: [1080, 1080]

@@ -277,12 +277,17 @@ export const generatorTransforms = [
     type: 'src',
     inputs: [
       {
-        type: 'texture_2d',
+        type: 'texture_2d<f32>',
         name: 'tex',
-        default: NaN
+        default: 'inputTexture'
+      },
+      {
+        type: 'sampler',
+        name: 'sampler',
+        default: 'textureSampler'
       }
     ],
-    glsl: `	return texture2D(tex, fract(_st));`
+    glsl: `	return textureSample(tex, sampler, fract(_st));`
   },
   {
     name: 'solid',

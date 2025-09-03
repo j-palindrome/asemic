@@ -4,7 +4,8 @@ import AsemicVisual from './renderers/AsemicVisual'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import { Parser } from './parser/Parser'
-import { noise } from './hydra-compiler'
+import { noise, osc, shape } from './hydra-compiler1'
+import { generators, generators as realOsc } from 'hydra-ts'
 
 let parser: Parser = new Parser()
 let renderer: AsemicVisual
@@ -32,7 +33,20 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     offscreenCanvas = ev.data.offscreenCanvas
     renderer = new WebGPURenderer(
       ev.data.offscreenCanvas.getContext('webgpu')!,
-      () => noise()
+      () => {
+        const saved = generators.osc()
+        debugger
+        return osc(13, 0, 1)
+          .kaleid()
+          .mask(shape(4, 0.3, 1))
+          .modulateRotate(shape(4, 0.1, 1))
+          .modulateRotate(shape(4, 0.1, 0.9))
+          .modulateRotate(shape(4, 0.1, 0.8))
+          .scale(0.3)
+          .add(shape(4, 0.2, 1).color(0.3, 1, 1, 0.5))
+          .rotate(0)
+          .out()
+      }
     )
     renderer.setup().then(() => {
       self.postMessage({

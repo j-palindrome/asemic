@@ -3,8 +3,9 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from '../../parser/Parser'
-import { ShaderParams } from '../../hydra-compiler/src/compiler/compileWithEnvironment'
-import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
+import { ShaderParams } from '../../hydra-compiler1/src/compiler/compileWithEnvironment'
+import { utilityFunctions } from '../../hydra-compiler1/src/glsl/utilityFunctions'
+import { toFragmentShader } from '../../hydra-compiler1/src/glsl'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -170,7 +171,7 @@ export default class WebGPURenderer extends AsemicVisual {
   ) {
     super()
     this.ctx = ctx
-    this.fragmentGenerator = fragmentGenerator
+    this.fragmentGenerator = toFragmentShader(fragmentGenerator)
 
     this.setup()
   }
@@ -188,11 +189,9 @@ export default class WebGPURenderer extends AsemicVisual {
       format: navigator.gpu.getPreferredCanvasFormat()
     })
     // Create postprocess quad
-    this.postProcess = new PostProcessQuad(this.ctx, this.device, {
-      fragmentGenerator: this.fragmentGenerator
-    })
-    // Create offscreen texture
     this.createOffscreenTexture()
+
+    // Create offscreen texture
     this.isSetup = true
   }
 
@@ -205,6 +204,14 @@ export default class WebGPURenderer extends AsemicVisual {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     })
     this.offscreenView = this.offscreenTexture.createView()
+    this.postProcess = new PostProcessQuad(
+      this.ctx,
+      this.device,
+      this.offscreenView!,
+      {
+        fragmentGenerator: this.fragmentGenerator
+      }
+    )
   }
 
   protected generateBrush(group: AsemicGroup) {
@@ -260,7 +267,7 @@ export default class WebGPURenderer extends AsemicVisual {
     offscreenPass.end()
 
     // Postprocess: render screen quad with offscreen texture to canvas
-    this.postProcess!.render(this.offscreenView!, commandEncoder)
+    this.postProcess!.render(commandEncoder)
 
     this.device.queue.submit([commandEncoder.finish()])
   }
@@ -1129,10 +1136,14 @@ class PostProcessQuad {
   device: GPUDevice
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
+  timeBuffer: GPUBuffer
+  textureView: GPUTextureView
+  time: number = 0
 
   constructor(
     ctx: GPUCanvasContext,
     device: GPUDevice,
+    textureView: GPUTextureView,
     {
       fragmentGenerator
     }: { fragmentGenerator: (...args: any[]) => ShaderParams }
@@ -1190,11 +1201,13 @@ class PostProcessQuad {
       @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
       let color = textureSample(tex, texSampler, input.uv);
       let st = input.uv;
-      ${fragment.fragColor};
+      return mix(${fragment.fragColor}, color, 0.5);
       // Example postprocess: simple gamma correction
-      return color;
+      // return color;
       }
       `
+
+    // debugger
 
     const shaderModule = device.createShaderModule({
       code
@@ -1254,9 +1267,14 @@ class PostProcessQuad {
         cullMode: 'none'
       }
     })
-  }
 
-  render(textureView: GPUTextureView, commandEncoder: GPUCommandEncoder) {
+    this.timeBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false
+    })
+    this.textureView = textureView
+
     // Create bind group for current texture view
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
@@ -1272,16 +1290,49 @@ class PostProcessQuad {
         },
         {
           binding: 1,
-          resource: textureView
+          resource: this.textureView
         },
         {
           binding: 2,
           resource: {
-            buffer: this.device.createBuffer({
-              size: Float32Array.BYTES_PER_ELEMENT,
-              usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-              mappedAtCreation: false
-            })
+            buffer: this.timeBuffer
+          }
+        }
+      ]
+    })
+  }
+
+  render(commandEncoder: GPUCommandEncoder) {
+    // Update time buffer with current time in milliseconds
+    // Update time buffer with current time in milliseconds
+    this.time += 1 / 60
+    this.device.queue.writeBuffer(
+      this.timeBuffer,
+      0,
+      new Float32Array([this.time])
+    )
+
+    // Update bind group with current texture view
+    this.bindGroup = this.device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: this.device.createSampler({
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+            magFilter: 'linear',
+            minFilter: 'linear'
+          })
+        },
+        {
+          binding: 1,
+          resource: this.textureView
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: this.timeBuffer
           }
         }
       ]

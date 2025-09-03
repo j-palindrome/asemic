@@ -1,65 +1,68 @@
-import { Glsl, TransformApplication } from '../glsl/Glsl'
-import { TransformDefinitionInput } from '../glsl/transformDefinitions'
-import arrayUtils from '../lib/array-utils'
+import { Glsl, TransformApplication } from '../glsl/Glsl';
+import arrayUtils from '../lib/array-utils';
+import { TransformDefinitionInput } from '../glsl/transformDefinitions';
+import { Source } from '../Source';
+import { Output } from '../Output';
+import { src } from '../glsl/index';
 
 export interface TypedArg {
-  value: TransformDefinitionInput['default']
-  type: TransformDefinitionInput['type']
-  isUniform: boolean
-  name: TransformDefinitionInput['name']
-  vecLen: number
+  value: TransformDefinitionInput['default'];
+  type: TransformDefinitionInput['type'];
+  isUniform: boolean;
+  name: TransformDefinitionInput['name'];
+  vecLen: number;
 }
 
 export function formatArguments(
   transformApplication: TransformApplication,
-  startIndex: number
+  startIndex: number,
 ): TypedArg[] {
-  const { transform, userArgs } = transformApplication
-  const { inputs } = transform
+  const { transform, userArgs } = transformApplication;
+  const { inputs } = transform;
 
   return inputs.map((input, index) => {
-    const vecLen = input.vecLen ?? 0
+    const vecLen = input.vecLen ?? 0;
 
-    let value: any = input.default
-    let isUniform = false
+    let value: any = input.default;
+    let isUniform = false;
 
-    if (input.type === 'f32') {
-      value = ensureDecimalDot(value)
+    if (input.type === 'float') {
+      value = ensureDecimalDot(value);
     }
 
     // if user has input something for this argument
     if (userArgs.length > index) {
-      const arg = userArgs[index]
+      const arg = userArgs[index];
 
-      value = arg
+      value = arg;
       // do something if a composite or transformApplication
 
       if (typeof arg === 'function') {
         if (vecLen > 0) {
           // expected input is a vector, not a scalar
           value = (context: any, props: any) =>
-            fillArrayWithDefaults(arg(props), vecLen)
+            fillArrayWithDefaults(arg(props), vecLen);
         } else {
           value = (context: any, props: any) => {
             try {
-              return arg(props)
+              return arg(props);
             } catch (e) {
-              console.log('ERROR', e)
-              return input.default
+              console.log('ERROR', e);
+              return input.default;
             }
-          }
+          };
         }
 
-        isUniform = true
+        isUniform = true;
       } else if (Array.isArray(arg)) {
         if (vecLen > 0) {
           // expected input is a vector, not a scalar
-          isUniform = true
-          value = fillArrayWithDefaults(value, vecLen)
+          isUniform = true;
+          value = fillArrayWithDefaults(value, vecLen);
         } else {
           // is Array
-          value = (context: any, props: any) => arrayUtils.getValue(arg)(props)
-          isUniform = true
+          value = (context: any, props: any) => arrayUtils.getValue(arg)(props);
+          isUniform = true;
         }
       }
     }
@@ -67,29 +70,34 @@ export function formatArguments(
     if (value instanceof Glsl) {
       // GLSLSource
 
-      isUniform = false
-    } else if (input.type === 'f32' && typeof value === 'number') {
+      isUniform = false;
+    } else if (input.type === 'float' && typeof value === 'number') {
       // Number
 
-      value = ensureDecimalDot(value)
+      value = ensureDecimalDot(value);
     } else if (input.type.startsWith('vec') && Array.isArray(value)) {
       // Vector literal (as array)
 
-      isUniform = false
-      value = `${input.type}(${value.map(ensureDecimalDot).join(', ')})`
-    } else if (input.type === 'texture_2d') {
-      const ref = value
+      isUniform = false;
+      value = `${input.type}(${value.map(ensureDecimalDot).join(', ')})`;
+    } else if (input.type === 'sampler2D') {
+      const ref = value;
 
-      value = () => ref.getTexture()
-      isUniform = true
+      value = () => ref.getTexture();
+      isUniform = true;
+    } else if (value instanceof Source || value instanceof Output) {
+      const ref = value;
+
+      value = src(ref);
+      isUniform = false;
     }
 
-    // Add to uniform array if is a function that will pass in a different value on each render frame,
+    // add tp uniform array if is a function that will pass in a different value on each render frame,
     // or a texture/ external source
 
-    let { name } = input
+    let { name } = input;
     if (isUniform) {
-      name += startIndex
+      name += startIndex;
     }
 
     return {
@@ -97,17 +105,17 @@ export function formatArguments(
       type: input.type,
       isUniform,
       vecLen,
-      name
-    }
-  })
+      name,
+    };
+  });
 }
 
 export function ensureDecimalDot(val: any): string {
-  val = val.toString()
+  val = val.toString();
   if (val.indexOf('.') < 0) {
-    val += '.'
+    val += '.';
   }
-  return val
+  return val;
 }
 
 export function fillArrayWithDefaults(arr: any[], len: number) {
@@ -115,10 +123,10 @@ export function fillArrayWithDefaults(arr: any[], len: number) {
   while (arr.length < len) {
     if (arr.length === 3) {
       // push a 1 as the default for .a in vec4
-      arr.push(1.0)
+      arr.push(1.0);
     } else {
-      arr.push(0.0)
+      arr.push(0.0);
     }
   }
-  return arr.slice(0, len)
+  return arr.slice(0, len);
 }

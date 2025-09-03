@@ -68,52 +68,52 @@ const types = {
 
 */
 
-import { Texture2D } from 'regl';
+import { Texture2D } from 'regl'
 
 export type TransformDefinitionType =
   | 'src'
   | 'coord'
   | 'color'
   | 'combine'
-  | 'combineCoord';
+  | 'combineCoord'
 
 export type TransformDefinitionInputTypeFloat = {
-  type: 'float';
+  type: 'float'
   default?:
     | number
     | number[]
-    | ((context: any, props: any) => number | number[]);
-};
+    | ((context: any, props: any) => number | number[])
+}
 
 export type TransformDefinitionInputTypeSampler2D = {
-  type: 'sampler2D';
-  default?: Texture2D | number;
-};
+  type: 'sampler2D'
+  default?: number
+}
 
 export type TransformDefinitionInputTypeVec4 = {
-  type: 'vec4';
-  default?: string | number;
-};
+  type: 'vec4'
+  default?: string | number
+}
 
 export type TransformDefinitionInputUnion =
   | TransformDefinitionInputTypeFloat
   | TransformDefinitionInputTypeSampler2D
-  | TransformDefinitionInputTypeVec4;
+  | TransformDefinitionInputTypeVec4
 
 export type TransformDefinitionInput = TransformDefinitionInputUnion & {
-  name: string;
-  vecLen?: number;
-};
+  name: string
+  vecLen?: number
+}
 
 export interface TransformDefinition {
-  name: string;
-  type: TransformDefinitionType;
-  inputs: readonly TransformDefinitionInput[];
-  glsl: string;
+  name: string
+  type: TransformDefinitionType
+  inputs: readonly TransformDefinitionInput[]
+  glsl: string
 }
 
 export interface ProcessedTransformDefinition extends TransformDefinition {
-  processed: true;
+  processed: true
 }
 
 export const generatorTransforms = [
@@ -124,15 +124,15 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 10,
+        default: 10
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0.1,
-      },
+        default: 0.1
+      }
     ],
-    glsl: `   return vec4(vec3(_noise(vec3(_st*scale, offset*time))), 1.0);`,
+    glsl: `   return vec4(vec3(_noise(vec3(_st*scale, offset*time))), 1.0);`
   },
   {
     name: 'voronoi',
@@ -141,18 +141,18 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 5,
+        default: 5
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0.3,
+        default: 0.3
       },
       {
         type: 'float',
         name: 'blending',
-        default: 0.3,
-      },
+        default: 0.3
+      }
     ],
     glsl: `   vec3 color = vec3(.0);
    // Scale
@@ -179,7 +179,7 @@ export const generatorTransforms = [
    // Assign a color using the closest point position
    color += dot(m_point,vec2(.3,.6));
    color *= 1.0 - blending*m_dist;
-   return vec4(color, 1.0);`,
+   return vec4(color, 1.0);`
   },
   {
     name: 'osc',
@@ -188,24 +188,24 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'frequency',
-        default: 60,
+        default: 60
       },
       {
         type: 'float',
         name: 'sync',
-        default: 0.1,
+        default: 0.1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 st = _st;
    float r = sin((st.x-offset/frequency+time*sync)*frequency)*0.5  + 0.5;
    float g = sin((st.x+time*sync)*frequency)*0.5 + 0.5;
    float b = sin((st.x+offset/frequency+time*sync)*frequency)*0.5  + 0.5;
-   return vec4(r, g, b, 1.0);`,
+   return vec4(r, g, b, 1.0);`
   },
   {
     name: 'shape',
@@ -214,25 +214,25 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'sides',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'radius',
-        default: 0.3,
+        default: 0.3
       },
       {
         type: 'float',
         name: 'smoothing',
-        default: 0.01,
-      },
+        default: 0.01
+      }
     ],
     glsl: `   vec2 st = _st * 2. - 1.;
    // Angle and radius from the current pixel
    float a = atan(st.x,st.y)+3.1416;
    float r = (2.*3.1416)/sides;
    float d = cos(floor(.5+a/r)*r-a)*length(st);
-   return vec4(vec3(1.0-smoothstep(radius,radius + smoothing + 0.0000001,d)), 1.0);`,
+   return vec4(vec3(1.0-smoothstep(radius,radius + smoothing + 0.0000001,d)), 1.0);`
   },
   {
     name: 'gradient',
@@ -241,10 +241,10 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
-    glsl: `   return vec4(_st, sin(time*speed), 1.0);`,
+    glsl: `   return vec4(_st, sin(time*speed), 1.0);`
   },
   {
     name: 'src',
@@ -253,10 +253,10 @@ export const generatorTransforms = [
       {
         type: 'sampler2D',
         name: 'tex',
-        default: NaN,
-      },
+        default: NaN
+      }
     ],
-    glsl: `return texture2D(tex, fract(_st));`,
+    glsl: `return texture2D(tex, fract(_st));`
   },
   {
     name: 'solid',
@@ -265,27 +265,27 @@ export const generatorTransforms = [
       {
         type: 'float',
         name: 'r',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'g',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'b',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'a',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return vec4(r, g, b, a);`,
-  },
-] as const;
+    glsl: `   return vec4(r, g, b, a);`
+  }
+] as const
 
 export const modifierTransforms = [
   {
@@ -295,19 +295,19 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'angle',
-        default: 10,
+        default: 10
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 xy = _st - vec2(0.5);
    float ang = angle + speed *time;
    xy = mat2(cos(ang),-sin(ang), sin(ang),cos(ang))*xy;
    xy += 0.5;
-   return xy;`,
+   return xy;`
   },
   {
     name: 'scale',
@@ -316,34 +316,34 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 1.5,
+        default: 1.5
       },
       {
         type: 'float',
         name: 'xMult',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'yMult',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offsetX',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'offsetY',
-        default: 0.5,
-      },
+        default: 0.5
+      }
     ],
     glsl: `   vec2 xy = _st - vec2(offsetX, offsetY);
    xy*=(1.0/vec2(amount*xMult, amount*yMult));
    xy+=vec2(offsetX, offsetY);
    return xy;
-   `,
+   `
   },
   {
     name: 'pixelate',
@@ -352,16 +352,16 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'pixelX',
-        default: 20,
+        default: 20
       },
       {
         type: 'float',
         name: 'pixelY',
-        default: 20,
-      },
+        default: 20
+      }
     ],
     glsl: `   vec2 xy = vec2(pixelX, pixelY);
-   return (floor(_st * xy) + 0.5)/xy;`,
+   return (floor(_st * xy) + 0.5)/xy;`
   },
   {
     name: 'posterize',
@@ -370,20 +370,20 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'bins',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'gamma',
-        default: 0.6,
-      },
+        default: 0.6
+      }
     ],
     glsl: `   vec4 c2 = pow(_c0, vec4(gamma));
    c2 *= vec4(bins);
    c2 = floor(c2);
    c2/= vec4(bins);
    c2 = pow(c2, vec4(1.0/gamma));
-   return vec4(c2.xyz, _c0.a);`,
+   return vec4(c2.xyz, _c0.a);`
   },
   {
     name: 'shift',
@@ -392,30 +392,30 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'r',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'g',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'b',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'a',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec4 c2 = vec4(_c0);
    c2.r = fract(c2.r + r);
    c2.g = fract(c2.g + g);
    c2.b = fract(c2.b + b);
    c2.a = fract(c2.a + a);
-   return vec4(c2.rgba);`,
+   return vec4(c2.rgba);`
   },
   {
     name: 'repeat',
@@ -424,28 +424,28 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'repeatX',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'repeatY',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offsetX',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'offsetY',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 st = _st * vec2(repeatX, repeatY);
    st.x += step(1., mod(st.y,2.0)) * offsetX;
    st.y += step(1., mod(st.x,2.0)) * offsetY;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'modulateRepeat',
@@ -454,33 +454,33 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'repeatX',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'repeatY',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offsetX',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'offsetY',
-        default: 0.5,
-      },
+        default: 0.5
+      }
     ],
     glsl: `   vec2 st = _st * vec2(repeatX, repeatY);
    st.x += step(1., mod(st.y,2.0)) + color.r * offsetX;
    st.y += step(1., mod(st.x,2.0)) + color.g * offsetY;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'repeatX',
@@ -489,18 +489,18 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'reps',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 st = _st * vec2(reps, 1.0);
    //  float f =  mod(_st.y,2.0);
    st.y += step(1., mod(st.x,2.0))* offset;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'modulateRepeatX',
@@ -509,23 +509,23 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'reps',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0.5,
-      },
+        default: 0.5
+      }
     ],
     glsl: `   vec2 st = _st * vec2(reps, 1.0);
    //  float f =  mod(_st.y,2.0);
    st.y += step(1., mod(st.x,2.0)) + color.r * offset;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'repeatY',
@@ -534,18 +534,18 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'reps',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 st = _st * vec2(1.0, reps);
    //  float f =  mod(_st.y,2.0);
    st.x += step(1., mod(st.y,2.0))* offset;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'modulateRepeatY',
@@ -554,23 +554,23 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'reps',
-        default: 3,
+        default: 3
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0.5,
-      },
+        default: 0.5
+      }
     ],
     glsl: `   vec2 st = _st * vec2(reps, 1.0);
    //  float f =  mod(_st.y,2.0);
    st.x += step(1., mod(st.y,2.0)) + color.r * offset;
-   return fract(st);`,
+   return fract(st);`
   },
   {
     name: 'kaleid',
@@ -579,8 +579,8 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'nSides',
-        default: 4,
-      },
+        default: 4
+      }
     ],
     glsl: `   vec2 st = _st;
    st -= 0.5;
@@ -589,7 +589,7 @@ export const modifierTransforms = [
    float pi = 2.*3.1416;
    a = mod(a,pi/nSides);
    a = abs(a-pi/nSides/2.);
-   return r*vec2(cos(a), sin(a));`,
+   return r*vec2(cos(a), sin(a));`
   },
   {
     name: 'modulateKaleid',
@@ -598,13 +598,13 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'nSides',
-        default: 4,
-      },
+        default: 4
+      }
     ],
     glsl: `   vec2 st = _st - 0.5;
    float r = length(st);
@@ -612,7 +612,7 @@ export const modifierTransforms = [
    float pi = 2.*3.1416;
    a = mod(a,pi/nSides);
    a = abs(a-pi/nSides/2.);
-   return (color.r+r)*vec2(cos(a), sin(a));`,
+   return (color.r+r)*vec2(cos(a), sin(a));`
   },
   {
     name: 'scroll',
@@ -621,28 +621,28 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scrollX',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'scrollY',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'speedX',
-        default: 0,
+        default: 0
       },
       {
         type: 'float',
         name: 'speedY',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `
    _st.x += scrollX + time*speedX;
    _st.y += scrollY + time*speedY;
-   return fract(_st);`,
+   return fract(_st);`
   },
   {
     name: 'scrollX',
@@ -651,16 +651,16 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scrollX',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   _st.x += scrollX + time*speed;
-   return fract(_st);`,
+   return fract(_st);`
   },
   {
     name: 'modulateScrollX',
@@ -669,21 +669,21 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'scrollX',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   _st.x += color.r*scrollX + time*speed;
-   return fract(_st);`,
+   return fract(_st);`
   },
   {
     name: 'scrollY',
@@ -692,16 +692,16 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scrollY',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   _st.y += scrollY + time*speed;
-   return fract(_st);`,
+   return fract(_st);`
   },
   {
     name: 'modulateScrollY',
@@ -710,21 +710,21 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'scrollY',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'speed',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   _st.y += color.r*scrollY + time*speed;
-   return fract(_st);`,
+   return fract(_st);`
   },
   {
     name: 'add',
@@ -733,15 +733,15 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return (_c0+color)*amount + _c0*(1.0-amount);`,
+    glsl: `   return (_c0+color)*amount + _c0*(1.0-amount);`
   },
   {
     name: 'sub',
@@ -750,15 +750,15 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return (_c0-color)*amount + _c0*(1.0-amount);`,
+    glsl: `   return (_c0-color)*amount + _c0*(1.0-amount);`
   },
   {
     name: 'layer',
@@ -767,10 +767,10 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
-      },
+        vecLen: 4
+      }
     ],
-    glsl: `   return vec4(mix(_c0.rgb, color.rgb, color.a), _c0.a+color.a);`,
+    glsl: `   return vec4(mix(_c0.rgb, color.rgb, color.a), _c0.a+color.a);`
   },
   {
     name: 'blend',
@@ -779,15 +779,15 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 0.5,
-      },
+        default: 0.5
+      }
     ],
-    glsl: `   return _c0*(1.0-amount)+color*amount;`,
+    glsl: `   return _c0*(1.0-amount)+color*amount;`
   },
   {
     name: 'mult',
@@ -796,15 +796,15 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return _c0*(1.0-amount)+(_c0*color)*amount;`,
+    glsl: `   return _c0*(1.0-amount)+(_c0*color)*amount;`
   },
   {
     name: 'diff',
@@ -813,10 +813,10 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
-      },
+        vecLen: 4
+      }
     ],
-    glsl: `   return vec4(abs(_c0.rgb-color.rgb), max(_c0.a, color.a));`,
+    glsl: `   return vec4(abs(_c0.rgb-color.rgb), max(_c0.a, color.a));`
   },
   {
     name: 'modulate',
@@ -825,16 +825,16 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 0.1,
-      },
+        default: 0.1
+      }
     ],
     glsl: `   //  return fract(st+(color.xy-0.5)*amount);
-   return _st + color.xy*amount;`,
+   return _st + color.xy*amount;`
   },
   {
     name: 'modulateScale',
@@ -843,23 +843,23 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'multiple',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 1,
-      },
+        default: 1
+      }
     ],
     glsl: `   vec2 xy = _st - vec2(0.5);
    xy*=(1.0/vec2(offset + multiple*color.r, offset + multiple*color.g));
    xy+=vec2(0.5);
-   return xy;`,
+   return xy;`
   },
   {
     name: 'modulatePixelate',
@@ -868,21 +868,21 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'multiple',
-        default: 10,
+        default: 10
       },
       {
         type: 'float',
         name: 'offset',
-        default: 3,
-      },
+        default: 3
+      }
     ],
     glsl: `   vec2 xy = vec2(offset + color.x*multiple, offset + color.y*multiple);
-   return (floor(_st * xy) + 0.5)/xy;`,
+   return (floor(_st * xy) + 0.5)/xy;`
   },
   {
     name: 'modulateRotate',
@@ -891,24 +891,24 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'multiple',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
     glsl: `   vec2 xy = _st - vec2(0.5);
    float angle = offset + color.x * multiple;
    xy = mat2(cos(angle),-sin(angle), sin(angle),cos(angle))*xy;
    xy += 0.5;
-   return xy;`,
+   return xy;`
   },
   {
     name: 'modulateHue',
@@ -917,15 +917,15 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
+        vecLen: 4
       },
       {
         type: 'float',
         name: 'amount',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return _st + (vec2(color.g - color.r, color.b - color.g) * amount * 1.0/resolution);`,
+    glsl: `   return _st + (vec2(color.g - color.r, color.b - color.g) * amount * 1.0/resolution);`
   },
   {
     name: 'invert',
@@ -934,10 +934,10 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 1,
-      },
+        default: 1
+      }
     ],
-    glsl: `   return vec4((1.0-_c0.rgb)*amount + _c0.rgb*(1.0-amount), _c0.a);`,
+    glsl: `   return vec4((1.0-_c0.rgb)*amount + _c0.rgb*(1.0-amount), _c0.a);`
   },
   {
     name: 'contrast',
@@ -946,11 +946,11 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 1.6,
-      },
+        default: 1.6
+      }
     ],
     glsl: `   vec4 c = (_c0-vec4(0.5))*vec4(amount) + vec4(0.5);
-   return vec4(c.rgb, _c0.a);`,
+   return vec4(c.rgb, _c0.a);`
   },
   {
     name: 'brightness',
@@ -959,10 +959,10 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 0.4,
-      },
+        default: 0.4
+      }
     ],
-    glsl: `   return vec4(_c0.rgb + vec3(amount), _c0.a);`,
+    glsl: `   return vec4(_c0.rgb + vec3(amount), _c0.a);`
   },
   {
     name: 'mask',
@@ -971,11 +971,11 @@ export const modifierTransforms = [
       {
         name: 'color',
         type: 'vec4',
-        vecLen: 4,
-      },
+        vecLen: 4
+      }
     ],
     glsl: `   float a = _luminance(color.rgb);
-   return vec4(_c0.rgb*a, a);`,
+   return vec4(_c0.rgb*a, a);`
   },
   {
     name: 'luma',
@@ -984,16 +984,16 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'threshold',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'tolerance',
-        default: 0.1,
-      },
+        default: 0.1
+      }
     ],
     glsl: `   float a = smoothstep(threshold-(tolerance+0.0000001), threshold+(tolerance+0.0000001), _luminance(_c0.rgb));
-   return vec4(_c0.rgb*a, a);`,
+   return vec4(_c0.rgb*a, a);`
   },
   {
     name: 'thresh',
@@ -1002,15 +1002,15 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'threshold',
-        default: 0.5,
+        default: 0.5
       },
       {
         type: 'float',
         name: 'tolerance',
-        default: 0.04,
-      },
+        default: 0.04
+      }
     ],
-    glsl: `   return vec4(vec3(smoothstep(threshold-(tolerance+0.0000001), threshold+(tolerance+0.0000001), _luminance(_c0.rgb))), _c0.a);`,
+    glsl: `   return vec4(vec3(smoothstep(threshold-(tolerance+0.0000001), threshold+(tolerance+0.0000001), _luminance(_c0.rgb))), _c0.a);`
   },
   {
     name: 'color',
@@ -1019,29 +1019,29 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'r',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'g',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'b',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'a',
-        default: 1,
-      },
+        default: 1
+      }
     ],
     glsl: `   vec4 c = vec4(r, g, b, a);
    vec4 pos = step(0.0, c); // detect whether negative
    // if > 0, return r * _c0
    // if < 0 return (1.0-r) * _c0
-   return vec4(mix((1.0-_c0)*abs(c), c*_c0, pos));`,
+   return vec4(mix((1.0-_c0)*abs(c), c*_c0, pos));`
   },
   {
     name: 'saturate',
@@ -1050,12 +1050,12 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 2,
-      },
+        default: 2
+      }
     ],
     glsl: `   const vec3 W = vec3(0.2125, 0.7154, 0.0721);
    vec3 intensity = vec3(dot(_c0.rgb, W));
-   return vec4(mix(intensity, _c0.rgb, amount), _c0.a);`,
+   return vec4(mix(intensity, _c0.rgb, amount), _c0.a);`
   },
   {
     name: 'hue',
@@ -1064,13 +1064,13 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'hue',
-        default: 0.4,
-      },
+        default: 0.4
+      }
     ],
     glsl: `   vec3 c = _rgbToHsv(_c0.rgb);
    c.r += hue;
    //  c.r = fract(c.r);
-   return vec4(_hsvToRgb(c), _c0.a);`,
+   return vec4(_hsvToRgb(c), _c0.a);`
   },
   {
     name: 'colorama',
@@ -1079,14 +1079,14 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'amount',
-        default: 0.005,
-      },
+        default: 0.005
+      }
     ],
     glsl: `   vec3 c = _rgbToHsv(_c0.rgb);
    c += vec3(amount);
    c = _hsvToRgb(c);
    c = fract(c);
-   return vec4(c, _c0.a);`,
+   return vec4(c, _c0.a);`
   },
   {
     name: 'sum',
@@ -1095,15 +1095,15 @@ export const modifierTransforms = [
       {
         type: 'vec4',
         name: 'scale',
-        default: 1,
-      },
+        default: 1
+      }
     ],
     glsl: `   vec4 v = _c0 * s;
    return v.r + v.g + v.b + v.a;
    }
    float sum(vec2 _st, vec4 s) { // vec4 is not a typo, because argument type is not overloaded
    vec2 v = _st.xy * s.xy;
-   return v.x + v.y;`,
+   return v.x + v.y;`
   },
   {
     name: 'r',
@@ -1112,15 +1112,15 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
-    glsl: `   return vec4(_c0.r * scale + offset);`,
+    glsl: `   return vec4(_c0.r * scale + offset);`
   },
   {
     name: 'g',
@@ -1129,15 +1129,15 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
-    glsl: `   return vec4(_c0.g * scale + offset);`,
+    glsl: `   return vec4(_c0.g * scale + offset);`
   },
   {
     name: 'b',
@@ -1146,15 +1146,15 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
-    glsl: `   return vec4(_c0.b * scale + offset);`,
+    glsl: `   return vec4(_c0.b * scale + offset);`
   },
   {
     name: 'a',
@@ -1163,14 +1163,14 @@ export const modifierTransforms = [
       {
         type: 'float',
         name: 'scale',
-        default: 1,
+        default: 1
       },
       {
         type: 'float',
         name: 'offset',
-        default: 0,
-      },
+        default: 0
+      }
     ],
-    glsl: `   return vec4(_c0.a * scale + offset);`,
-  },
-] as const;
+    glsl: `   return vec4(_c0.a * scale + offset);`
+  }
+] as const

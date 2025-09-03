@@ -1,19 +1,18 @@
-import { ProcessedTransformDefinition } from './transformDefinitions';
-import { Output } from '../Output';
+import { ProcessedTransformDefinition } from './transformDefinitions'
 
 export interface TransformApplication {
-  transform: ProcessedTransformDefinition;
-  userArgs: unknown[];
+  transform: ProcessedTransformDefinition
+  userArgs: unknown[]
 }
 
 export class Glsl {
-  transforms: TransformApplication[];
+  transforms: TransformApplication[]
 
   constructor(transformApplication: TransformApplication) {
-    this.transforms = [transformApplication];
+    this.transforms = [transformApplication]
   }
 
-  out(output: Output) {
-    output.render(this.transforms);
-  }
+  // out(output: Output) {
+  //   output.render(this.transforms);
+  // }
 }

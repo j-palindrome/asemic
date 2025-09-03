@@ -1,4 +1,4 @@
-import _, { isEqual, isUndefined, mapValues } from 'lodash'
+import _, { isEqual, isUndefined, mapValues, range } from 'lodash'
 import {
   Download,
   Ellipsis,
@@ -428,7 +428,20 @@ function AsemicAppInner({
             Object.keys(data.scSynthDefs).length > 0
           ) {
             for (let synth in data.scSynthDefs) {
-              socket.emit('sc:synth', synth, data.scSynthDefs[synth])
+              debugger
+              socket.emit(
+                'sc:synth',
+                synth,
+                `{ 
+  var x = NamedControl.kr(\\x, [${range(10)
+    .map(x => '0')
+    .join(', ')}]);
+  var y = NamedControl.kr(\\y, [${range(10)
+    .map(x => '0')
+    .join(', ')}]);
+  ${data.scSynthDefs[synth]}
+              }`
+              )
             }
           }
           if (!isUndefined(data.recordingStarted)) {

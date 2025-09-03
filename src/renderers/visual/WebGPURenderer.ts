@@ -3,6 +3,10 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
 import { AsemicGroup } from '../../parser/Parser'
+import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
+import { compileWithContext } from '../../hydra-compiler'
+import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
+import { CompiledTransform } from '../../hydra-compiler/src/compiler/compileWithContext'
 
 const wgslRequires = /*wgsl*/ `
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
@@ -160,15 +164,15 @@ export default class WebGPURenderer extends AsemicVisual {
   private postProcess: PostProcessQuad | null = null
   private offscreenTexture: GPUTexture | null = null
   private offscreenView: GPUTextureView | null = null
-  fragmentGenerator: (...args: any[]) => ShaderParams
+  fragmentGenerator: (...args: any[]) => Glsl
 
   constructor(
     ctx: GPUCanvasContext,
-    fragmentGenerator: (...args: any[]) => ShaderParams
+    fragmentGenerator: (...args: any[]) => Glsl
   ) {
     super()
     this.ctx = ctx
-    this.fragmentGenerator = fragmentGenerator().glsl
+    this.fragmentGenerator = fragmentGenerator
 
     this.setup()
   }
@@ -1143,68 +1147,18 @@ class PostProcessQuad {
     textureView: GPUTextureView,
     {
       fragmentGenerator
-    }: { fragmentGenerator: (...args: any[]) => ShaderParams }
+    }: { fragmentGenerator: (...args: any[]) => CompiledTransform }
   ) {
     this.ctx = ctx
     this.device = device
 
-    const fragment = fragmentGenerator()
-    // debugger
-
-    const code = /*wgsl*/ `
-      struct VertexOutput {
-      @builtin(position) position: vec4<f32>,
-      @location(0) uv: vec2<f32>
-      };
-
-      @group(0) @binding(0) var texSampler: sampler;
-      @group(0) @binding(1) var tex: texture_2d<f32>;
-      @group(0) @binding(2) var<uniform> time: f32;
-
-      const speed: f32 = 1.;
-      const blending: f32 = 1.;
-
-      @vertex fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-      var positions = array<vec2<f32>, 6>(
-      vec2<f32>(-1.0, -1.0),
-      vec2<f32>( 1.0, -1.0),
-      vec2<f32>(-1.0,  1.0),
-      vec2<f32>( 1.0, -1.0),
-      vec2<f32>( 1.0,  1.0),
-      vec2<f32>(-1.0,  1.0)
-      );
-      var uvs = array<vec2<f32>, 6>(
-      vec2<f32>(0.0, 1.0),
-      vec2<f32>(1.0, 1.0),
-      vec2<f32>(0.0, 0.0),
-      vec2<f32>(1.0, 1.0),
-      vec2<f32>(1.0, 0.0),
-      vec2<f32>(0.0, 0.0)
-      );
-      var output: VertexOutput;
-      output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
-      output.uv = uvs[vertex_index];
-      return output;
-      }
-
-      ${Object.values(utilityFunctions)
-        .map(x => x.glsl)
-        .join('\n')} 
-      
-      ${Object.values(fragment.transformApplications)
-        .map(x => x.transform.glsl)
-        .join('\n')} 
-
-      @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-      let color = textureSample(tex, texSampler, input.uv);
-      let st = input.uv;
-      return mix(${fragment.fragColor}, color, 0.5);
-      // Example postprocess: simple gamma correction
-      // return color;
-      }
-      `
-
-    // debugger
+    const code = compileWithContext(fragmentGenerator().transforms, {
+      defaultUniforms: {
+        time: 0,
+        resolution: [1080, 1080]
+      },
+      precision: 'highp'
+    }).frag
 
     const shaderModule = device.createShaderModule({
       code

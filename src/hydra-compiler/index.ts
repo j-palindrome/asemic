@@ -9,3 +9,5 @@ export const { gradient, noise, osc, shape, solid, src, voronoi } =
     generatorTransforms,
     modifierTransforms
   })
+
+export { compileWithContext } from './src/compiler/compileWithContext'

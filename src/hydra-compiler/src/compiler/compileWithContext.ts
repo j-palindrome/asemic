@@ -39,16 +39,15 @@ export function compileWithContext(
   })
 
   const frag = `
-  precision ${context.precision} float;
   ${Object.values(shaderParams.uniforms)
     .map(uniform => {
-      return `
-      uniform ${uniform.type} ${uniform.name};`
+      return `@group(0) @binding(${uniform.binding || 0}) var<uniform> ${
+        uniform.name
+      }: ${uniform.type};`
     })
-    .join('')}
-  uniform float time;
-  uniform vec2 resolution;
-  varying vec2 uv;
+    .join('\n')}
+  @group(0) @binding(1) var<uniform> time: f32;
+  @group(0) @binding(2) var<uniform> resolution: vec2<f32>;
 
   ${Object.values(utilityFunctions)
     .map(transform => {
@@ -66,10 +65,24 @@ export function compileWithContext(
     })
     .join('')}
 
-  void main () {
-    vec4 c = vec4(1, 0, 0, 1);
-    vec2 st = gl_FragCoord.xy/resolution.xy;
-    gl_FragColor = ${shaderParams.fragColor};
+  @vertex
+  fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 6>(
+      vec2<f32>(-1.0, -1.0),
+      vec2<f32>( 1.0, -1.0),
+      vec2<f32>(-1.0,  1.0),
+      vec2<f32>( 1.0, -1.0),
+      vec2<f32>( 1.0,  1.0),
+      vec2<f32>(-1.0,  1.0)
+    );
+    return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+  }
+
+  @fragment
+  fn fs_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+    var c = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    var st = fragCoord.xy / resolution.xy;
+    return ${shaderParams.fragColor};
   }
   `
 

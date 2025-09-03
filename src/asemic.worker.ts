@@ -4,7 +4,7 @@ import AsemicVisual from './renderers/AsemicVisual'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
 import { Parser } from './parser/Parser'
-import { noise, osc, shape } from './hydra-compiler'
+import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 // import { generators, generators as realOsc } from 'hydra-ts'
 
 let parser: Parser = new Parser()
@@ -43,7 +43,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
           .scale(0.3)
           .add(shape(4, 0.2, 1).color(0.3, 1, 1, 0.5))
           .rotate(0)
-        debugger
         return saved
       }
     )

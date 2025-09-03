@@ -1138,6 +1138,7 @@ class PostProcessQuad {
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
   timeBuffer: GPUBuffer
+  sizeBuffer: GPUBuffer
   textureView: GPUTextureView
   time: number = 0
 
@@ -1178,6 +1179,11 @@ class PostProcessQuad {
         },
         {
           binding: 2,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' }
+        },
+        {
+          binding: 3,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: { type: 'uniform' }
         }
@@ -1224,6 +1230,11 @@ class PostProcessQuad {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false
     })
+    this.sizeBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * 2,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false
+    })
     this.textureView = textureView
 
     // Create bind group for current texture view
@@ -1247,6 +1258,12 @@ class PostProcessQuad {
           binding: 2,
           resource: {
             buffer: this.timeBuffer
+          }
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: this.sizeBuffer
           }
         }
       ]
@@ -1284,6 +1301,12 @@ class PostProcessQuad {
           binding: 2,
           resource: {
             buffer: this.timeBuffer
+          }
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: this.sizeBuffer
           }
         }
       ]

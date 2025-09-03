@@ -255,7 +255,7 @@ export const generatorTransforms = [
       }
     ],
     glsl: `let st: vec2<f32> = _st * 2. - 1.;
-	let a: f32 = atan(st.x, st.y) + 3.1416;
+	let a: f32 = atan2(st.x, st.y) + 3.1416;
 	let r: f32 = 2. * 3.1416 / sides;
 	let d: f32 = cos(floor(0.5 + a / r) * r - a) * length(st);
 	return vec4<f32>(vec3<f32>(1. - smoothstep(radius, radius + smoothing + 0.0000001, d)), 1.);`
@@ -607,7 +607,7 @@ export const modifierTransforms = [
     glsl: `var st: vec2<f32> = _st;
 	st = st - (0.5);
 	let r: f32 = length(st);
-	var a: f32 = atan(st.y, st.x);
+	var a: f32 = atan2(st.y, st.x);
 	let pi: f32 = 2. * 3.1416;
 	a = ((a) % (pi / nSides));
 	a = abs(a - pi / nSides / 2.);
@@ -630,7 +630,7 @@ export const modifierTransforms = [
     ],
     glsl: `let st: vec2<f32> = _st - 0.5;
 	let r: f32 = length(st);
-	var a: f32 = atan(st.y, st.x);
+	var a: f32 = atan2(st.y, st.x);
 	let pi: f32 = 2. * 3.1416;
 	a = ((a) % (pi / nSides));
 	a = abs(a - pi / nSides / 2.);
@@ -1059,7 +1059,7 @@ export const modifierTransforms = [
       }
     ],
     glsl: `let c: vec4<f32> = vec4<f32>(r, g, b, a);
-	let pos: vec4<f32> = step(0., c);
+	let pos: vec4<f32> = step(vec4<f32>(0.), c);
 	return vec4<f32>(mix((1. - _c0) * abs(c), c * _c0, pos));`
   },
   {

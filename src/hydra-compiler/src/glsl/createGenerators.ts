@@ -90,7 +90,7 @@ export function processGlsl(
 
   const signature = [
     implicitFirstArg,
-    ...transformDefinition.inputs.map(input => `${input.type} ${input.name}`)
+    ...transformDefinition.inputs.map(input => `${input.name}: ${input.type}`)
   ].join(', ')
 
   let glslFunction = `

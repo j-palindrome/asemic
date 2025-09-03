@@ -39,15 +39,10 @@ export function compileWithContext(
   })
 
   const frag = `
-  ${Object.values(shaderParams.uniforms)
-    .map(uniform => {
-      return `@group(0) @binding(${uniform.binding || 0}) var<uniform> ${
-        uniform.name
-      }: ${uniform.type};`
-    })
-    .join('\n')}
-  @group(0) @binding(1) var<uniform> time: f32;
-  @group(0) @binding(2) var<uniform> resolution: vec2<f32>;
+  @group(0) @binding(0) var textureSampler: sampler;
+  @group(0) @binding(1) var inputTexture: texture_2d<f32>;
+  @group(0) @binding(2) var<uniform> time: f32;
+  @group(0) @binding(3) var<uniform> resolution: vec2<f32>;
 
   ${Object.values(utilityFunctions)
     .map(transform => {
@@ -66,7 +61,7 @@ export function compileWithContext(
     .join('')}
 
   @vertex
-  fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
+  fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
     var pos = array<vec2<f32>, 6>(
       vec2<f32>(-1.0, -1.0),
       vec2<f32>( 1.0, -1.0),
@@ -79,7 +74,7 @@ export function compileWithContext(
   }
 
   @fragment
-  fn fs_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+  fn fragmentMain(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     var c = vec4<f32>(1.0, 0.0, 0.0, 1.0);
     var st = fragCoord.xy / resolution.xy;
     return ${shaderParams.fragColor};

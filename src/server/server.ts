@@ -78,12 +78,14 @@ export async function startDevServer() {
 
       try {
         // Compile a SynthDef from inline SuperCollider language code and send it to the server
+
+        debugger
         const def = await scServer.synthDef(
           name,
-          `| buf |
-          buf.getn(0, 20, { | vals |
-            ${synthDef}
-          });`
+          `{ |buffer = 0, out = 0|
+          
+              ${synthDef} 
+          }`
         )
         synthDefs[name] = def
       } catch (err) {
@@ -100,11 +102,10 @@ export async function startDevServer() {
           if (value instanceof Array) {
             // synths[name].setn({ [param]: value })
             // @ts-ignore
+
             scServer.send.msg(
               sc.msg.bufferSetn(synths[name].buffer.id, 0, value)
             )
-            synths[name].buffer.set({ [param]: value[0] })
-            debugger
           } else {
             synths[name].synth.set({ [param]: value })
           }
@@ -116,11 +117,12 @@ export async function startDevServer() {
 
     socket.on('sc:on', async () => {
       for (let synth in synthDefs) {
-        const buffer = await scServer.buffer(10, 2)
+        const buffer = await scServer.buffer(100, 2)
         synths[synth] = {
           synth: await scServer.synth(synthDefs[synth], { buffer: buffer.id }),
           buffer
         }
+        synths[synth].synth.set('buffer', buffer.id)
       }
     })
 

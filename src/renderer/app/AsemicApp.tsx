@@ -10,6 +10,7 @@ import {
   Pause,
   Play,
   Power,
+  RefreshCw,
   Save,
   Speaker,
   Upload,
@@ -33,7 +34,7 @@ import { splitString } from '@/lib/settings'
 import { AsemicData, FlatTransform } from '@/lib/types'
 import { Parser } from '@/lib/parser/Parser'
 import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
-import AsemicEditor from '../components/Editor'
+import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 
 function AsemicAppInner({
   source,
@@ -450,6 +451,8 @@ function AsemicAppInner({
     }
   }
 
+  const editorRef = useRef<AsemicEditorRef | null>(null)
+
   return (
     <div className='asemic-container relative group'>
       <div
@@ -497,6 +500,14 @@ function AsemicAppInner({
                   setIsLive(!isLive)
                 }}>
                 <Power {...lucideProps} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setScenesSource(editorRef.current?.getValue() ?? '')
+                }}
+                title={'Set Value'}>
+                {<RefreshCw {...lucideProps} />}
               </button>
 
               {/* <button
@@ -746,6 +757,7 @@ function AsemicAppInner({
             )}
 
             <AsemicEditor
+              ref={editorRef}
               defaultValue={scenesSource}
               onChange={value => {
                 setScenesSource(value!)

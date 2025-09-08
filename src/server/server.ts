@@ -79,11 +79,9 @@ export async function startDevServer() {
       try {
         // Compile a SynthDef from inline SuperCollider language code and send it to the server
 
-        debugger
         const def = await scServer.synthDef(
           name,
           `{ |buffer = 0, out = 0|
-          
               ${synthDef} 
           }`
         )

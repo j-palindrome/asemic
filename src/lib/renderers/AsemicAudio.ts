@@ -1,6 +1,4 @@
-import { AsemicPt } from 'src/blocks/AsemicPt'
 import AsemicRenderer from './AsemicRenderer'
-import AsemicCurve from 'src/blocks/AsemicCurve'
 
 export default abstract class AsemicAudio extends AsemicRenderer {
   ctx: AudioContext | null = null

@@ -1,5 +1,4 @@
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
-import { lerp } from '../../utils'
 import { CACHED } from '../constants/ExpressionConstants'
 import { Parser } from '../Parser'
 

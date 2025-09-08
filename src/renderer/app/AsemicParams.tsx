@@ -1,4 +1,4 @@
-import { useSocket } from '../server/schema'
+import { useSocket } from '../schema'
 import Slider from '../components/Slider'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { cloneDeep } from 'lodash'

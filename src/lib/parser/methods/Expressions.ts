@@ -1,6 +1,5 @@
+import { clamp, last } from 'lodash'
 import invariant from 'tiny-invariant'
-import { splitStringAt } from '../../settings'
-import { clamp, last, lastIndexOf } from 'lodash'
 import { Parser } from '../../types'
 
 export class ExpressionMethods {

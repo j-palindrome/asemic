@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client'
 import AsemicApp from './app/AsemicApp'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
 import AsemicParams from './app/AsemicParams'
-import { SocketContext } from './server/schema'
-import { InputSchema } from './server/inputSchema'
+import { SocketContext } from './schema'
+import { InputSchema } from './inputSchema'
 import { io, Socket } from 'socket.io-client'
 import { isEqual } from 'lodash'
 import './standalone/index.css'
@@ -72,8 +72,7 @@ function SocketProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Only connect to socket in development or if explicitly configured
-    const shouldConnect =
-      import.meta.env.DEV || import.meta.env.VITE_ENABLE_SOCKET
+    const shouldConnect = import.meta.env.VITE_ENABLE_SOCKET
     if (!shouldConnect) return
 
     const newSocket = io('http://localhost:3000')

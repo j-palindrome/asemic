@@ -9,7 +9,6 @@ import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 
 let parser: Parser = new Parser()
 let renderer: AsemicVisual
-let audioRenderer: AsemicAudio
 let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
 let ready = true

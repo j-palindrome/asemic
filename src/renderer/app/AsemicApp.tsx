@@ -25,14 +25,13 @@ import {
   useState
 } from 'react'
 import invariant from 'tiny-invariant'
-import Asemic from '../Asemic'
+import Asemic from '@/lib/Asemic'
 import Slider from '../components/Slider'
-import { InputSchema } from '../server/inputSchema'
-import { useSocket } from '../server/schema'
-import { splitString } from '../settings'
-import { AsemicData, FlatTransform } from '../types'
-import { stripComments } from '../utils'
-import { Parser } from '../parser/Parser'
+import { InputSchema } from '../inputSchema'
+import { useSocket } from '../schema'
+import { splitString } from '@/lib/settings'
+import { AsemicData, FlatTransform } from '@/lib/types'
+import { Parser } from '@/lib/parser/Parser'
 import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
 import AsemicEditor from '../components/Editor'
 
@@ -45,8 +44,6 @@ function AsemicAppInner({
   save: (source: string, { reload }: { reload: boolean }) => void
   getRequire: (file: string) => Promise<string>
 }) {
-  const { socket, schema, setSchema } = useSocket()
-  const { saveFile, openFile: openElectronFile } = useElectronFileOperations()
   const [scenesSource, setScenesSource] = useState(source)
   useEffect(() => {
     if (scenesSource !== source) {
@@ -64,8 +61,6 @@ function AsemicAppInner({
   }, [settings])
 
   const canvas = useRef<HTMLCanvasElement>(null!)
-  const recordingCanvas = useRef<HTMLCanvasElement>(null!)
-  const frame = useRef<HTMLDivElement>(null!)
 
   const useErrors = () => {
     const [errors, setErrorsState] = useState<string[]>([])
@@ -127,221 +122,7 @@ function AsemicAppInner({
     }
   }, [progress, isDragging])
 
-  const useRecording = () => {
-    const [isRecording, setIsRecording] = useState(false)
-    // const fileInputRef = useRef<HTMLInputElement>(null)
-    // const imageInputRef = useRef<HTMLInputElement>(null)
-    // const canvasRecorderRef = useRef<Recorder | null>(null) // REMOVE
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null) // ADD
-    const recordedChunksRef = useRef<BlobPart[]>([])
-
-    const startRecording = async () => {
-      try {
-        // Setup recording canvas to match main canvas size
-        const mainCanvas = canvas.current
-        recordingCanvas.current.width = mainCanvas.width
-        recordingCanvas.current.height = mainCanvas.height
-
-        // const context = recordingCanvas.current.getContext('bitmaprenderer')! // REMOVE
-        // canvasRecorderRef.current = new Recorder(context, { // REMOVE
-        //   name: 'asemic-recording', // REMOVE
-        //   encoderOptions: { // REMOVE
-        //     codec: AVC.getCodec({ profile: 'Main', level: '5.2' }) // REMOVE
-        //   }, // REMOVE
-        //   rect: [ // REMOVE
-        //     0, // REMOVE
-        //     0, // REMOVE
-        //     recordingCanvas.current.width, // REMOVE
-        //     recordingCanvas.current.height // REMOVE
-        //   ], // REMOVE
-        //   frameRate: 60, // REMOVE
-        //   extension: 'mp4', // REMOVE
-        //   download: true // REMOVE
-        // }) // REMOVE
-
-        // await canvasRecorderRef.current.start() // REMOVE
-
-        // Get MediaStream from canvas
-        const stream = recordingCanvas.current.captureStream(60) // ADD
-
-        // Create MediaRecorder
-        mediaRecorderRef.current = new MediaRecorder(stream, {
-          // ADD
-          mimeType: 'video/webm' // ADD
-        }) // ADD
-
-        // Reset recorded chunks
-        recordedChunksRef.current = [] // ADD
-
-        // Set up data available event
-        mediaRecorderRef.current.ondataavailable = (event: BlobEvent) => {
-          // ADD
-          if (event.data.size > 0) {
-            // ADD
-            recordedChunksRef.current.push(event.data) // ADD
-          } // ADD
-        } // ADD
-
-        // Set up stop event
-        mediaRecorderRef.current.onstop = () => {
-          // ADD
-          const blob = new Blob(recordedChunksRef.current, {
-            // ADD
-            type: 'video/webm' // ADD
-          }) // ADD
-          saveRecordedVideo(blob) // ADD
-        } // ADD
-
-        // Start MediaRecorder
-        mediaRecorderRef.current.start() // ADD
-
-        // Start worker recording
-        asemic.current!.postMessage({
-          startRecording: true
-        } as AsemicData)
-
-        setIsRecording(true)
-      } catch (error) {
-        console.error('Failed to start recording:', error)
-        setIsRecording(false)
-      }
-    }
-
-    const stopRecording = async () => {
-      if (!asemic.current) return
-
-      try {
-        // Stop worker recording
-        asemic.current.postMessage({
-          stopRecording: true
-        } as AsemicData)
-
-        // Stop canvas recorder
-        // if (canvasRecorderRef.current) { // REMOVE
-        //   canvasRecorderRef.current.stop() // REMOVE
-        //   setIsRecording(false) // REMOVE
-        // } // REMOVE
-
-        // Stop MediaRecorder
-        if (mediaRecorderRef.current) {
-          // ADD
-          mediaRecorderRef.current.stop() // ADD
-          setIsRecording(false) // ADD
-        } // ADD
-      } catch (error) {
-        console.error('Failed to stop recording:', error)
-        setIsRecording(false)
-      }
-    }
-
-    const stepRecording = async () => {
-      // if ( // REMOVE
-      //   canvasRecorderRef.current && // REMOVE
-      //   canvasRecorderRef.current.status === RecorderStatus.Recording // REMOVE
-      // ) { // REMOVE
-      //   try { // REMOVE
-      //     await canvasRecorderRef.current.step() // REMOVE
-      //   } catch (error) { // REMOVE
-      //     console.error('Recording step error:', error) // REMOVE
-      //   } // REMOVE
-      // } // REMOVE
-    }
-
-    const saveRecordedVideo = (recordedData: Blob) => {
-      try {
-        const url = URL.createObjectURL(recordedData)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `asemic-recording-${new Date()
-          .toISOString()
-          .slice(0, 19)
-          .replace(/:/g, '-')}.webm` // Modified extension
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        setIsRecording(false)
-      } catch (error) {
-        console.error('Failed to save recording:', error)
-        setIsRecording(false)
-      }
-    }
-
-    const saveToFile = async () => {
-      const content = editable.current?.value || scenesSource
-      try {
-        const result = await saveFile(
-          content,
-          `asemic-${new Date()
-            .toISOString()
-            .slice(0, 19)
-            .replace(/:/g, '-')}.asemic`
-        )
-
-        if (result.success && !result.canceled) {
-          console.log('File saved successfully')
-        }
-      } catch (error) {
-        console.error('Failed to save file:', error)
-      }
-    }
-
-    const openFile = async () => {
-      try {
-        const result = await openElectronFile()
-        if (result.success && result.content) {
-          setScenesSource(result.content)
-          if (editable.current) {
-            editable.current.value = result.content
-          }
-        }
-      } catch (error) {
-        console.error('Failed to open file:', error)
-      }
-    }
-
-    const toggleRecording = () => {
-      if (isRecording) {
-        stopRecording()
-      } else {
-        startRecording()
-      }
-    }
-
-    return [
-      isRecording,
-      toggleRecording,
-      saveToFile,
-      openFile,
-      // handleFileLoad,
-      // fileInputRef,
-      saveRecordedVideo,
-      setIsRecording,
-      stepRecording
-      // handleImageLoad,
-      // imageInputRef
-    ] as const
-  }
-  const [
-    isRecording,
-    toggleRecording,
-    saveToFile,
-    openFile,
-    // handleFileLoad,
-    // fileInputRef,
-    setIsRecording,
-    stepRecording
-    // handleImageLoad,
-    // imageInputRef
-  ] = useRecording()
-
   const setup = () => {
-    useEffect(() => {
-      asemic.current?.postMessage({
-        params: schema.params
-      })
-    }, [schema])
-
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
     const onResize = () => {
@@ -365,33 +146,34 @@ function AsemicAppInner({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          if (data.resetParams === true) {
-            socket.emit('params:reset')
-          }
-          if (!isUndefined(data.params) || !isUndefined(data.presets)) {
-            setSchema({
-              params: data.params,
-              presets: data.presets
-            } as InputSchema)
-          }
-          if (!isUndefined(data.files) && Object.keys(data.files).length > 0) {
-            // Send file paths to server for loading
-            socket.emit(
-              'files:load',
-              data.files,
-              (loadFiles: Record<string, ImageData[]>) => {
-                asemic.current?.postMessage({
-                  loadFiles: mapValues(loadFiles, value => {
-                    return value.map(value => {
-                      const imageData = new ImageData(value.width, value.height)
-                      imageData.data.set(new Uint8ClampedArray(value.data))
-                      return imageData
-                    })
-                  })
-                })
-              }
-            )
-          }
+          // if (data.resetParams === true) {
+          //   socket?.emit('params:reset')
+          // }
+          // if (!isUndefined(data.params) || !isUndefined(data.presets)) {
+          //   setSchema({
+          //     params: data.params,
+          //     presets: data.presets
+          //   } as InputSchema)
+          // }
+          // if (!isUndefined(data.files) && Object.keys(data.files).length > 0) {
+          //   // Send file paths to server for loading
+          //   socket?.emit(
+          //     'files:load',
+          //     data.files,
+          //     (loadFiles: Record<string, ImageData[]>) => {
+          //       asemic.current?.postMessage({
+          //         loadFiles: mapValues(loadFiles, value => {
+          //           return value.map(value => {
+          //             const imageData = new ImageData(value.width, value.height)
+          //             imageData.data.set(new Uint8ClampedArray(value.data))
+          //             return imageData
+          //           })
+          //         })
+          //       })
+          //     }
+          //   )
+          // }
+
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
               setPauseAt(data.pauseAt)
@@ -403,34 +185,34 @@ function AsemicAppInner({
           if (!isUndefined(data.eval)) {
             for (let evalString of data.eval) {
               const evalFunction = eval(`({_, sc}) => {
-              ${evalString}
-            }`)
+                ${evalString}
+              }`)
               evalFunction({ _ })
             }
           }
-          if (!isUndefined(data.osc) && data.osc.length > 0) {
-            data.osc.forEach(({ path, args }) => {
-              // Send OSC data via Socket.IO instead of WebSocket
-              if (!socket) return
-              socket.emit('osc:message', { address: path, data: args })
-            })
-          }
-          if (!isUndefined(data.sc) && data.sc.length > 0) {
-            data.sc.forEach(({ path, value }) => {
-              // Send OSC data via Socket.IO instead of WebSocket
-              if (!socket) return
-              const [synth, param] = splitString(path, '/')
-              socket.emit('sc:set', synth, param, value)
-            })
-          }
-          if (
-            !isUndefined(data.scSynthDefs) &&
-            Object.keys(data.scSynthDefs).length > 0
-          ) {
-            for (let synth in data.scSynthDefs) {
-              socket.emit('sc:synth', synth, `${data.scSynthDefs[synth]}`)
-            }
-          }
+          // if (!isUndefined(data.osc) && data.osc.length > 0) {
+          //   data.osc.forEach(({ path, args }) => {
+          //     // Send OSC data via Socket.IO instead of WebSocket
+          //     if (!socket) return
+          //     socket?.emit('osc:message', { address: path, data: args })
+          //   })
+          // }
+          // if (!isUndefined(data.sc) && data.sc.length > 0) {
+          //   data.sc.forEach(({ path, value }) => {
+          //     // Send OSC data via Socket.IO instead of WebSocket
+          //     if (!socket) return
+          //     const [synth, param] = splitString(path, '/')
+          //     socket?.emit('sc:set', synth, param, value)
+          //   })
+          // }
+          // if (
+          //   !isUndefined(data.scSynthDefs) &&
+          //   Object.keys(data.scSynthDefs).length > 0
+          // ) {
+          //   for (let synth in data.scSynthDefs) {
+          //     socket?.emit('sc:synth', synth, `${data.scSynthDefs[synth]}`)
+          //   }
+          // }
           if (!isUndefined(data.recordingStarted)) {
             if (data.recordingStarted) {
               console.log('Recording started')
@@ -438,17 +220,14 @@ function AsemicAppInner({
               // setIsRecording(false)
             }
           }
-          if (!isUndefined(data.recordingStopped)) {
-            // Worker stopped recording, main thread recorder will handle the rest
-          }
-          if (!isUndefined(data.frameData) && recordingCanvas.current) {
-            // Draw transferred frame to recording canvas
-            const ctx = recordingCanvas.current.getContext('bitmaprenderer')!
-            ctx.transferFromImageBitmap(data.frameData)
+          // if (!isUndefined(data.frameData) && recordingCanvas.current) {
+          //   // Draw transferred frame to recording canvas
+          //   const ctx = recordingCanvas.current.getContext('bitmaprenderer')!
+          //   ctx.transferFromImageBitmap(data.frameData)
 
-            // Step the recorder
-            // stepRecording(1)
-          }
+          //   // Step the recorder
+          //   // stepRecording(1)
+          // }
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
@@ -629,6 +408,7 @@ function AsemicAppInner({
   }, [settings.perform])
   const [help, setHelp] = useState(false)
 
+  const frame = useRef<HTMLDivElement>(null!)
   const requestFullscreen = async () => {
     frame.current.style.setProperty('height', '100vh', 'important')
     await frame.current?.requestFullscreen()
@@ -649,51 +429,6 @@ function AsemicAppInner({
       } as LucideProps),
     []
   )
-
-  const { params, presets } = schema
-
-  // Helper functions for backwards compatibility
-  const setParams = useCallback(
-    (newParams: typeof params) => {
-      setSchema({ params: newParams })
-    },
-    [schema, setSchema]
-  )
-
-  const [selectedParam, setSelectedParam] = useState(
-    undefined as string | undefined
-  )
-
-  const [copyNotification, setCopyNotification] = useState('')
-  const copyPreset = () => {
-    const presetValues = Object.fromEntries(
-      Object.entries(params).map(([key, param]) => [
-        key,
-        param.value.toFixed(2)
-      ])
-    )
-    // Format the preset as 'key1=value1 key2=value2' format
-    const formattedPreset = Object.entries(presetValues)
-      .map(([key, value]) => `${key}=${value}`)
-      .join(' ')
-
-    navigator.clipboard.writeText(formattedPreset)
-    setCopyNotification(`Copied preset: ${formattedPreset}`)
-    setTimeout(() => setCopyNotification(''), 3000)
-  }
-
-  const setupAudio = () => {
-    const [audio, setAudio] = useState<boolean>(false)
-    useEffect(() => {
-      if (audio) {
-        socket.emit('sc:on')
-      } else {
-        socket.emit('sc:off')
-      }
-    }, [audio])
-    return [audio, setAudio] as const
-  }
-  const [audio, setAudio] = setupAudio()
 
   const checkLive: MouseEventHandler<HTMLDivElement> = ev => {
     if (ev.altKey) {
@@ -732,7 +467,7 @@ function AsemicAppInner({
           ref={canvas}
           height={1080}
           width={1080}></canvas>
-        <canvas
+        {/* <canvas
           ref={recordingCanvas}
           className='top-0 left-0 !z-100'
           style={{
@@ -745,7 +480,7 @@ function AsemicAppInner({
           }}
           width={1080}
           height={1080}
-        />
+        /> */}
 
         {!perform ? (
           <div
@@ -764,12 +499,12 @@ function AsemicAppInner({
                 <Power {...lucideProps} />
               </button>
 
-              <button
+              {/* <button
                 className={`${isRecording ? '!bg-red-500' : ''}`}
                 onClick={toggleRecording}
                 title={isRecording ? 'Stop Recording' : 'Start Recording'}>
                 {<Video {...lucideProps} />}
-              </button>
+              </button> */}
 
               <button
                 onClick={() => {
@@ -807,21 +542,21 @@ function AsemicAppInner({
                 {<Info {...lucideProps} />}
               </button>
 
-              <button
+              {/* <button
                 className={`${audio ? '!bg-blue-200/40' : ''}`}
                 onClick={() => {
                   setAudio(!audio)
                 }}>
                 {<Speaker {...lucideProps} />}
-              </button>
+              </button> */}
 
-              <button onClick={saveToFile} title='Save to .js file'>
+              {/* <button onClick={saveToFile} title='Save to .js file'>
                 <Download {...lucideProps} />
               </button>
 
               <button onClick={openFile} title='Open Asemic file'>
                 <Upload {...lucideProps} />
-              </button>
+              </button> */}
 
               {/* <input
                 ref={fileInputRef}
@@ -955,7 +690,7 @@ function AsemicAppInner({
                   />
                 </div>
 
-                <div className='w-full flex'>
+                {/* <div className='w-full flex'>
                   <select
                     value={selectedParam}
                     onChange={ev => setSelectedParam(ev.target.value)}>
@@ -1006,7 +741,7 @@ function AsemicAppInner({
                   <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
                     {copyNotification}
                   </div>
-                )}
+                )} */}
               </div>
             )}
 

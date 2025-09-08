@@ -1,7 +1,7 @@
 import { range } from 'lodash'
 import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from '../defaultFont'
-import { InputSchema } from '../server/inputSchema'
+import { InputSchema } from '../../renderer/inputSchema'
 import { defaultSettings, splitString } from '../settings'
 import { AsemicData, Transform } from '../types'
 import { defaultPreProcess, lerp } from '../utils'

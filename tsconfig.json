@@ -16,8 +16,11 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["@webgpu/types"]
+    "types": ["@webgpu/types"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src", "tests", "electron"],
+  "include": ["src"],
   "exclude": ["_archive", "node_modules", "dist"]
 }

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { startDevServer } from '../src/server/server'
+import { startDevServer } from '../renderer/server/server'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

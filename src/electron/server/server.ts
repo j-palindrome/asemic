@@ -3,9 +3,9 @@ import { Client, Server } from 'node-osc'
 import { extname } from 'path'
 import sharp from 'sharp'
 import { Socket, Server as SocketIOServer } from 'socket.io'
-import { ReceiveMap, SendMap } from 'src/types'
+import { ReceiveMap, SendMap } from '@/lib/types'
 import sc from 'supercolliderjs'
-import { InputSchema, inputSchema } from './inputSchema'
+import { InputSchema, inputSchema } from '../../renderer/inputSchema'
 
 let schemaState: InputSchema = {
   params: {},

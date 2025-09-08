@@ -6,40 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-
-    electron({
-      main: {
-        // Shortcut of `build.lib.entry`.
-        entry: 'electron/main.ts',
-        vite: {
-          build: {
-            sourcemap: 'inline',
-            rollupOptions: {
-              external: [
-                'node-osc',
-                'sharp',
-                'supercolliderjs',
-                'ws',
-                'socket.io',
-                'engine.io',
-                'engine.io-client',
-                'utf-8-validate',
-                'bufferutil'
-              ]
-            }
-          }
-        }
-      },
-      preload: {
-        // Shortcut of `build.rollupOptions.input`.
-        // Preload scripts may contain Web APIs, so use the `build.rollupOptions.input` instead `build.lib.entry`.
-        input: 'electron/preload.ts'
-      }
-    })
-  ],
+  plugins: [react(), tailwindcss()],
   build: {
     sourcemap: true,
     target: 'es2020'
@@ -48,8 +15,5 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src')
     }
-  },
-  server: {
-    port: 5173
   }
 })

@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx src/server/server.ts",
+    "dev:electron": "vite --config vite.config.electron.ts --mode electron",
     "build": "npm run build:css && npm run build:lib && npm run build:electron",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:electron": "vite build",

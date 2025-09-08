@@ -1,6 +1,6 @@
 import { Pt } from 'pts'
-import { Parser } from '../src/parser/Parser'
-import { AsemicPt } from '../src/blocks/AsemicPt'
+import { Parser } from '../renderer/parser/Parser'
+import { AsemicPt } from '../renderer/blocks/AsemicPt'
 let parser: Parser
 
 beforeEach(() => {

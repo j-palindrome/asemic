@@ -10,7 +10,7 @@ import {
 import { z } from 'zod'
 import { inputSchema, InputSchema } from './inputSchema'
 import { Socket } from 'socket.io-client'
-import { ReceiveMap, SendMap } from 'src/types'
+import { ReceiveMap, SendMap } from '@/lib/types'
 
 export const SocketContext = createContext<{
   socket: Socket<SendMap, ReceiveMap>
@@ -19,5 +19,8 @@ export const SocketContext = createContext<{
 }>({} as any)
 
 export const useSocket = () => {
-  return useContext(SocketContext)
+  const socketParams = useContext(SocketContext)
+  return (
+    socketParams ?? { socket: null, schema: undefined, setSchema: () => {} }
+  )
 }

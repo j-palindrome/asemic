@@ -484,7 +484,7 @@ function AsemicAppInner({
 
         {!perform ? (
           <div
-            className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col hidden group-hover:!flex !z-100'
+            className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
             onClick={checkLive}>
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
               <button

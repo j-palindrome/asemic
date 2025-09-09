@@ -375,7 +375,7 @@ export class Parser {
       },
       {
         instance: this.data,
-        methods: ['loadFiles', 'table', 'processMouse', 'resolveName']
+        methods: ['loadFiles', 'table', 'resolveName']
       }
     ]
 
@@ -442,7 +442,6 @@ export class Parser {
 
   loadFiles!: DataMethods['loadFiles']
   table!: DataMethods['table']
-  processMouse!: DataMethods['processMouse']
   resolveName!: DataMethods['resolveName']
 
   osc(args: string) {

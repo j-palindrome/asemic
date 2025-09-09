@@ -118,12 +118,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
       self.postMessage(
         {
-          lastTransform: {
-            translation: parser.currentTransform.translation,
-            rotation: parser.currentTransform.rotation,
-            scale: parser.currentTransform.scale,
-            width: parser.expr(parser.currentTransform.width)
-          } as FlatTransform,
           progress: parser.progress.progress,
           totalLength: parser.duration,
           frameData: imageBitmap,

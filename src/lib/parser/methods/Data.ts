@@ -66,22 +66,6 @@ export class DataMethods {
     }
   }
 
-  processMouse(mouse: NonNullable<any>) {
-    this.parser.draw()
-
-    const x = mouse.x / this.parser.preProcessing.width
-    const y = mouse.y / this.parser.preProcessing.height
-    console.log(x, y)
-
-    // Update the last point in the temporary parser
-    const point = new AsemicPt(this.parser, x, y)
-
-    // Optionally, apply the current transform to the mouse position
-    this.parser.reverseTransform(point)
-
-    return point
-  }
-
   resolveName(name: string) {
     if (!this.parser.settings.folder.endsWith('/'))
       this.parser.settings.folder += '/'

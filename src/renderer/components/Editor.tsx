@@ -31,6 +31,7 @@ interface Props {
 export interface AsemicEditorRef {
   getValue: () => string
   setValue: (value: string) => void
+  insertAtCursor: (text: string) => void
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
@@ -50,6 +51,20 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
                 to: viewRef.current.state.doc.length,
                 insert: value
               }
+            })
+          }
+        },
+        insertAtCursor: (text: string) => {
+          if (viewRef.current) {
+            const { state } = viewRef.current
+            const selection = state.selection.main
+            viewRef.current.dispatch({
+              changes: {
+                from: selection.from,
+                to: selection.to,
+                insert: text
+              },
+              selection: { anchor: selection.from + text.length }
             })
           }
         }

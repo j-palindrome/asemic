@@ -78,8 +78,6 @@ function AsemicAppInner({
   }
   const [errors, setErrors, errorsRef] = useErrors()
 
-  const lastTransform = useRef<FlatTransform>(null!)
-
   const usePauseAt = () => {
     const [pauseAt, setPauseAt] = useState<Parser['pauseAt']>(false)
     const pauseAtRef = useRef(pauseAt)
@@ -179,9 +177,6 @@ function AsemicAppInner({
             if (pauseAtRef.current !== data.pauseAt) {
               setPauseAt(data.pauseAt)
             }
-          }
-          if (!isUndefined(data.lastTransform)) {
-            lastTransform.current = data.lastTransform
           }
           if (!isUndefined(data.eval)) {
             for (let evalString of data.eval) {
@@ -415,10 +410,10 @@ function AsemicAppInner({
     await frame.current?.requestFullscreen()
   }
   useEffect(() => {
-    if (settings.fullscreen) {
+    if (settings.perform) {
       requestFullscreen()
     }
-  }, [settings.fullscreen])
+  }, [settings.perform])
 
   const lucideProps = useMemo(
     () =>
@@ -432,22 +427,17 @@ function AsemicAppInner({
   )
 
   const checkLive: MouseEventHandler<HTMLDivElement> = ev => {
-    if (ev.altKey) {
-      const parser = new Parser()
-      parser.setup(scenesSourceRef.current)
-      parser.preProcessing.height = editable.current.clientHeight
-      parser.preProcessing.width = editable.current.clientWidth
-
-      const point = parser.processMouse({
-        x: ev.clientX,
-        y: ev.clientY,
-        cursorPosition: editable.current.selectionStart
-      })
-      window.navigator.clipboard.writeText(
-        `${point.x.toFixed(2).replace('.00', '')},${point.y
-          .toFixed(2)
-          .replace('.00', '')}`
-      )
+    if (isLive && editorRef.current) {
+      const rect = canvas.current.getBoundingClientRect()
+      const x = (ev.clientX - rect.left) / rect.width
+      const y = 1 - (ev.clientY - rect.top) / rect.height
+      const newPoint = `${x.toFixed(2).replace('.00', '')},${y
+        .toFixed(2)
+        .replace('.00', '')} `
+      editorRef.current.insertAtCursor(newPoint)
+      ev.stopPropagation()
+      ev.preventDefault()
+      setScenesSource(editorRef.current.getValue())
     }
   }
 
@@ -488,7 +478,7 @@ function AsemicAppInner({
         {!perform ? (
           <div
             className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
-            onClick={checkLive}>
+            onPointerDownCapture={checkLive}>
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
               <button
                 className={`${isLive ? '!bg-blue-200/40' : ''}`}
@@ -594,11 +584,11 @@ function AsemicAppInner({
                 }}>
                 {<Save {...lucideProps} />}
               </button>
-              <button onClick={requestFullscreen}>
+              <button onClick={() => setPerform(true)}>
                 {<Maximize2 {...lucideProps} />}
               </button>
 
-              <button onClick={() => setPerform(true)}>
+              {/* <button onClick={() => setPerform(true)}>
                 {
                   <PanelTopClose
                     color='white'
@@ -606,7 +596,7 @@ function AsemicAppInner({
                     opacity={0.5}
                   />
                 }
-              </button>
+              </button> */}
             </div>
 
             {/* Progress Scrubber */}

@@ -26,7 +26,6 @@ export type AsemicData = {
 }
 export type AsemicDataBack = {
   settings?: Parser['settings']
-  lastTransform?: FlatTransform
   ready?: boolean
   frameReady?: boolean
   totalLength?: number

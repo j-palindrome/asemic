@@ -30,23 +30,7 @@ const stopRecording = async () => {
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
     offscreenCanvas = ev.data.offscreenCanvas
-    renderer = new WebGPURenderer(
-      ev.data.offscreenCanvas.getContext('webgpu')!,
-      src => {
-        const saved = src.mult(
-          osc(13, 0, 1)
-            .kaleid()
-            .mask(shape(4, 0.3, 1))
-            .modulateRotate(shape(4, 0.1, 1))
-            .modulateRotate(shape(4, 0.1, 0.9))
-            .modulateRotate(shape(4, 0.1, 0.8))
-            .scale(0.3)
-            .add(shape(4, 0.2, 1).color(0.3, 1, 1, 0.5))
-            .rotate(0)
-        )
-        return saved
-      }
-    )
+    renderer = new WebGPURenderer(ev.data.offscreenCanvas.getContext('webgpu')!)
     renderer.setup().then(() => {
       self.postMessage({
         ready: true

@@ -164,15 +164,11 @@ export default class WebGPURenderer extends AsemicVisual {
   private postProcess: PostProcessQuad | null = null
   private offscreenTexture: GPUTexture | null = null
   private offscreenView: GPUTextureView | null = null
-  fragmentGenerator: (src: Glsl) => Glsl
+  fragmentGenerator?: (src: Glsl) => Glsl
 
-  constructor(
-    ctx: GPUCanvasContext,
-    fragmentGenerator: (src: Glsl) => Glsl = src => src
-  ) {
+  constructor(ctx: GPUCanvasContext) {
     super()
     this.ctx = ctx
-    this.fragmentGenerator = fragmentGenerator
 
     this.setup()
   }
@@ -208,10 +204,7 @@ export default class WebGPURenderer extends AsemicVisual {
     this.postProcess = new PostProcessQuad(
       this.ctx,
       this.device,
-      this.offscreenView!,
-      {
-        fragmentGenerator: this.fragmentGenerator
-      }
+      this.offscreenView!
     )
   }
 
@@ -1143,29 +1136,46 @@ class PostProcessQuad {
   sizeBuffer: GPUBuffer
   textureView: GPUTextureView
   time: number = 0
+  fragmentGenerator: ((src: Glsl) => Glsl) | null = null
 
   constructor(
     ctx: GPUCanvasContext,
     device: GPUDevice,
-    textureView: GPUTextureView,
-    { fragmentGenerator }: { fragmentGenerator: (src: Glsl) => Glsl }
+    textureView: GPUTextureView
   ) {
     this.ctx = ctx
     this.device = device
 
-    const code = compileWithContext(fragmentGenerator(src()).transforms, {
-      defaultUniforms: {
-        time: 0,
-        resolution: [1080, 1080]
-      },
-      precision: 'highp'
-    }).frag
-
-    const shaderModule = device.createShaderModule({
-      code
+    this.timeBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false
     })
+    this.sizeBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * 2,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false
+    })
+    this.textureView = textureView
+    this.setupPipeline(this.fragmentGenerator)
+  }
 
-    const bindGroupLayout = device.createBindGroupLayout({
+  setupPipeline(fragmentGenerator: ((src: Glsl) => Glsl) | null = null) {
+    this.fragmentGenerator = fragmentGenerator
+    const code = compileWithContext(
+      this.fragmentGenerator
+        ? this.fragmentGenerator(src()).transforms
+        : src().transforms,
+      {
+        defaultUniforms: {
+          time: 0,
+          resolution: [1080, 1080]
+        },
+        precision: 'highp'
+      }
+    ).frag
+
+    const bindGroupLayout = this.device.createBindGroupLayout({
       entries: [
         {
           binding: 0,
@@ -1190,8 +1200,11 @@ class PostProcessQuad {
       ]
     })
 
-    this.pipeline = device.createRenderPipeline({
-      layout: device.createPipelineLayout({
+    const shaderModule = this.device.createShaderModule({
+      code
+    })
+    this.pipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({
         bindGroupLayouts: [bindGroupLayout]
       }),
       vertex: {
@@ -1223,50 +1236,6 @@ class PostProcessQuad {
         topology: 'triangle-list',
         cullMode: 'none'
       }
-    })
-
-    this.timeBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false
-    })
-    this.sizeBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * 2,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false
-    })
-    this.textureView = textureView
-
-    // Create bind group for current texture view
-    this.bindGroup = this.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        {
-          binding: 0,
-          resource: this.device.createSampler({
-            addressModeU: 'clamp-to-edge',
-            addressModeV: 'clamp-to-edge',
-            magFilter: 'linear',
-            minFilter: 'linear'
-          })
-        },
-        {
-          binding: 1,
-          resource: this.textureView
-        },
-        {
-          binding: 2,
-          resource: {
-            buffer: this.timeBuffer
-          }
-        },
-        {
-          binding: 3,
-          resource: {
-            buffer: this.sizeBuffer
-          }
-        }
-      ]
     })
   }
 

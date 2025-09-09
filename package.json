@@ -17,7 +17,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "dev:electron": "vite --config vite.config.electron.ts --mode electron",
     "build": "npm run build:css && npm run build:lib && npm run build:electron",
     "build:lib": "vite build --config vite.config.lib.ts",

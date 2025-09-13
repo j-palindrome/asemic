@@ -367,6 +367,9 @@ function AsemicAppInner({
             return
           }
         } else if (isLive) {
+          if (ev.key === 'Escape') {
+            setIsLive(false)
+          }
           if (ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey) {
             keysPressed.current[String(ev.key)] = performance.now()
           }
@@ -427,10 +430,16 @@ function AsemicAppInner({
   )
 
   const checkLive: MouseEventHandler<HTMLDivElement> = ev => {
+    if (
+      ev.target instanceof HTMLButtonElement ||
+      (ev.target as Element).closest('button')
+    ) {
+      return
+    }
     if (isLive && editorRef.current) {
       const rect = canvas.current.getBoundingClientRect()
       const x = (ev.clientX - rect.left) / rect.width
-      const y = 1 - (ev.clientY - rect.top) / rect.height
+      const y = (ev.clientY - rect.top) / rect.height
       const newPoint = `${x.toFixed(2).replace('.00', '')},${y
         .toFixed(2)
         .replace('.00', '')} `

@@ -1,4 +1,3 @@
-import { Precision } from '../Hydra'
 import { TypedArg } from './formatArguments'
 import { utilityFunctions } from '../glsl/utilityFunctions'
 import { TransformApplication } from '../glsl/Glsl'
@@ -8,7 +7,6 @@ export interface TransformApplicationContext {
   defaultUniforms?: {
     [name: string]: any
   }
-  precision: Precision
 }
 
 export type CompiledTransform = {

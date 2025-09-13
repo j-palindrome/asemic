@@ -73,6 +73,9 @@ export class TextMethods {
         if (font.characters['NEWLINE']) {
           ;(font.characters['NEWLINE'] as any)()
         }
+        if (font.characters['NEWLINE2']) {
+          ;(font.characters['NEWLINE2'] as any)()
+        }
         continue
       } else if (!font.characters[char]) {
         continue

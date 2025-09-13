@@ -4,7 +4,7 @@ import React, {
   forwardRef,
   useEffect
 } from 'react'
-import { EditorView } from '@codemirror/view'
+import { drawSelection, EditorView } from '@codemirror/view'
 import { EditorState, Prec } from '@codemirror/state'
 import { basicSetup } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
@@ -87,15 +87,20 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       ])
       const startState = EditorState.create({
         doc: defaultValue,
+
         extensions: [
           basicSetup,
           javascript(),
           oneDark,
           transparentTheme,
           Prec.highest(enterKeymap),
-          autocompletion({ override: [parserCompletionSource] })
+          autocompletion({ override: [parserCompletionSource] }),
+          EditorView.lineWrapping,
+          EditorState.allowMultipleSelections.of(true),
+          drawSelection()
         ]
       })
+
       viewRef.current = new EditorView({
         state: startState,
         parent: editorDivRef.current

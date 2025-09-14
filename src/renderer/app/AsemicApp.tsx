@@ -1,39 +1,20 @@
-import _, { isEqual, isUndefined, mapValues, range } from 'lodash'
+import Asemic from '@/lib/Asemic'
+import { Parser } from '@/lib/parser/Parser'
+import { AsemicData } from '@/lib/types'
+import _, { isEqual, isUndefined } from 'lodash'
 import {
-  Download,
   Ellipsis,
-  Image as ImageIcon,
   Info,
   LucideProps,
   Maximize2,
-  PanelTopClose,
   Pause,
   Play,
   Power,
   RefreshCw,
-  Save,
-  Speaker,
-  Upload,
-  Video
+  Save
 } from 'lucide-react'
-import {
-  MouseEvent,
-  MouseEventHandler,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
-import Asemic from '@/lib/Asemic'
-import Slider from '../components/Slider'
-import { InputSchema } from '../inputSchema'
-import { useSocket } from '../schema'
-import { splitString } from '@/lib/settings'
-import { AsemicData, FlatTransform } from '@/lib/types'
-import { Parser } from '@/lib/parser/Parser'
-import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 
 function AsemicAppInner({

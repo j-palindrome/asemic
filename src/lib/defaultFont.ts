@@ -18,36 +18,35 @@ export class AsemicFont {
     this.dynamicCharacters[char] = this.defaultDynamicCharacters[char]
   }
 
-  parseCharacters(chars: AsemicFont['characters']) {
+  parseCharacters(chars: AsemicFont['characters'], { dynamic = false } = {}) {
+    let dict = dynamic ? this.dynamicCharacters : this.characters
     for (let name of Object.keys(chars)) {
-      const reservedCharacters = [
-        'START',
-        'END',
-        'EACH',
-        'EACH2',
-        'NEWLINE',
-        'NEWLINE2'
-      ]
+      const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE']
       if (name.length > 1 && !reservedCharacters.includes(name)) {
         const multipleChars = name.split('')
         const countNum = multipleChars.length
 
         for (let j = 0; j < countNum; j++) {
-          this.characters[multipleChars[j]] = () => {
+          dict[multipleChars[j]] = () => {
             this.parser.constants.I = () => j
             this.parser.constants.N = () => countNum
             chars[name]()
           }
         }
       } else {
-        this.characters[name] = chars[name]
+        dict[name] = chars[name]
       }
     }
   }
 
-  constructor(parser: Parser, characters: AsemicFont['characters']) {
+  constructor(
+    parser: Parser,
+    characters: AsemicFont['characters'],
+    dynamicCharacters: AsemicFont['characters'] = {}
+  ) {
     this.parser = parser
     this.parseCharacters(characters)
+    this.parseCharacters(dynamicCharacters, { dynamic: true })
     this.defaultCharacters = { ...this.characters }
     this.defaultDynamicCharacters = { ...this.dynamicCharacters }
   }

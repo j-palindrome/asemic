@@ -57,7 +57,8 @@ export class UtilityMethods {
     return this.parser
   }
 
-  within(coord0: string, coord1: string, callback: () => void) {
+  within(points: string, callback: () => void) {
+    const [coord0, coord1] = this.parser.tokenize(points)
     const [x, y] = this.parser.parsePoint(coord0)
     const [x2, y2] = this.parser.parsePoint(coord1)
     const startGroup = this.parser.groups.length

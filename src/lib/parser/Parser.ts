@@ -405,7 +405,7 @@ export class Parser {
   applyTransform!: TransformMethods['applyTransform']
   reverseTransform!: TransformMethods['reverseTransform']
 
-  textMethod!: TextMethods['text']
+  text!: TextMethods['text']
   font!: TextMethods['font']
   resetFont!: TextMethods['resetFont']
   keys!: TextMethods['keys']

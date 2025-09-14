@@ -19,7 +19,7 @@ export class TransformMethods {
   private static readonly TRANSLATION_REGEX = new RegExp(
     `^(${TransformAliases.translation.join('|')})(.+)`
   )
-  private static readonly KEY_CALL_REGEX = /^([a-z]+)\=(.+)/
+  private static readonly KEY_CALL_REGEX = /^([a-z]+)(\=\>?)(.+)/
 
   constructor(parser: Parser) {
     this.parser = parser
@@ -157,16 +157,19 @@ export class TransformMethods {
                 const keyCall = transform.match(TransformMethods.KEY_CALL_REGEX)
                 if (keyCall) {
                   const key = keyCall[1]
-                  const value = keyCall[2]
-                  if (value.includes(',')) {
-                    thisTransform[key] = this.parser.evalPoint(value, {
-                      basic: true
-                    })
-                  } else {
-                    if (key === 'w') {
-                      thisTransform.width = this.parser.expr(value)
+                  const value = keyCall[3]
+                  const expression = keyCall[2] // '=' or '=>'
+                  if (['h', 's', 'l', 'a', 'w'].includes(key)) {
+                    if (expression.includes('>')) {
+                      thisTransform[key] = () => this.parser.expr(value)
                     } else {
                       thisTransform[key] = this.parser.expr(value)
+                    }
+                  } else {
+                    if (expression.includes('>')) {
+                      this.parser.def(key, value)
+                    } else {
+                      this.parser.defStatic(key, value)
                     }
                   }
                 }

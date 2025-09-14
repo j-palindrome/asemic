@@ -1,5 +1,6 @@
 import { Color, Group, GroupLike, Pt, PtIterable, PtLike } from 'pts'
 import type { Parser } from '../parser/Parser'
+import { parseFromFunction } from '../utils'
 
 type BasicPtLike = BasicPt | [number, number]
 export class BasicPt extends Float32Array {
@@ -130,11 +131,11 @@ export class AsemicPt extends BasicPt {
       this[5] = inherit[5]
       this[6] = inherit[6]
     } else {
-      this[2] = this.parent.currentTransform.width
-      this[3] = this.parent.currentTransform.h
-      this[4] = this.parent.currentTransform.s
-      this[5] = this.parent.currentTransform.l
-      this[6] = this.parent.currentTransform.a
+      this[2] = parseFromFunction(this.parent.currentTransform.width)
+      this[3] = parseFromFunction(this.parent.currentTransform.h)
+      this[4] = parseFromFunction(this.parent.currentTransform.s)
+      this[5] = parseFromFunction(this.parent.currentTransform.l)
+      this[6] = parseFromFunction(this.parent.currentTransform.a)
     }
   }
 

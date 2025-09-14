@@ -39,3 +39,11 @@ export const mapRangeClamp = (
 export const stripComments = (str: string) => {
   return str.replace(/\/\/(?:.|\n)*?\/\//g, '')
 }
+
+export const parseFromFunction = (value: number | (() => number)) => {
+  if (typeof value === 'function') {
+    return value()
+  } else {
+    return value
+  }
+}

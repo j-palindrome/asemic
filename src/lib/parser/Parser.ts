@@ -338,7 +338,7 @@ export class Parser {
       },
       {
         instance: this.textMethods,
-        methods: ['text', 'font', 'resetFont', 'keys', 'regex']
+        methods: ['text', 'font', 'resetFont', 'keys', 'regex', 'parse']
       },
       {
         instance: this.utilities,
@@ -407,6 +407,7 @@ export class Parser {
 
   text!: TextMethods['text']
   font!: TextMethods['font']
+  parse!: TextMethods['parse']
   resetFont!: TextMethods['resetFont']
   keys!: TextMethods['keys']
   regex!: TextMethods['regex']
@@ -416,6 +417,7 @@ export class Parser {
   center!: UtilityMethods['center']
   each!: UtilityMethods['each']
   test!: UtilityMethods['test']
+
   or!: UtilityMethods['or']
   noise!: UtilityMethods['noise']
   getBounds!: UtilityMethods['getBounds']
@@ -507,7 +509,9 @@ export class Parser {
           object.draw()
         } catch (e) {
           this.error(
-            `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)}`
+            `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)} ${
+              e.stack.split('\n')[1]
+            }`
           )
         }
         i++
@@ -542,6 +546,11 @@ export class Parser {
       .join('\n')
     this.output.errors.push(c)
     return c
+  }
+
+  log(label: string, callback: () => any) {
+    console.log(label, callback())
+    return this
   }
 
   set(settings: Partial<this['settings']>) {

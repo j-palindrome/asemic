@@ -156,10 +156,11 @@ export class TransformMethods {
               } else {
                 const keyCall = transform.match(TransformMethods.KEY_CALL_REGEX)
                 if (keyCall) {
-                  const key = keyCall[1]
+                  let key = keyCall[1]
                   const value = keyCall[3]
                   const expression = keyCall[2] // '=' or '=>'
                   if (['h', 's', 'l', 'a', 'w'].includes(key)) {
+                    if (key === 'w') key = 'width'
                     if (expression.includes('>')) {
                       thisTransform[key] = () => this.parser.expr(value)
                     } else {

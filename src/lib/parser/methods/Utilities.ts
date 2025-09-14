@@ -9,13 +9,16 @@ export class UtilityMethods {
     this.parser = parser
   }
 
-  getBounds(fromGroup: number, toGroup?: number) {
+  getBounds(fromCurve: number, toCurve?: number) {
     let minX: number | undefined = undefined,
       minY: number | undefined = undefined,
       maxX: number | undefined = undefined,
       maxY: number | undefined = undefined
-    for (let group of this.parser.groups.slice(fromGroup, toGroup)) {
-      for (const point of group.flat()) {
+    for (let group of this.parser.groups[this.parser.groups.length - 1].slice(
+      fromCurve,
+      toCurve
+    )) {
+      for (const point of group) {
         if (minX === undefined || point[0] < minX) {
           minX = point[0]
         }
@@ -96,12 +99,13 @@ export class UtilityMethods {
     const [coords, type = 'xy'] = this.parser.tokenize(argsStr)
 
     const [centerX, centerY] = this.parser.parsePoint(coords)
-    const startGroup = this.parser.groups.length
+    const lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    const startCurve = lastGroup.length
 
     callback()
-    const addedGroups = this.parser.groups.slice(startGroup)
+    const addedGroups = lastGroup.slice(startCurve)
 
-    const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
+    const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)
 
     const boundingCenterX = (minX! + maxX!) / 2
     const boundingCenterY = (minY! + maxY!) / 2

@@ -13,9 +13,13 @@ export class AsemicFont {
     this.dynamicCharacters = { ...this.defaultDynamicCharacters }
   }
 
-  resetCharacter(char: string) {
-    this.characters[char] = this.defaultCharacters[char]
-    this.dynamicCharacters[char] = this.defaultDynamicCharacters[char]
+  resetCharacter(char: string, { dynamic = false } = {}) {
+    if (dynamic) {
+      this.dynamicCharacters[char] = this.defaultDynamicCharacters[char]
+    } else {
+      this.characters[char] = this.defaultCharacters[char]
+    }
+    return this.parser
   }
 
   parseCharacters(chars: AsemicFont['characters'], { dynamic = false } = {}) {
@@ -168,7 +172,6 @@ export class DefaultFont extends AsemicFont {
       NEWLINE: () => parser.to('<line +0,3 >line'),
       '\\': () => parser.to('<,-1 +0,3 >'),
       EACH: () => parser.to('+1.25,0'),
-      EACH2: () => {},
       '0': () => parser.circle('0.5,-.8 .5,.8'),
       '1': () => parser.line('.5,0 +0,-2').line('+0,0 0,-1.5'),
       '2': () => parser.line('1,0 0,0', '0,0 1,-.2 1,-1 0,-1 0,-.8'),

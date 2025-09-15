@@ -54,10 +54,6 @@ export class ExpressionMethods {
     if (/[^\-\d\.]/.test(stringExpr)) {
       const foundKey = this.sortedKeys.find(x => stringExpr.startsWith(x))
       if (foundKey) {
-        if (stringExpr.includes(' ')) {
-          const [foundKey, ...args] = this.parser.tokenize(stringExpr)
-          return this.parser.constants[foundKey](...args)
-        }
         const arg1 = stringExpr.slice(foundKey.length)
         return this.parser.constants[foundKey](arg1)
       } else {
@@ -140,8 +136,6 @@ export class ExpressionMethods {
     //   }
     // } else {
     if (splitResult === undefined) {
-      console.log('newSplit')
-
       // Find operator splits in the string
       splitResult = []
       ExpressionMethods.OPERATOR_REGEX.lastIndex = 0
@@ -204,13 +198,16 @@ export class ExpressionMethods {
       return this.fastExpr(splitResult[0].string)
     } else {
       const solveSplitResult = (splitResult: typeof splitResult2) => {
-        // if (splitResult.find(x => x.string.includes('hash'))) debugger
-        let leftVal: number = this.fastExpr(splitResult[0].string)
         if (splitResult.find(x => x.operatorType === ' ')) {
-          return this.fastExpr(
-            splitResult.map(x => x.operatorType + x.string).join('')
+          const args: string[] = this.parser.tokenize(
+            splitResult
+              .slice(1)
+              .map(x => x.operatorType + x.string)
+              .join('')
           )
+          return this.parser.constants[splitResult[0].string](...args)
         }
+        let leftVal: number = this.fastExpr(splitResult[0].string)
         // Find the split index for the operator
         for (let i = 1; i < splitResult.length; i++) {
           const result = splitResult[i]
@@ -232,7 +229,7 @@ export class ExpressionMethods {
             case '^':
               leftVal = leftVal ** rightVal
               break
-            case '#':
+            case '_':
               leftVal = Math.floor(leftVal / rightVal) * rightVal
               break
             case '+':
@@ -276,7 +273,6 @@ export class ExpressionMethods {
       }
       return solveSplitResult(splitResult2)
     }
-    // }
   }
 
   choose(value0To1: string | number, ...callbacks: (() => void)[]) {

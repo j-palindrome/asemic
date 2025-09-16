@@ -21,6 +21,21 @@ export class TextMethods {
     this.parser = parser
   }
 
+  linden(iterations: string, text: string, rules: Record<string, string>) {
+    const applyRules = (text: string) => {
+      for (const [key, value] of Object.entries(rules)) {
+        text = text.replace(new RegExp(key, 'g'), value)
+      }
+      return text
+    }
+
+    for (let i = 0; i < this.parser.expr(iterations); i++) {
+      text = applyRules(text)
+    }
+    this.parser.text(`${text}`)
+    return this.parser
+  }
+
   parse(text: string) {
     const scenes = text.split('\n# ')
     let sceneList: Parameters<Parser['scene']> = []
@@ -128,6 +143,15 @@ export class TextMethods {
             this.parser.error(
               'use {fontname ...chars} instead of (font fontname chars)'
             )
+            break
+          case 'linden':
+            const [count, textStr, rules] = this.parser.tokenize(args)
+            const rulesObj = Object.fromEntries(
+              this.parser
+                .tokenize(rules.slice(1, -1))
+                .map(rule => splitString(rule, '='))
+            )
+            this.parser.linden(count, textStr, rulesObj)
             break
           case 'log':
             let parser = this.parser

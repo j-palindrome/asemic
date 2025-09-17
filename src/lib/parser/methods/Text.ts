@@ -23,10 +23,11 @@ export class TextMethods {
 
   linden(iterations: string, text: string, rules: Record<string, string>) {
     const applyRules = (text: string) => {
+      let textList = text.split('')
       for (const [key, value] of Object.entries(rules)) {
-        text = text.replace(new RegExp(key, 'g'), value)
+        textList = textList.map(x => (x === key ? value : x))
       }
-      return text
+      return textList.join('')
     }
 
     for (let i = 0; i < this.parser.expr(iterations); i++) {
@@ -59,6 +60,8 @@ export class TextMethods {
   }
 
   text(token: string) {
+    // Replace // with JS comments in the token
+    token = token.replace(/\/\/.+/gm, '')
     const parseTo = (content: string) => {
       const spaceIndex = content.indexOf(' ')
 
@@ -105,6 +108,7 @@ export class TextMethods {
       const char = token[i]
 
       if (char === '/') {
+        i++
         const start = i
         while (token[i] !== '/' || token[i - 1] === '\\') {
           i++
@@ -113,7 +117,7 @@ export class TextMethods {
           }
         }
         const end = i
-        const content = token.substring(start + 1, end)
+        const content = token.substring(start, end)
         this.parser.regex(content)
         continue
       }
@@ -349,7 +353,7 @@ export class TextMethods {
         )
       ]!
 
-    this.text(selectedText)
+    this.text(`"${selectedText}"`)
     return this.parser
   }
 

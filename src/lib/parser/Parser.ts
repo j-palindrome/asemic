@@ -602,6 +602,12 @@ export class Parser {
     return Math.abs(val - Math.floor(val)) // Return the fractional part (0-1)
   }
 
+  seed(seed: number | string) {
+    const newSeed = seed ? this.expr(seed) : Math.random()
+    this.progress.seed = newSeed
+    return this
+  }
+
   cloneTransform = cloneTransform
 
   get duration() {

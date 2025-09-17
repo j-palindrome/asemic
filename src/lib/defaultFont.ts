@@ -34,6 +34,7 @@ export class AsemicFont {
           dict[multipleChars[j]] = () => {
             this.parser.constants.I = () => j
             this.parser.constants.N = () => countNum
+            this.parser.constants.i = () => j / (countNum - 1 || 1)
             chars[name]()
           }
         }

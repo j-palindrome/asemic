@@ -14,7 +14,7 @@ export class ExpressionMethods {
     '&',
     '|',
     '^',
-    '#',
+    '_',
     '+',
     '-',
     '*',
@@ -85,6 +85,7 @@ export class ExpressionMethods {
     if (ExpressionMethods.NUMBER_REGEX.test(expr)) {
       return parseFloat(expr)
     }
+    // if (expr === 'T_1') debugger
 
     if (replace && expr.includes('`')) {
       const matches = expr.matchAll(ExpressionMethods.BACKTICK_REGEX)

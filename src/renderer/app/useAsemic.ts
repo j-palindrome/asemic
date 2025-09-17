@@ -160,39 +160,6 @@ export function useAsemic({
       }
     }
 
-    const saveToFile = async () => {
-      const content = editable.current?.value || scenesSource
-      try {
-        const result = await saveFile(
-          content,
-          `asemic-${new Date()
-            .toISOString()
-            .slice(0, 19)
-            .replace(/:/g, '-')}.asemic`
-        )
-
-        if (result.success && !result.canceled) {
-          console.log('File saved successfully')
-        }
-      } catch (error) {
-        console.error('Failed to save file:', error)
-      }
-    }
-
-    const openFile = async () => {
-      try {
-        const result = await openElectronFile()
-        if (result.success && result.content) {
-          setScenesSource(result.content)
-          if (editable.current) {
-            editable.current.value = result.content
-          }
-        }
-      } catch (error) {
-        console.error('Failed to open file:', error)
-      }
-    }
-
     const toggleRecording = () => {
       if (isRecording) {
         stopRecording()
@@ -204,8 +171,6 @@ export function useAsemic({
     return [
       isRecording,
       toggleRecording,
-      saveToFile,
-      openFile,
       // handleFileLoad,
       // fileInputRef,
       saveRecordedVideo,
@@ -218,8 +183,6 @@ export function useAsemic({
   const [
     isRecording,
     toggleRecording,
-    saveToFile,
-    openFile,
     // handleFileLoad,
     // fileInputRef,
     setIsRecording,

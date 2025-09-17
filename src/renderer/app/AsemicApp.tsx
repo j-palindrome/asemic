@@ -3,6 +3,7 @@ import { Parser } from '@/lib/parser/Parser'
 import { AsemicData } from '@/lib/types'
 import _, { isEqual, isUndefined } from 'lodash'
 import {
+  Download,
   Ellipsis,
   Info,
   LucideProps,
@@ -11,7 +12,8 @@ import {
   Play,
   Power,
   RefreshCw,
-  Save
+  Save,
+  Upload
 } from 'lucide-react'
 import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
@@ -382,6 +384,65 @@ function AsemicAppInner({
   }
   const [live, isLive, setIsLive] = useKeys()
 
+  const saveToFile = async () => {
+    const content = editable.current?.value || scenesSource
+    try {
+      if ('showSaveFilePicker' in window) {
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: `asemic-${new Date()
+            .toISOString()
+            .slice(0, 19)
+            .replace(/:/g, '-')}.js`,
+          types: [
+            {
+              description: 'Asemic files',
+              accept: {
+                'text/plain': ['.js']
+              }
+            }
+          ]
+        })
+        const writable = await fileHandle.createWritable()
+        await writable.write(content)
+        await writable.close()
+        console.log('File saved successfully')
+      } else {
+        console.error('File System API not supported')
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Failed to save file:', error)
+      }
+    }
+  }
+
+  const openFile = async () => {
+    try {
+      if ('showOpenFilePicker' in window) {
+        const [fileHandle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: 'Asemic files',
+              accept: {
+                'text/plain': ['.asemic', '.js', '.ts']
+              }
+            }
+          ]
+        })
+        const file = await fileHandle.getFile()
+        const content = await file.text()
+        setScenesSource(content)
+        editorRef.current?.setValue(content)
+      } else {
+        console.error('File System API not supported')
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Failed to open file:', error)
+      }
+    }
+  }
+
   const [perform, setPerform] = useState(settings.perform)
   useEffect(() => {
     setPerform(settings.perform)
@@ -541,13 +602,13 @@ function AsemicAppInner({
                 {<Speaker {...lucideProps} />}
               </button> */}
 
-              {/* <button onClick={saveToFile} title='Save to .js file'>
+              <button onClick={saveToFile} title='Save to .js file'>
                 <Download {...lucideProps} />
               </button>
 
               <button onClick={openFile} title='Open Asemic file'>
                 <Upload {...lucideProps} />
-              </button> */}
+              </button>
 
               {/* <input
                 ref={fileInputRef}
@@ -555,9 +616,9 @@ function AsemicAppInner({
                 accept='.js,.ts'
                 style={{ display: 'none' }}
                 onChange={handleFileLoad}
-              />
+              /> */}
 
-              <input
+              {/*<input
                 ref={imageInputRef}
                 type='file'
                 accept='image/*,video/*'
@@ -565,15 +626,6 @@ function AsemicAppInner({
                 onChange={handleImageLoad}
               /> */}
 
-              <button
-                onClick={() => {
-                  const currentScene = editable.current.value
-                  const newFullSource = currentScene
-                  setScenesSource(newFullSource)
-                  save(newFullSource, { reload: true })
-                }}>
-                {<Save {...lucideProps} />}
-              </button>
               <button onClick={() => setPerform(true)}>
                 {<Maximize2 {...lucideProps} />}
               </button>

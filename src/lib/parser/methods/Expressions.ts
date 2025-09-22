@@ -1,6 +1,7 @@
 import { clamp, last } from 'lodash'
 import invariant from 'tiny-invariant'
 import { Parser } from '../../types'
+import { lerp } from '@/lib/utils'
 
 export class ExpressionMethods {
   parser: Parser
@@ -313,6 +314,24 @@ export class ExpressionMethods {
     this.parser.constants[key] = () => solvedDefinition
     if (!this.sortedKeys.includes(key)) this.generateSortedKeys()
 
+    return this.parser
+  }
+
+  defCollect(key: string, amount: string, callback: string) {
+    const array: number[] = []
+    this.parser.repeat(amount, () => {
+      array.push(this.parser.expr(callback))
+    })
+    this.parser.constants[key] = i => {
+      const index = this.parser.expr(i)
+      if (index === Math.floor(index)) return array[index]
+      else
+        return lerp(
+          array[Math.floor(index)],
+          array[index > array.length - 1 ? 0 : Math.ceil(index)],
+          index % 1
+        )
+    }
     return this.parser
   }
 }

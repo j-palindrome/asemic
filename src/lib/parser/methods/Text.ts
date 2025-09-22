@@ -49,6 +49,7 @@ export class TextMethods {
         }
       } as (typeof sceneList)[number]
       this.parser.tokenize(firstLine).forEach(setting => {
+        if (!setting.includes('=')) return
         const [key, value] = splitString(setting, '=')
         parserSettings[key] = this.parser.expr(value)
       })
@@ -176,7 +177,7 @@ export class TextMethods {
                   this.parser.text(callback)
                 })
               } else {
-                newFunc.bind(this.parser)(argsStr)
+                newFunc.bind(this.parser)(...this.parser.tokenize(argsStr))
               }
             } else {
               throw new Error(`Unknown function: ${funcName}`)

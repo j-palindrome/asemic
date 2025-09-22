@@ -4,15 +4,33 @@ import React, {
   forwardRef,
   useEffect
 } from 'react'
-import { drawSelection, EditorView } from '@codemirror/view'
-import { EditorState, Prec } from '@codemirror/state'
+import {
+  drawSelection,
+  EditorView,
+  Decoration,
+  ViewPlugin,
+  DecorationSet
+} from '@codemirror/view'
+import { EditorState, Prec, RangeSetBuilder } from '@codemirror/state'
 import { basicSetup } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { keymap } from '@codemirror/view'
-import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
+import {
+  autocompletion,
+  completeFromList,
+  CompletionContext
+} from '@codemirror/autocomplete'
 import { Extension } from '@codemirror/state'
 import { Parser } from '@/lib'
+import {
+  delimitedIndent,
+  LanguageSupport,
+  LRLanguage
+} from '@codemirror/language'
+import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
+import { styleTags, tags as t, tags } from '@lezer/highlight'
+import { foldNodeProp, foldInside, indentNodeProp } from '@codemirror/language'
 
 // Transparent background theme
 const transparentTheme: Extension = EditorView.theme({
@@ -85,19 +103,50 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           }
         }
       ])
+
+      const highlighting = styleTags({
+        Identifier: tags.name,
+        Number: tags.number,
+        String: tags.string
+      })
+
+      // Ensure 'parser' is a Lezer Parser instance, not a LanguageSupport
+
+      const EXAMPLELanguage = LRLanguage.define({
+        parser: parser.configure({
+          props: [
+            indentNodeProp.add({
+              Application: delimitedIndent({ closing: ')', align: false })
+            }),
+            foldNodeProp.add({
+              Application: foldInside
+            }),
+            styleTags({
+              Identifier: t.variableName,
+              SquareContent: t.number,
+              StringContent: t.string,
+              LineCommentRegion: t.comment,
+              RegExContent: t.regexp,
+              CurlyContent: t.className,
+              Comma: t.punctuation
+            })
+          ]
+        })
+      })
+
       const startState = EditorState.create({
         doc: defaultValue,
 
         extensions: [
           basicSetup,
-          javascript(),
           oneDark,
           transparentTheme,
           Prec.highest(enterKeymap),
           autocompletion({ override: [parserCompletionSource] }),
           EditorView.lineWrapping,
           EditorState.allowMultipleSelections.of(true),
-          drawSelection()
+          drawSelection(),
+          new LanguageSupport(EXAMPLELanguage)
         ]
       })
 

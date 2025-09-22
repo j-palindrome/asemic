@@ -1,0 +1,55 @@
+@top Program { Region* }
+
+Region {
+  SquareRegion
+| ParenRegion
+| StringRegion
+| RegExRegion
+| CurlyRegion
+| LineCommentContent
+}
+
+CurlyRegion {
+  "{" (CurlyContent | CurlyRegion)* "}"
+}
+
+SquareRegion {
+  "[" (SquareContent | Comma | SquareRegion)* "]"
+}
+
+ParenRegion {
+  "(" (ParenContent | ParenRegion)* ")"
+}
+
+StringRegion {
+  "\"" (StringContent | CurlyRegion)* "\""
+}
+
+RegExRegion {
+  "/" RegExContent* "/"
+}
+
+@tokens {
+CurlyContent {
+  ![{}]
+}
+SquareContent {
+  ![\[\],]
+}
+RegExContent {
+  ![/]
+}
+ParenContent {
+  ![\(\)]
+}
+LineCommentContent {
+  ![\n/\"{}()\[\]]
+}
+StringContent {
+  !["{}] | "\\\""
+}
+Comma {
+  ","
+}
+
+}

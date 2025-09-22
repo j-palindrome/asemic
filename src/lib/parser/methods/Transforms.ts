@@ -25,13 +25,6 @@ export class TransformMethods {
     this.parser = parser
   }
 
-  private getCachedRegex(pattern: string): RegExp {
-    if (!this.regexCache.has(pattern)) {
-      this.regexCache.set(pattern, new RegExp(pattern))
-    }
-    return this.regexCache.get(pattern)!
-  }
-
   to(token: string) {
     this.parseTransform(token, { thisTransform: this.parser.currentTransform })
     return this.parser

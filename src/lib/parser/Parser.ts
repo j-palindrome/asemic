@@ -152,7 +152,10 @@ export class Parser {
       L: () => this.progress.letter,
       P: () => this.progress.point,
       px: () => 1 / this.preProcessing.width,
-      sin: x => Math.sin(this.expr(x, false) * Math.PI * 2) * 0.5 + 0.5,
+      sin: x => {
+        const result = Math.sin(this.expr(x, false) * Math.PI * 2)
+        return result
+      },
       table: (name, point, channel) => {
         const imageName = typeof name === 'string' ? name : String(name)
         return this.table(imageName, point, channel)
@@ -326,7 +329,7 @@ export class Parser {
     const methodClasses = [
       {
         instance: this.expressions,
-        methods: ['expr', 'choose', 'def', 'defStatic']
+        methods: ['expr', 'choose', 'def', 'defStatic', 'defCollect']
       },
       {
         instance: this.drawing,
@@ -399,6 +402,7 @@ export class Parser {
   choose!: ExpressionMethods['choose']
   def!: ExpressionMethods['def']
   defStatic!: ExpressionMethods['defStatic']
+  defCollect!: ExpressionMethods['defCollect']
 
   tri!: DrawingMethods['tri']
   squ!: DrawingMethods['squ']
@@ -577,21 +581,13 @@ export class Parser {
     this.rawSource = source
     for (let font in this.fonts) this.resetFont(font)
 
-    // Use Function constructor with 'this' bound to the Parser instance
-    const setupFunction = new Function(
-      'source',
-      `
-      with (this) {
-        ${source.replaceAll('->', '()=>')}
-      }
-    `
-    ).bind(this)
-
     this.output.resetParams = true
     this.output.resetPresets = true
     try {
-      setupFunction(source)
+      // debugger
+      this.parse(source)
     } catch (e: any) {
+      console.error(e)
       this.output.errors.push(`Setup failed: ${e.message}`)
     }
   }

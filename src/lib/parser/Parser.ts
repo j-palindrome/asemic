@@ -151,7 +151,7 @@ export class Parser {
       C: () => this.groups[this.groups.length - 1].length,
       L: () => this.progress.letter,
       P: () => this.progress.point,
-      px: () => 1 / this.preProcessing.width,
+      px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i, false),
       sin: x => {
         const result = Math.sin(this.expr(x, false) * Math.PI * 2)
         return result
@@ -189,6 +189,16 @@ export class Parser {
           exprPoints[Math.floor(index) + 1]!,
           index % 1
         )
+      },
+      choose: (...args) => {
+        const index = Math.floor(this.expr(args[0], false))
+        const savedArgs = args.slice(1)
+        if (index < 0 || index >= savedArgs.length) {
+          throw new Error(
+            `Choose index out of range for args, ${args.join(' ')}: ${index}`
+          )
+        }
+        return this.expr(savedArgs[Math.floor(index)])
       },
       '~': (speed = '1', ...freqs) => {
         let sampleIndex = this.noiseIndex

@@ -170,15 +170,8 @@ export class TextMethods {
               this.parser[funcName as keyof Parser] &&
               typeof this.parser[funcName as keyof Parser] === 'function'
             ) {
-              const [argsStr, callback] = splitString(args, '\\|')
               const newFunc = this.parser[funcName as keyof Parser] as Function
-              if (callback) {
-                newFunc.bind(this.parser)(argsStr, () => {
-                  this.parser.text(callback)
-                })
-              } else {
-                newFunc.bind(this.parser)(...this.parser.tokenize(argsStr))
-              }
+              newFunc.bind(this.parser)(...this.parser.tokenize(args))
             } else {
               throw new Error(`Unknown function: ${funcName}`)
             }

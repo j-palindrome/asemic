@@ -55,6 +55,7 @@ export class ParsingMethods {
     let inBrackets = 0
     let inParentheses = 0
     let inBraces = 0
+    let callback = false
 
     let isEscaped = false
     const sourceLength = source.length
@@ -66,6 +67,13 @@ export class ParsingMethods {
         continue
       }
       switch (char) {
+        case '|':
+          if (inBrackets === 0 && inParentheses === 0 && inBraces === 0) {
+            if (current.length) tokens.push(current)
+            current = ''
+            callback = true
+            continue
+          }
         case '[':
           inBrackets++
           break
@@ -88,7 +96,8 @@ export class ParsingMethods {
           isEscaped = true
           continue
       }
-      const hasTotalBrackets = inBraces + inParentheses + inBrackets > 0
+      const hasTotalBrackets =
+        inBraces + inParentheses + inBrackets > 0 || callback
       if (current === '' && !hasTotalBrackets) {
         switch (char) {
           case '"':

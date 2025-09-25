@@ -36,7 +36,7 @@ export class UtilityMethods {
     return [minX, minY, maxX, maxY]
   }
 
-  repeat(count: string, callback: () => void) {
+  repeat(count: string, callback: (() => void) | string) {
     const counts = this.parser
       .tokenize(count, { separatePoints: true })
       .map((x: string) => this.parser.expr(x))
@@ -47,7 +47,11 @@ export class UtilityMethods {
       this.parser.progress.countNums[index] = counts[index]
       for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
         this.parser.progress.indexes[index] = i
-        callback()
+        if (typeof callback === 'function') {
+          callback()
+        } else {
+          this.parser.text(callback)
+        }
         if (counts[index + 1]) {
           iterate(index + 1)
         }

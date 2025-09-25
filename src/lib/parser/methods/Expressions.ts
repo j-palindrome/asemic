@@ -207,6 +207,10 @@ export class ExpressionMethods {
               .map(x => x.operatorType + x.string)
               .join('')
           )
+          if (!this.parser.constants[splitResult[0].string]) {
+            throw new Error(`Unknown function ${splitResult[0].string}`)
+          }
+          // if (['test'].includes(splitResult[0].string)) debugger
           return this.parser.constants[splitResult[0].string](...args)
         }
         let leftVal: number = this.fastExpr(splitResult[0].string)
@@ -277,18 +281,18 @@ export class ExpressionMethods {
     }
   }
 
-  choose(value0To1: string | number, ...callbacks: (() => void)[]) {
-    const normalizedValue = this.expr(value0To1)
+  choose(value: string | number, ...callbacks: string[]) {
+    const normalizedValue = this.expr(value)
     const numCallbacks = callbacks.length
 
     if (numCallbacks === 0) return this.parser
 
-    // Scale the value to the number of callbacks and clamp it
-    const index = Math.ceil(clamp(normalizedValue, 0, 0.999999) * numCallbacks)
-
     // Call the selected callback
-    if (callbacks[index]) {
-      callbacks[index]()
+    const rememberedValue = Math.floor(normalizedValue)
+    if (callbacks[rememberedValue]) {
+      this.parser.text(callbacks[rememberedValue])
+    } else {
+      throw new Error(`Remembered value not valid: ${rememberedValue}`)
     }
 
     return this.parser
@@ -319,6 +323,8 @@ export class ExpressionMethods {
 
   defCollect(key: string, amount: string, callback: string) {
     const array: number[] = []
+    if (typeof callback !== 'string')
+      throw new Error('defCollect: callback must be a string')
     this.parser.repeat(amount, () => {
       array.push(this.parser.expr(callback))
     })
@@ -333,5 +339,10 @@ export class ExpressionMethods {
         )
     }
     return this.parser
+  }
+
+  defArray(key: string, ...values: string[]) {
+    const solvedValues = values.map(x => this.parser.expr(x))
+    this.parser.constants[key] = i => solvedValues[this.parser.expr(i)]
   }
 }

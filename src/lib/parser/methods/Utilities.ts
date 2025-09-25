@@ -161,17 +161,6 @@ export class UtilityMethods {
     return this.parser
   }
 
-  or(value: number, ...callbacks: ((p: any) => void)[]) {
-    const divisions = callbacks.length
-    for (let i = 0; i < divisions; i++) {
-      if (value <= i / divisions) {
-        callbacks[i](this.parser)
-        return
-      }
-    }
-    callbacks[divisions - 1](this.parser)
-  }
-
   noise(value: number, frequencies: number[], phases: number[] = []) {
     let sum = 0
     for (let i = 0; i < frequencies.length; i++) {

@@ -10,46 +10,60 @@ Region {
 }
 
 CurlyRegion {
-  "{" (CurlyContent | CurlyRegion)* "}"
+  "{" (ExprChar)* "}"
 }
 
 SquareRegion {
-  "[" (SquareContent | Comma | SquareRegion)* "]"
+  "[" (ExprChar | CurlyRegion)* "]"
+}
+
+ExprChar {
+  Char | "(" | ")"
+}
+
+Char {
+  Letter | Operator | Number | Space
 }
 
 ParenRegion {
-  "(" (ParenContent | ParenRegion)* ")"
+  "(" Name Space (Char | ParenRegion | SquareRegion | CurlyRegion | StringRegion)* ")"
+}
+
+Name {
+  Letter+
 }
 
 StringRegion {
-  "\"" (StringContent | CurlyRegion)* "\""
+  "\"" (StringContent)* "\""
 }
 
 RegExRegion {
   "/" RegExContent* "/"
 }
 
+
 @tokens {
-CurlyContent {
-  ![{}]
-}
-SquareContent {
-  ![\[\],]
-}
+
 RegExContent {
   ![/]
 }
-ParenContent {
-  ![\(\)]
+StringContent {
+  ![\"]
 }
 LineCommentContent {
-  ![\n/\"{}()\[\]]
+  ![\/\(\)\[\]\{\}\"]
 }
-StringContent {
-  !["{}] | "\\\""
+Letter {
+  @asciiLetter | "\\\""
 }
-Comma {
-  ","
+Number {
+  @digit | "."
+}
+Operator {
+  $[\+\-\*\^\=!\<\>\~\|,]
+}
+Space {
+  @whitespace
 }
 
 }

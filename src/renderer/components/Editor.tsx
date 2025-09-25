@@ -26,11 +26,15 @@ import { Parser } from '@/lib'
 import {
   delimitedIndent,
   LanguageSupport,
-  LRLanguage
+  LRLanguage,
+  syntaxHighlighting
 } from '@codemirror/language'
+// @ts-ignore
 import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
 import { styleTags, tags as t, tags } from '@lezer/highlight'
 import { foldNodeProp, foldInside, indentNodeProp } from '@codemirror/language'
+import { printTree } from './lezerPrettyPrint'
+import { HighlightStyle } from '@codemirror/language'
 
 // Transparent background theme
 const transparentTheme: Extension = EditorView.theme({
@@ -104,12 +108,6 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         }
       ])
 
-      const highlighting = styleTags({
-        Identifier: tags.name,
-        Number: tags.number,
-        String: tags.string
-      })
-
       // Ensure 'parser' is a Lezer Parser instance, not a LanguageSupport
 
       const EXAMPLELanguage = LRLanguage.define({
@@ -122,17 +120,83 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
               Application: foldInside
             }),
             styleTags({
-              Identifier: t.variableName,
-              SquareContent: t.number,
               StringContent: t.string,
-              LineCommentRegion: t.comment,
+              LineCommentContent: t.comment,
               RegExContent: t.regexp,
-              CurlyContent: t.className,
-              Comma: t.punctuation
+              Letter: t.variableName,
+              'Name/...': t.className,
+              '( )': t.paren,
+              '[ ]': t.squareBracket,
+              '{ }': t.brace,
+              Operator: t.operator,
+              Number: t.number
             })
           ]
         })
       })
+
+      const exampleHighlight = HighlightStyle.define([
+        { tag: t.string, color: '#82aaff' }, // blue
+        { tag: t.variableName, color: '#c792ea' }, // purple
+        { tag: t.number, color: '#f78c6c' }, // orange
+        { tag: t.keyword, color: '#ffcb6b' }, // yellow
+        { tag: t.operator, color: '#ffcb6b' }, // yellow
+        { tag: t.comment, color: '#546e7a', fontStyle: 'italic' }, // muted blue
+        { tag: t.paren, color: '#c792ea' }, // purple
+        { tag: t.squareBracket, color: '#c792ea' }, // purple
+        { tag: t.brace, color: '#c792ea' }, // purple
+        { tag: t.punctuation, color: '#ffcb6b' } // yellow
+      ])
+
+      const drawingMethods = [
+        'tri',
+        'squ',
+        'pen',
+        'hex',
+        'circle',
+        'seq',
+        'line',
+        'to',
+        'text',
+        'font',
+        'resetFont',
+        'keys',
+        'regex',
+        'parse',
+        'linden',
+        'repeat',
+        'within',
+        'center',
+        'each',
+        'noise',
+        'scene',
+        'play',
+        'param',
+        'preset',
+        'toPreset',
+        'osc',
+        'sc',
+        'synth',
+        'file',
+        'group',
+        'end',
+        'points',
+        'table',
+        'expr',
+        'choose',
+        'defCollect'
+      ]
+      function parserCompletionSource(context: CompletionContext) {
+        const word = context.matchBefore(/\w*/)
+        if (!word || (word.from == word.to && !context.explicit)) return null
+        return {
+          from: word.from,
+          options: drawingMethods.map(m => ({
+            label: m,
+            type: 'function'
+          }))
+        }
+      }
 
       const startState = EditorState.create({
         doc: defaultValue,
@@ -146,7 +210,9 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           EditorView.lineWrapping,
           EditorState.allowMultipleSelections.of(true),
           drawSelection(),
-          new LanguageSupport(EXAMPLELanguage)
+          new LanguageSupport(EXAMPLELanguage, [
+            syntaxHighlighting(exampleHighlight)
+          ])
         ]
       })
 
@@ -154,6 +220,17 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         state: startState,
         parent: editorDivRef.current
       })
+
+      const parseAndLog = () => {
+        if (viewRef.current) {
+          const doc = viewRef.current.state.doc.toString()
+          const tree = EXAMPLELanguage.parser.parse(doc)
+          console.log(printTree(tree, doc))
+        }
+      }
+
+      // Parse and print the result once on mount
+      parseAndLog()
       return () => {
         viewRef.current?.destroy()
         viewRef.current = null
@@ -178,21 +255,5 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
     )
   }
 )
-
-// DrawingMethods autocomplete source
-const drawingMethods = ['tri', 'squ', 'pen', 'hex', 'circle', 'seq', 'line']
-
-function parserCompletionSource(context: CompletionContext) {
-  const word = context.matchBefore(/\w*/)
-  if (!word || (word.from == word.to && !context.explicit)) return null
-  return {
-    from: word.from,
-    options: drawingMethods.map(m => ({
-      label: m,
-      type: 'function',
-      info: `DrawingMethods.${m}`
-    }))
-  }
-}
 
 export default AsemicEditor

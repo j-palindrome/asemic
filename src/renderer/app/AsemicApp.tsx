@@ -386,18 +386,19 @@ function AsemicAppInner({
 
   const saveToFile = async () => {
     const content = editable.current?.value || scenesSource
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+    const filename = `asemic-${timestamp}.js`
+
     try {
       if ('showSaveFilePicker' in window) {
+        // Modern browsers with File System Access API
         const fileHandle = await window.showSaveFilePicker({
-          suggestedName: `asemic-${new Date()
-            .toISOString()
-            .slice(0, 19)
-            .replace(/:/g, '-')}.js`,
+          suggestedName: filename,
           types: [
             {
               description: 'Asemic files',
               accept: {
-                'text/plain': ['.js']
+                'text/plain': ['.js', '.asemic']
               }
             }
           ]
@@ -407,7 +408,18 @@ function AsemicAppInner({
         await writable.close()
         console.log('File saved successfully')
       } else {
-        console.error('File System API not supported')
+        // Fallback for iPadOS and other browsers
+        const blob = new Blob([content], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        console.log('File downloaded successfully')
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
@@ -419,12 +431,13 @@ function AsemicAppInner({
   const openFile = async () => {
     try {
       if ('showOpenFilePicker' in window) {
+        // Modern browsers with File System Access API
         const [fileHandle] = await window.showOpenFilePicker({
           types: [
             {
               description: 'Asemic files',
               accept: {
-                'text/plain': ['.asemic', '.js', '.ts']
+                'text/plain': ['.asemic']
               }
             }
           ]
@@ -434,7 +447,33 @@ function AsemicAppInner({
         setScenesSource(content)
         editorRef.current?.setValue(content)
       } else {
-        console.error('File System API not supported')
+        // Fallback for iPadOS and other browsers
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.asemic'
+        input.style.display = 'none'
+
+        input.onchange = async e => {
+          const file = (e.target as HTMLInputElement).files?.[0]
+          if (file) {
+            try {
+              const content = await file.text()
+              setScenesSource(content)
+              editorRef.current?.setValue(content)
+              console.log('File loaded successfully')
+            } catch (error) {
+              console.error('Failed to read file:', error)
+            }
+          }
+          document.body.removeChild(input)
+        }
+
+        input.oncancel = () => {
+          document.body.removeChild(input)
+        }
+
+        document.body.appendChild(input)
+        input.click()
       }
     } catch (error) {
       if (error.name !== 'AbortError') {

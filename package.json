@@ -50,6 +50,7 @@
     "@csound/browser": "^6.18.7",
     "@elemaudio/core": "^4.0.1",
     "@elemaudio/web-renderer": "^4.0.3",
+    "@lezer/common": "^1.2.3",
     "@lezer/generator": "^1.8.0",
     "@lezer/highlight": "^1.2.1",
     "@lezer/lr": "^1.4.2",

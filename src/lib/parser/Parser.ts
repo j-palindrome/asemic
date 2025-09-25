@@ -369,7 +369,6 @@ export class Parser {
           'center',
           'each',
           'test',
-          'or',
           'noise',
           'getBounds'
         ]
@@ -441,7 +440,6 @@ export class Parser {
   each!: UtilityMethods['each']
   test!: UtilityMethods['test']
 
-  or!: UtilityMethods['or']
   noise!: UtilityMethods['noise']
   getBounds!: UtilityMethods['getBounds']
 

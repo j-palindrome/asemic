@@ -99,12 +99,18 @@ export class UtilityMethods {
     return this.parser
   }
 
-  center(coords: string, type: string, callback: () => void) {
+  center(coords: string, type: string, callback: string | (() => void) {
     const [centerX, centerY] = this.parser.parsePoint(coords)
-    const lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    let lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    if (!lastGroup) {
+      this.parser.group()
+      lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    } 
     const startCurve = lastGroup.length
 
-    callback()
+    if (typeof callback === 'string') this.parser.text(callback) 
+    else callback()
+    
     const addedGroups = lastGroup.slice(startCurve)
 
     const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)

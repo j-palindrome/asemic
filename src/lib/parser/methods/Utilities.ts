@@ -99,9 +99,7 @@ export class UtilityMethods {
     return this.parser
   }
 
-  center(argsStr: string, callback: () => void) {
-    const [coords, type = 'xy'] = this.parser.tokenize(argsStr)
-
+  center(coords: string, type: string, callback: () => void) {
     const [centerX, centerY] = this.parser.parsePoint(coords)
     const lastGroup = this.parser.groups[this.parser.groups.length - 1]
     const startCurve = lastGroup.length

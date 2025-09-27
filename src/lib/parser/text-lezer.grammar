@@ -60,7 +60,7 @@ Number {
   @digit | "."
 }
 Operator {
-  $[\+\-\*\^\=!\<\>\~\|,]
+  $[\+\-\*\^\=!\<\>\~\|,\/]
 }
 Space {
   @whitespace

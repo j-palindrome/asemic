@@ -99,7 +99,7 @@ export class UtilityMethods {
     return this.parser
   }
 
-  center(coords: string, type: string, callback: string | (() => void) {
+  center(coords: string, type: string, callback: string | (() => void)) {
     const [centerX, centerY] = this.parser.parsePoint(coords)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {

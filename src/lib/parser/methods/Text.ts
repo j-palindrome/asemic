@@ -4,6 +4,7 @@ import { expand } from 'regex-to-strings'
 import { Parser } from '../Parser'
 import { split } from 'lodash'
 import invariant from 'tiny-invariant'
+import { parserObject } from './Utilities'
 
 export class TextMethods {
   parser: Parser
@@ -142,8 +143,22 @@ export class TextMethods {
           token.substring(start + 1, end),
           ' '
         )
+
+        const parserObject = (args: string) => {
+          const obj: { [key: string]: any } = {}
+          for (let arg of this.parser.tokenize(args)) {
+            if (arg.includes('=')) {
+              const [key, value] = splitString(arg, '=')
+              obj[key] = value
+            }
+          }
+          return obj
+        }
         // Process the content within parentheses as needed
         switch (funcName) {
+          case 'group':
+            this.parser.group(parserObject(args) as any)
+            break
           case 'font':
             this.parser.error(
               'use {fontname ...chars} instead of (font fontname chars)'

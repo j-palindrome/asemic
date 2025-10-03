@@ -1,3 +1,4 @@
+import { splitString } from '@/lib/settings'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { CACHED } from '../constants/ExpressionConstants'
 import { Parser } from '../Parser'
@@ -33,7 +34,7 @@ export class UtilityMethods {
         }
       }
     }
-    return [minX, minY, maxX, maxY]
+    return [minX!, minY!, maxX!, maxY!]
   }
 
   repeat(count: string, callback: (() => void) | string) {
@@ -99,53 +100,48 @@ export class UtilityMethods {
     return this.parser
   }
 
-  center(coords: string, type: string, callback: string | (() => void)) {
+  align(coords: string, type: string, callback: string | (() => void)) {
     const [centerX, centerY] = this.parser.parsePoint(coords)
+    const [alignX, alignY] = this.parser.evalPoint(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group()
+      this.parser.group({ mode: 'line' })
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
-    } 
+    }
     const startCurve = lastGroup.length
 
-    if (typeof callback === 'string') this.parser.text(callback) 
+    if (typeof callback === 'string') this.parser.text(callback)
     else callback()
-    
+
     const addedGroups = lastGroup.slice(startCurve)
 
     const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)
-
-    const boundingCenterX = (minX! + maxX!) / 2
-    const boundingCenterY = (minY! + maxY!) / 2
-
-    const dx = centerX - boundingCenterX
-    const dy = centerY - boundingCenterY
-    const difference = new BasicPt(
-      type.includes('x') ? dx : 0,
-      type.includes('y') ? dy : 0
-    )
+    const change = new BasicPt(maxX - minX, maxY - minY).scale([alignX, alignY])
 
     for (const group of addedGroups) {
       for (const pt of group.flat()) {
-        pt.add(difference)
+        pt.subtract([minX, minY]).add([centerX, centerY]).subtract(change)
       }
     }
 
     return this.parser
   }
 
-  each(makeCurves: () => void, callback: (pt: AsemicPt) => void) {
-    const start = this.parser.groups.length
+  add(callback: string, makeCurves: string | (() => void)) {
     const saveProgress = this.parser.progress.curve
-    makeCurves()
+    if (typeof makeCurves === 'function') makeCurves()
+    else this.parser.text(makeCurves)
     const finalProgress = this.parser.progress.curve
     this.parser.progress.curve = saveProgress
-    for (const group of this.parser.groups.slice(start)) {
+    for (const group of this.parser.groups) {
       this.parser.progress.point = 0
       for (const pt of group.flat()) {
         this.parser.progress.curve++
         this.parser.progress.point += 1 / (group.flat().length - 1)
-        callback(pt)
+        const addPoint = this.parser.evalPoint(
+          callback.replace('$0', `${pt[0]}`).replace('$1', `${pt[1]}`)
+        )
+        pt.add(addPoint)
       }
     }
     return this.parser

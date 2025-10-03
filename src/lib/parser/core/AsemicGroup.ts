@@ -8,6 +8,7 @@ export class AsemicGroup extends Array<AsemicPt[]> {
     synth?: string
     xy?: string
     wh?: string
+    vert?: string
   } = { mode: 'line' }
   imageDatas?: ImageData[]
   xy: BasicPt = new BasicPt(0, 0)

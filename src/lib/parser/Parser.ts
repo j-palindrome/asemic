@@ -148,7 +148,7 @@ export class Parser {
       Hpx: () => this.preProcessing.height,
       Wpx: () => this.preProcessing.height,
       S: () => this.progress.scrubTime,
-      C: () => this.groups[this.groups.length - 1].length,
+      C: () => this.groups[this.groups.length - 1]?.length ?? 0,
       L: () => this.progress.letter,
       P: () => this.progress.point,
       px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i, false),
@@ -366,8 +366,8 @@ export class Parser {
         methods: [
           'repeat',
           'within',
-          'center',
-          'each',
+          'align',
+          'add',
           'test',
           'noise',
           'getBounds'
@@ -436,8 +436,8 @@ export class Parser {
 
   repeat!: UtilityMethods['repeat']
   within!: UtilityMethods['within']
-  center!: UtilityMethods['center']
-  each!: UtilityMethods['each']
+  align!: UtilityMethods['align']
+  add!: UtilityMethods['add']
   test!: UtilityMethods['test']
 
   noise!: UtilityMethods['noise']

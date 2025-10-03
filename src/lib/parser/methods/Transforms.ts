@@ -19,7 +19,7 @@ export class TransformMethods {
   private static readonly TRANSLATION_REGEX = new RegExp(
     `^(${TransformAliases.translation.join('|')})(.+)`
   )
-  private static readonly KEY_CALL_REGEX = /^([a-zA-Z0-9_]+)(\=\>?)(.+)/
+  private static readonly KEY_CALL_REGEX = /^([a-zA-Z0-9_]+)(\=[\>\|]?)(.+)/
 
   constructor(parser: Parser) {
     this.parser = parser
@@ -160,10 +160,13 @@ export class TransformMethods {
                       thisTransform[key] = this.parser.expr(value)
                     }
                   } else {
-                    if (expression.includes('>')) {
-                      this.parser.def(key, value)
-                    } else {
-                      this.parser.defStatic(key, value)
+                    switch (expression) {
+                      case '=':
+                        this.parser.defStatic(key, value)
+                        break
+                      case '=>':
+                        this.parser.def(key, value)
+                        break
                     }
                   }
                 }

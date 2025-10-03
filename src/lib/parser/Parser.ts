@@ -121,6 +121,7 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
+      '-': x => -1 * this.expr(x),
       N: (index = '1') => {
         if (!index) index = '1'
         return this.progress.countNums[this.expr(index, false) - 1]
@@ -147,7 +148,8 @@ export class Parser {
       H: () => this.preProcessing.height / this.preProcessing.width,
       Hpx: () => this.preProcessing.height,
       Wpx: () => this.preProcessing.height,
-      S: () => this.progress.scrubTime,
+      S: () => this.progress.scrub,
+      ST: () => this.progress.scrubTime,
       C: () => this.groups[this.groups.length - 1]?.length ?? 0,
       L: () => this.progress.letter,
       P: () => this.progress.point,

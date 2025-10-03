@@ -24,18 +24,23 @@ export class AsemicFont {
 
   parseCharacters(chars: AsemicFont['characters'], { dynamic = false } = {}) {
     let dict = dynamic ? this.dynamicCharacters : this.characters
+    // debugger
     for (let name of Object.keys(chars)) {
       const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE']
       if (name.length > 1 && !reservedCharacters.includes(name)) {
-        const multipleChars = name.split('')
-        const countNum = multipleChars.length
+        if (name.startsWith('(') && name.endsWith(')')) {
+          dict[name.slice(1, -1)] = chars[name]
+        } else {
+          const multipleChars = name.split('')
+          const countNum = multipleChars.length
 
-        for (let j = 0; j < countNum; j++) {
-          dict[multipleChars[j]] = () => {
-            this.parser.constants.I = () => j
-            this.parser.constants.N = () => countNum
-            this.parser.constants.i = () => j / (countNum - 1 || 1)
-            chars[name]()
+          for (let j = 0; j < countNum; j++) {
+            dict[multipleChars[j]] = () => {
+              this.parser.constants.I = () => j
+              this.parser.constants.N = () => countNum
+              this.parser.constants.i = () => j / (countNum - 1 || 1)
+              chars[name]()
+            }
           }
         }
       } else {

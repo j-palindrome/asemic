@@ -4,7 +4,6 @@ import { expand } from 'regex-to-strings'
 import { Parser } from '../Parser'
 import { split } from 'lodash'
 import invariant from 'tiny-invariant'
-import { parserObject } from './Utilities'
 
 export class TextMethods {
   parser: Parser
@@ -39,7 +38,7 @@ export class TextMethods {
   }
 
   parse(text: string) {
-    const scenes = text.split('\n# ')
+    const scenes = text.split('\n#')
     let sceneList: Parameters<Parser['scene']> = []
     for (const scene of scenes) {
       if (scene.trim() === '') continue
@@ -49,11 +48,14 @@ export class TextMethods {
           this.parser.text(rest)
         }
       } as (typeof sceneList)[number]
-      this.parser.tokenize(firstLine).forEach(setting => {
-        if (!setting.includes('=')) return
-        const [key, value] = splitString(setting, '=')
-        parserSettings[key] = this.parser.expr(value)
-      })
+      const match = firstLine.match(/\{(.+)\}/)?.[1]
+      if (match) {
+        this.parser.tokenize(match).forEach(setting => {
+          if (!setting.includes('=')) return
+          const [key, value] = splitString(setting, '=')
+          parserSettings[key] = this.parser.expr(value)
+        })
+      }
 
       sceneList.push(parserSettings)
     }
@@ -77,7 +79,9 @@ export class TextMethods {
             this.parser.resetFont(fontName)
             return
           }
-          const [_, char, expression, func] = line.match(/(\w+)(\=\>?)(.+)/)!
+          const [_, char, expression, func] = line.match(
+            /(\(?[\w]+\)?)(\=\>?)(.+)/
+          )!
           if (func === '!') {
             switch (expression) {
               case '=':
@@ -246,6 +250,15 @@ export class TextMethods {
         }
         while (token[i] !== '"' || token[i - 1] === '\\') {
           let thisChar = token[i]
+          if (thisChar === '(' && token[i - 1] !== '\\') {
+            const end = token.indexOf(')', i)
+            if (end === -1) {
+              throw new Error('Missing ) in text')
+            }
+            const content = token.substring(i + 1, end)
+            thisChar = content
+            i = end
+          }
           if (thisChar === '{') {
             const start = i
             let brackets = 1

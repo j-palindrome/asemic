@@ -129,7 +129,8 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
               '[ ]': t.squareBracket,
               '{ }': t.brace,
               Operator: t.operator,
-              Number: t.number
+              Number: t.number,
+              Heading: t.operator
             })
           ]
         })

@@ -7,10 +7,11 @@ Region {
 | RegExRegion
 | CurlyRegion
 | LineCommentContent
+| Heading
 }
 
 CurlyRegion {
-  "{" (ExprChar)* "}"
+  "{" (ExprChar | CurlyRegion | SquareRegion | StringRegion)* "}"
 }
 
 SquareRegion {
@@ -51,7 +52,7 @@ StringContent {
   ![\"]
 }
 LineCommentContent {
-  ![\/\(\)\[\]\{\}\"]
+  ![\/\(\)\[\]\{\}\"#]
 }
 Letter {
   @asciiLetter | "\\\""
@@ -60,10 +61,13 @@ Number {
   @digit | "."
 }
 Operator {
-  $[\+\-\*\^\=!\<\>\~\|,\/]
+  $[\+\-\*\^\=!\<\>\~\|,\/\%]
 }
 Space {
   @whitespace
+}
+Heading {
+  "#"+ (@asciiLetter | " " | ":")+
 }
 
 }

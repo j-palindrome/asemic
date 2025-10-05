@@ -188,7 +188,10 @@ export class ParsingMethods {
 
   evalPoint<K extends boolean>(
     thisPoint: string | BasicPt,
-    { basic = false as any }: { basic?: K } = {} as any
+    {
+      basic = false as any,
+      defaultY = false
+    }: { basic?: K; defaultY?: boolean | number } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
     let result: BasicPt | AsemicPt
     if (thisPoint instanceof BasicPt)

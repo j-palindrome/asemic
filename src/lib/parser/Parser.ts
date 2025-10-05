@@ -286,6 +286,18 @@ export class Parser {
         )
         const hash = (val + 1) / 2
         return hash
+      },
+      abs: value => Math.abs(this.expr(value)),
+      peaks: (position, ...peaks) => {
+        const values = peaks.map(p =>
+          this.evalPoint(p, { basic: true, defaultY: 1 })
+        )
+        const pos = this.expr(position)
+        for (let value of values) {
+          if (Math.abs(pos - value[0]) < value[1])
+            return 1 - Math.abs(pos - value[0]) / value[1]
+        }
+        return 0
       }
     }
 

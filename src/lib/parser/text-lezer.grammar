@@ -35,7 +35,7 @@ Name {
 }
 
 StringRegion {
-  "\"" (StringContent)* "\""
+  "\"" (StringContent | CurlyRegion)* "\""
 }
 
 RegExRegion {
@@ -49,7 +49,7 @@ RegExContent {
   ![/]
 }
 StringContent {
-  ![\"]
+  ![\"\{]
 }
 LineCommentContent {
   ![\/\(\)\[\]\{\}\"#]
@@ -61,7 +61,7 @@ Number {
   @digit | "."
 }
 Operator {
-  $[\+\-\*\^\=!\<\>\~\|,\/\%]
+  $[\+\-\*\^\=!\<\>\~\|,\/\%\_]
 }
 Space {
   @whitespace

@@ -9,8 +9,7 @@ export const defaultTransform: () => Transform = () => ({
   h: 0,
   s: 0,
   l: 1,
-  a: 1,
-  mode: 'line' as 'line' | 'fill'
+  a: 1
 })
 
 export function cloneTransform(transform: Transform): Transform {

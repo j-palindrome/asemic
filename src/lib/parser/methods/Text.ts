@@ -148,7 +148,10 @@ export class TextMethods {
           ' '
         )
 
-        const parserObject = (args: string) => {
+        const parserObject = (
+          args: string,
+          typeConversions: Record<string, 'number' | 'boolean'>
+        ) => {
           const obj: { [key: string]: any } = {}
           for (let arg of this.parser.tokenize(args)) {
             if (arg.includes('=')) {
@@ -156,12 +159,28 @@ export class TextMethods {
               obj[key] = value
             }
           }
+          for (let key of Object.keys(typeConversions)) {
+            switch (typeConversions[key]) {
+              case 'number':
+                if (obj[key] !== undefined) {
+                  obj[key] = this.parser.expr(obj[key])
+                }
+                break
+              case 'boolean':
+                if (obj[key] !== undefined) {
+                  obj[key] = obj[key] === 'true'
+                }
+                break
+            }
+          }
           return obj
         }
         // Process the content within parentheses as needed
         switch (funcName) {
           case 'group':
-            this.parser.group(parserObject(args) as any)
+            this.parser.group(
+              parserObject(args, { group: 'number', curve: 'boolean' }) as any
+            )
             break
           case 'font':
             this.parser.error(

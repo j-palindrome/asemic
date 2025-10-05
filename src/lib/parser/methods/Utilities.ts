@@ -105,7 +105,7 @@ export class UtilityMethods {
     const [alignX, alignY] = this.parser.evalPoint(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group({ mode: 'line' })
+      this.parser.group({ mode: 'line', curve: 'true', vert: '0,0' })
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
     const startCurve = lastGroup.length

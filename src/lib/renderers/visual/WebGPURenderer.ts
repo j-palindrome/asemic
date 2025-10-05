@@ -1,4 +1,4 @@
-import { range, sum, sumBy } from 'lodash'
+import { isEqual, range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import invariant from 'tiny-invariant'
 import AsemicVisual from '../AsemicVisual'
@@ -7,8 +7,17 @@ import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
 import { compileWithContext, src } from '../../hydra-compiler'
 import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
 import { CompiledTransform } from '../../hydra-compiler/src/compiler/compileWithContext'
+import Asemic from '@/lib/Asemic'
 
 const wgslRequires = /*wgsl*/ `
+  fn saw(value: f32) -> f32 {
+    return fract(value);
+  }
+
+  fn triangle(value: f32) -> f32 {
+    return 2.0 * abs(fract(value) - 0.5);
+  }
+
   fn normalCoords(position: vec2<f32>) -> vec2<f32> {
     // Convert coordinates from [0, 1] to [-1, 1] on x
     let x = position.x * 2.0 - 1.0;
@@ -94,7 +103,10 @@ const wgslRequires = /*wgsl*/ `
     return vec4<f32>(r, g, b, a);
   }
 
-
+  fn hash(input: f32) -> f32 {
+    let seed = 1.;
+    return fract(sin(input * 1e4 + seed) * 1e4);
+  }
 
   fn rotate(input: vec2<f32>, angle: f32) -> vec2<f32> {
     let cos_angle = cos(angle);
@@ -109,82 +121,6 @@ const wgslRequires = /*wgsl*/ `
     return input + offset;
   }
 `
-
-const calcPosition = /*wgsl*/ `
-  const VERTEXCOUNT = 100.;
-  let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
-  let single_curve_progress = min(fract(progress), 0.9999);
-  let point_progress = floor(progress) + single_curve_progress;
-  let side = vertex_index % 2u > 0;
-  let curve = u32(progress);
-
-  let curve_length = curve_starts[curve + 1] - curve_starts[curve];
-  let start_at_point = curve_starts[curve] 
-    + u32(fract(point_progress) * f32(curve_length - 2));
-  let t = fract(fract(point_progress) * f32(curve_length - 2));
-
-  
-  var p0: vec2<f32> = (select(
-    vertices[start_at_point], 
-    (vertices[start_at_point] + vertices[start_at_point + 1]) / 2.,
-    start_at_point > curve_starts[curve]));
-  var p1: vec2<f32> = (vertices[start_at_point + 1]);
-  var p2: vec2<f32> = (select(
-    vertices[start_at_point + 2],
-    (vertices[start_at_point + 1] + vertices[start_at_point + 2]) / 2.,
-    start_at_point < curve_starts[curve] + curve_length - 3));
-  
-  let width0 = select(
-    widths[start_at_point], 
-    (widths[start_at_point] + widths[start_at_point + 1]) / 2., 
-    start_at_point > curve_starts[curve]);
-  let width1 = widths[start_at_point + 1];
-  let width2 = select(
-    widths[start_at_point + 2],
-    (widths[start_at_point + 1] + widths[start_at_point + 2]) / 2.,
-    start_at_point < curve_starts[curve] + curve_length - 3);
-  if (start_at_point == curve_starts[curve]) {
-    let direction = normalize(p1 - p0);
-    p0 = p0 - direction * width0 * .9 / canvas_dimensions.x;
-  }
-  if (start_at_point == curve_starts[curve] + curve_length - 3) {
-    let direction = normalize(p1 - p2);
-    p2 = p2 - direction * width2 * .9 / canvas_dimensions.x;
-  }
-  
-  var width = select(
-    mix(width1, width0, pow(1 - t * 2, 2)), 
-    mix(width1, width2, pow((t - 0.5) * 2, 2)), 
-    t > 0.5);
-  width /= canvas_dimensions.x / 2;
-
-  let bezier_position = normalCoords(bezierCurve(t, p0, p1, p2, side, width));
-  let uv = vec2<f32>(single_curve_progress, select(0., 1., side));
-  let bezier_tangent = bezierTangent(t, p0, p1, p2);
-
-  // Lerp color with the next color
-  let color0 = select(
-    colors[start_at_point], 
-    (colors[start_at_point] + colors[start_at_point + 1]) / 2., 
-    start_at_point > curve_starts[curve]);
-  let color1 = colors[start_at_point + 1];
-  let color2 = select(
-    colors[start_at_point + 2],
-    (colors[start_at_point + 1] + colors[start_at_point + 2]) / 2.,
-    start_at_point < curve_starts[curve] + curve_length - 3);
-  let color = select(
-    mix(color0, color1, t * 2), 
-    mix(color1, color2, (t - 0.5) * 2), 
-    t > 0.5);
-  output.tangent = bezier_tangent;
-  output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
-  output.uv = uv; // Pass the UV coordinates to the fragment shader
-  output.color = hslaToRgba(color);
-  output.t = progress;
-  let offset = processVertex(output);
-  output.position.x += offset.x;
-  output.position.y += offset.y;
-  `
 
 export default class WebGPURenderer extends AsemicVisual {
   private brushes: (WebGPUBrush | undefined)[] = []
@@ -242,14 +178,10 @@ export default class WebGPURenderer extends AsemicVisual {
     let brush: WebGPUBrush
     switch (group.settings.mode) {
       case 'line':
-        brush = new WebGPULineBrush(this.ctx, this.device, {
-          processVertex: group.settings.vert
-        })
+        brush = new WebGPULineBrush(this.ctx, this.device, group.settings)
         break
       case 'fill':
-        brush = new WebGPUFillBrush(this.ctx, this.device, {
-          processVertex: group.settings.vert
-        })
+        brush = new WebGPUFillBrush(this.ctx, this.device, group.settings)
         break
       case 'blank':
         return
@@ -288,7 +220,7 @@ export default class WebGPURenderer extends AsemicVisual {
         this.brushes.push(this.generateBrush(groups[i]))
       } else if (
         this.brushes[i]?.mode !== groups[i].settings.mode ||
-        this.brushes[i]?.processVertex !== groups[i].settings.vert
+        !isEqual(this.brushes[i]!.settings, groups[i].settings)
       ) {
         this.brushes[i]?.destroy()
         this.brushes[i] = this.generateBrush(groups[i])
@@ -313,6 +245,7 @@ abstract class WebGPUBrush {
   bindGroup: GPUBindGroup
   shaderModule: GPUShaderModule
   dimensions: { buffer: GPUBuffer; size: number }
+  time: { buffer: GPUBuffer; size: number }
   widths: { buffer: GPUBuffer; size: number }
   curveStarts: { buffer: GPUBuffer; size: number; array: Uint32Array }
   vertex: { buffer: GPUBuffer; size: number }
@@ -323,7 +256,7 @@ abstract class WebGPUBrush {
     imageData: ImageData[]
     transformBuffer: GPUBuffer
   } | null = null
-  processVertex: string = '0,0'
+  settings: AsemicGroup['settings']
 
   abstract get mode(): string
 
@@ -331,6 +264,7 @@ abstract class WebGPUBrush {
     this.vertex?.buffer.destroy()
     this.index?.buffer.destroy()
     this.dimensions?.buffer.destroy()
+    this.time?.buffer.destroy()
     this.widths?.buffer.destroy()
     this.curveStarts?.buffer.destroy()
     this.colors?.buffer.destroy()
@@ -343,6 +277,124 @@ abstract class WebGPUBrush {
     bindGroupLayout: GPUBindGroupLayout
   ): GPURenderPipeline
   protected loadShader({ includeTexture = false } = {}) {
+    const calcPosition = /*wgsl*/ `
+    const VERTEXCOUNT = ${this.settings.count}.;
+    let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
+    let curve_progress = min(fract(progress), 0.9999);
+    let point_progress = floor(progress) + curve_progress;
+    let side = vertex_index % 2u > 0;
+    let curve = u32(progress);
+
+    let curve_length = curve_starts[curve + 1] - curve_starts[curve];
+
+    ${
+      this.settings.curve === 'true'
+        ? /*wgsl*/ `
+    let start_at_point = curve_starts[curve] 
+      + u32(fract(point_progress) * f32(curve_length - 2));
+    let t = fract(fract(point_progress) * f32(curve_length - 2));
+    
+    let width0 = select(
+      widths[start_at_point], 
+      (widths[start_at_point] + widths[start_at_point + 1]) / 2., 
+      start_at_point > curve_starts[curve]);
+    let width1 = widths[start_at_point + 1];
+    let width2 = select(
+      widths[start_at_point + 2],
+      (widths[start_at_point + 1] + widths[start_at_point + 2]) / 2.,
+      start_at_point < curve_starts[curve] + curve_length - 3);
+    var p0: vec2<f32> = (select(
+      vertices[start_at_point], 
+      (vertices[start_at_point] + vertices[start_at_point + 1]) / 2.,
+      start_at_point > curve_starts[curve]));
+    var p1: vec2<f32> = (vertices[start_at_point + 1]);
+    var p2: vec2<f32> = (select(
+      vertices[start_at_point + 2],
+      (vertices[start_at_point + 1] + vertices[start_at_point + 2]) / 2.,
+      start_at_point < curve_starts[curve] + curve_length - 3));
+    if (start_at_point == curve_starts[curve]) {
+      let direction = normalize(p1 - p0);
+      p0 = p0 - direction * width0 * .9 / canvas_dimensions.x;
+    }
+    if (start_at_point == curve_starts[curve] + curve_length - 3) {
+      let direction = normalize(p1 - p2);
+      p2 = p2 - direction * width2 * .9 / canvas_dimensions.x;
+    }
+    
+    var width = select(
+      mix(width1, width0, pow(1 - t * 2, 2)), 
+      mix(width1, width2, pow((t - 0.5) * 2, 2)), 
+      t > 0.5);
+    width /= canvas_dimensions.x / 2;
+    
+    let bezier_position = normalCoords(bezierCurve(t, p0, p1, p2, side, width));
+    let bezier_tangent = bezierTangent(t, p0, p1, p2);
+    
+    // Lerp color with the next color
+    let color0 = select(
+      colors[start_at_point], 
+      (colors[start_at_point] + colors[start_at_point + 1]) / 2., 
+      start_at_point > curve_starts[curve]);
+    let color1 = colors[start_at_point + 1];
+    let color2 = select(
+      colors[start_at_point + 2],
+      (colors[start_at_point + 1] + colors[start_at_point + 2]) / 2.,
+      start_at_point < curve_starts[curve] + curve_length - 3);
+    let color = select(
+      mix(color0, color1, t * 2), 
+      mix(color1, color2, (t - 0.5) * 2), 
+      t > 0.5);
+    output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
+    output.tangent = bezier_tangent;`
+        : /*wgsl*/ `
+    let start_at_point = curve_starts[curve] + u32(fract(point_progress) * f32(curve_length - 1));
+    let t = fract(fract(point_progress) * f32(curve_length - 1));
+    let p0 = vertices[start_at_point];
+    let p1 = vertices[start_at_point + 1];
+    let width = mix(widths[start_at_point], widths[start_at_point + 1], t)
+      / (canvas_dimensions.x / 2);
+    
+    let tangent = p1 - p0;
+    let normal = normalize(vec2<f32>(-tangent.y, tangent.x));
+    
+    var point_on_line = mix(p0, p1, t);
+    if (side) {
+      point_on_line = point_on_line + normal * width / 2.;
+    } else {
+      point_on_line = point_on_line - normal * width / 2.;
+    }
+
+    let position = normalCoords(point_on_line);
+    let color0 = colors[start_at_point];
+    let color1 = colors[start_at_point + 1];
+    let color = mix(color0, color1, t);
+
+    output.position = vec4<f32>(position.x, position.y, 0.0, 1.0);
+    output.tangent = tangent;
+      `
+    }
+    
+    let uv = vec2<f32>(curve_progress, select(0., 1., side));
+    output.uv = uv; // Pass the UV coordinates to the fragment shader
+    output.color = hslaToRgba(color);
+
+    let P = curve_progress;
+    let C = f32(curve);
+    let N = curve_length;
+    let T = time;
+    ${
+      this.settings.a
+        ? /*wgsl*/ `
+      output.color.a = ${this.settings.a};
+    `
+        : /*wgsl*/ ``
+    }
+    output.t = progress;
+    let offset = vec2<f32>(${this.settings.vert});
+    output.position.x += offset.x;
+    output.position.y += offset.y;
+    `
+
     return this.device.createShaderModule({
       code: /*wgsl*/ `
     struct VertexOutput {
@@ -368,21 +420,19 @@ abstract class WebGPUBrush {
     @group(0) @binding(4)
     var<storage, read> colors: array<vec4<f32>>;
 
+    @group(0) @binding(5)
+    var<uniform> time: f32;
+
     ${
       includeTexture
-        ? /*wgsl*/ `@group(0) @binding(5) var textureSampler: sampler;
-      @group(0) @binding(6) var tex: texture_2d<f32>;
-      @group(0) @binding(7)
+        ? /*wgsl*/ `@group(0) @binding(6) var textureSampler: sampler;
+      @group(0) @binding(7) var tex: texture_2d<f32>;
+      @group(0) @binding(8)
       var<uniform> texture_transform: vec4<f32>; // xy offset, wh scale`
         : ''
     }
 
     ${wgslRequires}
-
-    fn processVertex(input: VertexOutput) -> vec2<f32> {
-      // Apply any necessary transformations or processing to the vertex data
-      return vec2<f32>(${this.processVertex});
-    }
 
     @vertex
     fn vertexMain(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
@@ -527,6 +577,13 @@ abstract class WebGPUBrush {
       label: 'canvas dimensions'
     })
 
+    const timeBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * 1,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'time'
+    })
+
     const bindGroupLayoutEntries: Array<GPUBindGroupLayoutEntry> = [
       {
         binding: 0,
@@ -552,6 +609,11 @@ abstract class WebGPUBrush {
         binding: 4,
         visibility: GPUShaderStage.VERTEX,
         buffer: { type: 'read-only-storage' }
+      },
+      {
+        binding: 5,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'uniform' }
       }
     ]
     const bindGroupEntries: Array<GPUBindGroupEntry> = [
@@ -574,6 +636,10 @@ abstract class WebGPUBrush {
       {
         binding: 4,
         resource: { buffer: colorsBuffer }
+      },
+      {
+        binding: 5,
+        resource: { buffer: timeBuffer }
       }
     ]
 
@@ -598,7 +664,7 @@ abstract class WebGPUBrush {
 
       bindGroupEntries.push(
         {
-          binding: 5,
+          binding: 6,
           resource: this.device.createSampler({
             addressModeU: 'repeat',
             addressModeV: 'repeat',
@@ -607,27 +673,27 @@ abstract class WebGPUBrush {
           })
         },
         {
-          binding: 6,
+          binding: 7,
           resource: texture.createView()
         },
         {
-          binding: 7,
+          binding: 8,
           resource: { buffer: textureTransformBuffer }
         }
       )
       bindGroupLayoutEntries.push(
         {
-          binding: 5,
+          binding: 6,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           sampler: {}
         },
         {
-          binding: 6,
+          binding: 7,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           texture: {}
         },
         {
-          binding: 7,
+          binding: 8,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: { type: 'uniform' }
         }
@@ -673,6 +739,7 @@ abstract class WebGPUBrush {
     this.index = { buffer: indexBuffer, size: indices.length }
 
     this.dimensions = { buffer: dimensionsBuffer, size: 2 }
+    this.time = { buffer: timeBuffer, size: 2 }
     this.widths = {
       buffer: widthsBuffer,
       size: sumBy(group, x => x.length * 2)
@@ -717,6 +784,12 @@ abstract class WebGPUBrush {
     }
     this.reload(curves)
 
+    this.device.queue.writeBuffer(
+      this.time.buffer,
+      0,
+      new Float32Array([performance.now() / 1000])
+    )
+
     // These operations could all be done once during init
     renderPass.setBindGroup(0, this.bindGroup)
     renderPass.setPipeline(this.pipeline)
@@ -725,147 +798,14 @@ abstract class WebGPUBrush {
     renderPass.drawIndexed(this.index.size)
   }
 
-  async log() {
-    // Create a storage buffer for logging
-    const logBufferSize = 600 // Adjust size as needed
-    const SIZE = Float32Array.BYTES_PER_ELEMENT * logBufferSize * 4
-    const logBuffer = this.device.createBuffer({
-      size: SIZE,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-      mappedAtCreation: false,
-      label: 'log buffer'
-    })
-
-    // Create readback buffer for retrieving results
-    const readbackBuffer = this.device.createBuffer({
-      size: SIZE,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      mappedAtCreation: false,
-      label: 'readback buffer'
-    })
-
-    // Create compute shader module
-    const computeShaderModule = this.device.createShaderModule({
-      code: /*wgsl*/ `
-        @group(0) @binding(0)
-        var<storage, read> vertices: array<vec2<f32>>;
-        
-        @group(0) @binding(1)
-        var<storage, read> widths: array<f32>;
-        
-        @group(0) @binding(2)
-        var<uniform> canvas_dimensions: vec2<f32>;
-        
-        @group(0) @binding(3)
-        var<storage, read> curve_starts: array<u32>;
-        
-        @group(0) @binding(4)
-        var<storage, read> colors: array<vec4<f32>>;
-        
-        @group(0) @binding(5)
-        var<storage, read_write> log_output: array<vec4<f32>>;
-        
-        ${wgslRequires}
-        
-        @compute @workgroup_size(100)
-        fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-          let vertex_index = global_id.x * 200;
-          
-          ${calcPosition}
-          
-          // Log the curve index for this vertex
-          log_output[global_id.x] = vec4<f32>(bezier_position.x, bezier_position.y, 0., 0.);
-        }
-      `
-    })
-
-    // Create compute pipeline
-    const computePipeline = this.device.createComputePipeline({
-      layout: this.device.createPipelineLayout({
-        bindGroupLayouts: [
-          this.device.createBindGroupLayout({
-            entries: [
-              {
-                binding: 0,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'read-only-storage' }
-              },
-              {
-                binding: 1,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'read-only-storage' }
-              },
-              {
-                binding: 2,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'uniform' }
-              },
-              {
-                binding: 3,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'read-only-storage' }
-              },
-              {
-                binding: 4,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'read-only-storage' }
-              },
-              {
-                binding: 5,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: 'storage' }
-              }
-            ]
-          })
-        ]
-      }),
-      compute: {
-        module: computeShaderModule,
-        entryPoint: 'main'
-      }
-    })
-
-    // Function to run the compute shader and log the results
-
-    const computeBindGroup = this.device.createBindGroup({
-      layout: computePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this.vertex.buffer } },
-        { binding: 1, resource: { buffer: this.widths.buffer } },
-        { binding: 2, resource: { buffer: this.dimensions.buffer } },
-        { binding: 3, resource: { buffer: this.curveStarts.buffer } },
-        { binding: 4, resource: { buffer: this.colors.buffer } },
-        { binding: 5, resource: { buffer: logBuffer } }
-      ]
-    })
-
-    const commandEncoder = this.device.createCommandEncoder()
-    const computePass = commandEncoder.beginComputePass()
-    computePass.setPipeline(computePipeline)
-    computePass.setBindGroup(0, computeBindGroup)
-    computePass.dispatchWorkgroups(Math.ceil(600 / 100))
-    computePass.end()
-
-    // Copy results to readback buffer
-    commandEncoder.copyBufferToBuffer(logBuffer, 0, readbackBuffer, 0, SIZE)
-
-    this.device.queue.submit([commandEncoder.finish()])
-
-    // Read back the results
-    await readbackBuffer.mapAsync(GPUMapMode.READ)
-    const results = new Float32Array(readbackBuffer.getMappedRange())
-    console.log('LOG:', [...results])
-    readbackBuffer.unmap()
-  }
-
   constructor(
     ctx: GPUCanvasContext,
     device: GPUDevice,
-    { processVertex = '' } = {}
+    settings: AsemicGroup['settings']
   ) {
     this.ctx = ctx
     this.device = device
-    this.processVertex = processVertex || '0,0'
+    this.settings = settings
     this.shaderModule = this.loadShader()
   }
 }
@@ -906,8 +846,8 @@ class WebGPULineBrush extends WebGPUBrush {
         ]
       },
       primitive: {
-        topology: 'triangle-list', // Using triangles instead of lines
-        cullMode: 'none' // Disables face culling to render both sides
+        topology: 'triangle-list',
+        cullMode: 'none'
       },
       multisample: {
         count: 1

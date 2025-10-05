@@ -4,12 +4,14 @@ export class AsemicGroup extends Array<AsemicPt[]> {
   settings: {
     mode: 'line' | 'fill' | 'blank'
     texture?: string
-    fragment?: string
+    a?: string
     synth?: string
     xy?: string
     wh?: string
-    vert?: string
-  } = { mode: 'line' }
+    vert: string
+    curve: 'true' | 'false'
+    count: number
+  } = { mode: 'line', vert: '0,0', curve: 'true', count: 100 }
   imageDatas?: ImageData[]
   xy: BasicPt = new BasicPt(0, 0)
   wh: BasicPt = new BasicPt(1, 1)

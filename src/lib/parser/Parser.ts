@@ -558,7 +558,6 @@ export class Parser {
         ) {
           const pause = (object.start + object.pause).toFixed(5)
           if (!this.pausedAt.includes(pause)) {
-            debugger
             this.pauseAt = pause
             break
           }

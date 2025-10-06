@@ -205,11 +205,13 @@ export class Parser {
       '~': (speed = '1', ...freqs) => {
         let sampleIndex = this.noiseIndex
         while (sampleIndex > this.noiseTable.length - 1) {
-          let frequencies: number[]
+          let frequencies: BasicPt[]
           if (freqs.length) {
-            frequencies = freqs.map(x => this.expr(x, false))
+            frequencies = freqs.map(x =>
+              this.evalPoint(x, { basic: true, defaultY: 1 })
+            )
           } else {
-            frequencies = range(3).map(() => Math.random())
+            frequencies = range(3).map(() => new BasicPt(Math.random()))
           }
           this.noiseTable.push(x => {
             return this.noise(x, frequencies) * 0.5 + 0.5

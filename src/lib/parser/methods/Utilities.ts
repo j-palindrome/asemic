@@ -105,7 +105,12 @@ export class UtilityMethods {
     const [alignX, alignY] = this.parser.evalPoint(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group({ mode: 'line', curve: 'true', vert: '0,0' })
+      this.parser.group({
+        mode: 'line',
+        curve: 'true',
+        vert: '0,0',
+        count: 100
+      })
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
     const startCurve = lastGroup.length
@@ -161,14 +166,14 @@ export class UtilityMethods {
     return this.parser
   }
 
-  noise(value: number, frequencies: number[], phases: number[] = []) {
+  noise(value: number, frequencies: BasicPt[]) {
     let sum = 0
     for (let i = 0; i < frequencies.length; i++) {
       sum +=
         Math.cos(
-          frequencies[i] *
+          frequencies[i][0] *
             (i + 1) *
-            (value + (phases[i] || this.parser.hash(i + 10)))
+            (value + (frequencies[i][1] || this.parser.hash(i + 10)))
         ) /
         (i + 1)
     }

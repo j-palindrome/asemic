@@ -677,64 +677,29 @@ function AsemicAppInner({
             {!perform && totalLength > 0 && (
               <div className='w-full px-0 py-1'>
                 <div
-                  className='w-full h-3 flex items-center cursor-pointer relative'
-                  onMouseDown={e => {
-                    setIsDragging(true)
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const x = e.clientX - rect.left
-                    const percent = Math.max(0, Math.min(1, x / rect.width))
-                    const newProgress = percent * totalLength
-                    setProgress(newProgress)
-                    if (asemic.current) {
-                      asemic.current.postMessage({
-                        scrub: newProgress
-                      } as AsemicData)
+                  className='w-full h-5 flex items-center cursor-pointer relative'
+                  onWheel={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const scrollAmount = e.deltaY
+                    const sensitivity = (1 / totalLength) * 1e-3 // Adjust for scroll speed
+                    const newProgress = Math.max(
+                      0,
+                      Math.min(
+                        totalLength,
+                        progress + scrollAmount * sensitivity * totalLength
+                      )
+                    )
+
+                    if (newProgress !== progress) {
+                      setProgress(newProgress)
+                      if (asemic.current) {
+                        asemic.current.postMessage({
+                          scrub: newProgress
+                        } as AsemicData)
+                      }
                     }
-                  }}
-                  onMouseMove={e => {
-                    if (!isDragging) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const x = e.clientX - rect.left
-                    const percent = Math.max(0, Math.min(1, x / rect.width))
-                    const newProgress = percent * totalLength
-                    setProgress(newProgress)
-                    if (asemic.current) {
-                      asemic.current.postMessage({
-                        scrub: newProgress
-                      } as AsemicData)
-                    }
-                  }}
-                  onMouseUp={() => setIsDragging(false)}
-                  onMouseLeave={() => setIsDragging(false)}
-                  onTouchStart={e => {
-                    setIsDragging(true)
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const touch = e.touches[0]
-                    const x = touch.clientX - rect.left
-                    const percent = Math.max(0, Math.min(1, x / rect.width))
-                    const newProgress = percent * totalLength
-                    setProgress(newProgress)
-                    if (asemic.current) {
-                      asemic.current.postMessage({
-                        scrub: newProgress
-                      } as AsemicData)
-                    }
-                  }}
-                  onTouchMove={e => {
-                    if (!isDragging) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const touch = e.touches[0]
-                    const x = touch.clientX - rect.left
-                    const percent = Math.max(0, Math.min(1, x / rect.width))
-                    const newProgress = percent * totalLength
-                    setProgress(newProgress)
-                    if (asemic.current) {
-                      asemic.current.postMessage({
-                        scrub: newProgress
-                      } as AsemicData)
-                    }
-                  }}
-                  onTouchEnd={() => setIsDragging(false)}>
+                  }}>
                   <div
                     className='absolute h-1 rounded-lg'
                     style={{
@@ -753,14 +718,6 @@ function AsemicAppInner({
                       transform: 'translateY(-50%)',
                       width: `${(progress / totalLength) * 100}%`,
                       background: '#3b82f6'
-                    }}
-                  />
-                  <div
-                    className='absolute w-3 h-3 rounded-full bg-black border-2 border-white shadow'
-                    style={{
-                      left: `calc(${(progress / totalLength) * 100}% - 6px)`,
-                      top: '50%',
-                      transform: 'translateY(-50%)'
                     }}
                   />
                 </div>

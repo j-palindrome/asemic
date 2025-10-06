@@ -140,10 +140,6 @@ export class SceneMethods {
     this.parser.reset()
     this.parser.progress.progress = progress
 
-    // Clear any pause states when scrubbing
-    this.parser.pauseAt = false
-    this.parser.pausedAt = []
-
     return this.parser
   }
 }

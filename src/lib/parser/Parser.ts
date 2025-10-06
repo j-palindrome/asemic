@@ -554,10 +554,11 @@ export class Parser {
         if (
           this.pauseAt === false &&
           object.pause !== false &&
-          this.progress.progress >= object.start + (object.pause - 0.02)
+          this.progress.progress >= object.start + object.pause
         ) {
           const pause = (object.start + object.pause).toFixed(5)
           if (!this.pausedAt.includes(pause)) {
+            debugger
             this.pauseAt = pause
             break
           }

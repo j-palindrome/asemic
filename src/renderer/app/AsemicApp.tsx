@@ -305,7 +305,7 @@ function AsemicAppInner({
             if (asemic.current) {
               asemic.current.postMessage({
                 scrub: newProgress
-              } as AsemicData)
+              } as Partial<AsemicData>)
             }
             return
           }

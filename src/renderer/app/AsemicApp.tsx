@@ -95,15 +95,6 @@ function AsemicAppInner({
     setIsDragging
   ] = useProgress()
 
-  const scrubberRef = useRef<HTMLInputElement>(null)
-
-  // Update scrubber value when progress changes
-  useEffect(() => {
-    if (scrubberRef.current && !isDragging) {
-      scrubberRef.current.value = progress.toString()
-    }
-  }, [progress, isDragging])
-
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -392,13 +383,14 @@ function AsemicAppInner({
     try {
       if ('showSaveFilePicker' in window) {
         // Modern browsers with File System Access API
+        // @ts-ignore
         const fileHandle = await window.showSaveFilePicker({
           suggestedName: filename,
           types: [
             {
               description: 'Asemic files',
               accept: {
-                'text/plain': ['.js', '.asemic']
+                'text/plain': ['.asemic']
               }
             }
           ]
@@ -432,6 +424,7 @@ function AsemicAppInner({
     try {
       if ('showOpenFilePicker' in window) {
         // Modern browsers with File System Access API
+        // @ts-ignore
         const [fileHandle] = await window.showOpenFilePicker({
           types: [
             {

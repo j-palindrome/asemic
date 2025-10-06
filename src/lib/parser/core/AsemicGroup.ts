@@ -1,4 +1,5 @@
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
+import { Parser } from '../Parser'
 
 export class AsemicGroup extends Array<AsemicPt[]> {
   settings: {
@@ -15,10 +16,12 @@ export class AsemicGroup extends Array<AsemicPt[]> {
   imageDatas?: ImageData[]
   xy: BasicPt = new BasicPt(0, 0)
   wh: BasicPt = new BasicPt(1, 1)
+  parser: Parser
 
-  constructor(parser: any, settings: Partial<AsemicGroup['settings']> = {}) {
+  constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
     super()
     this.settings = { ...this.settings, ...settings }
+    this.parser = parser
   }
 
   addCurve(curve: AsemicPt[]) {

@@ -243,9 +243,11 @@ abstract class WebGPUBrush {
   device: GPUDevice
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
+  bindGroup2: GPUBindGroup
   shaderModule: GPUShaderModule
   dimensions: { buffer: GPUBuffer; size: number }
   time: { buffer: GPUBuffer; size: number }
+  scrub: { buffer: GPUBuffer; size: number }
   widths: { buffer: GPUBuffer; size: number }
   curveStarts: { buffer: GPUBuffer; size: number; array: Uint32Array }
   vertex: { buffer: GPUBuffer; size: number }
@@ -382,6 +384,7 @@ abstract class WebGPUBrush {
     let C = f32(curve);
     let N = curve_length;
     let T = time;
+    let S = scrub;
     ${
       this.settings.a
         ? /*wgsl*/ `
@@ -423,11 +426,14 @@ abstract class WebGPUBrush {
     @group(0) @binding(5)
     var<uniform> time: f32;
 
+    @group(0) @binding(6)
+    var<uniform> scrub: f32;
+
     ${
       includeTexture
-        ? /*wgsl*/ `@group(0) @binding(6) var textureSampler: sampler;
-      @group(0) @binding(7) var tex: texture_2d<f32>;
-      @group(0) @binding(8)
+        ? /*wgsl*/ `@group(1) @binding(0) var textureSampler: sampler;
+      @group(1) @binding(1) var tex: texture_2d<f32>;
+      @group(1) @binding(2)
       var<uniform> texture_transform: vec4<f32>; // xy offset, wh scale`
         : ''
     }
@@ -584,6 +590,13 @@ abstract class WebGPUBrush {
       label: 'time'
     })
 
+    const scrubBuffer = this.device.createBuffer({
+      size: Float32Array.BYTES_PER_ELEMENT * 1,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: 'scrub'
+    })
+
     const bindGroupLayoutEntries: Array<GPUBindGroupLayoutEntry> = [
       {
         binding: 0,
@@ -614,6 +627,11 @@ abstract class WebGPUBrush {
         binding: 5,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: { type: 'uniform' }
+      },
+      {
+        binding: 6,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'uniform' }
       }
     ]
     const bindGroupEntries: Array<GPUBindGroupEntry> = [
@@ -640,6 +658,10 @@ abstract class WebGPUBrush {
       {
         binding: 5,
         resource: { buffer: timeBuffer }
+      },
+      {
+        binding: 6,
+        resource: { buffer: scrubBuffer }
       }
     ]
 
@@ -662,42 +684,47 @@ abstract class WebGPUBrush {
         label: 'texture transform'
       })
 
-      bindGroupEntries.push(
-        {
-          binding: 6,
-          resource: this.device.createSampler({
-            addressModeU: 'repeat',
-            addressModeV: 'repeat',
-            magFilter: 'linear',
-            minFilter: 'linear'
-          })
-        },
-        {
-          binding: 7,
-          resource: texture.createView()
-        },
-        {
-          binding: 8,
-          resource: { buffer: textureTransformBuffer }
-        }
-      )
-      bindGroupLayoutEntries.push(
-        {
-          binding: 6,
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          sampler: {}
-        },
-        {
-          binding: 7,
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          texture: {}
-        },
-        {
-          binding: 8,
-          visibility: GPUShaderStage.FRAGMENT,
-          buffer: { type: 'uniform' }
-        }
-      )
+      const bindGroup2 = this.device.createBindGroup({
+        layout: this.device.createBindGroupLayout({
+          entries: [
+            {
+              binding: 6,
+              visibility: GPUShaderStage.FRAGMENT,
+              sampler: {}
+            },
+            {
+              binding: 7,
+              visibility: GPUShaderStage.FRAGMENT,
+              texture: {}
+            },
+            {
+              binding: 8,
+              visibility: GPUShaderStage.FRAGMENT,
+              buffer: { type: 'uniform' }
+            }
+          ]
+        }),
+        entries: [
+          {
+            binding: 6,
+            resource: this.device.createSampler({
+              addressModeU: 'repeat',
+              addressModeV: 'repeat',
+              magFilter: 'linear',
+              minFilter: 'linear'
+            })
+          },
+          {
+            binding: 7,
+            resource: texture.createView()
+          },
+          {
+            binding: 8,
+            resource: { buffer: textureTransformBuffer }
+          }
+        ]
+      })
+      this.bindGroup2 = bindGroup2
 
       // Set texture transform data (xy offset, wh scale)
       this.texture = {
@@ -723,6 +750,7 @@ abstract class WebGPUBrush {
     // Store pipeline and resources as instance properties
     this.pipeline = pipeline
     this.bindGroup = bindGroup
+
     if (this.index) {
       this.index.buffer.destroy()
       this.dimensions.buffer.destroy()
@@ -739,7 +767,8 @@ abstract class WebGPUBrush {
     this.index = { buffer: indexBuffer, size: indices.length }
 
     this.dimensions = { buffer: dimensionsBuffer, size: 2 }
-    this.time = { buffer: timeBuffer, size: 2 }
+    this.time = { buffer: timeBuffer, size: 1 }
+    this.scrub = { buffer: scrubBuffer, size: 1 }
     this.widths = {
       buffer: widthsBuffer,
       size: sumBy(group, x => x.length * 2)
@@ -788,6 +817,12 @@ abstract class WebGPUBrush {
       this.time.buffer,
       0,
       new Float32Array([performance.now() / 1000])
+    )
+
+    this.device.queue.writeBuffer(
+      this.scrub.buffer,
+      0,
+      new Float32Array([curves.parser.progress.scrub || 0])
     )
 
     // These operations could all be done once during init

@@ -352,10 +352,7 @@ abstract class WebGPUBrush {
 
     let direction = normalize(p1 - p0);
     p0 = p0 - direction * widths[start_at_point] * 1 / canvas_dimensions.x;
-
-
-    let direction2 = normalize(p0 - p1);
-    p1 = p1 - direction2 * widths[start_at_point + 1] * 1 / canvas_dimensions.x;
+    p1 = p1 + direction * widths[start_at_point + 1] * 1 / canvas_dimensions.x;
 
     let width = mix(widths[start_at_point], widths[start_at_point + 1], t)
       / (canvas_dimensions.x / 2);

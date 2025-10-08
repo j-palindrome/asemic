@@ -1,13 +1,9 @@
-import { isEqual, range, sum, sumBy } from 'lodash'
-import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
+import { isEqual, range, sumBy } from 'lodash'
 import invariant from 'tiny-invariant'
-import AsemicVisual from '../AsemicVisual'
-import { AsemicGroup } from '../../parser/Parser'
-import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
 import { compileWithContext, src } from '../../hydra-compiler'
-import { utilityFunctions } from '../../hydra-compiler/src/glsl/utilityFunctions'
-import { CompiledTransform } from '../../hydra-compiler/src/compiler/compileWithContext'
-import Asemic from '@/lib/Asemic'
+import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
+import { AsemicGroup } from '../../parser/Parser'
+import AsemicVisual from '../AsemicVisual'
 
 const wgslRequires = /*wgsl*/ `
   fn saw(value: f32) -> f32 {
@@ -209,7 +205,7 @@ export default class WebGPURenderer extends AsemicVisual {
         {
           view: this.offscreenView!,
           loadOp: 'clear',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
           storeOp: 'store'
         }
       ]
@@ -351,8 +347,16 @@ abstract class WebGPUBrush {
         : /*wgsl*/ `
     let start_at_point = curve_starts[curve] + u32(fract(point_progress) * f32(curve_length - 1));
     let t = fract(fract(point_progress) * f32(curve_length - 1));
-    let p0 = vertices[start_at_point];
-    let p1 = vertices[start_at_point + 1];
+    var p0 = vertices[start_at_point];
+    var p1 = vertices[start_at_point + 1];
+
+    let direction = normalize(p1 - p0);
+    p0 = p0 - direction * widths[start_at_point] * 1 / canvas_dimensions.x;
+
+
+    let direction2 = normalize(p0 - p1);
+    p1 = p1 - direction2 * widths[start_at_point + 1] * 1 / canvas_dimensions.x;
+
     let width = mix(widths[start_at_point], widths[start_at_point + 1], t)
       / (canvas_dimensions.x / 2);
     
@@ -867,14 +871,14 @@ class WebGPULineBrush extends WebGPUBrush {
             format: navigator.gpu.getPreferredCanvasFormat(),
             blend: {
               color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
+                srcFactor: 'one',
+                dstFactor: 'zero',
                 operation: 'add'
               },
               alpha: {
                 srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add'
+                dstFactor: 'one',
+                operation: 'max'
               }
             }
           }
@@ -1133,7 +1137,7 @@ class PostProcessQuad {
         {
           view: this.ctx.getCurrentTexture().createView(),
           loadOp: 'clear',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
           storeOp: 'store'
         }
       ]

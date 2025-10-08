@@ -1,4 +1,4 @@
-import { range } from 'lodash'
+import { range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from '../defaultFont'
 import { InputSchema } from '../../renderer/inputSchema'
@@ -202,31 +202,36 @@ export class Parser {
         }
         return this.expr(savedArgs[Math.floor(index)])
       },
-      '~': (speed = '1', ...freqs) => {
-        let sampleIndex = this.noiseIndex
-        while (sampleIndex > this.noiseTable.length - 1) {
-          let frequencies: BasicPt[]
-          if (freqs.length) {
-            frequencies = freqs.map(x =>
-              this.evalPoint(x, { basic: true, defaultY: 1 })
-            )
-          } else {
-            frequencies = range(3).map(() => new BasicPt(Math.random()))
-          }
-          this.noiseTable.push(x => {
-            return this.noise(x, frequencies) * 0.5 + 0.5
-          })
+      PHI: () => 1.6180339887,
+      mix: (...args) => {
+        return sumBy(args.map(x => this.expr(x, false))) / args.length
+      },
+      '~': (freq = 1, fmRatio = 1.6180339887, modulation = 2) => {
+        if (this.noiseIndex > this.noiseTable.length - 1) {
+          let phase = Math.random() * Math.PI * 2
+          let phase2 = Math.random() * Math.PI * 2
           this.noiseValues.push(0)
+          this.noiseTable.push(t => {
+            const frequency = this.expr(freq)
+            return (
+              Math.sin(
+                frequency * t +
+                  phase +
+                  this.expr(modulation) *
+                    Math.sin(this.expr(fmRatio) * frequency * t + phase2)
+              ) *
+                0.5 +
+              0.5
+            )
+          })
         }
-
-        const value = this.expr(speed) / 60
+        const value = 1 / 60
         this.noiseValues[this.noiseIndex] += value
 
         const noise = this.noiseTable[this.noiseIndex](
           this.noiseValues[this.noiseIndex]
         )
         this.noiseIndex++
-
         return noise
       },
       tangent: (progress, curve) => {
@@ -282,7 +287,7 @@ export class Parser {
 
         return normalizedAngle
       },
-      hash: x => {
+      '#': x => {
         const val = Math.sin(
           this.expr(x || 'C') * (43758.5453123 + this.progress.seed)
         )
@@ -614,6 +619,9 @@ export class Parser {
       console.error(e)
       this.output.errors.push(`Setup failed: ${e.message}`)
     }
+
+    this.noiseTable = []
+    this.noiseValues = []
   }
 
   hash = (n: number): number => {

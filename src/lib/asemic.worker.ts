@@ -1,14 +1,12 @@
 import { flatMap, isUndefined, max } from 'lodash'
-import AsemicAudio from './renderers/AsemicAudio'
-import AsemicVisual from './renderers/AsemicVisual'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
-import type { AsemicData, AsemicDataBack, FlatTransform } from './types'
+import type { AsemicData, FlatTransform } from './types'
 import { Parser } from './parser/Parser'
 import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 // import { generators, generators as realOsc } from 'hydra-ts'
 
 let parser: Parser = new Parser()
-let renderer: AsemicVisual
+let renderer: WebGPURenderer
 let offscreenCanvas: OffscreenCanvas
 let animationFrame: number | null = null
 let ready = true
@@ -18,13 +16,13 @@ let isRecording = false
 const startRecording = async () => {
   if (isRecording) return
   isRecording = true
-  self.postMessage({ recordingStarted: true } as AsemicDataBack)
+  self.postMessage({ recordingStarted: true } as Partial<Parser['output']>)
 }
 
 const stopRecording = async () => {
   if (!isRecording) return
   isRecording = false
-  self.postMessage({ recordingStopped: true } as AsemicDataBack)
+  self.postMessage({ recordingStopped: true } as Partial<Parser['output']>)
 }
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
@@ -34,7 +32,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     renderer.setup().then(() => {
       self.postMessage({
         ready: true
-      } as AsemicDataBack)
+      } as Partial<Parser['output']>)
     })
   }
   // if (!renderer?.device || !offscreenCanvas) return
@@ -59,7 +57,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   if (!isUndefined(ev.data.play)) {
     parser.play(ev.data.play)
-    self.postMessage({ osc: parser.output.osc } as AsemicDataBack)
+    self.postMessage({ osc: parser.output.osc } as Partial<Parser['output']>)
   }
   if (!isUndefined(ev.data.scrub)) {
     parser.scrub(ev.data.scrub)
@@ -84,7 +82,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       self.postMessage({
         settings: parser.settings,
         ...parser.output
-      } as AsemicDataBack)
+      } as Partial<Parser['output']>)
     }
 
     const animate = async () => {
@@ -104,28 +102,9 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       }
       renderer.render(parser.groups)
 
-      let imageBitmap: ImageBitmap | undefined
-      // Transfer frame if recording
-      if (isRecording) {
-        try {
-          imageBitmap = offscreenCanvas.transferToImageBitmap()
-        } catch (error) {
-          console.log('Frame transfer error:', error)
-        }
-      }
-
       ready = true
 
-      self.postMessage(
-        {
-          progress: parser.progress.progress,
-          totalLength: parser.duration,
-          frameData: imageBitmap,
-          ...parser.output
-        } as AsemicDataBack,
-        // @ts-ignore
-        imageBitmap ? [imageBitmap] : undefined
-      )
+      self.postMessage(parser.output)
     }
     if (animationFrame) {
       cancelAnimationFrame(animationFrame)
@@ -141,7 +120,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       parser.preProcessing.height = offscreenCanvas.height
       self.postMessage({
         preProcessing: parser.preProcessing
-      } as AsemicDataBack)
+      } as Partial<Parser['output']>)
     }
   }
 }

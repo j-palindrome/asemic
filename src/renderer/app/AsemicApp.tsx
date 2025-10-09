@@ -75,15 +75,15 @@ function AsemicAppInner({
   const useProgress = () => {
     const [progress, setProgress] = useState(0)
     const [totalLength, setTotalLength] = useState(0)
-    const [isDragging, setIsDragging] = useState(false)
+    const [scenes, setScenes] = useState<number[]>([])
 
     return [
       progress,
       setProgress,
       totalLength,
       setTotalLength,
-      isDragging,
-      setIsDragging
+      scenes,
+      setScenes
     ] as const
   }
   const [
@@ -91,8 +91,8 @@ function AsemicAppInner({
     setProgress,
     totalLength,
     setTotalLength,
-    isDragging,
-    setIsDragging
+    scenes,
+    setScenes
   ] = useProgress()
 
   const setup = () => {
@@ -183,29 +183,17 @@ function AsemicAppInner({
           //     socket?.emit('sc:synth', synth, `${data.scSynthDefs[synth]}`)
           //   }
           // }
-          if (!isUndefined(data.recordingStarted)) {
-            if (data.recordingStarted) {
-              console.log('Recording started')
-            } else {
-              // setIsRecording(false)
-            }
-          }
-          // if (!isUndefined(data.frameData) && recordingCanvas.current) {
-          //   // Draw transferred frame to recording canvas
-          //   const ctx = recordingCanvas.current.getContext('bitmaprenderer')!
-          //   ctx.transferFromImageBitmap(data.frameData)
-
-          //   // Step the recorder
-          //   // stepRecording(1)
-          // }
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
-          if (!isUndefined(data.progress) && !isDragging) {
+          if (!isUndefined(data.progress)) {
             setProgress(data.progress)
           }
           if (!isUndefined(data.totalLength)) {
             setTotalLength(data.totalLength)
+          }
+          if (!isUndefined(data.scenes)) {
+            setScenes(data.scenes)
           }
         })
       }
@@ -220,12 +208,6 @@ function AsemicAppInner({
         window.removeEventListener('resize', onResize)
       }
     }, [asemic])
-
-    // useEffect(() => {
-    //   return () => {
-    //     asemic.current?.dispose()
-    //   }
-    // }, [])
 
     useEffect(() => {
       onResize()
@@ -526,6 +508,22 @@ function AsemicAppInner({
 
   const editorRef = useRef<AsemicEditorRef | null>(null)
 
+  const updatePosition = (e: React.MouseEvent) => {
+    if (e.buttons !== 1) {
+      return
+    }
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const newProgress = (x / rect.width) * totalLength
+
+    setProgress(newProgress)
+    if (asemic.current) {
+      asemic.current.postMessage({
+        scrub: newProgress
+      } as AsemicData)
+    }
+  }
+
   return (
     <div className='asemic-container relative group'>
       <div
@@ -543,20 +541,6 @@ function AsemicAppInner({
           ref={canvas}
           height={1080}
           width={1080}></canvas>
-        {/* <canvas
-          ref={recordingCanvas}
-          className='top-0 left-0 !z-100'
-          style={{
-            position: 'fixed',
-            display: isRecording ? 'block' : 'none',
-            width: '100%',
-            height: settings.h === 'window' ? '100%' : undefined,
-            aspectRatio:
-              settings.h === 'window' ? undefined : `1 / ${settings.h}`
-          }}
-          width={1080}
-          height={1080}
-        /> */}
 
         {!perform ? (
           <div
@@ -582,13 +566,6 @@ function AsemicAppInner({
                 title={'Set Value'}>
                 {<RefreshCw {...lucideProps} />}
               </button>
-
-              {/* <button
-                className={`${isRecording ? '!bg-red-500' : ''}`}
-                onClick={toggleRecording}
-                title={isRecording ? 'Stop Recording' : 'Start Recording'}>
-                {<Video {...lucideProps} />}
-              </button> */}
 
               <button
                 onClick={() => {
@@ -677,29 +654,9 @@ function AsemicAppInner({
             {!perform && totalLength > 0 && (
               <div className='w-full px-0 py-1'>
                 <div
-                  className='w-full h-5 flex items-center cursor-pointer relative'
-                  onWheel={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    const scrollAmount = e.deltaY
-                    const sensitivity = (1 / totalLength) * 1e-3 // Adjust for scroll speed
-                    const newProgress = Math.max(
-                      0,
-                      Math.min(
-                        totalLength,
-                        progress + scrollAmount * sensitivity * totalLength
-                      )
-                    )
-
-                    if (newProgress !== progress) {
-                      setProgress(newProgress)
-                      if (asemic.current) {
-                        asemic.current.postMessage({
-                          scrub: newProgress
-                        } as AsemicData)
-                      }
-                    }
-                  }}>
+                  className='w-full h-5 flex items-center cursor-pointer relative select-none'
+                  onMouseMove={updatePosition}
+                  onMouseDown={updatePosition}>
                   <div
                     className='absolute h-1 rounded-lg'
                     style={{
@@ -720,6 +677,32 @@ function AsemicAppInner({
                       background: '#3b82f6'
                     }}
                   />
+                  <div
+                    className='absolute h-full w-2 rounded-lg'
+                    style={{
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      left: `${(progress / totalLength) * 100}%`,
+                      background: '#3b82f6'
+                    }}
+                  />
+                  <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
+                    {scenes.map((scene, index) => {
+                      const sceneStart = (scene / totalLength) * 100
+                      return (
+                        <div
+                          key={index}
+                          className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
+                          style={{
+                            left: `${sceneStart.toFixed(1)}%`,
+                            top: '50%',
+                            transform: 'translateY(-50%)'
+                          }}>
+                          {index}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 {/* <div className='w-full flex'>

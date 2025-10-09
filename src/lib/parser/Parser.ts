@@ -25,8 +25,6 @@ import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
 
-type ExprFunc = (() => void) | string
-
 export { AsemicGroup }
 
 export class Parser {
@@ -622,6 +620,8 @@ export class Parser {
 
     this.noiseTable = []
     this.noiseValues = []
+
+    return this
   }
 
   hash = (n: number): number => {

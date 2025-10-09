@@ -56,7 +56,6 @@ export class TextMethods {
           parserSettings[key] = this.parser.expr(value)
         })
       }
-
       sceneList.push(parserSettings)
     }
     this.parser.scene(...sceneList)

@@ -1,6 +1,6 @@
 import { isUndefined } from 'lodash'
 import { AsemicData, Parser } from '../../types'
-import { InputSchema } from '../../server/inputSchema'
+import { InputSchema } from '@/renderer/inputSchema'
 
 export class SceneMethods {
   parser: Parser
@@ -18,6 +18,7 @@ export class SceneMethods {
       pause?: number
     }[]
   ) {
+    this.parser.output.scenes = []
     for (let { length = 0.1, offset = 0, pause = 0, draw, setup } of scenes) {
       this.parser.sceneList.push({
         draw,
@@ -28,8 +29,10 @@ export class SceneMethods {
         offset,
         pause
       })
+      this.parser.output.scenes.push(this.parser.totalLength)
       this.parser.totalLength += length - offset
     }
+    this.parser.output.totalLength = this.parser.totalLength
     return this.parser
   }
 

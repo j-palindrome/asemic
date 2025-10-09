@@ -2,24 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Main Process",
+      "name": "Debug Both",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceRoot}",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
-    },
-    {
-      "name": "Debug Renderer Process",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceRoot}/src/renderer",
-      "breakOnLoad": true,
-      "sourceMapPathOverrides": {
-        "webpack:///./*": "${webRoot}/*"
+      "skipFiles": ["<node_internals>/**"],
+      "serverReadyAction": {
+        "pattern": "localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "debugWithChrome"
       }
     }
   ]

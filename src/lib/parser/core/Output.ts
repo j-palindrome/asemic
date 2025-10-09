@@ -1,4 +1,4 @@
-import { InputSchema } from '../../server/inputSchema'
+import { InputSchema } from '@/renderer/inputSchema'
 
 export const defaultOutput = () => ({
   osc: [] as { path: string; args: (string | number | [number, number])[] }[],
@@ -10,7 +10,12 @@ export const defaultOutput = () => ({
   eval: [] as string[],
   params: undefined as InputSchema['params'] | undefined,
   presets: undefined as InputSchema['presets'] | undefined,
-  resetParams: false,
-  resetPresets: false,
-  files: [] as string[]
+  resetParams: undefined as boolean | undefined,
+  resetPresets: undefined as boolean | undefined,
+  files: undefined as string[] | undefined,
+  ready: undefined as boolean | undefined,
+  frameReady: undefined as boolean | undefined,
+  totalLength: undefined as number | undefined,
+  scenes: undefined as number[] | undefined,
+  progress: undefined as number | undefined
 })

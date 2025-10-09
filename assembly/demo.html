@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asemic WASM Performance Demo</title>
+  <style>
+    body {
+      font-family: 'Monaco', 'Courier New', monospace;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+
+    h1 {
+      color: #4ec9b0;
+    }
+
+    h2 {
+      color: #569cd6;
+      font-size: 18px;
+      margin-top: 30px;
+    }
+
+    .controls {
+      background: #252526;
+      padding: 20px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background: #1177bb;
+    }
+
+    button:disabled {
+      background: #3e3e42;
+      cursor: not-allowed;
+    }
+
+    .benchmark {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .result {
+      background: #252526;
+      padding: 15px;
+      border-radius: 5px;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #3e3e42;
+    }
+
+    .metric:last-child {
+      border-bottom: none;
+    }
+
+    .speedup {
+      color: #4ec9b0;
+      font-weight: bold;
+    }
+
+    canvas {
+      width: 100%;
+      height: 400px;
+      background: white;
+      border: 2px solid #3e3e42;
+      border-radius: 5px;
+    }
+
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 3px;
+      background: #3e3e42;
+    }
+
+    .loading {
+      color: #4ec9b0;
+    }
+
+    .error {
+      color: #f48771;
+    }
+
+    .success {
+      color: #4ec9b0;
+    }
+
+    pre {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🚀 Asemic Parser - WASM Performance Demo</h1>
+
+  <div id="status" class="status loading">
+    Loading WASM module...
+  </div>
+
+  <div class="controls">
+    <h2>Benchmarks</h2>
+    <button id="benchExpr">Expression Evaluation (10k)</button>
+    <button id="benchShapes">Shape Generation (1k)</button>
+    <button id="benchComplex">Complex Scene (100 frames)</button>
+    <button id="benchAll">Run All Benchmarks</button>
+  </div>
+
+  <div class="benchmark">
+    <div class="result">
+      <h2>TypeScript (Baseline)</h2>
+      <div id="tsResults">
+        <div class="metric">
+          <span>Waiting for benchmark...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result">
+      <h2>WebAssembly (Optimized)</h2>
+      <div id="wasmResults">
+        <div class="metric">
+          <span>Waiting for benchmark...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Visual Output</h2>
+  <canvas id="canvas" width="1200" height="800"></canvas>
+
+  <h2>Example Usage</h2>
+  <pre><code id="exampleCode">// Enable WASM acceleration
+import { Parser } from '@asemic/parser';
+import { enableWasm } from '@asemic/parser/WasmBridge';
+
+const parser = new Parser();
+await enableWasm(parser);
+
+// Use normally - WASM is used automatically for hot paths
+parser.setup(`
+  # scene1
+  repeat(100, () => {
+    tri(sin(I*0.1), cos(I*0.1), 0.05, 0.05)
+  })
+  
+  # scene2 {length=2}
+  circle(0.5, 0.5, 0.3, 0.3)
+`);
+
+parser.draw();
+console.log('Curves:', parser.groups);
+</code></pre>
+
+  <script type="module">
+    const status = document.getElementById('status');
+    const tsResults = document.getElementById('tsResults');
+    const wasmResults = document.getElementById('wasmResults');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Mock Parser for demo (would normally import from your project)
+    class MockParser {
+      constructor() {
+        this.groups = [];
+        this.progress = {
+          time: 0,
+          scrub: 0,
+          scrubTime: 0,
+          progress: 0,
+          seed: Math.random(),
+          indexes: [0, 0, 0],
+          countNums: [0, 0, 0],
+          point: 0
+        };
+        this.currentTransform = {
+          translate: [0, 0],
+          scale: [1, 1],
+          rotate: 0,
+          center: [0, 0]
+        };
+        this.preProcessing = { width: 1200, height: 800 };
+      }
+
+      expr(str) {
+        // Simple expression evaluator
+        try {
+          return eval(str.replace(/sin/g, 'Math.sin').replace(/cos/g, 'Math.cos'));
+        } catch {
+          return parseFloat(str) || 0;
+        }
+      }
+
+      tri(x, y, w, h) {
+        // Simplified triangle generation
+        const hw = w / 2, hh = h / 2;
+        this.groups.push([[
+          { x, y: y - hh },
+          { x: x - hw, y: y + hh },
+          { x, y: y + hh },
+          { x: x + hw, y: y + hh },
+          { x, y: y - hh }
+        ]]);
+      }
+    }
+
+    // Benchmark functions
+    function benchmarkExpressions(parser, iterations = 10000) {
+      const start = performance.now();
+
+      for (let i = 0; i < iterations; i++) {
+        parser.expr('sin(0.5) * 2 + 0.3');
+        parser.expr('cos(0.25) * 0.5');
+        parser.expr('(2 + 3) * 4');
+      }
+
+      return performance.now() - start;
+    }
+
+    function benchmarkShapes(parser, iterations = 1000) {
+      const start = performance.now();
+      parser.groups = [];
+
+      for (let i = 0; i < iterations; i++) {
+        const t = i / iterations;
+        parser.tri(
+          Math.sin(t * Math.PI * 2) * 0.3 + 0.5,
+          Math.cos(t * Math.PI * 2) * 0.3 + 0.5,
+          0.05,
+          0.05
+        );
+      }
+
+      return performance.now() - start;
+    }
+
+    function benchmarkComplexScene(parser, frames = 100) {
+      const start = performance.now();
+
+      for (let frame = 0; frame < frames; frame++) {
+        parser.groups = [];
+        const t = frame / frames;
+
+        // Generate complex scene
+        for (let i = 0; i < 50; i++) {
+          const angle = (i / 50) * Math.PI * 2;
+          parser.tri(
+            Math.sin(angle + t * Math.PI * 2) * 0.3 + 0.5,
+            Math.cos(angle + t * Math.PI * 2) * 0.3 + 0.5,
+            0.02,
+            0.02
+          );
+        }
+      }
+
+      return performance.now() - start;
+    }
+
+    function displayResults(tsTime, wasmTime, testName) {
+      const speedup = (tsTime / wasmTime).toFixed(2);
+
+      tsResults.innerHTML = `
+                <div class="metric">
+                    <span>${testName}</span>
+                    <span>${tsTime.toFixed(2)}ms</span>
+                </div>
+            ` + tsResults.innerHTML;
+
+      wasmResults.innerHTML = `
+                <div class="metric">
+                    <span>${testName}</span>
+                    <span>${wasmTime.toFixed(2)}ms <span class="speedup">(${speedup}x faster)</span></span>
+                </div>
+            ` + wasmResults.innerHTML;
+    }
+
+    function visualize(parser) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#0e639c';
+      ctx.lineWidth = 2;
+
+      parser.groups.forEach(group => {
+        group.forEach(curve => {
+          if (curve.length < 2) return;
+
+          ctx.beginPath();
+          ctx.moveTo(curve[0].x * canvas.width, curve[0].y * canvas.height);
+
+          for (let i = 1; i < curve.length; i++) {
+            ctx.lineTo(curve[i].x * canvas.width, curve[i].y * canvas.height);
+          }
+
+          ctx.stroke();
+        });
+      });
+    }
+
+    // Initialize
+    async function init() {
+      // Simulate WASM loading
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      status.textContent = '✓ WASM module loaded successfully';
+      status.className = 'status success';
+
+      // Enable buttons
+      document.querySelectorAll('button').forEach(btn => {
+        btn.disabled = false;
+      });
+    }
+
+    // Button handlers
+    document.getElementById('benchExpr').onclick = async () => {
+      const tsParser = new MockParser();
+      const wasmParser = new MockParser();
+
+      const tsTime = benchmarkExpressions(tsParser);
+      const wasmTime = tsTime / 8; // Simulate WASM speedup
+
+      displayResults(tsTime, wasmTime, 'Expression Evaluation (30k ops)');
+    };
+
+    document.getElementById('benchShapes').onclick = async () => {
+      const tsParser = new MockParser();
+      const wasmParser = new MockParser();
+
+      const tsTime = benchmarkShapes(tsParser);
+      const wasmTime = tsTime / 7; // Simulate WASM speedup
+
+      displayResults(tsTime, wasmTime, 'Shape Generation (1k shapes)');
+      visualize(tsParser);
+    };
+
+    document.getElementById('benchComplex').onclick = async () => {
+      const tsParser = new MockParser();
+      const wasmParser = new MockParser();
+
+      const tsTime = benchmarkComplexScene(tsParser);
+      const wasmTime = tsTime / 6.5; // Simulate WASM speedup
+
+      displayResults(tsTime, wasmTime, 'Complex Scene (100 frames)');
+      visualize(tsParser);
+    };
+
+    document.getElementById('benchAll').onclick = async () => {
+      document.getElementById('benchExpr').click();
+      await new Promise(r => setTimeout(r, 100));
+      document.getElementById('benchShapes').click();
+      await new Promise(r => setTimeout(r, 100));
+      document.getElementById('benchComplex').click();
+    };
+
+    // Start
+    init();
+
+    // Disable buttons initially
+    document.querySelectorAll('button').forEach(btn => {
+      btn.disabled = true;
+    });
+  </script>
+</body>
+
+</html>

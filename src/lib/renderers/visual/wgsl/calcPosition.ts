@@ -3,10 +3,11 @@ import WebGPUBrush from '../WebGPUBrush'
 export default function calcPosition(parser: WebGPUBrush) {
   return /*wgsl*/ `
     const VERTEXCOUNT = ${parser.settings.count}.;
+    const CORRECTION = ${parser.settings.correction}.;
     let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
-    let curve_progress = min(fract(progress), 0.9999);
+    let curve_progress = min(fract(progress), 1);
     let point_progress = floor(progress) + curve_progress;
-    let side = vertex_index % 2u > 0;
+    let side = vertex_index % 2u == 0;
     let curve = u32(progress);
 
     let curve_length = curve_starts[curve + 1] - curve_starts[curve];
@@ -38,11 +39,11 @@ export default function calcPosition(parser: WebGPUBrush) {
       start_at_point < curve_starts[curve] + curve_length - 3));
     if (start_at_point == curve_starts[curve]) {
       let direction = normalize(p1 - p0);
-      p0 = p0 - direction * width0 * .9 / canvas_dimensions.x;
+      p0 = p0 - direction * (width0) / canvas_dimensions.x;
     }
     if (start_at_point == curve_starts[curve] + curve_length - 3) {
       let direction = normalize(p1 - p2);
-      p2 = p2 - direction * width2 * .9 / canvas_dimensions.x;
+      p2 = p2 - direction * (width2 * 2 + CORRECTION) / canvas_dimensions.x;
     }
     
     var width = select(
@@ -77,8 +78,8 @@ export default function calcPosition(parser: WebGPUBrush) {
     var p1 = vertices[start_at_point + 1];
 
     let direction = normalize(p1 - p0);
-    p0 = p0 - direction * widths[start_at_point] * 1 / canvas_dimensions.x;
-    p1 = p1 + direction * widths[start_at_point + 1] * 1 / canvas_dimensions.x;
+    p0 = p0 - direction * (widths[start_at_point] / canvas_dimensions.x);
+    p1 = p1 + direction * ((widths[start_at_point + 1] + CORRECTION) / canvas_dimensions.x);
 
     let width = mix(widths[start_at_point], widths[start_at_point + 1], t)
       / (canvas_dimensions.x / 2);

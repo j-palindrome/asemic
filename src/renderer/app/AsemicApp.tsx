@@ -508,12 +508,23 @@ function AsemicAppInner({
 
   const editorRef = useRef<AsemicEditorRef | null>(null)
 
-  const updatePosition = (e: React.MouseEvent) => {
-    if (e.buttons !== 1) {
+  const updatePosition = (e: React.MouseEvent | React.TouchEvent) => {
+    // Check if it's a mouse event with button pressed
+    if ('buttons' in e && e.buttons !== 1) {
       return
     }
+
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-    const x = e.clientX - rect.left
+
+    // Get x position from either mouse or touch event
+    const clientX =
+      'touches' in e && e.touches.length > 0
+        ? e.touches[0].clientX
+        : 'clientX' in e
+        ? e.clientX
+        : 0
+
+    const x = clientX - rect.left
     const newProgress = (x / rect.width) * totalLength
 
     setProgress(newProgress)
@@ -656,7 +667,9 @@ function AsemicAppInner({
                 <div
                   className='w-full h-5 flex items-center cursor-pointer relative select-none'
                   onMouseMove={updatePosition}
-                  onMouseDown={updatePosition}>
+                  onMouseDown={updatePosition}
+                  onTouchMove={updatePosition}
+                  onTouchStart={updatePosition}>
                   <div
                     className='absolute h-1 rounded-lg'
                     style={{

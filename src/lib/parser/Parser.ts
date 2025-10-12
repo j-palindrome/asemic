@@ -579,6 +579,8 @@ export class Parser {
         }
       }
     }
+    this.output.progress = this.progress.progress
+    this.output.pauseAt = this.pauseAt
   }
 
   debug(slice: number = 0) {

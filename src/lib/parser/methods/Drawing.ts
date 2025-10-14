@@ -143,8 +143,7 @@ export class DrawingMethods {
       this.parser.applyTransform(new AsemicPt(this.parser, w, h)),
       this.parser.applyTransform(new AsemicPt(this.parser, negW, h)),
       this.parser.applyTransform(new AsemicPt(this.parser, negW, negH)),
-      this.parser.applyTransform(new AsemicPt(this.parser, w, negH)),
-      this.parser.applyTransform(new AsemicPt(this.parser, w, 0))
+      this.parser.applyTransform(new AsemicPt(this.parser, w, negH))
     ]
 
     // Use for loop with cached length for maximum performance
@@ -158,7 +157,7 @@ export class DrawingMethods {
     }
 
     this.parser.lastPoint = points[lastIndex]
-    this.parser.end()
+    this.parser.end({ close: true })
     this.parser.currentTransform = lastTo
     return this.parser
   }

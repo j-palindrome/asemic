@@ -1,4 +1,4 @@
-import { range } from 'lodash'
+import { range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
 import { AsemicFont, DefaultFont } from '../defaultFont'
 import { InputSchema } from '../../renderer/inputSchema'
@@ -24,8 +24,6 @@ import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
-
-type ExprFunc = (() => void) | string
 
 export { AsemicGroup }
 
@@ -68,6 +66,7 @@ export class Parser {
     scrub: 0,
     scrubTime: 0,
     progress: 0,
+    scene: 0,
     regexCache: {} as Record<string, string[]>
   }
   live = {
@@ -202,31 +201,56 @@ export class Parser {
         }
         return this.expr(savedArgs[Math.floor(index)])
       },
-      '~': (speed = '1', ...freqs) => {
-        let sampleIndex = this.noiseIndex
-        while (sampleIndex > this.noiseTable.length - 1) {
-          let frequencies: BasicPt[]
-          if (freqs.length) {
-            frequencies = freqs.map(x =>
-              this.evalPoint(x, { basic: true, defaultY: 1 })
-            )
-          } else {
-            frequencies = range(3).map(() => new BasicPt(Math.random()))
+      PHI: () => 1.6180339887,
+      mix: (...args) => {
+        return sumBy(args.map(x => this.expr(x, false))) / args.length
+      },
+      pulse: (speed = '1') => {
+        const currentValue = `${this.progress.scene}:${this.progress.curve}`
+        if (!this.noiseTable[currentValue]) {
+          this.noiseTable[currentValue] = {
+            value: this.progress.time + Math.random() / this.expr(speed),
+            noise: t => {
+              if (t > this.noiseTable[currentValue].value) {
+                this.noiseTable[currentValue].value +=
+                  Math.random() / this.expr(speed)
+              }
+              return this.hash(this.noiseTable[currentValue].value)
+            }
           }
-          this.noiseTable.push(x => {
-            return this.noise(x, frequencies) * 0.5 + 0.5
-          })
-          this.noiseValues.push(0)
         }
 
-        const value = this.expr(speed) / 60
-        this.noiseValues[this.noiseIndex] += value
+        const noise = this.noiseTable[currentValue].noise(this.progress.time)
+        return noise
+      },
+      '~': (freq = 1, fmRatio = 1.6180339887, modulation = 2) => {
+        const currentValue = `${this.progress.scene}:${this.progress.curve}`
+        if (!this.noiseTable[currentValue]) {
+          let phase = Math.random() * Math.PI * 2
+          let phase2 = Math.random() * Math.PI * 2
+          this.noiseTable[currentValue] = {
+            value: 0,
+            noise: t => {
+              const frequency = this.expr(freq)
+              return (
+                Math.sin(
+                  frequency * t +
+                    phase +
+                    this.expr(modulation) *
+                      Math.sin(this.expr(fmRatio) * frequency * t + phase2)
+                ) *
+                  0.5 +
+                0.5
+              )
+            }
+          }
+        }
+        const value = 1 / 60
+        this.noiseTable[currentValue].value += value
 
-        const noise = this.noiseTable[this.noiseIndex](
-          this.noiseValues[this.noiseIndex]
+        const noise = this.noiseTable[currentValue].noise(
+          this.noiseTable[currentValue].value
         )
-        this.noiseIndex++
-
         return noise
       },
       tangent: (progress, curve) => {
@@ -282,7 +306,7 @@ export class Parser {
 
         return normalizedAngle
       },
-      hash: x => {
+      '#': x => {
         const val = Math.sin(
           this.expr(x || 'C') * (43758.5453123 + this.progress.seed)
         )
@@ -309,9 +333,8 @@ export class Parser {
   }
   currentFont = 'default'
   lastPoint: AsemicPt
-  noiseTable: ((x: number) => number)[] = []
-  noiseValues: number[] = []
-  noiseIndex = 0
+  noiseTable: Record<string, { noise: (x: number) => number; value: number }> =
+    {}
   images: Record<string, ImageData[]> = {}
   output = defaultOutput()
   preProcessing = defaultPreProcess()
@@ -379,15 +402,7 @@ export class Parser {
       },
       {
         instance: this.utilities,
-        methods: [
-          'repeat',
-          'within',
-          'align',
-          'add',
-          'test',
-          'noise',
-          'getBounds'
-        ]
+        methods: ['repeat', 'within', 'align', 'alignX', 'add', 'getBounds']
       },
       {
         instance: this.scenes,
@@ -453,10 +468,8 @@ export class Parser {
   repeat!: UtilityMethods['repeat']
   within!: UtilityMethods['within']
   align!: UtilityMethods['align']
+  alignX!: UtilityMethods['alignX']
   add!: UtilityMethods['add']
-  test!: UtilityMethods['test']
-
-  noise!: UtilityMethods['noise']
   getBounds!: UtilityMethods['getBounds']
 
   scene!: SceneMethods['scene']
@@ -521,7 +534,6 @@ export class Parser {
       this.progress.indexes[i] = 0
       this.progress.countNums[i] = 0
     }
-    this.noiseIndex = 0
     this.progress.accumIndex = 0
     this.progress.seed = 1
   }
@@ -544,6 +556,7 @@ export class Parser {
             object.isSetup = true
           }
           object.draw()
+          this.progress.scene = i
         } catch (e) {
           this.error(
             `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)} ${
@@ -566,6 +579,8 @@ export class Parser {
         }
       }
     }
+    this.output.progress = this.progress.progress
+    this.output.pauseAt = this.pauseAt
   }
 
   debug(slice: number = 0) {
@@ -614,6 +629,10 @@ export class Parser {
       console.error(e)
       this.output.errors.push(`Setup failed: ${e.message}`)
     }
+
+    this.noiseTable = {}
+
+    return this
   }
 
   hash = (n: number): number => {

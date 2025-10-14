@@ -3,7 +3,6 @@ import { Parser } from './parser/Parser'
 import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
 export type { Parser } from './parser/Parser'
-export type { default as Renderer } from '../lib/renderers/visual/CanvasRenderer'
 
 export type AsemicData = {
   source?: string
@@ -24,18 +23,6 @@ export type AsemicData = {
   files?: Record<string, string>
   loadFiles?: Record<string, ImageData[]>
 }
-export type AsemicDataBack = {
-  settings?: Parser['settings']
-  ready?: boolean
-  frameReady?: boolean
-  totalLength?: number
-  progress?: number
-  recordingStarted?: boolean
-  recordingStopped?: boolean
-  recordedData?: Blob
-  frameData?: ImageBitmap
-  resetPresets?: boolean
-} & Partial<Parser['output']>
 
 export type Transform = {
   scale: BasicPt

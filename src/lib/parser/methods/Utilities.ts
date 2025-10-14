@@ -100,6 +100,41 @@ export class UtilityMethods {
     return this.parser
   }
 
+  alignX(
+    coords: string,
+    type: string,
+    ...callbacks: (string | (() => void))[]
+  ) {
+    const centerX = this.parser.expr(coords)
+    const alignX = this.parser.expr(type)
+    let lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    if (!lastGroup) {
+      this.parser.group({
+        mode: 'line',
+        curve: 'true',
+        vert: '0,0',
+        count: 100,
+        correction: 0
+      })
+      lastGroup = this.parser.groups[this.parser.groups.length - 1]
+    }
+
+    for (let callback of callbacks) {
+      const startCurve = lastGroup.length
+      if (typeof callback === 'string') this.parser.text(callback)
+      else callback()
+      const addedGroups = lastGroup.slice(startCurve)
+      const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)
+      const change = new BasicPt(maxX - minX, 0).scale([alignX, 1])
+      for (const group of addedGroups) {
+        for (const pt of group.flat()) {
+          pt.subtract([minX, 0]).add([centerX, 0]).subtract(change)
+        }
+      }
+    }
+    return this.parser
+  }
+
   align(coords: string, type: string, callback: string | (() => void)) {
     const [centerX, centerY] = this.parser.parsePoint(coords)
     const [alignX, alignY] = this.parser.evalPoint(type)
@@ -109,7 +144,8 @@ export class UtilityMethods {
         mode: 'line',
         curve: 'true',
         vert: '0,0',
-        count: 100
+        count: 100,
+        correction: 0
       })
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
@@ -164,19 +200,5 @@ export class UtilityMethods {
       callback2 && callback2()
     }
     return this.parser
-  }
-
-  noise(value: number, frequencies: BasicPt[]) {
-    let sum = 0
-    for (let i = 0; i < frequencies.length; i++) {
-      sum +=
-        Math.cos(
-          frequencies[i][0] *
-            (i + 1) *
-            (value + (frequencies[i][1] || this.parser.hash(i + 10)))
-        ) /
-        (i + 1)
-    }
-    return sum / CACHED[frequencies.length]
   }
 }

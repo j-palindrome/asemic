@@ -299,7 +299,7 @@ export class ParsingMethods {
     return this.parser
   }
 
-  end() {
+  end({ close = false } = {}) {
     if (this.parser.currentCurve.length === 0) return this.parser
     if (this.parser.currentCurve.length === 2) {
       this.parser.progress.point = 0.5
@@ -310,6 +310,9 @@ export class ParsingMethods {
     }
     if (this.parser.groups.length === 0) {
       this.parser.groups.push(new AsemicGroup(this.parser, { mode: 'line' }))
+    }
+    if (close) {
+      this.parser.currentCurve.push(this.parser.currentCurve[0].clone(true))
     }
     this.parser.groups[this.parser.groups.length - 1].addCurve(
       this.parser.currentCurve

@@ -213,7 +213,11 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           drawSelection(),
           new LanguageSupport(EXAMPLELanguage, [
             syntaxHighlighting(exampleHighlight)
-          ])
+          ]),
+          EditorView.theme({
+            '&': { height: '100%' },
+            '.cm-scroller': { overflow: 'auto' }
+          })
         ]
       })
 

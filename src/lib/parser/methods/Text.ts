@@ -56,7 +56,6 @@ export class TextMethods {
           parserSettings[key] = this.parser.expr(value)
         })
       }
-
       sceneList.push(parserSettings)
     }
     this.parser.scene(...sceneList)
@@ -179,7 +178,12 @@ export class TextMethods {
         switch (funcName) {
           case 'group':
             this.parser.group(
-              parserObject(args, { group: 'number', curve: 'boolean' }) as any
+              parserObject(args, {
+                group: 'number',
+                curve: 'boolean',
+                correction: 'number',
+                count: 'number'
+              }) as any
             )
             break
           case 'font':
@@ -229,6 +233,8 @@ export class TextMethods {
         this.parser.points(content)
         if (token[end + 1] === '+') {
           i++
+        } else if (token[end + 1] === '<') {
+          this.parser.end({ close: true })
         } else {
           this.parser.end()
         }
@@ -267,6 +273,9 @@ export class TextMethods {
         if (font.characters['START'] && !add) {
           font.characters['START']()
         }
+        if (font.dynamicCharacters['START'] && !add) {
+          font.dynamicCharacters['START']()
+        }
         while (token[i] !== '"' || token[i - 1] === '\\') {
           let thisChar = token[i]
           if (thisChar === '(' && token[i - 1] !== '\\') {
@@ -303,6 +312,9 @@ export class TextMethods {
             if (font.characters['NEWLINE']) {
               ;(font.characters['NEWLINE'] as any)()
             }
+            if (font.dynamicCharacters['NEWLINE']) {
+              ;(font.dynamicCharacters['NEWLINE'] as any)()
+            }
           } else if (!font.characters[thisChar]) {
           } else {
             if (font.characters['EACH']) {
@@ -331,6 +343,9 @@ export class TextMethods {
 
         if (font.characters['END'] && !add) {
           font.characters['END']()
+        }
+        if (font.dynamicCharacters['END'] && !add) {
+          font.dynamicCharacters['END']()
         }
       }
       continue

@@ -355,7 +355,7 @@ export class Parser {
     const methodClasses = [
       {
         instance: this.expressions,
-        methods: ['expr', 'choose', 'def', 'defStatic', 'defCollect']
+        methods: ['expr', 'choose', 'def', 'defStatic', 'defCollect', 'defArray']
       },
       {
         instance: this.drawing,

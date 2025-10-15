@@ -222,12 +222,19 @@ export class TextMethods {
 
       if (char === '[') {
         const start = i
-        while (token[i] !== ']') {
+        let count = 1
+        while (count > 0) {
           i++
           if (i >= tokenLength) {
             throw new Error('Missing ] in text')
           }
+          if (token[i] === '[') {
+            count++
+          } else if (token[i] === ']') {
+            count--
+          }
         }
+
         const end = i
         const content = token.substring(start + 1, end)
         this.parser.points(content)

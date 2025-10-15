@@ -2,6 +2,7 @@ import { clamp, last } from 'lodash'
 import invariant from 'tiny-invariant'
 import { Parser } from '../../types'
 import { lerp } from '@/lib/utils'
+import { BasicPt } from '@/lib/blocks/AsemicPt'
 
 export class ExpressionMethods {
   parser: Parser
@@ -35,17 +36,8 @@ export class ExpressionMethods {
     string,
     { string: string; operatorType: string }[]
   > = {}
-
-  sortedKeys: string[]
-
-  protected generateSortedKeys() {
-    this.sortedKeys = Object.keys(this.parser.constants).sort(
-      (a, b) => b.length - a.length
-    )
-  }
   constructor(parser: any) {
     this.parser = parser
-    this.generateSortedKeys()
   }
 
   protected fastExpr(stringExpr: string) {
@@ -53,7 +45,9 @@ export class ExpressionMethods {
       throw new Error('Empty expression')
     }
     if (/[^\-\d\.]/.test(stringExpr)) {
-      const foundKey = this.sortedKeys.find(x => stringExpr.startsWith(x))
+      const foundKey = Object.keys(this.parser.constants).find(x =>
+        stringExpr.startsWith(x)
+      )
       if (foundKey) {
         const arg1 = stringExpr.slice(foundKey.length)
         return this.parser.constants[foundKey](arg1)
@@ -69,7 +63,7 @@ export class ExpressionMethods {
     }
   }
 
-  expr(expr: string | number, replace = true): number {
+  expr(expr: string | number): number {
     if (expr === undefined || expr === null) {
       throw new Error('undefined or null expression')
     }
@@ -86,9 +80,8 @@ export class ExpressionMethods {
     if (ExpressionMethods.NUMBER_REGEX.test(expr)) {
       return parseFloat(expr)
     }
-    // if (expr === 'T_1') debugger
 
-    if (replace && expr.includes('`')) {
+    if (expr.includes('`')) {
       const matches = expr.matchAll(ExpressionMethods.BACKTICK_REGEX)
       for (let match of matches) {
         const [original, expression] = match
@@ -210,7 +203,6 @@ export class ExpressionMethods {
           if (!this.parser.constants[splitResult[0].string]) {
             throw new Error(`Unknown function ${splitResult[0].string}`)
           }
-          // if (['test'].includes(splitResult[0].string)) debugger
           return this.parser.constants[splitResult[0].string](...args)
         }
         let leftVal: number = this.fastExpr(splitResult[0].string)
@@ -298,25 +290,42 @@ export class ExpressionMethods {
     return this.parser
   }
 
-  def(key: string, definition: string) {
-    if (this.parser.reservedConstants.includes(key)) {
-      throw new Error(`Reserved constant: ${key}`)
-    }
+  remap(point0: string, point1: string) {
+    const p0 = this.parser.parsePoint(point0)
+    const p1 = this.parser.parsePoint(point1)
+    const rotation = p1.clone().subtract(p0).angle0to1()
+    const scale = p0.clone().subtract(p1).magnitude()
+    const position = p0.clone()
 
-    this.parser.constants[key] = (...args: string[]) => this.expr(definition)
-    if (!this.sortedKeys.includes(key)) this.generateSortedKeys()
-
+    this.parser.currentTransform.rotation = rotation
+    this.parser.currentTransform.scale.set([scale, scale])
+    this.parser.currentTransform.translation.set([position.x, position.y])
     return this.parser
   }
 
-  defStatic(key: string, definition: string) {
+  def(key: string, definition: string, { isStatic = false } = {}) {
     if (this.parser.reservedConstants.includes(key)) {
       throw new Error(`Reserved constant: ${key}`)
     }
 
-    const solvedDefinition = this.expr(definition)
-    this.parser.constants[key] = () => solvedDefinition
-    if (!this.sortedKeys.includes(key)) this.generateSortedKeys()
+    const values = this.parser.tokenize(definition, { separatePoints: true })
+    if (values.length > 1) {
+      if (isStatic) {
+        const solvedValues = values.map(x => this.parser.expr(x))
+        this.parser.constants[key] = i =>
+          solvedValues[Math.floor(this.parser.expr(i))]
+      } else {
+        this.parser.constants[key] = i =>
+          this.parser.expr(values[Math.floor(this.parser.expr(i))])
+      }
+    } else {
+      if (isStatic) {
+        const solvedDefinition = this.expr(definition)
+        this.parser.constants[key] = () => solvedDefinition
+      } else {
+        this.parser.constants[key] = i => this.parser.expr(definition)
+      }
+    }
 
     return this.parser
   }
@@ -339,10 +348,5 @@ export class ExpressionMethods {
         )
     }
     return this.parser
-  }
-
-  defArray(key: string, ...values: string[]) {
-    const solvedValues = values.map(x => this.parser.expr(x))
-    this.parser.constants[key] = i => solvedValues[this.parser.expr(i)]
   }
 }

@@ -123,15 +123,15 @@ export class Parser {
       '-': x => -1 * this.expr(x),
       N: (index = '1') => {
         if (!index) index = '1'
-        return this.progress.countNums[this.expr(index, false) - 1]
+        return this.progress.countNums[this.expr(index) - 1]
       },
       I: (index = '1') => {
         if (!index) index = '1'
-        return this.progress.indexes[this.expr(index, false) - 1]
+        return this.progress.indexes[this.expr(index) - 1]
       },
       i: (index = '1') => {
         if (!index) index = '1'
-        const solveIndex = this.expr(index, false) - 1
+        const solveIndex = this.expr(index) - 1
         return (
           this.progress.indexes[solveIndex] /
           (this.progress.countNums[solveIndex] - 1)
@@ -141,7 +141,7 @@ export class Parser {
         return this.progress.time
       },
       '!': continuing => {
-        const continuingSolved = this.expr(continuing, false)
+        const continuingSolved = this.expr(continuing)
         return continuingSolved ? 0 : 1
       },
       H: () => this.preProcessing.height / this.preProcessing.width,
@@ -152,9 +152,9 @@ export class Parser {
       C: () => this.groups[this.groups.length - 1]?.length ?? 0,
       L: () => this.progress.letter,
       P: () => this.progress.point,
-      px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i, false),
+      px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i),
       sin: x => {
-        const result = Math.sin(this.expr(x, false) * Math.PI * 2)
+        const result = Math.sin(this.expr(x) * Math.PI * 2)
         return result
       },
       table: (name, point, channel) => {
@@ -162,15 +162,13 @@ export class Parser {
         return this.table(imageName, point, channel)
       },
       or: (...args) => {
-        const [condition, trueValue, falseValue] = args.map(x =>
-          this.expr(x, false)
-        )
+        const [condition, trueValue, falseValue] = args.map(x => this.expr(x))
         return condition > 0 ? trueValue : falseValue
       },
       acc: x => {
         if (!this.progress.accums[this.progress.accumIndex])
           this.progress.accums.push(0)
-        const value = this.expr(x, false)
+        const value = this.expr(x)
         // correct for 60fps
         this.progress.accums[this.progress.accumIndex] += value / 60
         const currentAccum = this.progress.accums[this.progress.accumIndex]
@@ -181,7 +179,7 @@ export class Parser {
         let exprFade = this.expr(args[0])
         if (exprFade >= 1) exprFade = 0.999
         else if (exprFade < 0) exprFade = 0
-        const exprPoints = [...args.slice(1)].map(x => this.expr(x, false))
+        const exprPoints = [...args.slice(1)].map(x => this.expr(x))
 
         let index = (exprPoints.length - 1) * exprFade
 
@@ -192,7 +190,7 @@ export class Parser {
         )
       },
       choose: (...args) => {
-        const index = Math.floor(this.expr(args[0], false))
+        const index = Math.floor(this.expr(args[0]))
         const savedArgs = args.slice(1)
         if (index < 0 || index >= savedArgs.length) {
           throw new Error(
@@ -203,7 +201,7 @@ export class Parser {
       },
       PHI: () => 1.6180339887,
       mix: (...args) => {
-        return sumBy(args.map(x => this.expr(x, false))) / args.length
+        return sumBy(args.map(x => this.expr(x))) / args.length
       },
       pulse: (speed = '1') => {
         const currentValue = `${this.progress.scene}:${this.progress.curve}`
@@ -378,7 +376,7 @@ export class Parser {
     const methodClasses = [
       {
         instance: this.expressions,
-        methods: ['expr', 'choose', 'def', 'defStatic', 'defCollect', 'defArray']
+        methods: ['expr', 'choose', 'def', 'remap', 'defCollect']
       },
       {
         instance: this.drawing,
@@ -441,7 +439,7 @@ export class Parser {
   expr!: ExpressionMethods['expr']
   choose!: ExpressionMethods['choose']
   def!: ExpressionMethods['def']
-  defStatic!: ExpressionMethods['defStatic']
+  remap!: ExpressionMethods['remap']
   defCollect!: ExpressionMethods['defCollect']
 
   tri!: DrawingMethods['tri']
@@ -623,7 +621,6 @@ export class Parser {
     this.output.resetParams = true
     this.output.resetPresets = true
     try {
-      // debugger
       this.parse(source)
     } catch (e: any) {
       console.error(e)

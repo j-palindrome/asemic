@@ -177,7 +177,7 @@ export class TransformMethods {
                     } else {
                       switch (expression) {
                         case '=':
-                          this.parser.defStatic(key, value)
+                          this.parser.def(key, value, { isStatic: true })
                           break
                         case '=>':
                           this.parser.def(key, value)

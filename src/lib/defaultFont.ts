@@ -24,7 +24,6 @@ export class AsemicFont {
 
   parseCharacters(chars: AsemicFont['characters'], { dynamic = false } = {}) {
     let dict = dynamic ? this.dynamicCharacters : this.characters
-    // debugger
     for (let name of Object.keys(chars)) {
       const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE']
       if (name.length > 1 && !reservedCharacters.includes(name)) {

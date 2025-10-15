@@ -248,12 +248,17 @@ export class ParsingMethods {
       return this.parser.reverseTransform(
         this.parser.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
       )
-    } else if (point.startsWith('[')) {
+    }
+    if (point.includes('[')) {
+      const start = point.indexOf('[') + 1
       const end = point.indexOf(']')
-      point = this.parser
-        .tokenize(point.substring(1, end), { separatePoints: true })
-        .map((x: string) => x.trim() + point.substring(end + 1))
-        .join(',')
+      const tokenized = this.parser
+        .tokenize(point.substring(start, end), { separatePoints: true })
+        .map(
+          (x: string) =>
+            point.substring(0, start - 1) + x + point.substring(end + 1)
+        )
+      point = tokenized.join(',')
     }
 
     if (!result!) {

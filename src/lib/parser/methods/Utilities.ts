@@ -114,6 +114,30 @@ export class UtilityMethods {
     }
   }
 
+  cinterp(count: string, callback: (() => void) | string) {
+    if (!this.parser.groups.length) this.parser.group()
+    const activeGroup = this.parser.groups[this.parser.groups.length - 1]
+    const currentLength = activeGroup.length
+    const countNum = this.parser.expr(count)
+    if (typeof callback === 'function') {
+      callback()
+    } else {
+      this.parser.text(callback)
+    }
+    for (let i = currentLength; i < activeGroup.length; i++) {
+      const curve = activeGroup[i]
+
+      for (let j = 1; j < curve.length; j += countNum + 1) {
+        const pt0 = curve[j - 1]
+        const pt1 = curve[j]
+        for (let k = 0; k < countNum; k++) {
+          const t = (k + 1) / (countNum + 1)
+          curve.splice(j + k, 0, pt0.clone().lerp(pt1, t))
+        }
+      }
+    }
+  }
+
   within(points: string, callback: () => void) {
     const [coord0, coord1] = this.parser.tokenize(points)
     const [x, y] = this.parser.parsePoint(coord0)

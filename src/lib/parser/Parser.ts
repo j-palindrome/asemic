@@ -24,6 +24,7 @@ import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
+import { bezier } from './core/utilities'
 
 export { AsemicGroup }
 
@@ -98,41 +99,7 @@ export class Parser {
       if (exprFade >= 1) exprFade = 0.999
       else if (exprFade < 0) exprFade = 0
 
-      let index = (exprPoints.length - 2) * exprFade
-      let start = Math.floor(index)
-
-      const bezier = (
-        point1: BasicPt,
-        point2: BasicPt,
-        point3: BasicPt,
-        amount: number
-      ) => {
-        const t = amount % 1
-        const u = 1 - t
-        if (amount >= 1) {
-          point1 = point1.clone().lerp(point2, 0.5)
-        }
-        if (amount < points.length - 3) {
-          point3 = point3.clone().lerp(point2, 0.5)
-        }
-
-        return point1
-          .clone()
-          .scale([u ** 2, u ** 2])
-          .add(
-            point2
-              .clone()
-              .scale([2 * u * t, 2 * u * t])
-              .add(point3.clone().scale([t ** 2, t ** 2]))
-          )
-      }
-
-      return bezier(
-        exprPoints[start],
-        exprPoints[start + 1],
-        exprPoints[start + 2],
-        index
-      )
+      return bezier(exprFade, exprPoints)
     }
   }
 
@@ -177,6 +144,14 @@ export class Parser {
       px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i),
       sin: x => {
         const result = Math.sin(this.expr(x) * Math.PI * 2)
+        return result
+      },
+      cos: x => {
+        const result = Math.cos(this.expr(x) * Math.PI * 2)
+        return result
+      },
+      phi: x => {
+        const result = Math.pow(1.6180339887, this.expr(x || '1'))
         return result
       },
       table: (name, point, channel) => {
@@ -227,39 +202,27 @@ export class Parser {
       mix: (...args) => {
         return sumBy(args.map(x => this.expr(x))) / args.length
       },
-      pulse: (speed = '1') => {
-        const currentValue = `${this.progress.scene}:${this.progress.curve}`
-        if (!this.noiseTable[currentValue]) {
-          this.noiseTable[currentValue] = {
-            value: this.progress.time + Math.random() / this.expr(speed),
-            noise: t => {
-              if (t > this.noiseTable[currentValue].value) {
-                this.noiseTable[currentValue].value +=
-                  Math.random() / this.expr(speed)
-              }
-              return this.hash(this.noiseTable[currentValue].value)
-            }
-          }
-        }
-
-        const noise = this.noiseTable[currentValue].noise(this.progress.time)
-        return noise
-      },
-      '~': (freq = 1, fmRatio = 1.6180339887, modulation = 2) => {
+      '~': (freq, fmRatio, modulation, sharpness, phase) => {
+        if (!freq) freq = '1'
+        if (!fmRatio) fmRatio = '1.618'
+        if (!modulation) modulation = '2'
+        // if (!phase) phase = Math.random().toFixed(5)
         const currentValue = `${this.progress.scene}:${this.progress.curve}`
         if (!this.noiseTable[currentValue]) {
           let phase = Math.random() * Math.PI * 2
-          let phase2 = Math.random() * Math.PI * 2
           this.noiseTable[currentValue] = {
             value: 0,
             noise: t => {
-              const frequency = this.expr(freq)
+              const sharpnessVal = sharpness ? this.expr(sharpness) : 0
+              const freqVal =
+                t +
+                // (phase ? this.expr(phase) * Math.PI * 2 : 0) +
+                this.expr(modulation) * Math.sin(this.expr(fmRatio) * t + phase)
               return (
                 Math.sin(
-                  frequency * t +
-                    phase +
-                    this.expr(modulation) *
-                      Math.sin(this.expr(fmRatio) * frequency * t + phase2)
+                  sharpnessVal
+                    ? Math.floor(freqVal / sharpnessVal) * sharpnessVal
+                    : freqVal
                 ) *
                   0.5 +
                 0.5
@@ -267,7 +230,7 @@ export class Parser {
             }
           }
         }
-        const value = 1 / 60
+        const value = (1 / 60) * this.expr(freq) * Math.PI * 2
         this.noiseTable[currentValue].value += value
 
         const noise = this.noiseTable[currentValue].noise(

@@ -1,4 +1,6 @@
 import { BasicPt } from '@/lib/blocks/AsemicPt'
+import { splitString } from '@/lib/settings'
+import { Parser } from '../Parser'
 
 export function bezier(exprFade: number, exprPoints: BasicPt[]) {
   let index = (exprPoints.length - 2) * exprFade
@@ -36,4 +38,36 @@ export function bezier(exprFade: number, exprPoints: BasicPt[]) {
     exprPoints[start + 2],
     index
   )
+}
+
+export const parserObject = (
+  parser: Parser,
+  args: string,
+  typeConversions: Record<string, 'number' | 'boolean'>
+) => {
+  const obj: { [key: string]: any } = {}
+  if (args.startsWith('{') && args.endsWith('}')) {
+    args = args.substring(1, args.length - 1).trim()
+  }
+  for (let arg of parser.tokenize(args)) {
+    if (arg.includes('=')) {
+      const [key, value] = splitString(arg, '=')
+      obj[key] = value
+    }
+  }
+  for (let key of Object.keys(typeConversions)) {
+    switch (typeConversions[key]) {
+      case 'number':
+        if (obj[key] !== undefined) {
+          obj[key] = parser.expr(obj[key])
+        }
+        break
+      case 'boolean':
+        if (obj[key] !== undefined) {
+          obj[key] = obj[key] === 'true'
+        }
+        break
+    }
+  }
+  return obj
 }

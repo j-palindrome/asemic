@@ -130,8 +130,9 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
               StringContent: t.string,
               LineCommentContent: t.comment,
               RegExContent: t.regexp,
+              'Name!': t.className,
+              'CurlyName!': t.className,
               Letter: t.variableName,
-              'Name/...': t.className,
               '( )': t.paren,
               '[ ]': t.squareBracket,
               '{ }': t.brace,
@@ -144,16 +145,9 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       })
 
       const exampleHighlight = HighlightStyle.define([
-        { tag: t.string, color: '#82aaff' }, // blue
-        { tag: t.variableName, color: '#c792ea' }, // purple
-        { tag: t.number, color: '#f78c6c' }, // orange
-        { tag: t.keyword, color: '#ffcb6b' }, // yellow
-        { tag: t.operator, color: '#ffcb6b' }, // yellow
-        { tag: t.comment, color: '#546e7a', fontStyle: 'italic' }, // muted blue
-        { tag: t.paren, color: '#c792ea' }, // purple
-        { tag: t.squareBracket, color: '#c792ea' }, // purple
-        { tag: t.brace, color: '#c792ea' }, // purple
-        { tag: t.punctuation, color: '#ffcb6b' } // yellow
+        { tag: t.operator, color: '#b4a7d6' },
+        { tag: t.className, color: '#6366f1' },
+        { tag: t.variableName, color: '#d97706' }
       ])
 
       const drawingMethods = [
@@ -362,23 +356,14 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       ]
 
       function parserCompletionSource(context: CompletionContext) {
-        // Only complete inside Application nodes (your function syntax)
-        // Check if we're inside an Application node or at the start of one
-        // const { state, pos } = context
-        // const tree = syntaxTree(state)
-        // const nodeBefore = tree.resolve(pos, 0)
-        // if (!nodeBefore) return null
         const to = context.matchBefore(/\{[^\}]*/)
         if (to) {
-          const word = context.matchBefore(/[^\s\{]*/)
-          if (
-            word === null ||
-            toMethods.find(x => word.text.startsWith(x.name))
-          ) {
-            // continue
-          } else
+          const tree = syntaxTree(context.state)
+          const node = tree.resolveInner(context.pos, 0).lastChild
+
+          if (node && !node.parent?.name.includes('Expr')) {
             return {
-              from: word.from,
+              from: node.from,
               options: toMethods.map(({ name, args, group }) => {
                 // Create snippet with argument placeholders
                 const argPlaceholders = args
@@ -396,6 +381,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
                 }
               })
             }
+          }
         }
         const word = context.matchBefore(/^[\|\s]*\([\w\~\>\<\#\?]*/)
         if (word)
@@ -466,8 +452,8 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
 
         extensions: [
           basicSetup,
-          oneDark,
           transparentTheme,
+          Prec.lowest(oneDark),
           Prec.highest(enterKeymap),
           autocompletion({ override: [parserCompletionSource] }),
           EditorView.lineWrapping,

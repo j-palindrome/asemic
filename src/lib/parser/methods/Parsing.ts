@@ -3,6 +3,7 @@ import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { splitString } from '../../settings'
 import { AsemicGroup } from '../core/AsemicGroup'
 import { Parser } from '../Parser'
+import { parserObject } from '../core/utilities'
 
 export class ParsingMethods {
   parser: Parser
@@ -269,7 +270,7 @@ export class ParsingMethods {
   }
 
   group(
-    settings: AsemicGroup['settings'] = {
+    settings: AsemicGroup['settings'] | string = {
       mode: 'line',
       curve: 'true',
       vert: '0,0',
@@ -277,6 +278,13 @@ export class ParsingMethods {
       correction: 0
     }
   ) {
+    if (typeof settings === 'string') {
+      settings = parserObject(this.parser, settings, {
+        curve: 'boolean',
+        count: 'number',
+        correction: 'number'
+      }) as AsemicGroup['settings']
+    }
     const group = new AsemicGroup(this.parser, settings)
     if (group.settings.texture) {
       if (this.parser.images[this.parser.resolveName(group.settings.texture)]) {

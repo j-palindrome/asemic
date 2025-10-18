@@ -161,48 +161,9 @@ export class TextMethods {
           ' '
         )
 
-        const parserObject = (
-          args: string,
-          typeConversions: Record<string, 'number' | 'boolean'>
-        ) => {
-          const obj: { [key: string]: any } = {}
-          for (let arg of this.parser.tokenize(args)) {
-            if (arg.includes('=')) {
-              const [key, value] = splitString(arg, '=')
-              obj[key] = value
-            }
-          }
-          for (let key of Object.keys(typeConversions)) {
-            switch (typeConversions[key]) {
-              case 'number':
-                if (obj[key] !== undefined) {
-                  obj[key] = this.parser.expr(obj[key])
-                }
-                break
-              case 'boolean':
-                if (obj[key] !== undefined) {
-                  obj[key] = obj[key] === 'true'
-                }
-                break
-            }
-          }
-          return obj
-        }
-        // Process the content within parentheses as needed
-
         this.parser.progress.currentLine = token
 
         switch (funcName) {
-          case 'group':
-            this.parser.group(
-              parserObject(args, {
-                group: 'number',
-                curve: 'boolean',
-                correction: 'number',
-                count: 'number'
-              }) as any
-            )
-            break
           case 'font':
             throw new Error(
               'use {fontname ...chars} instead of (font fontname chars)'

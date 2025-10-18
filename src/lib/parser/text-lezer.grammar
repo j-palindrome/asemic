@@ -10,28 +10,44 @@ Region {
 | Heading
 }
 
+@precedence {
+  expr, name
+}
+
 CurlyRegion {
-  "{" (ExprChar | CurlyRegion | SquareRegion | StringRegion)* "}"
+  "{" CurlyStatement (space CurlyStatement)* "}"
+}
+
+CurlyStatement {
+  (Name "=" | CurlyName) ">"? !expr ExprChar+
 }
 
 SquareRegion {
-  "[" (ExprChar | CurlyRegion)* "]"
+  "[" (ExprChar | CurlyRegion | space)* "]"
 }
 
 ExprChar {
-  Char | "(" | ")"
+  !expr Letter | Operator | Number | ExprRegion
+}
+
+ExprRegion {
+  "(" (Name (ExprChar | space)*)? ")"
 }
 
 Char {
-  Letter | Operator | Number | Space
+  Letter | Operator | Number | space
 }
 
 ParenRegion {
-  "(" Name Space (Char | ParenRegion | SquareRegion | CurlyRegion | StringRegion)* ")"
+  "(" Name space (Char | ParenRegion | SquareRegion | CurlyRegion | StringRegion)* ")"
 }
 
 Name {
-  (Letter | "~" | "<" | ">")+
+  !name (Letter | "~" | "<" | ">" | "?")+
+}
+
+CurlyName {
+  "*" | "+" | "@"
 }
 
 StringRegion {
@@ -44,7 +60,6 @@ RegExRegion {
 
 
 @tokens {
-
 RegExContent {
   ![/]
 }
@@ -52,7 +67,7 @@ StringContent {
   ![\"\{]
 }
 LineCommentContent {
-  ![\/\(\)\[\]\{\}\"#]
+  (![/\(\)\[\]\{\}\"#])
 }
 Letter {
   @asciiLetter | "\\\""
@@ -61,9 +76,9 @@ Number {
   @digit | "."
 }
 Operator {
-  $[\+\-\*\^\=!\<\>\~\|\,\/\%\_\#]
+  $[\+\-\*\^\|\,\/\%\_\#]
 }
-Space {
+space {
   @whitespace
 }
 Heading {

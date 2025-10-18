@@ -28,7 +28,8 @@ import {
   delimitedIndent,
   LanguageSupport,
   LRLanguage,
-  syntaxHighlighting
+  syntaxHighlighting,
+  syntaxTree
 } from '@codemirror/language'
 // @ts-ignore
 import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
@@ -38,6 +39,7 @@ import { printTree } from './lezerPrettyPrint'
 import { HighlightStyle } from '@codemirror/language'
 import helpText from '@/lib/help.md?raw'
 import Markdown from 'react-markdown'
+import { SyntaxNode } from '@lezer/common'
 
 // Transparent background theme
 const transparentTheme: Extension = EditorView.theme({
@@ -158,90 +160,305 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         {
           name: 'tri',
           args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
-          group: 'Drawing'
+          group: '3-point curve'
         },
         {
           name: 'squ',
           args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
-          group: 'Drawing'
+          group: '4-point curve'
         },
         {
           name: 'pen',
           args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
-          group: 'Drawing'
+          group: '5-point curve'
         },
         {
           name: 'hex',
           args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
-          group: 'Drawing'
+          group: '6-point curve'
         },
         {
           name: 'circle',
-          args: ['center:pt', 'w,h:pt'],
-          group: 'Drawing'
+          args: ['start:pt', 'w,h:pt'],
+          group: 'circle extending left and up from start'
         },
         {
           name: 'linden',
-          args: ['iterations:pt', 'axiom:string', '|', 'rules:object'],
-          group: 'Lindenmayer system to generate text strings'
+          args: ['iterations:num', 'axiom:string', '|', 'rules:object'],
+          group: 'lindenmayer system to generate text strings'
         },
         {
           name: 'repeat',
           args: ['count:pt', '|', 'callbacks...'],
-          group: 'Nested repeats cascading left->right'
+          group: 'nested repeats cascading left->right'
         },
         {
           name: 'bepeat',
           args: ['count:pt', '|', 'callbacks...'],
-          group: 'Nested repeats cascading right->left'
+          group: 'nested repeats cascading right->left'
         },
         {
           name: 'within',
           args: ['bottom,left:pt', 'top,right:pt', '|', 'callback'],
-          group: 'Stretch drawing to box'
+          group: 'stretch drawing to box'
         },
         {
           name: 'align',
           args: ['anchor:pt', 'align:pt(0-1)', '|', 'callback'],
-          group: 'Align horizontally and vertically using anchor point'
+          group: 'align horizontally and vertically using anchor point'
         },
         {
           name: 'alignX',
           args: ['x:num', 'align:num(0-1)', '|', 'callbacks...'],
-          group: 'Center horizontally using anchor point'
+          group: 'center each callback horizontally using anchor point'
         },
         {
           name: 'add',
           args: ['add:pt', '|', 'callback'],
-          group: 'Modify each curve drawn in callback'
+          group: 'modify each curve drawn in callback'
         },
-        { name: 'group', args: [] },
-        { name: 'end', args: [] }
+        {
+          name: 'interp',
+          args: ['count:num', '|', 'callback'],
+          group: 'interpolate between each point'
+        },
+        {
+          name: 'group',
+          args: [
+            'count=100',
+            'mode:line|curve=line',
+            'curve=false',
+            'vert:wgsl=0,0',
+            'a:wgsl',
+            'correction=0'
+          ],
+          group: 'start new group'
+        },
+        { name: 'end', args: [], group: 'end current curve' },
+        { name: 'end', args: [], group: 'end current curve' }
+      ]
+
+      const exprMethods = [
+        {
+          name: '~',
+          args: ['freq', 'fm=PHI', 'modulation=2', 'step=0'],
+          group: '2-sine FM noise optionally stepped'
+        },
+        {
+          name: '?',
+          args: ['condition', '|', 'if+', '|', 'if0'],
+          group: 'if statement'
+        },
+        {
+          name: '>',
+          group: 'fade between points',
+          args: ['fade(0-1)', 'values...']
+        },
+        {
+          name: 'choose',
+          group: 'choose between options',
+          args: ['fade(0-1)', '|', 'callbacks...']
+        },
+        {
+          name: 'mix',
+          group: 'normalized sum of values',
+          args: ['values...']
+        },
+        {
+          name: 'tangent',
+          group: 'tangent point to curve (rotation 0-1)',
+          args: ['pointNum', 'curveNum']
+        },
+        {
+          name: 'peaks',
+          group: 'hash',
+          args: ['value=C']
+        }
+      ]
+
+      const constants = [
+        {
+          name: '#',
+          group: 'hash',
+          args: ['value=C']
+        },
+        {
+          name: 'I',
+          args: ['nesting=0'],
+          group: 'current index of nested loop'
+        },
+        {
+          name: 'N',
+          args: ['nesting=0'],
+          group: 'total count of nested loop'
+        },
+        {
+          name: 'i',
+          args: ['nesting=0'],
+          group: 'current progress (0-1) of nested loop'
+        },
+        {
+          name: 'T',
+          args: ['speed=1'],
+          group: 'current time in seconds'
+        },
+        {
+          name: '!',
+          args: [],
+          group: 'NOT'
+        },
+        {
+          name: 'H',
+          args: ['*=1'],
+          group: 'height-to-width ratio'
+        },
+        {
+          name: 'px',
+          args: ['*=1'],
+          group: 'pixels'
+        },
+        {
+          name: 'S',
+          args: [],
+          group: 'scrub through scene (0-1)'
+        },
+        {
+          name: 'C',
+          args: [],
+          group: 'hash seed for current point'
+        },
+        {
+          name: 'P',
+          args: [],
+          group: 'point progress'
+        },
+        {
+          name: '~',
+          args: ['freq'],
+          group: 'noise'
+        }
+      ]
+
+      const toMethods = [
+        { name: '*', args: ['x,y'], group: 'scale' },
+        { name: '+', args: ['x,y'], group: 'translate' },
+        { name: '@', args: ['angle(0-1)'], group: 'rotate (clockwise)' },
+        { name: '*>', args: ['pt'], group: 'scale jitter' },
+        { name: '+>', args: ['pt'], group: 'translate jitter' },
+        { name: '@>', args: ['angle(0-1)'], group: 'rotation jitter' },
+        { name: 'a=', args: ['value'], group: 'alpha (0-1)' },
+        { name: 'h=', args: ['value'], group: 'hue (0-1)' },
+        { name: 's=', args: ['value'], group: 'saturation (0-1)' },
+        { name: 'l=', args: ['value'], group: 'luminosity (0-1)' },
+        { name: 'w=', args: ['value'], group: 'width (in px)' },
+        { name: 'a=>', args: ['expr'], group: 'alpha (0-1)' },
+        { name: 'h=>', args: ['expr'], group: 'hue (0-1)' },
+        { name: 's=>', args: ['expr'], group: 'saturation (0-1)' },
+        { name: 'l=>', args: ['expr'], group: 'luminosity (0-1)' },
+        { name: 'w=>', args: ['expr'], group: 'width (in px)' },
+        { name: '!', args: [], group: 'reset transform' },
+        { name: '<', args: ['name?'], group: 'pop' },
+        { name: '>', args: ['name?'], group: 'push' }
       ]
 
       function parserCompletionSource(context: CompletionContext) {
-        const word = context.matchBefore(/\w*/)
-        if (!word || word.from == word.to) return null
-
-        return {
-          from: word.from,
-          options: drawingMethods.map(({ name, args, group }) => {
-            // Create snippet with argument placeholders
-            const argPlaceholders = args
-              .map((arg, i) => (arg === '|' ? '|' : `#{${arg}}`))
-              .join(' ')
-            const snippetText =
-              args.length > 0 ? `${name} ${argPlaceholders}` : name
-
+        // Only complete inside Application nodes (your function syntax)
+        // Check if we're inside an Application node or at the start of one
+        // const { state, pos } = context
+        // const tree = syntaxTree(state)
+        // const nodeBefore = tree.resolve(pos, 0)
+        // if (!nodeBefore) return null
+        const to = context.matchBefore(/\{[^\}]*/)
+        if (to) {
+          const word = context.matchBefore(/[^\s\{]*/)
+          if (
+            word === null ||
+            toMethods.find(x => word.text.startsWith(x.name))
+          ) {
+            // continue
+          } else
             return {
-              label: name,
-              type: 'function',
-              detail: group,
-              apply: snippet(snippetText),
-              info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+              from: word.from,
+              options: toMethods.map(({ name, args, group }) => {
+                // Create snippet with argument placeholders
+                const argPlaceholders = args
+                  .map((arg, i) => `#{${arg}}`)
+                  .join('')
+                const snippetText =
+                  args.length > 0 ? `${name}${argPlaceholders}` : name
+
+                return {
+                  label: name,
+                  type: 'function',
+                  detail: group,
+                  apply: snippet(snippetText),
+                  info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+                }
+              })
             }
-          })
         }
+        const word = context.matchBefore(/^[\|\s]*\([\w\~\>\<\#\?]*/)
+        if (word)
+          return {
+            from: word.from + word.text.indexOf('(') + 1,
+            options: drawingMethods.map(({ name, args, group }) => {
+              // Create snippet with argument placeholders
+              const argPlaceholders = args
+                .map((arg, i) => (arg === '|' ? '|' : `#{${arg}}`))
+                .join(' ')
+              const snippetText =
+                args.length > 0 ? `${name} ${argPlaceholders}` : name
+
+              return {
+                label: name,
+                type: 'function',
+                detail: group,
+                apply: snippet(snippetText),
+                info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+              }
+            })
+          }
+
+        const expr = context.matchBefore(/\([\w\~\>\<\#\?]*/)
+        if (expr)
+          return {
+            from: expr.from + 1,
+            options: exprMethods.map(({ name, args, group }) => {
+              // Create snippet with argument placeholders
+              const argPlaceholders = args
+                .map((arg, i) => (arg === '|' ? '|' : `#{${arg}}`))
+                .join(' ')
+              const snippetText =
+                args.length > 0 ? `${name} ${argPlaceholders}` : name
+
+              return {
+                label: name,
+                type: 'function',
+                detail: group,
+                apply: snippet(snippetText),
+                info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+              }
+            })
+          }
+
+        const constant = context.matchBefore(/[\w\~\>\<\#\?]+/)
+        if (constant)
+          return {
+            from: constant.from,
+            options: constants.map(({ name, args, group }) => {
+              const snippetText =
+                args.length > 0 ? `${name}#{${args[0]}}` : name
+
+              return {
+                label: name,
+                type: 'function',
+                detail: group,
+                apply: snippet(snippetText),
+                info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+              }
+            })
+          }
+        return null
       }
 
       const startState = EditorState.create({

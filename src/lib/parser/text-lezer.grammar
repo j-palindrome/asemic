@@ -31,7 +31,7 @@ ParenRegion {
 }
 
 Name {
-  Letter+
+  (Letter | "~" | "<" | ">")+
 }
 
 StringRegion {
@@ -61,7 +61,7 @@ Number {
   @digit | "."
 }
 Operator {
-  $[\+\-\*\^\=!\<\>\~\|\,\/\%\_]
+  $[\+\-\*\^\=!\<\>\~\|\,\/\%\_\#]
 }
 Space {
   @whitespace

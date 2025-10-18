@@ -122,8 +122,8 @@ export class Parser {
           (this.progress.countNums[solveIndex] - 1 || 1)
         )
       },
-      T: () => {
-        return this.progress.time
+      T: x => {
+        return this.progress.time * (x ? this.expr(x) : 1)
       },
       '!': continuing => {
         const continuingSolved = this.expr(continuing)
@@ -137,7 +137,6 @@ export class Parser {
       Wpx: number =>
         this.preProcessing.width * (number ? this.expr(number) : 1),
       S: () => this.progress.scrub,
-      ST: () => this.progress.scrubTime,
       C: () => this.groups[this.groups.length - 1]?.length ?? 0,
       L: () => this.progress.letter,
       P: () => this.progress.point,
@@ -158,21 +157,11 @@ export class Parser {
         const imageName = typeof name === 'string' ? name : String(name)
         return this.table(imageName, point, channel)
       },
-      if: (...args) => {
+      '?': (...args) => {
         const [condition, trueValue, falseValue] = args.map(x =>
           this.expr(x || '0')
         )
         return condition > 0 ? trueValue : falseValue ?? 0
-      },
-      acc: x => {
-        if (!this.progress.accums[this.progress.accumIndex])
-          this.progress.accums.push(0)
-        const value = this.expr(x)
-        // correct for 60fps
-        this.progress.accums[this.progress.accumIndex] += value / 60
-        const currentAccum = this.progress.accums[this.progress.accumIndex]
-        this.progress.accumIndex++
-        return currentAccum
       },
       '>': (...args) => {
         let exprFade = this.expr(args[0])

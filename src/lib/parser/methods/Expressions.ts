@@ -52,6 +52,9 @@ export class ExpressionMethods {
         const arg1 = stringExpr.slice(foundKey.length)
         return this.parser.constants[foundKey](arg1)
       } else {
+        if (stringExpr.includes(',')) {
+          throw new Error(`Vector ${stringExpr} passed, scalar expected`)
+        }
         throw new Error(`Unknown function ${stringExpr}`)
       }
     } else {
@@ -200,6 +203,7 @@ export class ExpressionMethods {
               .map(x => x.operatorType + x.string)
               .join('')
           )
+
           if (!this.parser.constants[splitResult[0].string]) {
             throw new Error(`Unknown function ${splitResult[0].string}`)
           }

@@ -542,6 +542,7 @@ function AsemicAppInner({
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen`}
         ref={frame}>
+        
         <canvas
           style={{
             width: '100%',
@@ -557,6 +558,7 @@ function AsemicAppInner({
           <div
             className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
             onPointerDownCapture={checkLive}>
+
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
               <button
                 className={`${isLive ? '!bg-blue-200/40' : ''}`}
@@ -780,6 +782,8 @@ function AsemicAppInner({
                 setScenesSource(value!)
               }}
               errors={errors}
+              help={help}
+              setHelp={setHelp}
             />
           </div>
         ) : (

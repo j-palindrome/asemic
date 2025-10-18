@@ -30,10 +30,9 @@ export class DataMethods {
     // First try to get from images cache (ImageBitmap[])
     const bitmaps = this.parser.images[this.parser.resolveName(name)]
     if (!bitmaps) {
-      this.parser.error(
+      throw new Error(
         `Data is not available for ${this.parser.resolveName(name)}`
       )
-      return 0
     }
     // Use progress or time to select frame for videos
     const frameIndex =

@@ -54,6 +54,7 @@ export class Parser {
   }[] = []
   params = {} as InputSchema['params']
   progress = {
+    currentLine: '',
     point: 0,
     time: performance.now() / 1000,
     curve: 0,
@@ -74,6 +75,23 @@ export class Parser {
   }
 
   pointConstants: Record<string, (...args: string[]) => BasicPt> = {
+    '<': (pointN, thisN) => {
+      const groupIndex = this.groups.length - 1
+      let lastCurve: AsemicPt[]
+      if (thisN === undefined) {
+        lastCurve = this.currentCurve
+      } else {
+        const exprN = this.expr(thisN)
+        lastCurve =
+          this.groups[groupIndex][
+            exprN < 0 ? this.groups[groupIndex].length + exprN : exprN
+          ]
+        if (!lastCurve) throw new Error(`No curve at ${thisN} - ${exprN}`)
+      }
+      return this.reverseTransform(
+        this.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
+      )
+    },
     '>': (progress, ...points) => {
       const exprPoints = points.map(x => this.evalPoint(x, { basic: true }))
       let exprFade = this.expr(progress)
@@ -125,16 +143,16 @@ export class Parser {
         if (!index) index = '1'
         return this.progress.countNums[this.expr(index) - 1]
       },
-      I: (index = '1') => {
-        if (!index) index = '1'
-        return this.progress.indexes[this.expr(index) - 1]
+      I: index => {
+        if (!index) index = '0'
+        return this.progress.indexes[this.expr(index)]
       },
-      i: (index = '1') => {
-        if (!index) index = '1'
-        const solveIndex = this.expr(index) - 1
+      i: index => {
+        if (!index) index = '0'
+        const solveIndex = this.expr(index)
         return (
           this.progress.indexes[solveIndex] /
-          (this.progress.countNums[solveIndex] - 1)
+          (this.progress.countNums[solveIndex] - 1 || 1)
         )
       },
       T: () => {
@@ -144,9 +162,13 @@ export class Parser {
         const continuingSolved = this.expr(continuing)
         return continuingSolved ? 0 : 1
       },
-      H: () => this.preProcessing.height / this.preProcessing.width,
-      Hpx: () => this.preProcessing.height,
-      Wpx: () => this.preProcessing.height,
+      H: number =>
+        (this.preProcessing.height / this.preProcessing.width) *
+        (number ? this.expr(number) : 1),
+      Hpx: number =>
+        this.preProcessing.height * (number ? this.expr(number) : 1),
+      Wpx: number =>
+        this.preProcessing.width * (number ? this.expr(number) : 1),
       S: () => this.progress.scrub,
       ST: () => this.progress.scrubTime,
       C: () => this.groups[this.groups.length - 1]?.length ?? 0,
@@ -161,9 +183,11 @@ export class Parser {
         const imageName = typeof name === 'string' ? name : String(name)
         return this.table(imageName, point, channel)
       },
-      or: (...args) => {
-        const [condition, trueValue, falseValue] = args.map(x => this.expr(x))
-        return condition > 0 ? trueValue : falseValue
+      if: (...args) => {
+        const [condition, trueValue, falseValue] = args.map(x =>
+          this.expr(x || '0')
+        )
+        return condition > 0 ? trueValue : falseValue ?? 0
       },
       acc: x => {
         if (!this.progress.accums[this.progress.accumIndex])
@@ -400,7 +424,16 @@ export class Parser {
       },
       {
         instance: this.utilities,
-        methods: ['repeat', 'within', 'align', 'alignX', 'add', 'getBounds']
+        methods: [
+          'interp',
+          'repeat',
+          'bepeat',
+          'within',
+          'align',
+          'alignX',
+          'add',
+          'getBounds'
+        ]
       },
       {
         instance: this.scenes,
@@ -464,6 +497,7 @@ export class Parser {
   linden!: TextMethods['linden']
 
   repeat!: UtilityMethods['repeat']
+  bepeat!: UtilityMethods['bepeat']
   within!: UtilityMethods['within']
   align!: UtilityMethods['align']
   alignX!: UtilityMethods['alignX']
@@ -548,20 +582,20 @@ export class Parser {
         this.progress.scrub =
           (this.progress.progress - object.start) / object.length
         this.progress.scrubTime = this.progress.progress - object.start
+
+        if (!object.isSetup) {
+          object.setup?.()
+          object.isSetup = true
+        }
         try {
-          if (!object.isSetup) {
-            object.setup?.()
-            object.isSetup = true
-          }
           object.draw()
-          this.progress.scene = i
         } catch (e) {
           this.error(
-            `Scene ${i} failed: ${e instanceof Error ? e.message : String(e)} ${
-              e.stack.split('\n')[1]
-            }`
+            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
           )
         }
+        this.progress.scene = i
+
         i++
 
         if (
@@ -624,7 +658,6 @@ export class Parser {
       this.parse(source)
     } catch (e: any) {
       console.error(e)
-      this.output.errors.push(`Setup failed: ${e.message}`)
     }
 
     this.noiseTable = {}

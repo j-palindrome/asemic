@@ -21,7 +21,19 @@ export class TextMethods {
     this.parser = parser
   }
 
-  linden(iterations: string, text: string, rules: Record<string, string>) {
+  linden(
+    iterations: string,
+    text: string,
+    rules: Record<string, string> | string
+  ) {
+    if (typeof rules === 'string') {
+      const rulesObj = Object.fromEntries(
+        this.parser
+          .tokenize(rules.slice(1, -1))
+          .map(rule => splitString(rule, '='))
+      )
+      rules = rulesObj
+    }
     const applyRules = (text: string) => {
       let textList = text.split('')
       for (const [key, value] of Object.entries(rules)) {
@@ -123,6 +135,7 @@ export class TextMethods {
         }
         const end = i
         const content = token.substring(start, end)
+        this.parser.progress.currentLine = content
         this.parser.regex(content)
         continue
       }
@@ -142,6 +155,7 @@ export class TextMethods {
           }
         }
         const end = i
+
         const [funcName, args] = splitString(
           token.substring(start + 1, end),
           ' '
@@ -175,6 +189,9 @@ export class TextMethods {
           return obj
         }
         // Process the content within parentheses as needed
+
+        this.parser.progress.currentLine = token
+
         switch (funcName) {
           case 'group':
             this.parser.group(
@@ -187,24 +204,12 @@ export class TextMethods {
             )
             break
           case 'font':
-            this.parser.error(
+            throw new Error(
               'use {fontname ...chars} instead of (font fontname chars)'
             )
-            break
           case 'linden':
             const [count, textStr, rules] = this.parser.tokenize(args)
-            const rulesObj = Object.fromEntries(
-              this.parser
-                .tokenize(rules.slice(1, -1))
-                .map(rule => splitString(rule, '='))
-            )
-            this.parser.linden(count, textStr, rulesObj)
-            break
-          case 'log':
-            let parser = this.parser
-            invariant(parser)
-            // @ts-ignore
-            this.parser.error(eval(args))
+            this.parser.linden(count, textStr, rules)
             break
           // Add more cases for other functions if needed
           default:
@@ -237,6 +242,7 @@ export class TextMethods {
 
         const end = i
         const content = token.substring(start + 1, end)
+        this.parser.progress.currentLine = content
         this.parser.points(content)
         if (token[end + 1] === '+') {
           i++
@@ -264,6 +270,7 @@ export class TextMethods {
         }
         const end = i
         const content = token.substring(start + 1, end)
+        this.parser.progress.currentLine = content
         parseTo(content)
         continue
       }
@@ -315,6 +322,7 @@ export class TextMethods {
             thisChar = token[i]
           }
           this.parser.progress.letter = i / (tokenLength - 1)
+          this.parser.progress.currentLine = thisChar
           if (thisChar === '\n') {
             if (font.characters['NEWLINE']) {
               ;(font.characters['NEWLINE'] as any)()

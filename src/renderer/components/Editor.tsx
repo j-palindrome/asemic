@@ -35,6 +35,8 @@ import { styleTags, tags as t, tags } from '@lezer/highlight'
 import { foldNodeProp, foldInside, indentNodeProp } from '@codemirror/language'
 import { printTree } from './lezerPrettyPrint'
 import { HighlightStyle } from '@codemirror/language'
+import helpText from '@/lib/help.md?raw'
+import Markdown from 'react-markdown'
 
 // Transparent background theme
 const transparentTheme: Extension = EditorView.theme({
@@ -48,6 +50,8 @@ interface Props {
   defaultValue: string
   onChange: (value: string | undefined) => void
   errors: string[]
+  help: boolean
+  setHelp: (help: boolean) => void
 }
 
 export interface AsemicEditorRef {
@@ -57,7 +61,7 @@ export interface AsemicEditorRef {
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
-  ({ defaultValue, onChange, errors }, ref) => {
+  ({ help, setHelp, defaultValue, onChange, errors }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
 
@@ -254,6 +258,11 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         {errors.length > 0 && (
           <div className='editor !text-red-400 w-1/3'>
             {errors.join('\n---\n')}
+          </div>
+        )}
+        {help && (
+          <div className='absolute top-0 left-0 w-full h-full bg-black/90 text-white p-4 text-sm overflow-auto z-50'>
+            <Markdown>{helpText}</Markdown>
           </div>
         )}
       </div>

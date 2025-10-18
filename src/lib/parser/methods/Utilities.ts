@@ -37,10 +37,28 @@ export class UtilityMethods {
     return [minX!, minY!, maxX!, maxY!]
   }
 
-  repeat(count: string, callback: (() => void) | string) {
+  repeat(count, ...callbacks: ((() => void) | string)[]) {
+    this.repeatUtil(count, { backwards: true }, ...callbacks)
+  }
+
+  bepeat(count, ...callbacks: ((() => void) | string)[]) {
+    this.repeatUtil(count, { backwards: false }, ...callbacks)
+  }
+
+  protected repeatUtil(
+    count: string,
+    { backwards = true },
+    ...callbacks: ((() => void) | string)[]
+  ) {
     const counts = this.parser
       .tokenize(count, { separatePoints: true })
       .map((x: string) => this.parser.expr(x))
+    if (callbacks.length > counts.length)
+      throw new Error(
+        `Too many callbacks: ${callbacks.length} for repeat ${count}, which has ${counts.length} counts`
+      )
+
+    // callbacks = callbacks.reverse()
 
     const iterate = (index: number) => {
       const prevIndex = this.parser.progress.indexes[index]
@@ -48,21 +66,52 @@ export class UtilityMethods {
       this.parser.progress.countNums[index] = counts[index]
       for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
         this.parser.progress.indexes[index] = i
-        if (typeof callback === 'function') {
-          callback()
+        if (backwards) {
+          if (counts[index - 1]) {
+            iterate(index - 1)
+          }
         } else {
-          this.parser.text(callback)
+          if (counts[index + 1]) {
+            iterate(index + 1)
+          }
         }
-        if (counts[index + 1]) {
-          iterate(index + 1)
+        if (typeof callbacks[index] === 'function') {
+          callbacks[index]()
+        } else if (typeof callbacks[index] === 'string') {
+          this.parser.text(callbacks[index])
         }
       }
       this.parser.progress.indexes[index] = prevIndex
       this.parser.progress.countNums[index] = prevCountNum
     }
-    iterate(0)
+    if (backwards) iterate(counts.length - 1)
+    else iterate(0)
 
     return this.parser
+  }
+
+  interp(count: string, callback: (() => void) | string) {
+    if (!this.parser.groups.length) this.parser.group()
+    const activeGroup = this.parser.groups[this.parser.groups.length - 1]
+    const currentLength = activeGroup.length
+    const countNum = this.parser.expr(count)
+    if (typeof callback === 'function') {
+      callback()
+    } else {
+      this.parser.text(callback)
+    }
+    for (let i = currentLength; i < activeGroup.length; i++) {
+      const curve = activeGroup[i]
+
+      for (let j = 1; j < curve.length; j += countNum + 1) {
+        const pt0 = curve[j - 1]
+        const pt1 = curve[j]
+        for (let k = 0; k < countNum; k++) {
+          const t = (k + 1) / (countNum + 1)
+          curve.splice(j + k, 0, pt0.clone().lerp(pt1, t))
+        }
+      }
+    }
   }
 
   within(points: string, callback: () => void) {
@@ -109,13 +158,7 @@ export class UtilityMethods {
     const alignX = this.parser.expr(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group({
-        mode: 'line',
-        curve: 'true',
-        vert: '0,0',
-        count: 100,
-        correction: 0
-      })
+      this.parser.group()
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
 
@@ -168,21 +211,31 @@ export class UtilityMethods {
     return this.parser
   }
 
-  add(callback: string, makeCurves: string | (() => void)) {
-    const saveProgress = this.parser.progress.curve
-    if (typeof makeCurves === 'function') makeCurves()
-    else this.parser.text(makeCurves)
-    const finalProgress = this.parser.progress.curve
-    this.parser.progress.curve = saveProgress
-    for (const group of this.parser.groups) {
-      this.parser.progress.point = 0
-      for (const pt of group.flat()) {
-        this.parser.progress.curve++
-        this.parser.progress.point += 1 / (group.flat().length - 1)
-        const addPoint = this.parser.evalPoint(
-          callback.replace('$0', `${pt[0]}`).replace('$1', `${pt[1]}`)
-        )
-        pt.add(addPoint)
+  add(point: string, callback: string | (() => void)) {
+    if (!this.parser.groups.length) this.parser.group()
+    const activeGroup = this.parser.groups[this.parser.groups.length - 1]
+    const currentLength = activeGroup.length
+    if (typeof callback === 'function') {
+      callback()
+    } else {
+      this.parser.text(callback)
+    }
+    this.parser.progress.countNums[1] = activeGroup.length - currentLength
+    for (let i = currentLength; i < activeGroup.length; i++) {
+      const curve = activeGroup[i]
+
+      const penulCache = curve[curve.length - 2].clone()
+      this.parser.progress.indexes[1] = i - currentLength
+      this.parser.progress.countNums[0] = curve.length
+      for (let j = 0; j < curve.length; j++) {
+        this.parser.progress.point = j / (curve.length - 1 || 1)
+        this.parser.progress.indexes[0] = j
+        const addPt = this.parser.evalPoint(point)
+        const heading =
+          j === curve.length - 1
+            ? curve[j].clone().subtract(penulCache).angle0to1()
+            : curve[j + 1].clone().subtract(curve[j]).angle0to1()
+        curve[j].add(addPt.rotate(heading + 0.25))
       }
     }
     return this.parser
@@ -193,7 +246,7 @@ export class UtilityMethods {
     callback?: () => void,
     callback2?: () => void
   ) {
-    const exprCondition = this.parser.expr(condition, false)
+    const exprCondition = this.parser.expr(condition)
     if (exprCondition) {
       callback && callback()
     } else {

@@ -97,10 +97,9 @@ export class SceneMethods {
     for (let token of tokenized) {
       const [paramName, value] = token.split('=')
       if (!this.parser.params[paramName]) {
-        this.parser.error(
+        throw new Error(
           `Parameter '${paramName}' must be defined before creating preset`
         )
-        continue
       }
       this.parser.presets[presetName][paramName] = {
         ...this.parser.params[paramName],
@@ -114,17 +113,15 @@ export class SceneMethods {
 
   toPreset(presetName: string, amount: string | number = 1) {
     if (!this.parser.presets[presetName]) {
-      this.parser.error(`Preset '${presetName}' not found`)
-      return this.parser
+      throw new Error(`Preset '${presetName}' not found`)
     }
 
     const lerpAmount = this.parser.expr(amount)
     for (let paramName of Object.keys(this.parser.presets[presetName])) {
       if (!this.parser.params[paramName]) {
-        this.parser.error(
+        throw new Error(
           `Parameter '${paramName}' not found for preset '${presetName}'`
         )
-        continue
       }
 
       const targetValue = this.parser.presets[presetName][paramName].value

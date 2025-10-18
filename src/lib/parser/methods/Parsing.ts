@@ -229,25 +229,6 @@ export class ParsingMethods {
           ? new BasicPt(radius, 0).rotate(theta)
           : new AsemicPt(this.parser, radius, 0).rotate(theta)
       ) as K extends true ? BasicPt : AsemicPt
-    } else if (point.startsWith('<')) {
-      const groupIndex = this.parser.groups.length - 1
-      let [pointN, thisN] = this.parser.tokenize(point.slice(1), {
-        separatePoints: true
-      })
-      let lastCurve: AsemicPt[]
-      if (thisN === undefined) {
-        lastCurve = this.parser.currentCurve
-      } else {
-        const exprN = this.parser.expr(thisN)
-        lastCurve =
-          this.parser.groups[groupIndex][
-            exprN < 0 ? this.parser.groups[groupIndex].length + exprN : exprN
-          ]
-        if (!lastCurve) throw new Error(`No curve at ${thisN} - ${exprN}`)
-      }
-      return this.parser.reverseTransform(
-        this.parser.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
-      )
     }
     if (point.includes('[')) {
       const start = point.indexOf('[') + 1
@@ -287,7 +268,15 @@ export class ParsingMethods {
     return result as K extends true ? BasicPt : AsemicPt
   }
 
-  group(settings: AsemicGroup['settings']) {
+  group(
+    settings: AsemicGroup['settings'] = {
+      mode: 'line',
+      curve: 'true',
+      vert: '0,0',
+      count: 100,
+      correction: 0
+    }
+  ) {
     const group = new AsemicGroup(this.parser, settings)
     if (group.settings.texture) {
       if (this.parser.images[this.parser.resolveName(group.settings.texture)]) {
@@ -296,7 +285,7 @@ export class ParsingMethods {
         group.xy = this.parser.evalPoint(group.settings.xy ?? '0,0')
         group.wh = this.parser.evalPoint(group.settings.wh ?? '1,1')
       } else {
-        this.parser.error(`No texture available for ${group.settings.texture}`)
+        throw new Error(`No texture available for ${group.settings.texture}`)
       }
     }
     this.parser.groups.push(group)

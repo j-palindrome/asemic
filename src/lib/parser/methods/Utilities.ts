@@ -138,12 +138,12 @@ export class UtilityMethods {
     }
   }
 
-  within(points: string, callback: () => void) {
-    const [coord0, coord1] = this.parser.tokenize(points)
+  within(coord0, coord1, callback: (() => void) | string) {
     const [x, y] = this.parser.parsePoint(coord0)
     const [x2, y2] = this.parser.parsePoint(coord1)
     const startGroup = this.parser.groups.length
-    callback()
+    if (typeof callback === 'function') callback()
+    else this.parser.text(callback)
     const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
     const newWidth = x2 - x
     const newHeight = y2 - y

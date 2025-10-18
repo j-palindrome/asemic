@@ -19,7 +19,8 @@ import { keymap } from '@codemirror/view'
 import {
   autocompletion,
   completeFromList,
-  CompletionContext
+  CompletionContext,
+  snippet
 } from '@codemirror/autocomplete'
 import { Extension } from '@codemirror/state'
 import { Parser } from '@/lib'
@@ -154,52 +155,92 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       ])
 
       const drawingMethods = [
-        'tri',
-        'squ',
-        'pen',
-        'hex',
-        'circle',
-        'seq',
-        'line',
-        'to',
-        'text',
-        'font',
-        'resetFont',
-        'keys',
-        'regex',
-        'parse',
-        'linden',
-        'repeat',
-        'within',
-        'center',
-        'each',
-        'noise',
-        'scene',
-        'play',
-        'param',
-        'preset',
-        'toPreset',
-        'osc',
-        'sc',
-        'synth',
-        'file',
-        'group',
-        'end',
-        'points',
-        'table',
-        'expr',
-        'choose',
-        'defCollect'
+        {
+          name: 'tri',
+          args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
+          group: 'Drawing'
+        },
+        {
+          name: 'squ',
+          args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
+          group: 'Drawing'
+        },
+        {
+          name: 'pen',
+          args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
+          group: 'Drawing'
+        },
+        {
+          name: 'hex',
+          args: ['start:pt', 'end:pt', 'h:number', 'w:number'],
+          group: 'Drawing'
+        },
+        {
+          name: 'circle',
+          args: ['center:pt', 'w,h:pt'],
+          group: 'Drawing'
+        },
+        {
+          name: 'linden',
+          args: ['iterations:pt', 'axiom:string', '|', 'rules:object'],
+          group: 'Lindenmayer system to generate text strings'
+        },
+        {
+          name: 'repeat',
+          args: ['count:pt', '|', 'callbacks...'],
+          group: 'Nested repeats cascading left->right'
+        },
+        {
+          name: 'bepeat',
+          args: ['count:pt', '|', 'callbacks...'],
+          group: 'Nested repeats cascading right->left'
+        },
+        {
+          name: 'within',
+          args: ['bottom,left:pt', 'top,right:pt', '|', 'callback'],
+          group: 'Stretch drawing to box'
+        },
+        {
+          name: 'align',
+          args: ['anchor:pt', 'align:pt(0-1)', '|', 'callback'],
+          group: 'Align horizontally and vertically using anchor point'
+        },
+        {
+          name: 'alignX',
+          args: ['x:num', 'align:num(0-1)', '|', 'callbacks...'],
+          group: 'Center horizontally using anchor point'
+        },
+        {
+          name: 'add',
+          args: ['add:pt', '|', 'callback'],
+          group: 'Modify each curve drawn in callback'
+        },
+        { name: 'group', args: [] },
+        { name: 'end', args: [] }
       ]
+
       function parserCompletionSource(context: CompletionContext) {
         const word = context.matchBefore(/\w*/)
-        if (!word || (word.from == word.to && !context.explicit)) return null
+        if (!word || word.from == word.to) return null
+
         return {
           from: word.from,
-          options: drawingMethods.map(m => ({
-            label: m,
-            type: 'function'
-          }))
+          options: drawingMethods.map(({ name, args, group }) => {
+            // Create snippet with argument placeholders
+            const argPlaceholders = args
+              .map((arg, i) => (arg === '|' ? '|' : `#{${arg}}`))
+              .join(' ')
+            const snippetText =
+              args.length > 0 ? `${name} ${argPlaceholders}` : name
+
+            return {
+              label: name,
+              type: 'function',
+              detail: group,
+              apply: snippet(snippetText),
+              info: args.length > 0 ? `${name} ${args.join(' ')}` : name
+            }
+          })
         }
       }
 

@@ -293,7 +293,6 @@ class WasmDrawingMethods {
   pen(...args: string[]): void
   hex(...args: string[]): void
   circle(...args: string[]): void
-  seq(...args: string[]): void
   line(...args: string[]): void
 
   // Utilities
@@ -321,7 +320,6 @@ squ(x, y, w, h): void
 pen(sides, x, y, w, h): void
 hex(x, y, w, h): void
 circle(x, y, w, h, segments): void
-seq(count, x, y, xStep, yStep): void
 line(x1, y1, x2, y2, segments): void
 
 // Utilities

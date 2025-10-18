@@ -367,7 +367,7 @@ export class Parser {
       },
       {
         instance: this.drawing,
-        methods: ['tri', 'squ', 'pen', 'hex', 'circle', 'seq', 'line']
+        methods: ['tri', 'squ', 'pen', 'hex', 'circle']
       },
       {
         instance: this.transformMethods,
@@ -443,7 +443,6 @@ export class Parser {
   pen!: DrawingMethods['pen']
   hex!: DrawingMethods['hex']
   circle!: DrawingMethods['circle']
-  seq!: DrawingMethods['seq']
   line!: DrawingMethods['line']
 
   to!: TransformMethods['to']

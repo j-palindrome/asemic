@@ -162,23 +162,6 @@ export class DrawingMethods {
     return this.parser
   }
 
-  seq(
-    countA: string,
-    expressionA: string,
-    { closed = false, end = true }: { closed?: boolean; end?: boolean } = {}
-  ) {
-    this.parser.repeat(countA, () => {
-      this.parser.points(expressionA)
-    })
-    if (closed) {
-      this.parser.currentCurve.push(this.parser.currentCurve[0].clone())
-    }
-    if (end) {
-      this.parser.end()
-    }
-    return this.parser
-  }
-
   line(...tokens: string[]) {
     // Cache length to avoid repeated property access
     const tokensLength = tokens.length

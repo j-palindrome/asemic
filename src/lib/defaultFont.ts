@@ -69,7 +69,7 @@ export class DefaultFont extends AsemicFont {
       b: () => parser.line('0,-2 0,0').squ('0,-1 0,0 -1'),
       c: () => parser.pen('1,-.8 +0,.6 1,.2'),
       d: () => parser.line('1,-2 1,0').squ('1,-1 1,0 1'),
-      e: () => parser.hex('1,-.7 +@1/4,.4 1,.3').line('<0,-1 <.5,-1'),
+      e: () => parser.hex('1,-.7 +@1/4,.4 1,.3').line('(< 0 -1) (< .5 -1)'),
       f: () =>
         parser
           .to('+.25,0')
@@ -133,9 +133,10 @@ export class DefaultFont extends AsemicFont {
           .line('.5,0 1,-1')
           .to('+-1,0 *2,1'),
       x: () => parser.line('0,-1 +1,1').line('0,0 +1,-1'),
-      y: () => parser.line('0,1 1,-1').line('<0.5,-1 0,-1'),
+      y: () => parser.line('0,1 1,-1').line('(< 0.5 -1) 0,-1'),
       z: () => parser.line('0,-1 +1,0').line('1,-1 0,0').line('0,0 +1,0'),
-      A: () => parser.line('0,0 .5,-2').line('.5,-2 1,0').line('<.5,-1 +-.5,0'),
+      A: () =>
+        parser.line('0,0 .5,-2').line('.5,-2 1,0').line('(< .5 -1) +-.5,0'),
       B: () => parser.line('0,0 0,-2').squ('+0,0 +0,1 -.8').squ('+0,0 +0,1 -1'),
       C: () => parser.pen('1,-1.7 1,-0.3 1,.3'),
       D: () => parser.line('0,0 0,-2').squ('+0,0 +0,2 -1'),
@@ -149,7 +150,7 @@ export class DefaultFont extends AsemicFont {
       G: () => parser.line('1,-1.7 1,-2 0,-2 0,0 1,0 1,-1').line('+0,0 +-.5,0'),
       H: () => parser.line('0,0 +0,-2').line('0,-1 +1,0').line('1,0 +0,-2'),
       I: () => parser.line('.5,0 +0,-2').line('0,0 +1,0').line('0,-2 +1,0'),
-      J: () => parser.line('1,-2 1,0 0,0 0,-1').line('<0,-1 +-.5,0'),
+      J: () => parser.line('1,-2 1,0 0,0 0,-1').line('(< 0 -1) +-.5,0'),
       K: () => parser.line('0,0 0,-2').line('0,-1 +@-1/8,.75').line('0,-1 1,0'),
       L: () => parser.line('0,0 0,-2').line('0,0 1,0'),
       M: () =>
@@ -162,7 +163,8 @@ export class DefaultFont extends AsemicFont {
       O: () => parser.circle('.5,-1 .5,1'),
       P: () => parser.line('0,0 0,-2').squ('+0,0 +0,1 -1'),
       Q: () => parser.circle('.5,-1 .5,1').line('1,0 +@-3/8,.7'),
-      R: () => parser.line('0,0 0,-2').squ('+0,0 +0,1 -1').line('<.8,-1 1,0'),
+      R: () =>
+        parser.line('0,0 0,-2').squ('+0,0 +0,1 -1').line('(< .8 -1) 1,0'),
       S: () => parser.squ('1,-1.7 .5,-1 .5', { add: true }).squ('+0,0 0,0 -1'),
       T: () => parser.line('0,-2 +1,0').line('.5,0 +0,-2'),
       U: () => parser.squ('0,-2 +1,0 2'),
@@ -170,12 +172,13 @@ export class DefaultFont extends AsemicFont {
       W: () =>
         parser.line('0,-2 .25,0', '+0,0 .5,-1', '+0,0 .75,0', '+0,0 1,-2'),
       X: () => parser.line('0,-2 +1,2').line('0,0 +1,-2'),
-      Y: () => parser.line('.5,0 +0,-1').line('+0,0 0,-2').line('<0,-1 1,-2'),
+      Y: () =>
+        parser.line('.5,0 +0,-1').line('+0,0 0,-2').line('(< 0 -1) 1,-2'),
       Z: () => parser.line('0,-2 +1,0').line('+0,0 0,0').line('+0,0 1,0'),
       ' ': () => parser.to('+-.25,0'),
       END: () => parser.to('+0,2'),
       NEWLINE: () => parser.to('<line +0,3 >line'),
-      '\\': () => parser.to('<,-1 +0,3 >'),
+      '\\': () => parser.to('(< -1) +0,3 >'),
       EACH: () => parser.to('+1.25,0'),
       '0': () => parser.circle('0.5,-.8 .5,.8'),
       '1': () => parser.line('.5,0 +0,-2').line('+0,0 0,-1.5'),

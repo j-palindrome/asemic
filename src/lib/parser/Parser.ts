@@ -219,7 +219,7 @@ export class Parser {
             }
           }
         }
-        const value = (1 / 60) * this.expr(freq) * Math.PI * 2
+        const value = ((1 / 60) * this.expr(freq) * Math.PI * 2) / 1.5
         this.noiseTable[currentValue].value += value
 
         const noise = this.noiseTable[currentValue].noise(
@@ -356,7 +356,7 @@ export class Parser {
       },
       {
         instance: this.drawing,
-        methods: ['tri', 'squ', 'pen', 'hex', 'circle']
+        methods: ['tri', 'squ', 'pen', 'hex', 'circle', 'line']
       },
       {
         instance: this.transformMethods,

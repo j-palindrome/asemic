@@ -67,6 +67,7 @@ export class ExpressionMethods {
   }
 
   expr(expr: string | number): number {
+    this.parser.progress.curve++
     if (expr === undefined || expr === null) {
       throw new Error('undefined or null expression')
     }
@@ -76,8 +77,6 @@ export class ExpressionMethods {
 
     expr = expr.trim()
     if (expr.length === 0) throw new Error('Empty expression')
-
-    this.parser.progress.curve++
 
     // Early number check before any processing
     if (ExpressionMethods.NUMBER_REGEX.test(expr)) {

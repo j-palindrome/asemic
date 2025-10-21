@@ -27,7 +27,7 @@ import { UtilityMethods } from './methods/Utilities'
 import { bezier } from './core/utilities'
 
 export { AsemicGroup }
-
+const PHI = 1.6180339887
 export class Parser {
   rawSource = ''
   presets: Record<string, InputSchema['params']> = {}
@@ -56,6 +56,7 @@ export class Parser {
   params = {} as InputSchema['params']
   progress = {
     currentLine: '',
+    noiseIndex: 0,
     point: 0,
     time: performance.now() / 1000,
     curve: 0,
@@ -137,7 +138,7 @@ export class Parser {
       Wpx: number =>
         this.preProcessing.width * (number ? this.expr(number) : 1),
       S: () => this.progress.scrub,
-      C: () => this.groups[this.groups.length - 1]?.length ?? 0,
+      C: () => this.progress.curve,
       L: () => this.progress.letter,
       P: () => this.progress.point,
       px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i),
@@ -188,44 +189,85 @@ export class Parser {
         return this.expr(savedArgs[Math.floor(index)])
       },
       PHI: () => 1.6180339887,
+      fib: x => {
+        const n = Math.floor(this.expr(x))
+        if (n <= 0) return 0
+        if (n === 1) return 1
+        let a = 0,
+          b = 1,
+          temp
+        for (let i = 2; i <= n; i++) {
+          temp = a + b
+          a = b
+          b = temp
+        }
+        return b
+      },
       mix: (...args) => {
         return sumBy(args.map(x => this.expr(x))) / args.length
       },
-      '~': (freq, fmRatio, modulation, sharpness, phase) => {
-        if (!freq) freq = '1'
-        if (!fmRatio) fmRatio = '1.618'
-        if (!modulation) modulation = '2'
-        // if (!phase) phase = Math.random().toFixed(5)
-        const currentValue = `${this.progress.scene}:${this.progress.curve}`
+      sah: (val1, val2) => {
+        const currentValue = `${this.progress.scene}:${this.progress.noiseIndex}`
+
         if (!this.noiseTable[currentValue]) {
-          let phase = Math.random() * Math.PI * 2
           this.noiseTable[currentValue] = {
             value: 0,
-            noise: t => {
-              const sharpnessVal = sharpness ? this.expr(sharpness) : 0
-              const freqVal =
-                t +
-                // (phase ? this.expr(phase) * Math.PI * 2 : 0) +
-                this.expr(modulation) * Math.sin(this.expr(fmRatio) * t + phase)
-              return (
-                Math.sin(
-                  sharpnessVal
-                    ? Math.floor(freqVal / sharpnessVal) * sharpnessVal
-                    : freqVal
-                ) *
-                  0.5 +
-                0.5
-              )
+            sampling: false,
+            noise: (val1, val2) => {
+              const sampling = this.noiseTable[currentValue].sampling
+              if (val2 > 0.5) console.log(sampling, val2)
+              if (val2 > 0.5 && !sampling) {
+                this.noiseTable[currentValue].sampling = true
+                this.noiseTable[currentValue].value = val1
+              } else if (val2 <= 0.5) {
+                this.noiseTable[currentValue].sampling = false
+              }
+              return this.noiseTable[currentValue].value
             }
           }
         }
-        const value = ((1 / 60) * this.expr(freq) * Math.PI * 2) / 1.5
-        this.noiseTable[currentValue].value += value
-
-        const noise = this.noiseTable[currentValue].noise(
-          this.noiseTable[currentValue].value
+        this.progress.noiseIndex++
+        return this.noiseTable[currentValue].noise(
+          this.expr(val1),
+          this.expr(val2)
         )
+      },
+      '~': fms => {
+        if (!fms) fms = '1 # 1+#'
+        if (fms.startsWith('[') && fms.endsWith(']')) fms = fms.slice(1, -1)
+        const fmCurve = this.tokenize(fms).map(token => {
+          return this.evalPoint(token, { basic: true, defaultY: 1 })
+        })
+        const freq = fmCurve[0][1]
+
+        const currentValue = `${this.progress.scene}:${this.progress.noiseIndex}`
+        if (!this.noiseTable[currentValue]) {
+          let phase = Math.random() * Math.PI * 2
+          let freqPhases = fmCurve.map(() => Math.random() * Math.PI * 2)
+          this.noiseTable[currentValue] = {
+            value: 0,
+            noise: t => {
+              t = t + phase
+              let globalSpeed = this.expr(freq)
+              let frequ = globalSpeed * t
+              for (let i = 0; i < fmCurve.length; i++) {
+                const [freqMod, mod] = fmCurve[i]
+                frequ +=
+                  Math.sin(t * globalSpeed * freqMod + freqPhases[i]) * mod
+              }
+              return Math.sin(frequ) * 0.5 + 0.5
+            }
+          }
+        }
+        this.progress.noiseIndex++
+
+        const noise = this.noiseTable[currentValue].noise(this.progress.time)
         return noise
+      },
+      bell: (range0to1, closeness) => {
+        const x = this.expr(range0to1)
+        if (!closeness) closeness = '1'
+        return (this.hash(x) > 0.5 ? 1 : -1) * x ** this.expr(closeness)
       },
       tangent: (progress, curve) => {
         let lastCurve: AsemicPt[]
@@ -533,21 +575,13 @@ export class Parser {
         this.progress.scrub =
           (this.progress.progress - object.start) / object.length
         this.progress.scrubTime = this.progress.progress - object.start
+        this.progress.scene = i
+        this.progress.noiseIndex = 0
 
         if (!object.isSetup) {
           object.setup?.()
           object.isSetup = true
         }
-        try {
-          object.draw()
-        } catch (e) {
-          this.error(
-            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-          )
-        }
-        this.progress.scene = i
-
-        i++
 
         if (
           this.pauseAt === false &&
@@ -560,7 +594,16 @@ export class Parser {
             break
           }
         }
+
+        try {
+          object.draw()
+        } catch (e) {
+          this.error(
+            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+          )
+        }
       }
+      i++
     }
     this.output.progress = this.progress.progress
     this.output.pauseAt = this.pauseAt

@@ -51,7 +51,10 @@ export const parserObject = (
   }
   for (let arg of parser.tokenize(args)) {
     if (arg.includes('=')) {
-      const [key, value] = splitString(arg, '=')
+      let [key, value] = splitString(arg, '=')
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.substring(1, value.length - 1)
+      }
       obj[key] = value
     }
   }

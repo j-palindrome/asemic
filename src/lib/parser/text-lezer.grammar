@@ -11,7 +11,7 @@ Region {
 }
 
 @precedence {
-  expr, name
+  important, reduce
 }
 
 CurlyRegion {
@@ -19,7 +19,7 @@ CurlyRegion {
 }
 
 CurlyStatement {
-  (Name "=" | CurlyName) ">"? !expr ExprChar+
+  ("!" | (Push Name?)) | ((Name "=" | CurlyName) (ExprChar+ | StringRegion))
 }
 
 SquareRegion {
@@ -27,11 +27,11 @@ SquareRegion {
 }
 
 ExprChar {
-  !expr Letter | Operator | Number | ExprRegion
+  Letter | Operator | Number | ExprRegion | SquareRegion
 }
 
 ExprRegion {
-  "(" (Name (ExprChar | space)*)? ")"
+  "(" (ExprChar+ ~name | Name ~name (space ExprChar+)*) ")"
 }
 
 Char {
@@ -43,7 +43,7 @@ ParenRegion {
 }
 
 Name {
-  !name (Letter | "~" | "<" | ">" | "?")+
+  (Letter)+
 }
 
 CurlyName {
@@ -60,6 +60,7 @@ RegExRegion {
 
 
 @tokens {
+
 RegExContent {
   ![/]
 }
@@ -70,7 +71,7 @@ LineCommentContent {
   (![/\(\)\[\]\{\}\"#])
 }
 Letter {
-  @asciiLetter | "\\\""
+  @asciiLetter | "\\\"" | "~" | "<" | ">" | "?" | "#"
 }
 Number {
   @digit | "."
@@ -84,5 +85,9 @@ space {
 Heading {
   "#"+ (@asciiLetter | " " | ":")+
 }
+Push {
+  "<" | ">"
+}
 
+@precedence { Heading, Operator, Push, Letter }
 }

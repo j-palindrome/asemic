@@ -89,5 +89,5 @@ Push {
   "<" | ">"
 }
 
-@precedence { Heading, Operator, Push, Letter }
+@precedence { Operator, Push, Letter, Heading }
 }

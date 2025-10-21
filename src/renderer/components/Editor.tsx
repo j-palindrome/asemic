@@ -130,7 +130,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
               StringContent: t.string,
               LineCommentContent: t.comment,
               RegExContent: t.regexp,
-              'Name!': t.className,
+              'Name!': t.name,
               'CurlyName!': t.className,
               Letter: t.variableName,
               '( )': t.paren,
@@ -146,8 +146,10 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
 
       const exampleHighlight = HighlightStyle.define([
         { tag: t.operator, color: '#b4a7d6' },
-        { tag: t.className, color: '#6366f1' },
-        { tag: t.variableName, color: '#d97706' }
+        { tag: t.className, color: '#818cf8' },
+        { tag: t.variableName, color: '#95d2ff' },
+        { tag: t.name, color: '#9edbf1' },
+        { tag: t.string, color: '#a3ffc1' }
       ])
 
       const drawingMethods = [

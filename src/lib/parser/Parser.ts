@@ -1,10 +1,10 @@
 import { range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
-import { AsemicFont, DefaultFont } from '../defaultFont'
 import { InputSchema } from '../../renderer/inputSchema'
 import { defaultSettings, splitString } from '../settings'
 import { AsemicData, Transform } from '../types'
 import { defaultPreProcess, lerp } from '../utils'
+import defaultFont from '@/lib/defaultFont.asemic?raw'
 
 // Core classes
 import { AsemicGroup } from './core/AsemicGroup'
@@ -25,6 +25,7 @@ import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
 import { bezier } from './core/utilities'
+import { AsemicFont } from '../AsemicFont'
 
 export { AsemicGroup }
 const PHI = 1.6180339887
@@ -108,9 +109,9 @@ export class Parser {
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
       '-': x => -1 * this.expr(x),
-      N: (index = '1') => {
-        if (!index) index = '1'
-        return this.progress.countNums[this.expr(index) - 1]
+      N: (index = '0') => {
+        if (!index) index = '0'
+        return this.progress.countNums[this.expr(index)]
       },
       I: index => {
         if (!index) index = '0'
@@ -222,17 +223,19 @@ export class Parser {
         const val2e = this.expr(val2)
         return this.noiseTable[currentValue].noise(val1e, val2e)
       },
-      '~': fms => {
-        if (!fms) fms = '1 # 1+#'
-        if (fms.startsWith('[') && fms.endsWith(']')) fms = fms.slice(1, -1)
-        const fmCurve = this.tokenize(fms).map(token => {
-          return this.evalPoint(token, { basic: true, defaultY: 1 })
-        })
-        const freq = fmCurve[0][1]
-
+      '~': (...fms) => {
         const currentValue = `${this.progress.scene}:${this.progress.noiseIndex}`
         if (!this.noiseTable[currentValue]) {
-          let phase = Math.random() * Math.PI * 2
+          if (!fms[0]) fms[0] = '1+#,#'
+          const fmCurve = fms.map((token, i) => {
+            return this.evalPoint(token, {
+              basic: true,
+              defaultY: i === 0 ? Math.random() : 1
+            })
+          })
+          // if (this.progress.scene === 5) debugger
+          const freq = fmCurve[0][0] * Math.PI * 2
+          const phase = fmCurve[0][1] * Math.PI * 2
           let freqPhases = fmCurve.map(() => Math.random() * Math.PI * 2)
           this.noiseTable[currentValue] = {
             value: 0,
@@ -240,7 +243,7 @@ export class Parser {
               t = t + phase
               let globalSpeed = this.expr(freq)
               let frequ = globalSpeed * t
-              for (let i = 0; i < fmCurve.length; i++) {
+              for (let i = 1; i < fmCurve.length; i++) {
                 const [freqMod, mod] = fmCurve[i]
                 frequ +=
                   Math.sin(t * globalSpeed * freqMod + freqPhases[i]) * mod
@@ -334,9 +337,7 @@ export class Parser {
     }
 
   reservedConstants = Object.keys(this.constants)
-  fonts: Record<string, AsemicFont> = {
-    default: new DefaultFont(this as any)
-  }
+  fonts: Record<string, AsemicFont> = {}
   currentFont = 'default'
   lastPoint: AsemicPt
   noiseTable: Record<
@@ -393,7 +394,7 @@ export class Parser {
       },
       {
         instance: this.drawing,
-        methods: ['tri', 'squ', 'pen', 'hex', 'circle', 'line']
+        methods: ['c3', 'c4', 'c5', 'c6', 'circle']
       },
       {
         instance: this.transformMethods,
@@ -464,13 +465,6 @@ export class Parser {
   def!: ExpressionMethods['def']
   remap!: ExpressionMethods['remap']
   defCollect!: ExpressionMethods['defCollect']
-
-  tri!: DrawingMethods['tri']
-  squ!: DrawingMethods['squ']
-  pen!: DrawingMethods['pen']
-  hex!: DrawingMethods['hex']
-  circle!: DrawingMethods['circle']
-  line!: DrawingMethods['line']
 
   to!: TransformMethods['to']
   parseTransform!: TransformMethods['parseTransform']
@@ -561,7 +555,11 @@ export class Parser {
   }
 
   draw() {
-    this.reset()
+    try {
+      this.reset()
+    } catch (e) {
+      this.error(`Error at reset: ${(e as Error).message}`)
+    }
     let i = 0
     for (let object of this.sceneList) {
       if (
@@ -595,10 +593,9 @@ export class Parser {
         try {
           object.draw()
         } catch (e) {
-          throw e
-          // this.error(
-          //   `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-          // )
+          this.error(
+            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+          )
         }
       }
       i++
@@ -636,8 +633,9 @@ export class Parser {
 
   setup(source: string) {
     this.progress.seed = Math.random()
-    this.fonts = { default: new DefaultFont(this as any) }
+    this.fonts = {}
     this.totalLength = 0
+    this.text(defaultFont)
 
     this.settings = defaultSettings()
     this.sceneList = []

@@ -1,9 +1,9 @@
 import { splitString } from '../../settings'
-import { AsemicFont } from '../../defaultFont'
 import { expand } from 'regex-to-strings'
 import { Parser } from '../Parser'
 import { split } from 'lodash'
 import invariant from 'tiny-invariant'
+import { AsemicFont } from '@/lib/AsemicFont'
 
 export class TextMethods {
   parser: Parser
@@ -75,12 +75,11 @@ export class TextMethods {
   }
 
   text(token: string) {
-    // Replace // with JS comments in the token
     token = token.replace(/\/\/.+/gm, '')
     const parseTo = (content: string) => {
-      const spaceIndex = content.indexOf(' ')
+      const spaceIndex = /\s/.exec(content)?.index
 
-      if (spaceIndex > 0 && /^[a-z]+$/.test(content.substring(0, spaceIndex))) {
+      if (spaceIndex && /^[a-z]+$/.test(content.substring(0, spaceIndex))) {
         const [fontName, chars] = splitString(content, /\s+/)
         const charTokens = this.parser.tokenize(chars)
         const eachChars: Record<string, () => void> = {}
@@ -90,9 +89,13 @@ export class TextMethods {
             this.parser.resetFont(fontName)
             return
           }
-          const [_, char, expression, func] = line.match(
-            /(\(?[\w]+\)?)(\=\>?)(.+)/
-          )!
+          let [_, char, expression, func] = line.match(/([^=]+)(\=\>?)(.+)/)!
+          char = char.trim().replaceAll(/"/g, '')
+          expression = expression.trim()
+          func = func.trim()
+          invariant(char, 'Character is required')
+          invariant(expression, 'Expression is required')
+          invariant(func, 'Function is required')
           if (func === '!') {
             switch (expression) {
               case '=':
@@ -163,26 +166,14 @@ export class TextMethods {
 
         this.parser.progress.currentLine = token
 
-        switch (funcName) {
-          case 'font':
-            throw new Error(
-              'use {fontname ...chars} instead of (font fontname chars)'
-            )
-          case 'linden':
-            const [count, textStr, rules] = this.parser.tokenize(args)
-            this.parser.linden(count, textStr, rules)
-            break
-          // Add more cases for other functions if needed
-          default:
-            if (
-              this.parser[funcName as keyof Parser] &&
-              typeof this.parser[funcName as keyof Parser] === 'function'
-            ) {
-              const newFunc = this.parser[funcName as keyof Parser] as Function
-              newFunc.bind(this.parser)(...this.parser.tokenize(args))
-            } else {
-              throw new Error(`Unknown function: ${funcName}`)
-            }
+        if (
+          this.parser[funcName as keyof Parser] &&
+          typeof this.parser[funcName as keyof Parser] === 'function'
+        ) {
+          const newFunc = this.parser[funcName as keyof Parser] as Function
+          newFunc.bind(this.parser)(...this.parser.tokenize(args))
+        } else {
+          throw new Error(`Unknown function: ${funcName}`)
         }
       }
 
@@ -291,6 +282,19 @@ export class TextMethods {
             if (font.dynamicCharacters['NEWLINE']) {
               ;(font.dynamicCharacters['NEWLINE'] as any)()
             }
+          } else if (thisChar === ' ') {
+            if (font.characters['EACH']) {
+              ;(font.characters['EACH'] as any)()
+            }
+            if (font.dynamicCharacters['EACH']) {
+              ;(font.dynamicCharacters['EACH'] as any)()
+            }
+            if (font.characters['SPACE']) {
+              ;(font.characters['SPACE'] as any)()
+            }
+            if (font.dynamicCharacters['SPACE']) {
+              ;(font.dynamicCharacters['SPACE'] as any)()
+            }
           } else if (!font.characters[thisChar]) {
           } else {
             if (font.characters['EACH']) {
@@ -310,9 +314,9 @@ export class TextMethods {
             // if (font.characters['EACH2']) {
             //   this.parser.to('<')
             // }
-            if (i >= tokenLength) {
-              throw new Error('Missing " in text')
-            }
+          }
+          if (i >= tokenLength) {
+            throw new Error('Missing " in text')
           }
           i++
         }

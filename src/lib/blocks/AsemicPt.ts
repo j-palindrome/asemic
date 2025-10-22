@@ -30,7 +30,7 @@ export class BasicPt extends Float32Array {
 
   angle0to1(): number {
     const angle = Math.atan2(this[1], this[0])
-    return (angle < 0 ? angle + Math.PI * 2 : angle) / (Math.PI * 2)
+    return (angle < 0 ? Math.PI * 2 + angle : angle) / (Math.PI * 2)
   }
 
   subtract(point: BasicPt | [number, number]): this {

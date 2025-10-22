@@ -542,7 +542,6 @@ function AsemicAppInner({
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen`}
         ref={frame}>
-        
         <canvas
           style={{
             width: '100%',
@@ -554,11 +553,10 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
-        {!perform ? (
+        {!perform && (
           <div
             className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
             onPointerDownCapture={checkLive}>
-
             <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
               <button
                 className={`${isLive ? '!bg-blue-200/40' : ''}`}
@@ -579,38 +577,6 @@ function AsemicAppInner({
                 title={'Set Value'}>
                 {<RefreshCw {...lucideProps} />}
               </button>
-
-              <button
-                onClick={() => {
-                  asemic.current!.postMessage({
-                    play: true
-                  } as AsemicData)
-                }}>
-                {pauseAt ? (
-                  <Play {...lucideProps} />
-                ) : (
-                  <Pause {...lucideProps} />
-                )}
-              </button>
-              <input
-                placeholder='go'
-                type='number'
-                min={0}
-                max={100}
-                step={1}
-                onKeyDown={ev => {
-                  if (ev.key !== 'Enter') return
-                  const scene = parseInt(ev.currentTarget.value)
-                  asemic.current!.postMessage({
-                    play: { scene }
-                  } as AsemicData)
-                  ev.currentTarget.value = ''
-                  ev.currentTarget.blur()
-                }}></input>
-              <div className='font-mono truncate max-w-[33%] flex-none whitespace-nowrap text-blue-500'>
-                {live.index.value}:{' '}
-                {live[live.index.value]?.replace('\n', '/ ')}
-              </div>
               <div className='grow' />
               <button onClick={() => setHelp(!help)}>
                 {<Info {...lucideProps} />}
@@ -648,10 +614,6 @@ function AsemicAppInner({
                 onChange={handleImageLoad}
               /> */}
 
-              <button onClick={() => setPerform(true)}>
-                {<Maximize2 {...lucideProps} />}
-              </button>
-
               {/* <button onClick={() => setPerform(true)}>
                 {
                   <PanelTopClose
@@ -664,63 +626,86 @@ function AsemicAppInner({
             </div>
 
             {/* Progress Scrubber */}
-            {!perform && totalLength > 0 && (
-              <div className='w-full px-0 py-1'>
-                <div
-                  className='w-full h-5 flex items-center cursor-pointer relative select-none'
-                  onMouseMove={updatePosition}
-                  onMouseDown={updatePosition}
-                  onTouchMove={updatePosition}
-                  onTouchStart={updatePosition}>
-                  <div
-                    className='absolute h-1 rounded-lg'
-                    style={{
-                      left: 0,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: '100%',
-                      background: '#4b5563'
-                    }}
-                  />
-                  <div
-                    className='absolute h-1 rounded-lg'
-                    style={{
-                      left: 0,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: `${(progress / totalLength) * 100}%`,
-                      background: '#3b82f6'
-                    }}
-                  />
-                  <div
-                    className='absolute h-full w-2 rounded-lg'
-                    style={{
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      left: `${(progress / totalLength) * 100}%`,
-                      background: '#3b82f6'
-                    }}
-                  />
-                  <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                    {scenes.map((scene, index) => {
-                      const sceneStart = (scene / totalLength) * 100
-                      return (
-                        <div
-                          key={index}
-                          className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
-                          style={{
-                            left: `${sceneStart.toFixed(1)}%`,
-                            top: '50%',
-                            transform: 'translateY(-50%)'
-                          }}>
-                          {index}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
 
-                {/* <div className='w-full flex'>
+            <AsemicEditor
+              ref={editorRef}
+              defaultValue={scenesSource}
+              onChange={value => {
+                setScenesSource(value!)
+              }}
+              errors={errors}
+              help={help}
+              setHelp={setHelp}
+            />
+          </div>
+        )}
+        <div className='flex items-center absolute bottom-0 left-0 w-full px-0 py-1 z-100'>
+          <button
+            onClick={() => {
+              asemic.current!.postMessage({
+                play: true
+              } as AsemicData)
+            }}>
+            {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
+          </button>
+          <div
+            className='w-full h-5 flex items-center cursor-pointer relative select-none'
+            onMouseMove={updatePosition}
+            onMouseDown={updatePosition}
+            onTouchMove={updatePosition}
+            onTouchStart={updatePosition}>
+            <div
+              className='absolute h-1 rounded-lg'
+              style={{
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '100%',
+                background: '#4b5563'
+              }}
+            />
+            <div
+              className='absolute h-1 rounded-lg'
+              style={{
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: `${(progress / totalLength) * 100}%`,
+                border: '1 white'
+              }}
+            />
+            <div
+              className='absolute h-full w-2 rounded-lg'
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                left: `${(progress / totalLength) * 100}%`,
+                background: '#3b82f6'
+              }}
+            />
+            <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
+              {scenes.map((scene, index) => {
+                const sceneStart = (scene / totalLength) * 100
+                return (
+                  <div
+                    key={index}
+                    className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
+                    style={{
+                      left: `${sceneStart.toFixed(1)}%`,
+                      top: '50%',
+                      transform: 'translateY(-50%)'
+                    }}>
+                    {index}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <button onClick={() => setPerform(!perform)}>
+            {<Ellipsis {...lucideProps} />}
+          </button>
+
+          {/* <div className='w-full flex'>
                   <select
                     value={selectedParam}
                     onChange={ev => setSelectedParam(ev.target.value)}>
@@ -772,27 +757,7 @@ function AsemicAppInner({
                     {copyNotification}
                   </div>
                 )} */}
-              </div>
-            )}
-
-            <AsemicEditor
-              ref={editorRef}
-              defaultValue={scenesSource}
-              onChange={value => {
-                setScenesSource(value!)
-              }}
-              errors={errors}
-              help={help}
-              setHelp={setHelp}
-            />
-          </div>
-        ) : (
-          <div className='fixed top-1 right-10'>
-            <button onClick={() => setPerform(false)}>
-              <Ellipsis {...lucideProps} />
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

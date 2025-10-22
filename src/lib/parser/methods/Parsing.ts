@@ -191,8 +191,8 @@ export class ParsingMethods {
     thisPoint: string | BasicPt,
     {
       basic = false as any,
-      defaultY = false
-    }: { basic?: K; defaultY?: boolean | number } = {} as any
+      defaultY = 0
+    }: { basic?: K; defaultY?: number } = {} as any
   ): K extends true ? BasicPt : AsemicPt {
     let result: BasicPt | AsemicPt
     if (thisPoint instanceof BasicPt)
@@ -250,8 +250,8 @@ export class ParsingMethods {
         const coord = this.parser.expr(parts[0])!
         result = (
           basic
-            ? new BasicPt(coord, coord)
-            : new AsemicPt(this.parser, coord, coord)
+            ? new BasicPt(coord, defaultY || coord)
+            : new AsemicPt(this.parser, coord, defaultY || coord)
         ) as K extends true ? BasicPt : AsemicPt
       } else {
         const coords = parts.map((x: string) => this.parser.expr(x)!)

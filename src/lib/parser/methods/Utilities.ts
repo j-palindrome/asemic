@@ -38,11 +38,11 @@ export class UtilityMethods {
     return [minX!, minY!, maxX!, maxY!]
   }
 
-  repeat(count, ...callbacks: ((() => void) | string)[]) {
+  bepeat(count, ...callbacks: ((() => void) | string)[]) {
     this.repeatUtil(count, { backwards: true }, ...callbacks)
   }
 
-  bepeat(count, ...callbacks: ((() => void) | string)[]) {
+  repeat(count, ...callbacks: ((() => void) | string)[]) {
     this.repeatUtil(count, { backwards: false }, ...callbacks)
   }
 

@@ -293,15 +293,19 @@ export class ExpressionMethods {
     return this.parser
   }
 
-  remap(point0: string, point1: string) {
-    const p0 = this.parser.parsePoint(point0)
-    const p1 = this.parser.parsePoint(point1)
+  remap(origin: string, x1y0: string, targetHeight: string | number) {
+    const p0 = this.parser.parsePoint(origin)
+    const p1 = this.parser.parsePoint(x1y0)
     const rotation = p1.clone().subtract(p0).angle0to1()
-    const scale = p0.clone().subtract(p1).magnitude()
+    const scale = p1.clone().subtract(p0).magnitude()
     const position = p0.clone()
-
     this.parser.currentTransform.rotation = rotation
-    this.parser.currentTransform.scale.set([scale, scale])
+    this.parser.currentTransform.scale.set([
+      scale,
+      targetHeight
+        ? this.expr(targetHeight) * this.parser.currentTransform.scale[0]
+        : scale
+    ])
     this.parser.currentTransform.translation.set([position.x, position.y])
     return this.parser
   }

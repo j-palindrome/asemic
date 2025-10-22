@@ -215,8 +215,9 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         },
         {
           name: 'interp',
-          args: ['count:num', '|', 'callback'],
-          group: 'interpolate between each point'
+          args: ['count:num', 'veer=0', '|', 'callback'],
+          group:
+            'interpolate between each point, veering off the heading when needed'
         },
         {
           name: 'group',
@@ -231,14 +232,23 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           group: 'start new group'
         },
         { name: 'end', args: [], group: 'end current curve' },
-        { name: 'end', args: [], group: 'end current curve' }
+        {
+          name: '?',
+          args: ['if>0:num', '|', 'then', '|', 'else'],
+          group: 'if statement with then/else'
+        }
       ]
 
       const exprMethods = [
         {
           name: '~',
-          args: ['freq', 'fm=PHI', 'modulation=2', 'step=0'],
-          group: '2-sine FM noise optionally stepped'
+          args: ['waves:pt[modRatio,modAmp=1]'],
+          group: '2-sine FM noise'
+        },
+        {
+          name: 'sah',
+          args: ['signal:num', 'trigger:num0to1'],
+          group: 'sample and hold, with a trigger when > 0.5'
         },
         {
           name: '?',
@@ -268,7 +278,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         {
           name: 'peaks',
           group: 'hash',
-          args: ['value=C']
+          args: ['value=C', 'peaks:pt[value,width]...']
         }
       ]
 
@@ -330,8 +340,8 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         },
         {
           name: '~',
-          args: ['freq'],
-          group: 'noise'
+          args: ['freq=1'],
+          group: 'FM-based noise'
         }
       ]
 

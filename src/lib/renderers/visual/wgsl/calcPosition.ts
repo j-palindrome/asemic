@@ -4,8 +4,8 @@ export default function calcPosition(parser: WebGPUBrush) {
   return /*wgsl*/ `
     const VERTEXCOUNT = ${parser.settings.count}.;
     const CORRECTION = ${parser.settings.correction}.;
-    let progress = f32(vertex_index / 2u) / VERTEXCOUNT;
-    let curve_progress = min(fract(progress), 1);
+    var progress = f32(vertex_index / 2u) / VERTEXCOUNT;
+    let curve_progress = fract(progress) * ((VERTEXCOUNT + 1.) / VERTEXCOUNT);
     let point_progress = floor(progress) + curve_progress;
     let side = vertex_index % 2u == 0;
     let curve = u32(progress);

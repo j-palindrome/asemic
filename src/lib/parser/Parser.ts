@@ -99,8 +99,9 @@ export class Parser {
       let exprFade = this.expr(progress)
       if (exprFade >= 1) exprFade = 0.999
       else if (exprFade < 0) exprFade = 0
-
-      return bezier(exprFade, exprPoints)
+      if (exprPoints.length === 2) {
+        return exprPoints[0].clone().lerp(exprPoints[1], exprFade)
+      } else return bezier(exprFade, exprPoints)
     }
   }
 
@@ -133,10 +134,6 @@ export class Parser {
       H: number =>
         (this.preProcessing.height / this.preProcessing.width) *
         (number ? this.expr(number) : 1),
-      Hpx: number =>
-        this.preProcessing.height * (number ? this.expr(number) : 1),
-      Wpx: number =>
-        this.preProcessing.width * (number ? this.expr(number) : 1),
       S: () => this.progress.scrub,
       C: () => this.progress.curve,
       L: () => this.progress.letter,
@@ -146,11 +143,7 @@ export class Parser {
         const result = Math.sin(this.expr(x) * Math.PI * 2)
         return result
       },
-      cos: x => {
-        const result = Math.cos(this.expr(x) * Math.PI * 2)
-        return result
-      },
-      phi: x => {
+      PHI: x => {
         const result = Math.pow(1.6180339887, this.expr(x || '1'))
         return result
       },
@@ -188,7 +181,6 @@ export class Parser {
         }
         return this.expr(savedArgs[Math.floor(index)])
       },
-      PHI: () => 1.6180339887,
       fib: x => {
         const n = Math.floor(this.expr(x))
         if (n <= 0) return 0
@@ -215,7 +207,6 @@ export class Parser {
             sampling: false,
             noise: (val1, val2) => {
               const sampling = this.noiseTable[currentValue].sampling
-              if (val2 > 0.5) console.log(sampling, val2)
               if (val2 > 0.5 && !sampling) {
                 this.noiseTable[currentValue].sampling = true
                 this.noiseTable[currentValue].value = val1
@@ -227,10 +218,9 @@ export class Parser {
           }
         }
         this.progress.noiseIndex++
-        return this.noiseTable[currentValue].noise(
-          this.expr(val1),
-          this.expr(val2)
-        )
+        const val1e = this.expr(val1)
+        const val2e = this.expr(val2)
+        return this.noiseTable[currentValue].noise(val1e, val2e)
       },
       '~': fms => {
         if (!fms) fms = '1 # 1+#'
@@ -349,8 +339,13 @@ export class Parser {
   }
   currentFont = 'default'
   lastPoint: AsemicPt
-  noiseTable: Record<string, { noise: (x: number) => number; value: number }> =
-    {}
+  noiseTable: Record<
+    string,
+    { noise: (...values: number[]) => number; value: number } & Record<
+      string,
+      any
+    >
+  > = {}
   images: Record<string, ImageData[]> = {}
   output = defaultOutput()
   preProcessing = defaultPreProcess()
@@ -426,7 +421,8 @@ export class Parser {
           'align',
           'alignX',
           'add',
-          'getBounds'
+          'getBounds',
+          'if'
         ]
       },
       {
@@ -496,6 +492,7 @@ export class Parser {
   alignX!: UtilityMethods['alignX']
   add!: UtilityMethods['add']
   getBounds!: UtilityMethods['getBounds']
+  if!: UtilityMethods['if']
 
   scene!: SceneMethods['scene']
   play!: SceneMethods['play']
@@ -598,9 +595,10 @@ export class Parser {
         try {
           object.draw()
         } catch (e) {
-          this.error(
-            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-          )
+          throw e
+          // this.error(
+          //   `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+          // )
         }
       }
       i++

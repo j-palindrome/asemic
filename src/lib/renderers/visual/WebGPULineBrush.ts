@@ -54,12 +54,12 @@ export default class WebGPULineBrush extends WebGPUBrush {
     const indices = new Uint32Array(
       range(curves.length).flatMap(i =>
         range(this.settings.count - 1).flatMap(x => [
-          i * 200 + x * 2,
-          i * 200 + x * 2 + 1,
-          i * 200 + x * 2 + 2,
-          i * 200 + x * 2 + 1,
-          i * 200 + x * 2 + 2,
-          i * 200 + x * 2 + 3
+          i * (this.settings.count * 2) + x * 2,
+          i * (this.settings.count * 2) + x * 2 + 1,
+          i * (this.settings.count * 2) + x * 2 + 2,
+          i * (this.settings.count * 2) + x * 2 + 1,
+          i * (this.settings.count * 2) + x * 2 + 2,
+          i * (this.settings.count * 2) + x * 2 + 3
         ])
       )
     )

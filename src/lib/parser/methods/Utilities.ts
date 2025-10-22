@@ -2,6 +2,7 @@ import { splitString } from '@/lib/settings'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { CACHED } from '../constants/ExpressionConstants'
 import { Parser } from '../Parser'
+import { getHeadingAt } from '../core/utilities'
 
 export class UtilityMethods {
   parser: Parser
@@ -53,6 +54,7 @@ export class UtilityMethods {
     const counts = this.parser
       .tokenize(count, { separatePoints: true })
       .map((x: string) => this.parser.expr(x))
+
     if (callbacks.length > counts.length)
       throw new Error(
         `Too many callbacks: ${callbacks.length} for repeat ${count}, which has ${counts.length} counts`
@@ -66,19 +68,17 @@ export class UtilityMethods {
       this.parser.progress.countNums[index] = counts[index]
       for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
         this.parser.progress.indexes[index] = i
-        if (backwards) {
-          if (counts[index - 1]) {
-            iterate(index - 1)
-          }
-        } else {
-          if (counts[index + 1]) {
-            iterate(index + 1)
-          }
+        if (backwards && counts[index - 1]) {
+          iterate(index - 1)
         }
+
         if (typeof callbacks[index] === 'function') {
           callbacks[index]()
         } else if (typeof callbacks[index] === 'string') {
           this.parser.text(callbacks[index])
+        }
+        if (counts[index + 1] && !backwards) {
+          iterate(index + 1)
         }
       }
       this.parser.progress.indexes[index] = prevIndex
@@ -90,7 +90,7 @@ export class UtilityMethods {
     return this.parser
   }
 
-  interp(count: string, callback: (() => void) | string) {
+  interp(count: string, veer: string, callback: (() => void) | string) {
     if (!this.parser.groups.length) this.parser.group()
     const activeGroup = this.parser.groups[this.parser.groups.length - 1]
     const currentLength = activeGroup.length
@@ -102,15 +102,36 @@ export class UtilityMethods {
     }
     for (let i = currentLength; i < activeGroup.length; i++) {
       const curve = activeGroup[i]
-
       for (let j = 1; j < curve.length; j += countNum + 1) {
         const pt0 = curve[j - 1]
         const pt1 = curve[j]
+        const heading = getHeadingAt(curve, j)
         for (let k = 0; k < countNum; k++) {
+          this.parser.progress.point = (j + k) / (curve.length + k * j - 1 || 1)
           const t = (k + 1) / (countNum + 1)
-          curve.splice(j + k, 0, pt0.clone().lerp(pt1, t))
+          curve.splice(
+            j + k,
+            0,
+            pt0
+              .clone()
+              .lerp(pt1, t)
+              .add(
+                this.parser
+                  .evalPoint(veer, { basic: true, defaultY: 0 })
+                  .rotate(heading - 0.25)
+              )
+          )
         }
       }
+    }
+  }
+
+  if(value: string, ifTrue?: string, ifFalse?: string) {
+    const exprValue = this.parser.expr(value)
+    if (exprValue && ifTrue) {
+      this.parser.text(ifTrue)
+    } else if (ifFalse) {
+      this.parser.text(ifFalse)
     }
   }
 
@@ -207,13 +228,7 @@ export class UtilityMethods {
     const [alignX, alignY] = this.parser.evalPoint(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group({
-        mode: 'line',
-        curve: 'true',
-        vert: '0,0',
-        count: 100,
-        correction: 0
-      })
+      this.parser.group()
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
     const startCurve = lastGroup.length
@@ -255,10 +270,7 @@ export class UtilityMethods {
         this.parser.progress.point = j / (curve.length - 1 || 1)
         this.parser.progress.indexes[0] = j
         const addPt = this.parser.evalPoint(point)
-        const heading =
-          j === curve.length - 1
-            ? curve[j].clone().subtract(penulCache).angle0to1()
-            : curve[j + 1].clone().subtract(curve[j]).angle0to1()
+        const heading = getHeadingAt(curve, j, penulCache)
         curve[j].add(addPt.rotate(heading + 0.25))
       }
     }

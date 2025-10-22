@@ -74,3 +74,16 @@ export const parserObject = (
   }
   return obj
 }
+
+export const getHeadingAt = (
+  curve: BasicPt[],
+  j: number,
+  penulCache?: BasicPt
+) => {
+  return j === curve.length - 1
+    ? curve[j]
+        .clone()
+        .subtract(penulCache ?? curve[j - 1])
+        .angle0to1()
+    : curve[j + 1].clone().subtract(curve[j]).angle0to1()
+}

@@ -244,26 +244,26 @@ export class ParsingMethods {
     }
 
     if (!result!) {
-      try {
-        const parts = this.parser.tokenize(point, { separatePoints: true })
-        if (parts.length === 1) {
-          const coord = this.parser.expr(parts[0])!
-          result = (
-            basic
-              ? new BasicPt(coord, coord)
-              : new AsemicPt(this.parser, coord, coord)
-          ) as K extends true ? BasicPt : AsemicPt
-        } else {
-          const coords = parts.map((x: string) => this.parser.expr(x)!)
-          result = (
-            basic
-              ? new BasicPt(coords[0], coords[1])
-              : new AsemicPt(this.parser, ...coords)
-          ) as K extends true ? BasicPt : AsemicPt
-        }
-      } catch (e: any) {
-        throw new Error(`Failed to evaluate point: ${point}\n${e.message}`)
+      // try {
+      const parts = this.parser.tokenize(point, { separatePoints: true })
+      if (parts.length === 1) {
+        const coord = this.parser.expr(parts[0])!
+        result = (
+          basic
+            ? new BasicPt(coord, coord)
+            : new AsemicPt(this.parser, coord, coord)
+        ) as K extends true ? BasicPt : AsemicPt
+      } else {
+        const coords = parts.map((x: string) => this.parser.expr(x)!)
+        result = (
+          basic
+            ? new BasicPt(coords[0], coords[1])
+            : new AsemicPt(this.parser, ...coords)
+        ) as K extends true ? BasicPt : AsemicPt
       }
+      // } catch (e: any) {
+      //   throw new Error(`Failed to evaluate point: ${point}\n${e.message}`)
+      // }
     }
 
     return result as K extends true ? BasicPt : AsemicPt
@@ -302,14 +302,8 @@ export class ParsingMethods {
   }
 
   end({ close = false } = {}) {
-    if (this.parser.currentCurve.length === 0) return this.parser
-    if (this.parser.currentCurve.length === 2) {
-      this.parser.progress.point = 0.5
-      const p1 = this.parser.currentCurve[0]
-      const p2 = this.parser.currentCurve[1]
-      const interpolated = p1.clone().lerp(p2, 0.5)
-      this.parser.currentCurve.splice(1, 0, interpolated)
-    }
+    if (this.parser.currentCurve.length < 2)
+      throw new Error('Cannot end a curve with less than 2 points')
     if (this.parser.groups.length === 0) {
       this.parser.groups.push(new AsemicGroup(this.parser, { mode: 'line' }))
     }

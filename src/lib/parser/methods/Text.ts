@@ -96,6 +96,7 @@ export class TextMethods {
           invariant(char, 'Character is required')
           invariant(expression, 'Expression is required')
           invariant(func, 'Function is required')
+          // if (this.parser.progress.scene > 0) debugger
           if (func === '!') {
             switch (expression) {
               case '=':
@@ -114,6 +115,7 @@ export class TextMethods {
                 break
               case '=>':
                 dynamicChars[char] = (...words) => {
+                  console.log('fixing this')
                   if (words.length > 0) {
                     func = func.replaceAll(
                       /\$([0-9]+)/g,
@@ -127,6 +129,7 @@ export class TextMethods {
           }
         })
         const name = fontName
+        this.parser.currentFont = name
         if (!this.parser.fonts[name]) {
           this.parser.fonts[name] = new AsemicFont(
             this.parser,
@@ -262,6 +265,7 @@ export class TextMethods {
         if (font.dynamicCharacters['START'] && !add) {
           font.dynamicCharacters['START']()
         }
+        // debugger
         while (token[i] !== '"' || token[i - 1] === '\\') {
           let thisChar = token[i]
           if (thisChar === '(' && token[i - 1] !== '\\') {
@@ -270,7 +274,9 @@ export class TextMethods {
               throw new Error('Missing ) in text')
             }
             const content = token.substring(i + 1, end)
+            // debugger
             thisChar = content
+
             i = end
           } else if (thisChar === '{') {
             const start = i
@@ -316,7 +322,7 @@ export class TextMethods {
             }
           } else if (thisChar.includes(' ')) {
             const [func, ...words] = thisChar.split(' ')
-            if (!font.characters[func]) {
+            if (!font.dynamicCharacters[func]) {
               throw new Error('Unknown word ' + func)
             }
             if (font.characters['EACH']) {
@@ -325,6 +331,7 @@ export class TextMethods {
             if (font.dynamicCharacters['EACH']) {
               ;(font.dynamicCharacters['EACH'] as any)()
             }
+            // debugger
             font.dynamicCharacters[func](...words)
           } else {
             if (font.characters['EACH']) {
@@ -334,16 +341,21 @@ export class TextMethods {
               ;(font.dynamicCharacters['EACH'] as any)()
             }
             let start = i
-            while (!font.characters[thisChar]) {
+            while (
+              !font.characters[thisChar] &&
+              !font.dynamicCharacters[thisChar]
+            ) {
               if (i >= tokenLength) {
                 throw new Error('Unknown word ' + thisChar)
               }
               thisChar = token.substring(start, i)
               i++
             }
-            ;(font.characters[thisChar] as any)()
             if (font.dynamicCharacters[thisChar]) {
               ;(font.dynamicCharacters[thisChar] as any)()
+            }
+            if (font.characters[thisChar]) {
+              ;(font.characters[thisChar] as any)()
             }
           }
           if (i >= tokenLength) {

@@ -635,11 +635,11 @@ export class Parser {
 
     this.output.resetParams = true
     this.output.resetPresets = true
-    try {
-      this.parse(source)
-    } catch (e: any) {
-      console.error(e)
-    }
+    // try {
+    this.parse(source)
+    // } catch (e: any) {
+    //   console.error(e)
+    // }
 
     this.noiseTable = {}
 

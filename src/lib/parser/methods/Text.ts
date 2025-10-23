@@ -80,10 +80,10 @@ export class TextMethods {
       const spaceIndex = /\s/.exec(content)?.index
 
       if (spaceIndex && /^[a-z]+$/.test(content.substring(0, spaceIndex))) {
-        const [fontName, chars] = splitString(content, /\s+/)
-        const charTokens = this.parser.tokenize(chars)
-        const eachChars: Record<string, () => void> = {}
-        const eachDynamicChars: Record<string, () => void> = {}
+        const [fontName, theseChars] = splitString(content, /\s+/)
+        const charTokens = this.parser.tokenize(theseChars)
+        const chars: Record<string, () => void> = {}
+        const dynamicChars: Record<string, () => void> = {}
         charTokens.forEach(line => {
           if (line === '!') {
             this.parser.resetFont(fontName)
@@ -110,15 +110,35 @@ export class TextMethods {
           } else {
             switch (expression) {
               case '=':
-                eachChars[char] = () => this.parser.text(func)
+                chars[char] = () => this.parser.text(func)
                 break
               case '=>':
-                eachDynamicChars[char] = () => this.parser.text(func)
+                dynamicChars[char] = (...words) => {
+                  if (words.length > 0) {
+                    func = func.replaceAll(
+                      /\$([0-9]+)/g,
+                      (_, index) => words[parseInt(index)] || ''
+                    )
+                  }
+                  this.parser.text(func)
+                }
                 break
             }
           }
         })
-        this.parser.font(fontName, eachChars, eachDynamicChars)
+        const name = fontName
+        if (!this.parser.fonts[name]) {
+          this.parser.fonts[name] = new AsemicFont(
+            this.parser,
+            chars,
+            dynamicChars
+          )
+        } else {
+          this.parser.fonts[name].parseCharacters(chars)
+          this.parser.fonts[name].parseCharacters(dynamicChars, {
+            dynamic: true
+          })
+        }
       } else {
         this.parser.to(content)
       }
@@ -252,8 +272,7 @@ export class TextMethods {
             const content = token.substring(i + 1, end)
             thisChar = content
             i = end
-          }
-          if (thisChar === '{') {
+          } else if (thisChar === '{') {
             const start = i
             let brackets = 1
             while (brackets > 0) {
@@ -295,7 +314,18 @@ export class TextMethods {
             if (font.dynamicCharacters['SPACE']) {
               ;(font.dynamicCharacters['SPACE'] as any)()
             }
-          } else if (!font.characters[thisChar]) {
+          } else if (thisChar.includes(' ')) {
+            const [func, ...words] = thisChar.split(' ')
+            if (!font.characters[func]) {
+              throw new Error('Unknown word ' + func)
+            }
+            if (font.characters['EACH']) {
+              ;(font.characters['EACH'] as any)()
+            }
+            if (font.dynamicCharacters['EACH']) {
+              ;(font.dynamicCharacters['EACH'] as any)()
+            }
+            font.dynamicCharacters[func](...words)
           } else {
             if (font.characters['EACH']) {
               ;(font.characters['EACH'] as any)()
@@ -303,17 +333,18 @@ export class TextMethods {
             if (font.dynamicCharacters['EACH']) {
               ;(font.dynamicCharacters['EACH'] as any)()
             }
-            // if (font.characters['EACH2']) {
-            //   this.parser.to('>')
-            //   ;(font.characters['EACH2'] as any)()
-            // }
+            let start = i
+            while (!font.characters[thisChar]) {
+              if (i >= tokenLength) {
+                throw new Error('Unknown word ' + thisChar)
+              }
+              thisChar = token.substring(start, i)
+              i++
+            }
             ;(font.characters[thisChar] as any)()
             if (font.dynamicCharacters[thisChar]) {
               ;(font.dynamicCharacters[thisChar] as any)()
             }
-            // if (font.characters['EACH2']) {
-            //   this.parser.to('<')
-            // }
           }
           if (i >= tokenLength) {
             throw new Error('Missing " in text')
@@ -337,27 +368,6 @@ export class TextMethods {
   resetFont(name: string) {
     if (this.parser.fonts[name]) {
       this.parser.fonts[name].reset()
-    }
-    return this.parser
-  }
-
-  font(
-    name: string,
-    chars: AsemicFont['characters'],
-    dynamicChars: AsemicFont['characters'] = {}
-  ) {
-    this.parser.currentFont = name
-    if (chars) {
-      if (!this.parser.fonts[name]) {
-        this.parser.fonts[name] = new AsemicFont(
-          this.parser,
-          chars,
-          dynamicChars
-        )
-      } else {
-        this.parser.fonts[name].parseCharacters(chars)
-        this.parser.fonts[name].parseCharacters(dynamicChars, { dynamic: true })
-      }
     }
     return this.parser
   }

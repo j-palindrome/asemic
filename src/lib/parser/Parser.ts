@@ -402,15 +402,7 @@ export class Parser {
       },
       {
         instance: this.textMethods,
-        methods: [
-          'text',
-          'font',
-          'resetFont',
-          'keys',
-          'regex',
-          'parse',
-          'linden'
-        ]
+        methods: ['text', 'resetFont', 'keys', 'regex', 'parse', 'linden']
       },
       {
         instance: this.utilities,
@@ -472,7 +464,6 @@ export class Parser {
   reverseTransform!: TransformMethods['reverseTransform']
 
   text!: TextMethods['text']
-  font!: TextMethods['font']
   parse!: TextMethods['parse']
   resetFont!: TextMethods['resetFont']
   keys!: TextMethods['keys']

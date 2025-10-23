@@ -3,7 +3,7 @@ import { Parser } from './types'
 
 export class AsemicFont {
   parser: Parser
-  characters: Record<string, () => void> = {}
+  characters: Record<string, (...words: string[]) => void> = {}
   protected defaultCharacters: AsemicFont['characters'] = {}
   protected defaultDynamicCharacters: AsemicFont['characters'] = {}
   dynamicCharacters: AsemicFont['characters'] = {}
@@ -25,20 +25,16 @@ export class AsemicFont {
   parseCharacters(chars: AsemicFont['characters'], { dynamic = false } = {}) {
     let dict = dynamic ? this.dynamicCharacters : this.characters
     for (let name of Object.keys(chars)) {
-      const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE', 'SPACE']
-      if (name.length > 1 && !reservedCharacters.includes(name)) {
-        if (name.startsWith('(') && name.endsWith(')')) {
-          dict[name.slice(1, -1)] = chars[name]
-        } else {
-          const multipleChars = name.split('')
-          const countNum = multipleChars.length
+      // const reservedCharacters = ['START', 'END', 'EACH', 'NEWLINE', 'SPACE']
+      if (name.includes(',')) {
+        const multipleChars = name.split(',')
+        const countNum = multipleChars.length
 
-          for (let j = 0; j < countNum; j++) {
-            dict[multipleChars[j]] = () => {
-              this.parser.progress.indexes[0] = j
-              this.parser.progress.countNums[0] = countNum
-              chars[name]()
-            }
+        for (let j = 0; j < countNum; j++) {
+          dict[multipleChars[j]] = (...words) => {
+            this.parser.progress.indexes[0] = j
+            this.parser.progress.countNums[0] = countNum
+            chars[name](...words)
           }
         }
       } else {

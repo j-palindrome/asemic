@@ -201,6 +201,11 @@ export class ParsingMethods {
       ) as K extends true ? BasicPt : AsemicPt
     let point = thisPoint as string
 
+    if (point === '<') {
+      return this.parser.lastPoint.clone(basic) as K extends true
+        ? BasicPt
+        : AsemicPt
+    }
     if (point.startsWith('(') && point.endsWith(')')) {
       const sliced = point.substring(1, point.length - 1)
       const tokens = this.parser.tokenize(sliced)
@@ -323,11 +328,15 @@ export class ParsingMethods {
     const pointsTokens = this.parser.tokenize(token)
 
     let totalLength =
-      pointsTokens.filter((x: string) => !x.startsWith('{')).length - 1 || 1
+      pointsTokens.filter((x: string) => !x.startsWith('{') && x !== '<')
+        .length - 1 || 1
 
     const originalEnd = this.parser.adding
     this.parser.adding += totalLength
     pointsTokens.forEach((pointToken: string, i: number) => {
+      if (pointToken === '<') {
+        return
+      }
       if (pointToken.startsWith('{')) {
         this.parser.to(pointToken.slice(1, -1))
         return

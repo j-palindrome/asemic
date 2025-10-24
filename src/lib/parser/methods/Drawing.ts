@@ -49,7 +49,8 @@ export class DrawingMethods {
   protected parseCurve(args: string[], points: string) {
     this.parser.to('>')
     this.parser.remap(args[0], args[1], args[2])
-    this.parser.points(points.replaceAll('$W', args[3] ?? '0'))
+    let arguably = points.replaceAll('$W', args[3] ?? '0')
+    this.parser.points(arguably)
     if (!args[4]) this.parser.end()
 
     this.parser.to('<')

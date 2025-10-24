@@ -359,8 +359,8 @@ function AsemicAppInner({
 
   const saveToFile = async () => {
     const content = editable.current?.value || scenesSource
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
-    const filename = `asemic-${timestamp}.js`
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/:/g, '')
+    const filename = `asemic-${timestamp}.asemic`
 
     try {
       if ('showSaveFilePicker' in window) {

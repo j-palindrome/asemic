@@ -13,10 +13,6 @@ export class TextMethods {
   private characterCache = new Map<string, string>()
   private regexCache = new Map<string, RegExp>()
 
-  // Pre-compiled regex for bracket replacements
-  private static readonly BRACKET_REGEX =
-    /[^\\]\[([^\]]+[^\\])\](?:\{([^\}]+)\})?/g
-
   constructor(parser: Parser) {
     this.parser = parser
   }
@@ -178,6 +174,14 @@ export class TextMethods {
             parentheses++
           } else if (token[i] === ')') {
             parentheses--
+          } else if (token[i] === '"') {
+            i++
+            while (token[i] !== '"' || token[i - 1] === '\\') {
+              i++
+              if (i >= tokenLength) {
+                throw new Error('Missing " in text')
+              }
+            }
           }
         }
         const end = i
@@ -278,7 +282,7 @@ export class TextMethods {
             thisChar = content
 
             i = end
-          } else if (thisChar === '{') {
+          } else if (thisChar === '{' && token[i - 1] !== '\\') {
             const start = i
             let brackets = 1
             while (brackets > 0) {
@@ -300,27 +304,23 @@ export class TextMethods {
           }
           this.parser.progress.letter = i / (tokenLength - 1)
           this.parser.progress.currentLine = thisChar
-          if (thisChar === '\n') {
-            if (font.characters['NEWLINE']) {
-              ;(font.characters['NEWLINE'] as any)()
-            }
-            if (font.dynamicCharacters['NEWLINE']) {
-              ;(font.dynamicCharacters['NEWLINE'] as any)()
-            }
-          } else if (thisChar === ' ') {
-            if (font.characters['EACH']) {
-              ;(font.characters['EACH'] as any)()
-            }
-            if (font.dynamicCharacters['EACH']) {
-              ;(font.dynamicCharacters['EACH'] as any)()
-            }
-            if (font.characters['SPACE']) {
-              ;(font.characters['SPACE'] as any)()
-            }
-            if (font.dynamicCharacters['SPACE']) {
-              ;(font.dynamicCharacters['SPACE'] as any)()
-            }
-          } else if (thisChar.includes(' ')) {
+          const specialChars = {
+            '[': 'BOPEN',
+            ']': 'BCLOSE',
+            '(': 'POPEN',
+            ')': 'PCLOSE',
+            '{': 'COPEN',
+            '}': 'CCLOSE',
+            '"': 'QUOTE',
+            ',': 'COMMA',
+            ' ': 'SPACE',
+            '\n': 'NEWLINE',
+            '=': 'EQUAL'
+          }
+          if (specialChars[thisChar]) {
+            thisChar = specialChars[thisChar]
+          }
+          if (thisChar.includes(' ')) {
             const [func, ...words] = thisChar.split(' ')
             if (!font.dynamicCharacters[func]) {
               throw new Error('Unknown word ' + func)

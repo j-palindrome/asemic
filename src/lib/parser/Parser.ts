@@ -580,14 +580,14 @@ export class Parser {
             break
           }
         }
-        object.draw()
-        // try {
-        //   object.draw()
-        // } catch (e) {
-        //   this.error(
-        //     `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-        //   )
-        // }
+        // object.draw()
+        try {
+          object.draw()
+        } catch (e) {
+          this.error(
+            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+          )
+        }
       }
       i++
     }

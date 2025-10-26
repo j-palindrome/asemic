@@ -553,159 +553,76 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
-        {!perform && (
-          <div
-            className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
-            onPointerDownCapture={checkLive}>
-            <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
-              <button
-                className={`${isLive ? '!bg-blue-200/40' : ''}`}
-                onClick={ev => {
-                  ev.preventDefault()
-                  ev.stopPropagation()
-                  const activeElement = document.activeElement as HTMLElement
-                  activeElement.blur()
-                  setIsLive(!isLive)
-                }}>
-                <Power {...lucideProps} />
-              </button>
-
-              <button
-                onClick={() => {
-                  setScenesSource(editorRef.current?.getValue() ?? '')
+        <div
+          className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
+          onPointerDownCapture={checkLive}>
+          <div className='flex items-center px-0 py-1 z-100'>
+            <button
+              onClick={() => {
+                asemic.current!.postMessage({
+                  play: true
+                } as AsemicData)
+              }}>
+              {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
+            </button>
+            <div
+              className='w-full h-5 flex items-center cursor-pointer relative select-none'
+              onMouseMove={updatePosition}
+              onMouseDown={updatePosition}
+              onTouchMove={updatePosition}
+              onTouchStart={updatePosition}>
+              <div
+                className='absolute h-1 rounded-lg'
+                style={{
+                  left: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '100%',
+                  background: '#4b5563'
                 }}
-                title={'Set Value'}>
-                {<RefreshCw {...lucideProps} />}
-              </button>
-              <div className='grow' />
-              <button onClick={() => setHelp(!help)}>
-                {<Info {...lucideProps} />}
-              </button>
-
-              {/* <button
-                className={`${audio ? '!bg-blue-200/40' : ''}`}
-                onClick={() => {
-                  setAudio(!audio)
-                }}>
-                {<Speaker {...lucideProps} />}
-              </button> */}
-
-              <button onClick={saveToFile} title='Save to .js file'>
-                <Download {...lucideProps} />
-              </button>
-
-              <button onClick={openFile} title='Open Asemic file'>
-                <Upload {...lucideProps} />
-              </button>
-
-              {/* <input
-                ref={fileInputRef}
-                type='file'
-                accept='.js,.ts'
-                style={{ display: 'none' }}
-                onChange={handleFileLoad}
-              /> */}
-
-              {/*<input
-                ref={imageInputRef}
-                type='file'
-                accept='image/*,video/*'
-                style={{ display: 'none' }}
-                onChange={handleImageLoad}
-              /> */}
-
-              {/* <button onClick={() => setPerform(true)}>
-                {
-                  <PanelTopClose
-                    color='white'
-                    className='py-0.5'
-                    opacity={0.5}
-                  />
-                }
-              </button> */}
+              />
+              <div
+                className='absolute h-1 rounded-lg'
+                style={{
+                  left: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: `${(progress / totalLength) * 100}%`,
+                  border: '1 white'
+                }}
+              />
+              <div
+                className='absolute h-full w-2 rounded-lg'
+                style={{
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  left: `${(progress / totalLength) * 100}%`,
+                  background: '#3b82f6'
+                }}
+              />
+              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
+                {scenes.map((scene, index) => {
+                  const sceneStart = (scene / totalLength) * 100
+                  return (
+                    <div
+                      key={index}
+                      className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
+                      style={{
+                        left: `${sceneStart.toFixed(1)}%`,
+                        top: '50%',
+                        transform: 'translateY(-50%)'
+                      }}>
+                      {index}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
+            <button onClick={() => setPerform(!perform)}>
+              {<Ellipsis {...lucideProps} />}
+            </button>
 
-            {/* Progress Scrubber */}
-
-            <AsemicEditor
-              ref={editorRef}
-              defaultValue={scenesSource}
-              onChange={value => {
-                setScenesSource(value!)
-              }}
-              errors={errors}
-              help={help}
-              setHelp={setHelp}
-            />
-          </div>
-        )}
-        <div className='flex items-center absolute bottom-0 left-0 w-full px-0 py-1 z-100'>
-          <button
-            onClick={() => {
-              asemic.current!.postMessage({
-                play: true
-              } as AsemicData)
-            }}>
-            {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
-          </button>
-          <div
-            className='w-full h-5 flex items-center cursor-pointer relative select-none'
-            onMouseMove={updatePosition}
-            onMouseDown={updatePosition}
-            onTouchMove={updatePosition}
-            onTouchStart={updatePosition}>
-            <div
-              className='absolute h-1 rounded-lg'
-              style={{
-                left: 0,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: '100%',
-                background: '#4b5563'
-              }}
-            />
-            <div
-              className='absolute h-1 rounded-lg'
-              style={{
-                left: 0,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: `${(progress / totalLength) * 100}%`,
-                border: '1 white'
-              }}
-            />
-            <div
-              className='absolute h-full w-2 rounded-lg'
-              style={{
-                top: '50%',
-                transform: 'translateY(-50%)',
-                left: `${(progress / totalLength) * 100}%`,
-                background: '#3b82f6'
-              }}
-            />
-            <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-              {scenes.map((scene, index) => {
-                const sceneStart = (scene / totalLength) * 100
-                return (
-                  <div
-                    key={index}
-                    className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
-                    style={{
-                      left: `${sceneStart.toFixed(1)}%`,
-                      top: '50%',
-                      transform: 'translateY(-50%)'
-                    }}>
-                    {index}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          <button onClick={() => setPerform(!perform)}>
-            {<Ellipsis {...lucideProps} />}
-          </button>
-
-          {/* <div className='w-full flex'>
+            {/* <div className='w-full flex'>
                   <select
                     value={selectedParam}
                     onChange={ev => setSelectedParam(ev.target.value)}>
@@ -757,6 +674,88 @@ function AsemicAppInner({
                     {copyNotification}
                   </div>
                 )} */}
+          </div>
+          {!perform && (
+            <>
+              <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
+                <button
+                  className={`${isLive ? '!bg-blue-200/40' : ''}`}
+                  onClick={ev => {
+                    ev.preventDefault()
+                    ev.stopPropagation()
+                    const activeElement = document.activeElement as HTMLElement
+                    activeElement.blur()
+                    setIsLive(!isLive)
+                  }}>
+                  <Power {...lucideProps} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setScenesSource(editorRef.current?.getValue() ?? '')
+                  }}
+                  title={'Set Value'}>
+                  {<RefreshCw {...lucideProps} />}
+                </button>
+                <div className='grow' />
+                <button onClick={() => setHelp(!help)}>
+                  {<Info {...lucideProps} />}
+                </button>
+
+                {/* <button
+                className={`${audio ? '!bg-blue-200/40' : ''}`}
+                onClick={() => {
+                  setAudio(!audio)
+                }}>
+                {<Speaker {...lucideProps} />}
+              </button> */}
+
+                <button onClick={saveToFile} title='Save to .js file'>
+                  <Download {...lucideProps} />
+                </button>
+
+                <button onClick={openFile} title='Open Asemic file'>
+                  <Upload {...lucideProps} />
+                </button>
+
+                {/* <input
+                ref={fileInputRef}
+                type='file'
+                accept='.js,.ts'
+                style={{ display: 'none' }}
+                onChange={handleFileLoad}
+              /> */}
+
+                {/*<input
+                ref={imageInputRef}
+                type='file'
+                accept='image/*,video/*'
+                style={{ display: 'none' }}
+                onChange={handleImageLoad}
+              /> */}
+
+                {/* <button onClick={() => setPerform(true)}>
+                {
+                  <PanelTopClose
+                    color='white'
+                    className='py-0.5'
+                    opacity={0.5}
+                  />
+                }
+              </button> */}
+              </div>
+              <AsemicEditor
+                ref={editorRef}
+                defaultValue={scenesSource}
+                onChange={value => {
+                  setScenesSource(value!)
+                }}
+                errors={errors}
+                help={help}
+                setHelp={setHelp}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

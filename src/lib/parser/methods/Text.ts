@@ -30,22 +30,15 @@ export class TextMethods {
       >
       rules = rulesObj
     }
-    const applyRules = (text: string[]) => {
-      let textList = text
-      for (let i = 0; i < textList.length; i++) {
-        const char = textList[i]
-        if (rules[char]) {
-          textList[i] = rules[char]
-        }
-      }
-      return textList
-    }
 
     let textList = text.split('')
     for (let i = 0; i < this.parser.expr(iterations); i++) {
-      textList = applyRules(textList)
+      textList = textList.map(char => rules[char] || char)
+      textList = textList.flatMap(char => char.split(''))
     }
-    this.parser.text(`"${textList.join('')}"`)
+    const string = textList.join('')
+    this.parser.text(`"${string}"`)
+    // this.parser.error(`linden: ${string}`)
     return this.parser
   }
 

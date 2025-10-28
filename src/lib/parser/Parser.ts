@@ -119,7 +119,8 @@ export class Parser {
       },
       i: index => {
         if (!index) index = '0'
-        const solveIndex = this.expr(index)
+        const solveIndex = Math.floor(this.expr(index))
+        // if (this.progress.scene === 12) debugger
         return (
           this.progress.indexes[solveIndex] /
           (this.progress.countNums[solveIndex] - 1 || 1)

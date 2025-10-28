@@ -62,10 +62,10 @@ export class UtilityMethods {
 
     // callbacks = callbacks.reverse()
 
+    for (let i = 0; i < counts.length; i++) {
+      this.parser.progress.countNums[i] = counts[i]
+    }
     const iterate = (index: number) => {
-      const prevIndex = this.parser.progress.indexes[index]
-      const prevCountNum = this.parser.progress.countNums[index]
-      this.parser.progress.countNums[index] = counts[index]
       for (let i = 0; i < this.parser.progress.countNums[index]; i++) {
         this.parser.progress.indexes[index] = i
         if (backwards && counts[index - 1]) {
@@ -77,12 +77,11 @@ export class UtilityMethods {
         } else if (typeof callbacks[index] === 'string') {
           this.parser.text(callbacks[index])
         }
+
         if (counts[index + 1] && !backwards) {
           iterate(index + 1)
         }
       }
-      this.parser.progress.indexes[index] = prevIndex
-      this.parser.progress.countNums[index] = prevCountNum
     }
     if (backwards) iterate(counts.length - 1)
     else iterate(0)

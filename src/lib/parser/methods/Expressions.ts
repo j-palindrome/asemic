@@ -283,7 +283,7 @@ export class ExpressionMethods {
     if (numCallbacks === 0) return this.parser
 
     // Call the selected callback
-    const rememberedValue = Math.floor(normalizedValue * numCallbacks)
+    const rememberedValue = Math.floor(normalizedValue * numCallbacks * 0.99999)
     if (callbacks[rememberedValue]) {
       this.parser.text(callbacks[rememberedValue])
     } else {

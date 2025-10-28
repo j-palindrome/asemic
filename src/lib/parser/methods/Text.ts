@@ -4,6 +4,7 @@ import { Parser } from '../Parser'
 import { split } from 'lodash'
 import invariant from 'tiny-invariant'
 import { AsemicFont } from '@/lib/AsemicFont'
+import { parserObject } from '../core/utilities'
 
 export class TextMethods {
   parser: Parser
@@ -23,25 +24,28 @@ export class TextMethods {
     rules: Record<string, string> | string
   ) {
     if (typeof rules === 'string') {
-      const rulesObj = Object.fromEntries(
-        this.parser
-          .tokenize(rules.slice(1, -1))
-          .map(rule => splitString(rule, '='))
-      )
+      const rulesObj = parserObject(this.parser, rules, {}) as Record<
+        string,
+        string
+      >
       rules = rulesObj
     }
-    const applyRules = (text: string) => {
-      let textList = text.split('')
-      for (const [key, value] of Object.entries(rules)) {
-        textList = textList.map(x => (x === key ? value : x))
+    const applyRules = (text: string[]) => {
+      let textList = text
+      for (let i = 0; i < textList.length; i++) {
+        const char = textList[i]
+        if (rules[char]) {
+          textList[i] = rules[char]
+        }
       }
-      return textList.join('')
+      return textList
     }
 
+    let textList = text.split('')
     for (let i = 0; i < this.parser.expr(iterations); i++) {
-      text = applyRules(text)
+      textList = applyRules(textList)
     }
-    this.parser.text(`${text}`)
+    this.parser.text(`"${textList.join('')}"`)
     return this.parser
   }
 

@@ -280,14 +280,16 @@ export class ParsingMethods {
       curve: 'true',
       vert: '0,0',
       count: 100,
-      correction: 0
+      correction: 0,
+      close: false
     }
   ) {
     if (typeof settings === 'string') {
       settings = parserObject(this.parser, settings, {
         curve: 'boolean',
         count: 'number',
-        correction: 'number'
+        correction: 'number',
+        close: 'boolean'
       }) as AsemicGroup['settings']
     }
     const group = new AsemicGroup(this.parser, settings)

@@ -13,7 +13,15 @@ export class AsemicGroup extends Array<AsemicPt[]> {
     curve: 'true' | 'false'
     count: number
     correction: number
-  } = { mode: 'line', vert: '0,0', curve: 'true', count: 100, correction: 0 }
+    close?: boolean
+  } = {
+    mode: 'line',
+    vert: '0,0',
+    curve: 'true',
+    count: 100,
+    correction: 0,
+    close: false
+  }
   imageDatas?: ImageData[]
   xy: BasicPt = new BasicPt(0, 0)
   wh: BasicPt = new BasicPt(1, 1)

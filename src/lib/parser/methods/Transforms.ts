@@ -61,7 +61,7 @@ export class TransformMethods {
           break
 
         default:
-          if (transform.includes('<')) {
+          if (transform.match(/^[\*\+@w]</)) {
             const [preTransform, namedTransform] = transform.split('<')
             const targetTransform = namedTransform
               ? this.parser.namedTransforms[namedTransform]

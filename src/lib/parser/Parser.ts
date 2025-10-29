@@ -61,7 +61,7 @@ export class Parser {
     point: 0,
     time: performance.now() / 1000,
     curve: 0,
-    seed: Math.random(),
+    seeds: range(100).map(x => Math.random()),
     indexes: range(3).map(x => 0),
     countNums: range(3).map(x => 0),
     accums: [] as number[],
@@ -172,6 +172,14 @@ export class Parser {
           exprPoints[Math.floor(index) + 1]!,
           index % 1
         )
+      },
+      '<>': (...args) => {
+        const progress = this.expr(args[0])
+        const spread = this.expr(args[1] || '1')
+        const center = this.expr(args[2] || '0.5')
+        const max = center + spread / 2
+        const min = center - spread / 2
+        return progress * (max - min) + min
       },
       choose: (...args) => {
         const index = Math.floor(this.expr(args[0]))
@@ -317,11 +325,12 @@ export class Parser {
         return normalizedAngle
       },
       '#': x => {
-        const val = Math.sin(
-          this.expr(x || 'C') * (43758.5453123 + this.progress.seed)
-        )
-        const hash = (val + 1) / 2
-        return hash
+        const val =
+          (this.expr(x || 'C') *
+            (43758.5453123 + this.progress.seeds[this.progress.curve % 100])) %
+          1
+        // const hash = (val + 1) / 2
+        return val
       },
       abs: value => Math.abs(this.expr(value)),
       peaks: (position, ...peaks) => {
@@ -408,7 +417,7 @@ export class Parser {
       {
         instance: this.utilities,
         methods: [
-          'interp',
+          'ripple',
           'repeat',
           'bepeat',
           'within',
@@ -530,6 +539,7 @@ export class Parser {
 
       this.output = defaultOutput()
       this.output.pauseAt = this.pauseAt
+      this.currentFont = 'default'
     }
     this.transformStack = []
     this.lastPoint = new AsemicPt(this as any, 0, 0)
@@ -543,7 +553,6 @@ export class Parser {
       this.progress.countNums[i] = 0
     }
     this.progress.accumIndex = 0
-    this.progress.seed = 1
   }
 
   draw() {

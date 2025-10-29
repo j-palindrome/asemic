@@ -73,6 +73,7 @@ export class TextMethods {
       const spaceIndex = /\s/.exec(content)?.index
 
       if (spaceIndex && /^[a-z]+$/.test(content.substring(0, spaceIndex))) {
+        this.resetFont(this.parser.currentFont)
         const [fontName, theseChars] = splitString(content, /\s+/)
         const charTokens = this.parser.tokenize(theseChars)
         const chars: Record<string, () => void> = {}

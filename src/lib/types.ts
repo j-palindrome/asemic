@@ -25,12 +25,12 @@ export type AsemicData = {
 }
 
 export type Transform = {
-  scale: BasicPt
-  translation: BasicPt
-  rotation: number
+  '*': BasicPt
+  '+': BasicPt
+  '@': number
   add?: string
   rotate?: string
-  width: number | (() => number)
+  w: number | (() => number)
   h: number | (() => number)
   s: number | (() => number)
   l: number | (() => number)

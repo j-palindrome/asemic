@@ -1,6 +1,5 @@
 import { last } from 'lodash'
 import { Parser, Transform } from '../../types'
-import { TransformAliases } from '../constants/Aliases'
 import { defaultTransform, cloneTransform } from '../core/Transform'
 
 export class TransformMethods {
@@ -8,17 +7,6 @@ export class TransformMethods {
 
   // Performance caches
   private regexCache = new Map<string, RegExp>()
-
-  // Pre-compiled regex patterns for common transform operations
-  private static readonly SCALE_REGEX = new RegExp(
-    `^(${TransformAliases.scale.join('|')})(.+)`
-  )
-  private static readonly ROTATION_REGEX = new RegExp(
-    `^(${TransformAliases.rotation.join('|')})(.+)`
-  )
-  private static readonly TRANSLATION_REGEX = new RegExp(
-    `^(${TransformAliases.translation.join('|')})(.+)`
-  )
   private static readonly KEY_CALL_REGEX = /^([a-zA-Z0-9_]+)(\=[\>\|]?)(.+)/
 
   constructor(parser: Parser) {
@@ -73,21 +61,19 @@ export class TransformMethods {
             }
             switch (preTransform) {
               case '*':
-                thisTransform.scale.set(targetTransform.scale ?? [1, 1])
+                thisTransform['*'].set(targetTransform['*'] ?? [1, 1])
                 break
 
               case '+':
-                thisTransform.translation.set(
-                  targetTransform.translation ?? [0, 0]
-                )
+                thisTransform['+'].set(targetTransform['+'] ?? [0, 0])
                 break
 
               case '@':
-                thisTransform.rotation = targetTransform.rotation ?? 0
+                thisTransform['@'] = targetTransform['@'] ?? 0
                 break
 
               case 'w':
-                thisTransform.width = targetTransform.width ?? 1
+                thisTransform.w = targetTransform.w ?? 1
                 break
 
               default:
@@ -99,31 +85,31 @@ export class TransformMethods {
             switch (transform) {
               case '!':
                 // Reset all transformations
-                thisTransform.scale.set([1, 1])
-                thisTransform.translation.set([0, 0])
-                thisTransform.rotation = 0
+                thisTransform['*'].set([1, 1])
+                thisTransform['+'].set([0, 0])
+                thisTransform['@'] = 0
                 thisTransform.a = 1
                 thisTransform.h = 0
                 thisTransform.s = 0
                 thisTransform.l = 1
-                thisTransform.width = 1
+                thisTransform.w = 1
                 thisTransform.add = undefined
                 thisTransform.rotate = undefined
                 break
 
               case '*!':
                 // Reset scale
-                thisTransform.scale.set([1, 1])
+                thisTransform['*'].set([1, 1])
                 break
 
               case '@!':
                 // Reset rotation
-                thisTransform.rotation = 0
+                thisTransform['@'] = 0
                 break
 
               case '+!':
                 // Reset translation
-                thisTransform.translation.set([0, 0])
+                thisTransform['+'].set([0, 0])
                 break
 
               default:
@@ -132,33 +118,24 @@ export class TransformMethods {
                   thisTransform.add = transform.substring(3)
                 } else if (transform.startsWith('@=>')) {
                   thisTransform.rotate = transform.substring(3)
-                } else if (transform.match(TransformMethods.SCALE_REGEX)) {
+                } else if (transform.startsWith('*')) {
                   // Scale - use pre-compiled regex
-                  const match = transform.match(TransformMethods.SCALE_REGEX)
-                  if (match) {
-                    thisTransform.scale.scale(this.parser.evalPoint(match[2]))
-                  }
-                } else if (transform.match(TransformMethods.ROTATION_REGEX)) {
-                  // Rotation - use pre-compiled regex
-                  const match = transform.match(TransformMethods.ROTATION_REGEX)
-                  if (match) {
-                    thisTransform.rotation += this.parser.expr(match[2])!
-                  }
-                } else if (
-                  transform.match(TransformMethods.TRANSLATION_REGEX)
-                ) {
-                  // Translation - use pre-compiled regex
-                  const match = transform.match(
-                    TransformMethods.TRANSLATION_REGEX
+
+                  thisTransform['*'].scale(
+                    this.parser.evalPoint(transform.slice(1))
                   )
-                  if (match) {
-                    thisTransform.translation.add(
-                      this.parser
-                        .evalPoint(match[2])
-                        .scale(thisTransform.scale)
-                        .rotate(thisTransform.rotation)
-                    )
-                  }
+                } else if (transform.startsWith('@')) {
+                  // Rotation - use pre-compiled regex
+
+                  thisTransform['@'] += this.parser.expr(transform.slice(1))!
+                } else if (transform.startsWith('+')) {
+                  // Translation - use pre-compiled regex
+                  thisTransform['+'].add(
+                    this.parser
+                      .evalPoint(transform.slice(1))
+                      .scale(thisTransform['*'])
+                      .rotate(thisTransform['@'])
+                  )
                 } else {
                   const keyCall = transform.match(
                     TransformMethods.KEY_CALL_REGEX
@@ -168,7 +145,6 @@ export class TransformMethods {
                     const value = keyCall[3]
                     const expression = keyCall[2] // '=' or '=>'
                     if (['h', 's', 'l', 'a', 'w'].includes(key)) {
-                      if (key === 'w') key = 'width'
                       if (expression.includes('>')) {
                         thisTransform[key] = () => this.parser.expr(value)
                       } else {
@@ -205,7 +181,7 @@ export class TransformMethods {
       transform = this.parser.currentTransform
     } = {}
   ): any => {
-    point.scale(transform.scale).rotate(transform.rotation)
+    point.scale(transform['*']).rotate(transform['@'])
 
     if (transform.rotate !== undefined && randomize) {
       point.rotate(this.parser.expr(transform.rotate))
@@ -214,11 +190,11 @@ export class TransformMethods {
       point.add(
         this.parser
           .evalPoint(transform.add)
-          .scale(transform.scale)
-          .rotate(transform.rotation)
+          .scale(transform['*'])
+          .rotate(transform['@'])
       )
     }
-    point.add(relative ? this.parser.lastPoint : transform.translation)
+    point.add(relative ? this.parser.lastPoint : transform['+'])
     return point
   }
 
@@ -226,16 +202,16 @@ export class TransformMethods {
     point: any,
     { randomize = true, transform = this.parser.currentTransform } = {}
   ): any => {
-    point.subtract(transform.translation)
+    point.subtract(transform['+'])
     if (transform.add !== undefined && randomize) {
       const addPoint = this.parser.evalPoint(transform.add)
-      addPoint.scale(transform.scale)
+      addPoint.scale(transform['*'])
       point.subtract(addPoint)
     }
     if (transform.rotate !== undefined && randomize) {
       point.rotate(this.parser.expr(transform.rotate) * -1)
     }
-    point.divide(transform.scale).rotate(transform.rotation * -1)
+    point.divide(transform['*']).rotate(transform['@'] * -1)
     return point
   }
 

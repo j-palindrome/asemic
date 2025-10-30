@@ -299,14 +299,14 @@ export class ExpressionMethods {
     const rotation = p1.clone().subtract(p0).angle0to1()
     const scale = p1.clone().subtract(p0).magnitude()
     const position = p0.clone()
-    this.parser.currentTransform.rotation = rotation
-    this.parser.currentTransform.scale.set([
+    this.parser.currentTransform['@'] = rotation
+    this.parser.currentTransform['*'].set([
       scale,
       targetHeight
-        ? this.expr(targetHeight) * this.parser.currentTransform.scale[0]
+        ? this.expr(targetHeight) * this.parser.currentTransform['*'][0]
         : scale
     ])
-    this.parser.currentTransform.translation.set([position.x, position.y])
+    this.parser.currentTransform['+'].set([position.x, position.y])
     return this.parser
   }
 

@@ -110,7 +110,7 @@ export class UtilityMethods {
           pt0.add(
             this.parser
               .evalPoint(veer)
-              .scale(this.parser.currentTransform.scale)
+              .scale(this.parser.currentTransform['*'])
               .rotate(heading - 0.25)
           )
         }
@@ -125,7 +125,7 @@ export class UtilityMethods {
             .add(
               this.parser
                 .evalPoint(veer)
-                .scale(this.parser.currentTransform.scale)
+                .scale(this.parser.currentTransform['*'])
                 .rotate(heading - 0.25)
             )
           curve.splice(j + k, 0, newPoint)
@@ -137,7 +137,7 @@ export class UtilityMethods {
         pt1.add(
           this.parser
             .evalPoint(veer)
-            .scale(this.parser.currentTransform.scale)
+            .scale(this.parser.currentTransform['*'])
             .rotate(heading - 0.25)
         )
       }

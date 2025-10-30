@@ -131,7 +131,7 @@ export class AsemicPt extends BasicPt {
       this[5] = inherit[5]
       this[6] = inherit[6]
     } else {
-      this[2] = parseFromFunction(this.parent.currentTransform.width)
+      this[2] = parseFromFunction(this.parent.currentTransform.w)
       this[3] = parseFromFunction(this.parent.currentTransform.h)
       this[4] = parseFromFunction(this.parent.currentTransform.s)
       this[5] = parseFromFunction(this.parent.currentTransform.l)

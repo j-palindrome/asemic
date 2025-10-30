@@ -2,6 +2,7 @@ import Asemic from '@/lib/Asemic'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { parserObject } from '../core/utilities'
 import { Parser } from '../Parser'
+import { last } from 'lodash'
 
 export class DrawingMethods {
   parser: Parser
@@ -50,8 +51,12 @@ export class DrawingMethods {
     this.parser.to('>')
     this.parser.remap(args[0], args[1], args[2])
     let arguably = points.replaceAll('$W', args[3] ?? '0')
-    this.parser.points(arguably)
+    this.parser.points(arguably, {
+      chopFirst: this.parser.currentCurve.length > 0
+    })
+    // if (this.parser.currentCurve.length) debugger
     if (!args[4]) this.parser.end()
+    // else this.parser.adding = true
 
     this.parser.to('<')
   }

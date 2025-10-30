@@ -5,14 +5,12 @@ import { defaultSettings, splitString } from '../settings'
 import { AsemicData, Transform } from '../types'
 import { defaultPreProcess, lerp } from '../utils'
 import defaultFont from '@/lib/defaultFont.asemic?raw'
+const ONE_FRAME = 1 / 60
 
 // Core classes
 import { AsemicGroup } from './core/AsemicGroup'
 import { defaultOutput } from './core/Output'
 import { cloneTransform, defaultTransform } from './core/Transform'
-
-// Constants
-import { ONE_FRAME } from './constants/Aliases'
 
 // Method classes
 import { DataMethods } from './methods/Data'
@@ -151,7 +149,7 @@ export class Parser {
       },
       table: (name, point, channel) => {
         const imageName = typeof name === 'string' ? name : String(name)
-        return this.table(imageName, point, channel)
+        return this.table(imageName, point as string, channel as string)
       },
       '?': (...args) => {
         const [condition, trueValue, falseValue] = args.map(x =>
@@ -269,7 +267,9 @@ export class Parser {
       bell: (range0to1, closeness) => {
         const x = this.expr(range0to1)
         if (!closeness) closeness = '1'
-        return (this.hash(x) > 0.5 ? 1 : -1) * x ** this.expr(closeness)
+        return (
+          (this.constants['#']() > 0.5 ? 1 : -1) * x ** this.expr(closeness)
+        )
       },
       tangent: (progress, curve) => {
         let lastCurve: AsemicPt[]
@@ -610,7 +610,7 @@ export class Parser {
       const str = x.toFixed(2)
       return str
     }
-    const allCurves = this.groups.flat().concat([this.currentCurve])
+    const allCurves = this.groups.flat()
     const c = allCurves
       .slice(slice)
       .map(
@@ -633,7 +633,7 @@ export class Parser {
   }
 
   setup(source: string) {
-    this.progress.seed = Math.random()
+    this.progress.seeds = range(100).map(x => Math.random())
     this.fonts = {}
     this.totalLength = 0
     this.text(defaultFont)
@@ -653,18 +653,6 @@ export class Parser {
 
     this.noiseTable = {}
 
-    return this
-  }
-
-  hash = (n: number): number => {
-    // Convert to string, multiply by a prime number, and take the fractional part
-    const val = Math.sin(n) * (43758.5453123 + this.progress.seed)
-    return Math.abs(val - Math.floor(val)) // Return the fractional part (0-1)
-  }
-
-  seed(seed: number | string) {
-    const newSeed = seed ? this.expr(seed) : Math.random()
-    this.progress.seed = newSeed
     return this
   }
 

@@ -2,10 +2,10 @@ import { BasicPt } from '../../blocks/AsemicPt'
 import { Transform } from '../../types'
 
 export const defaultTransform: () => Transform = () => ({
-  translation: new BasicPt(0, 0),
-  scale: new BasicPt(1, 1),
-  rotation: 0,
-  width: 1,
+  '+': new BasicPt(0, 0),
+  '*': new BasicPt(1, 1),
+  '@': 0,
+  w: 1,
   h: 0,
   s: 0,
   l: 1,

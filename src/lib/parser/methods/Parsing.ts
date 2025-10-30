@@ -202,9 +202,9 @@ export class ParsingMethods {
     let point = thisPoint as string
 
     if (point === '<') {
-      return this.parser.lastPoint.clone(basic) as K extends true
-        ? BasicPt
-        : AsemicPt
+      return this.parser.reverseTransform(
+        this.parser.lastPoint.clone(basic)
+      ) as K extends true ? BasicPt : AsemicPt
     }
     if (point.startsWith('(') && point.endsWith(')')) {
       const sliced = point.substring(1, point.length - 1)
@@ -326,7 +326,7 @@ export class ParsingMethods {
     return this.parser
   }
 
-  points(token: string) {
+  points(token: string, { chopFirst = false } = {}) {
     const pointsTokens = this.parser.tokenize(token)
 
     let totalLength =
@@ -336,6 +336,9 @@ export class ParsingMethods {
     const originalEnd = this.parser.adding
     this.parser.adding += totalLength
     pointsTokens.forEach((pointToken: string, i: number) => {
+      if (chopFirst && i === 0) {
+        return
+      }
       if (pointToken === '<') {
         return
       }

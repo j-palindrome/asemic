@@ -1,6 +1,7 @@
 import { last } from 'lodash'
 import { Parser, Transform } from '../../types'
-import { defaultTransform, cloneTransform } from '../core/Transform'
+import { cloneTransform } from '../core/Transform'
+import { BasicPt } from '@/lib/blocks/AsemicPt'
 
 export class TransformMethods {
   parser: Parser
@@ -13,14 +14,46 @@ export class TransformMethods {
     this.parser = parser
   }
 
+  defaultTransform: () => Transform = () => ({
+    '+': new BasicPt(0, 0),
+    '*': new BasicPt(1, 1),
+    '@': 0,
+    w: () => this.parser.expressions.expr('px1'),
+    h: 0,
+    s: 0,
+    l: 1,
+    a: 1
+  })
+
   to(token: string) {
     this.parseTransform(token, { thisTransform: this.parser.currentTransform })
     return this.parser
   }
 
-  parseTransform(token: string, { thisTransform = defaultTransform() } = {}) {
+  remap(origin: string, x1y0: string, targetHeight: string | number) {
+    const p0 = this.parser.parsing.parsePoint(origin)
+    const p1 = this.parser.parsing.parsePoint(x1y0)
+    const rotation = p1.clone().subtract(p0).angle0to1()
+    const scale = p1.clone().subtract(p0).magnitude()
+    const position = p0.clone()
+    this.parser.currentTransform['@'] = rotation
+    this.parser.currentTransform['*'].set([
+      scale,
+      targetHeight
+        ? this.parser.expressions.expr(targetHeight) *
+          this.parser.currentTransform['*'][0]
+        : scale
+    ])
+    this.parser.currentTransform['+'].set([position.x, position.y])
+    return this.parser
+  }
+
+  parseTransform(
+    token: string,
+    { thisTransform = this.defaultTransform() } = {}
+  ) {
     token = token.trim()
-    const transforms = this.parser.tokenize(token)
+    const transforms = this.parser.parsing.tokenize(token)
 
     for (let transform of transforms) {
       // Check for special character prefixes first
@@ -122,16 +155,18 @@ export class TransformMethods {
                   // Scale - use pre-compiled regex
 
                   thisTransform['*'].scale(
-                    this.parser.evalPoint(transform.slice(1))
+                    this.parser.parsing.evalPoint(transform.slice(1))
                   )
                 } else if (transform.startsWith('@')) {
                   // Rotation - use pre-compiled regex
 
-                  thisTransform['@'] += this.parser.expr(transform.slice(1))!
+                  thisTransform['@'] += this.parser.expressions.expr(
+                    transform.slice(1)
+                  )!
                 } else if (transform.startsWith('+')) {
                   // Translation - use pre-compiled regex
                   thisTransform['+'].add(
-                    this.parser
+                    this.parser.parsing
                       .evalPoint(transform.slice(1))
                       .scale(thisTransform['*'])
                       .rotate(thisTransform['@'])
@@ -146,17 +181,20 @@ export class TransformMethods {
                     const expression = keyCall[2] // '=' or '=>'
                     if (['h', 's', 'l', 'a', 'w'].includes(key)) {
                       if (expression.includes('>')) {
-                        thisTransform[key] = () => this.parser.expr(value)
+                        thisTransform[key] = () =>
+                          this.parser.expressions.expr(value)
                       } else {
-                        thisTransform[key] = this.parser.expr(value)
+                        thisTransform[key] = this.parser.expressions.expr(value)
                       }
                     } else {
                       switch (expression) {
                         case '=':
-                          this.parser.def(key, value, { isStatic: true })
+                          this.parser.expressions.def(key, value, {
+                            isStatic: true
+                          })
                           break
                         case '=>':
-                          this.parser.def(key, value)
+                          this.parser.expressions.def(key, value)
                           break
                       }
                     }
@@ -184,11 +222,11 @@ export class TransformMethods {
     point.scale(transform['*']).rotate(transform['@'])
 
     if (transform.rotate !== undefined && randomize) {
-      point.rotate(this.parser.expr(transform.rotate))
+      point.rotate(this.parser.expressions.expr(transform.rotate))
     }
     if (transform.add !== undefined && randomize) {
       point.add(
-        this.parser
+        this.parser.parsing
           .evalPoint(transform.add)
           .scale(transform['*'])
           .rotate(transform['@'])
@@ -204,12 +242,12 @@ export class TransformMethods {
   ): any => {
     point.subtract(transform['+'])
     if (transform.add !== undefined && randomize) {
-      const addPoint = this.parser.evalPoint(transform.add)
+      const addPoint = this.parser.parsing.evalPoint(transform.add)
       addPoint.scale(transform['*'])
       point.subtract(addPoint)
     }
     if (transform.rotate !== undefined && randomize) {
-      point.rotate(this.parser.expr(transform.rotate) * -1)
+      point.rotate(this.parser.expressions.expr(transform.rotate) * -1)
     }
     point.divide(transform['*']).rotate(transform['@'] * -1)
     return point

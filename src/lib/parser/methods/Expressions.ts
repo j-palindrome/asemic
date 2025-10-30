@@ -196,7 +196,7 @@ export class ExpressionMethods {
     } else {
       const solveSplitResult = (splitResult: typeof splitResult2) => {
         if (splitResult.find(x => x.operatorType === ' ')) {
-          const args: string[] = this.parser.tokenize(
+          const args: string[] = this.parser.parsing.tokenize(
             splitResult
               .slice(1)
               .map(x => x.operatorType + x.string)
@@ -276,84 +276,35 @@ export class ExpressionMethods {
     }
   }
 
-  choose(value: string | number, ...callbacks: string[]) {
-    const normalizedValue = this.expr(value)
-    const numCallbacks = callbacks.length
-
-    if (numCallbacks === 0) return this.parser
-
-    // Call the selected callback
-    const rememberedValue = Math.floor(normalizedValue * numCallbacks * 0.99999)
-    if (callbacks[rememberedValue]) {
-      this.parser.text(callbacks[rememberedValue])
-    } else {
-      throw new Error(`Remembered value not valid: ${rememberedValue}`)
-    }
-
-    return this.parser
-  }
-
-  remap(origin: string, x1y0: string, targetHeight: string | number) {
-    const p0 = this.parser.parsePoint(origin)
-    const p1 = this.parser.parsePoint(x1y0)
-    const rotation = p1.clone().subtract(p0).angle0to1()
-    const scale = p1.clone().subtract(p0).magnitude()
-    const position = p0.clone()
-    this.parser.currentTransform['@'] = rotation
-    this.parser.currentTransform['*'].set([
-      scale,
-      targetHeight
-        ? this.expr(targetHeight) * this.parser.currentTransform['*'][0]
-        : scale
-    ])
-    this.parser.currentTransform['+'].set([position.x, position.y])
-    return this.parser
-  }
-
   def(key: string, definition: string, { isStatic = false } = {}) {
     if (this.parser.reservedConstants.includes(key)) {
       throw new Error(`Reserved constant: ${key}`)
     }
 
-    const values = this.parser.tokenize(definition, { separatePoints: true })
+    const values = this.parser.parsing.tokenize(definition, {
+      separatePoints: true
+    })
     if (values.length > 1) {
       if (isStatic) {
-        const solvedValues = values.map(x => this.parser.expr(x))
+        const solvedValues = values.map(x => this.parser.expressions.expr(x))
         this.parser.constants[key] = i =>
-          solvedValues[Math.floor(this.parser.expr(i))]
+          solvedValues[Math.floor(this.parser.expressions.expr(i))]
       } else {
         this.parser.constants[key] = i =>
-          this.parser.expr(values[Math.floor(this.parser.expr(i))])
+          this.parser.expressions.expr(
+            values[Math.floor(this.parser.expressions.expr(i))]
+          )
       }
     } else {
       if (isStatic) {
         const solvedDefinition = this.expr(definition)
         this.parser.constants[key] = () => solvedDefinition
       } else {
-        this.parser.constants[key] = i => this.parser.expr(definition)
+        this.parser.constants[key] = i =>
+          this.parser.expressions.expr(definition)
       }
     }
 
-    return this.parser
-  }
-
-  defCollect(key: string, amount: string, callback: string) {
-    const array: number[] = []
-    if (typeof callback !== 'string')
-      throw new Error('defCollect: callback must be a string')
-    this.parser.repeat(amount, () => {
-      array.push(this.parser.expr(callback))
-    })
-    this.parser.constants[key] = i => {
-      const index = this.parser.expr(i)
-      if (index === Math.floor(index)) return array[index]
-      else
-        return lerp(
-          array[Math.floor(index)],
-          array[index > array.length - 1 ? 0 : Math.ceil(index)],
-          index % 1
-        )
-    }
     return this.parser
   }
 }

@@ -10,7 +10,6 @@ const ONE_FRAME = 1 / 60
 // Core classes
 import { AsemicGroup } from './core/AsemicGroup'
 import { defaultOutput } from './core/Output'
-import { cloneTransform, defaultTransform } from './core/Transform'
 
 // Method classes
 import { DataMethods } from './methods/Data'
@@ -37,7 +36,7 @@ export class Parser {
   settings = defaultSettings()
   static defaultSettings = defaultSettings()
   currentCurve: AsemicPt[] = []
-  currentTransform: Transform = defaultTransform()
+  currentTransform: Transform
   transformStack: Transform[] = []
   namedTransforms: Record<string, Transform> = {}
   totalLength = 0
@@ -82,20 +81,22 @@ export class Parser {
       if (thisN === undefined) {
         lastCurve = this.currentCurve
       } else {
-        const exprN = this.expr(thisN)
+        const exprN = this.expressions.expr(thisN)
         lastCurve =
           this.groups[groupIndex][
             exprN < 0 ? this.groups[groupIndex].length + exprN : exprN
           ]
         if (!lastCurve) throw new Error(`No curve at ${thisN} - ${exprN}`)
       }
-      return this.reverseTransform(
+      return this.transformMethods.reverseTransform(
         this.pointConstants['>'](pointN as any, ...(lastCurve as any[]))
       )
     },
     '>': (progress, ...points) => {
-      const exprPoints = points.map(x => this.evalPoint(x, { basic: true }))
-      let exprFade = this.expr(progress)
+      const exprPoints = points.map(x =>
+        this.parsing.evalPoint(x, { basic: true })
+      )
+      let exprFade = this.expressions.expr(progress)
       if (exprFade >= 1) exprFade = 0.999
       else if (exprFade < 0) exprFade = 0
       if (exprPoints.length === 2) {
@@ -106,18 +107,18 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
-      '-': x => -1 * this.expr(x),
+      '-': x => -1 * this.expressions.expr(x),
       N: (index = '0') => {
         if (!index) index = '0'
-        return this.progress.countNums[this.expr(index)]
+        return this.progress.countNums[this.expressions.expr(index)]
       },
       I: index => {
         if (!index) index = '0'
-        return this.progress.indexes[this.expr(index)]
+        return this.progress.indexes[this.expressions.expr(index)]
       },
       i: index => {
         if (!index) index = '0'
-        const solveIndex = Math.floor(this.expr(index))
+        const solveIndex = Math.floor(this.expressions.expr(index))
         // if (this.progress.scene === 12) debugger
         return (
           this.progress.indexes[solveIndex] /
@@ -125,43 +126,43 @@ export class Parser {
         )
       },
       T: x => {
-        return this.progress.time * (x ? this.expr(x) : 1)
+        return this.progress.time * (x ? this.expressions.expr(x) : 1)
       },
       '!': continuing => {
-        const continuingSolved = this.expr(continuing)
+        const continuingSolved = this.expressions.expr(continuing)
         return continuingSolved ? 0 : 1
       },
       H: number =>
         (this.preProcessing.height / this.preProcessing.width) *
-        (number ? this.expr(number) : 1),
+        (number ? this.expressions.expr(number) : 1),
       S: () => this.progress.scrub,
       C: () => this.progress.curve,
       L: () => this.progress.letter,
       P: () => this.progress.point,
-      px: (i = 1) => (1 / this.preProcessing.width) * this.expr(i),
+      px: (i = 1) => (1 / this.preProcessing.width) * this.expressions.expr(i),
       sin: x => {
-        const result = Math.sin(this.expr(x) * Math.PI * 2)
+        const result = Math.sin(this.expressions.expr(x) * Math.PI * 2)
         return result
       },
       PHI: x => {
-        const result = Math.pow(1.6180339887, this.expr(x || '1'))
+        const result = Math.pow(1.6180339887, this.expressions.expr(x || '1'))
         return result
       },
       table: (name, point, channel) => {
         const imageName = typeof name === 'string' ? name : String(name)
-        return this.table(imageName, point as string, channel as string)
+        return this.data.table(imageName, point as string, channel as string)
       },
       '?': (...args) => {
         const [condition, trueValue, falseValue] = args.map(x =>
-          this.expr(x || '0')
+          this.expressions.expr(x || '0')
         )
         return condition > 0 ? trueValue : falseValue ?? 0
       },
       '>': (...args) => {
-        let exprFade = this.expr(args[0])
+        let exprFade = this.expressions.expr(args[0])
         if (exprFade >= 1) exprFade = 0.999
         else if (exprFade < 0) exprFade = 0
-        const exprPoints = [...args.slice(1)].map(x => this.expr(x))
+        const exprPoints = [...args.slice(1)].map(x => this.expressions.expr(x))
 
         let index = (exprPoints.length - 1) * exprFade
 
@@ -172,25 +173,25 @@ export class Parser {
         )
       },
       '<>': (...args) => {
-        const progress = this.expr(args[0])
-        const spread = this.expr(args[1] || '1')
-        const center = this.expr(args[2] || '0.5')
+        const progress = this.expressions.expr(args[0])
+        const spread = this.expressions.expr(args[1] || '1')
+        const center = this.expressions.expr(args[2] || '0.5')
         const max = center + spread / 2
         const min = center - spread / 2
         return progress * (max - min) + min
       },
       choose: (...args) => {
-        const index = Math.floor(this.expr(args[0]))
+        const index = Math.floor(this.expressions.expr(args[0]))
         const savedArgs = args.slice(1)
         if (index < 0 || index >= savedArgs.length) {
           throw new Error(
             `Choose index out of range for args, ${args.join(' ')}: ${index}`
           )
         }
-        return this.expr(savedArgs[Math.floor(index)])
+        return this.expressions.expr(savedArgs[Math.floor(index)])
       },
       fib: x => {
-        const n = Math.floor(this.expr(x))
+        const n = Math.floor(this.expressions.expr(x))
         if (n <= 0) return 0
         if (n === 1) return 1
         let a = 0,
@@ -204,7 +205,7 @@ export class Parser {
         return b
       },
       mix: (...args) => {
-        return sumBy(args.map(x => this.expr(x))) / args.length
+        return sumBy(args.map(x => this.expressions.expr(x))) / args.length
       },
       sah: (val1, val2) => {
         const currentValue = `${this.progress.scene}:${this.progress.noiseIndex}`
@@ -226,8 +227,8 @@ export class Parser {
           }
         }
         this.progress.noiseIndex++
-        const val1e = this.expr(val1)
-        const val2e = this.expr(val2)
+        const val1e = this.expressions.expr(val1)
+        const val2e = this.expressions.expr(val2)
         return this.noiseTable[currentValue].noise(val1e, val2e)
       },
       '~': (...fms) => {
@@ -235,7 +236,7 @@ export class Parser {
         if (!this.noiseTable[currentValue]) {
           if (!fms[0]) fms[0] = '1+#,#'
           const fmCurve = fms.map((token, i) => {
-            return this.evalPoint(token, {
+            return this.parsing.evalPoint(token, {
               basic: true,
               defaultY: i === 0 ? Math.random() : 1
             })
@@ -248,7 +249,7 @@ export class Parser {
             value: 0,
             noise: t => {
               t = t + phase
-              let globalSpeed = this.expr(freq)
+              let globalSpeed = this.expressions.expr(freq)
               let frequ = globalSpeed * t
               for (let i = 1; i < fmCurve.length; i++) {
                 const [freqMod, mod] = fmCurve[i]
@@ -265,10 +266,11 @@ export class Parser {
         return noise
       },
       bell: (range0to1, closeness) => {
-        const x = this.expr(range0to1)
+        const x = this.expressions.expr(range0to1)
         if (!closeness) closeness = '1'
         return (
-          (this.constants['#']() > 0.5 ? 1 : -1) * x ** this.expr(closeness)
+          (this.constants['#']() > 0.5 ? 1 : -1) *
+          x ** this.expressions.expr(closeness)
         )
       },
       tangent: (progress, curve) => {
@@ -276,7 +278,7 @@ export class Parser {
         if (!curve) {
           lastCurve = this.currentCurve
         } else {
-          const exprN = this.expr(curve)
+          const exprN = this.expressions.expr(curve)
           lastCurve =
             this.groups[this.groups.length - 1][
               exprN < 0
@@ -289,7 +291,7 @@ export class Parser {
           return 0
         }
 
-        let exprFade = this.expr(progress)
+        let exprFade = this.expressions.expr(progress)
         if (exprFade >= 1) exprFade = 0.999
         else if (exprFade < 0) exprFade = 0
 
@@ -326,18 +328,18 @@ export class Parser {
       },
       '#': x => {
         const val =
-          (this.expr(x || 'C') *
+          (this.expressions.expr(x || 'C') *
             (43758.5453123 + this.progress.seeds[this.progress.curve % 100])) %
           1
         // const hash = (val + 1) / 2
         return val
       },
-      abs: value => Math.abs(this.expr(value)),
+      abs: value => Math.abs(this.expressions.expr(value)),
       peaks: (position, ...peaks) => {
         const values = peaks.map(p =>
-          this.evalPoint(p, { basic: true, defaultY: 1 })
+          this.parsing.evalPoint(p, { basic: true, defaultY: 1 })
         )
-        const pos = this.expr(position)
+        const pos = this.expressions.expr(position)
         for (let value of values) {
           if (Math.abs(pos - value[0]) < value[1])
             return 1 - Math.abs(pos - value[0]) / value[1]
@@ -362,15 +364,15 @@ export class Parser {
   preProcessing = defaultPreProcess()
 
   // Method instances
-  private expressions: ExpressionMethods
-  private drawing: DrawingMethods
-  private transformMethods: TransformMethods
-  private textMethods: TextMethods
-  private utilities: UtilityMethods
-  private scenes: SceneMethods
-  private oscMethods: OSCMethods
-  private parsing: ParsingMethods
-  private data: DataMethods
+  expressions: ExpressionMethods
+  drawing: DrawingMethods
+  transformMethods: TransformMethods
+  textMethods: TextMethods
+  utilities: UtilityMethods
+  scenes: SceneMethods
+  oscMethods: OSCMethods
+  parsing: ParsingMethods
+  data: DataMethods
 
   constructor(additionalConstants: Parser['constants'] = {}) {
     for (let key of Object.keys(additionalConstants)) {
@@ -390,131 +392,6 @@ export class Parser {
     this.oscMethods = new OSCMethods(this)
     this.parsing = new ParsingMethods(this)
     this.data = new DataMethods(this)
-
-    // Mix in methods to maintain backward compatibility
-    this.mixinMethods()
-  }
-
-  private mixinMethods() {
-    // Procedurally bind all methods from method classes
-    const methodClasses = [
-      {
-        instance: this.expressions,
-        methods: ['expr', 'choose', 'def', 'remap', 'defCollect']
-      },
-      {
-        instance: this.drawing,
-        methods: ['c3', 'c4', 'c5', 'c6', 'circle']
-      },
-      {
-        instance: this.transformMethods,
-        methods: ['to', 'parseTransform', 'applyTransform', 'reverseTransform']
-      },
-      {
-        instance: this.textMethods,
-        methods: ['text', 'resetFont', 'keys', 'regex', 'parse', 'linden']
-      },
-      {
-        instance: this.utilities,
-        methods: [
-          'ripple',
-          'repeat',
-          'bepeat',
-          'within',
-          'align',
-          'alignX',
-          'add',
-          'getBounds',
-          'if'
-        ]
-      },
-      {
-        instance: this.scenes,
-        methods: ['scene', 'play', 'param', 'preset', 'toPreset', 'scrub']
-      },
-      {
-        instance: this.oscMethods,
-        methods: ['osc', 'sc', 'synth', 'file']
-      },
-      {
-        instance: this.parsing,
-        methods: [
-          'tokenize',
-          'parsePoint',
-          'parseArgs',
-          'evalPoint',
-          'group',
-          'end',
-          'points'
-        ]
-      },
-      {
-        instance: this.data,
-        methods: ['loadFiles', 'table', 'resolveName']
-      }
-    ]
-
-    methodClasses.forEach(({ instance, methods }) => {
-      methods.forEach(method => {
-        ;(this as any)[method] = (instance as any)[method].bind(instance)
-      })
-    })
-  }
-
-  // Method declarations for TypeScript compatibility
-  expr!: ExpressionMethods['expr']
-  choose!: ExpressionMethods['choose']
-  def!: ExpressionMethods['def']
-  remap!: ExpressionMethods['remap']
-  defCollect!: ExpressionMethods['defCollect']
-
-  to!: TransformMethods['to']
-  parseTransform!: TransformMethods['parseTransform']
-  applyTransform!: TransformMethods['applyTransform']
-  reverseTransform!: TransformMethods['reverseTransform']
-
-  text!: TextMethods['text']
-  parse!: TextMethods['parse']
-  resetFont!: TextMethods['resetFont']
-  keys!: TextMethods['keys']
-  regex!: TextMethods['regex']
-  linden!: TextMethods['linden']
-
-  repeat!: UtilityMethods['repeat']
-  bepeat!: UtilityMethods['bepeat']
-  within!: UtilityMethods['within']
-  align!: UtilityMethods['align']
-  alignX!: UtilityMethods['alignX']
-  add!: UtilityMethods['add']
-  getBounds!: UtilityMethods['getBounds']
-  if!: UtilityMethods['if']
-
-  scene!: SceneMethods['scene']
-  play!: SceneMethods['play']
-  param!: SceneMethods['param']
-  preset!: SceneMethods['preset']
-  toPreset!: SceneMethods['toPreset']
-  scrub!: SceneMethods['scrub']
-
-  oscMethod!: OSCMethods['osc']
-  sc!: OSCMethods['sc']
-  synth!: OSCMethods['synth']
-  file!: OSCMethods['file']
-
-  tokenize!: ParsingMethods['tokenize']
-  parsePoint!: ParsingMethods['parsePoint']
-  parseArgs!: ParsingMethods['parseArgs']
-  evalPoint!: ParsingMethods['evalPoint']
-  group!: ParsingMethods['group']
-  end!: ParsingMethods['end']
-  points!: ParsingMethods['points']
-
-  loadFiles!: DataMethods['loadFiles']
-  table!: DataMethods['table']
-  resolveName!: DataMethods['resolveName']
-
-  osc(args: string) {
-    return this.oscMethod(args)
   }
 
   getDynamicValue(value: number | (() => number)) {
@@ -542,8 +419,8 @@ export class Parser {
       this.currentFont = 'default'
     }
     this.transformStack = []
+    this.currentTransform = this.transformMethods.defaultTransform()
     this.lastPoint = new AsemicPt(this as any, 0, 0)
-    this.currentTransform = defaultTransform()
     this.currentCurve = []
     this.currentFont = 'default'
     this.progress.point = 0
@@ -591,13 +468,13 @@ export class Parser {
           }
         }
         // object.draw()
-        try {
-          object.draw()
-        } catch (e) {
-          this.error(
-            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-          )
-        }
+        // try {
+        object.draw()
+        // } catch (e) {
+        //   this.error(
+        //     `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+        //   )
+        // }
       }
       i++
     }
@@ -636,17 +513,17 @@ export class Parser {
     this.progress.seeds = range(100).map(x => Math.random())
     this.fonts = {}
     this.totalLength = 0
-    this.text(defaultFont)
+    this.textMethods.text(defaultFont)
 
     this.settings = defaultSettings()
     this.sceneList = []
     this.rawSource = source
-    for (let font in this.fonts) this.resetFont(font)
+    for (let font in this.fonts) this.textMethods.resetFont(font)
 
     this.output.resetParams = true
     this.output.resetPresets = true
     // try {
-    this.parse(source)
+    this.textMethods.parse(source)
     // } catch (e: any) {
     //   console.error(e)
     // }
@@ -655,8 +532,6 @@ export class Parser {
 
     return this
   }
-
-  cloneTransform = cloneTransform
 
   get duration() {
     return this.totalLength

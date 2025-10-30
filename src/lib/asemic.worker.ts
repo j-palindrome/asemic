@@ -56,11 +56,11 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     Object.assign(parser.live, ev.data.live)
   }
   if (!isUndefined(ev.data.play)) {
-    parser.play(ev.data.play)
+    parser.scenes.play(ev.data.play)
     self.postMessage({ osc: parser.output.osc } as Partial<Parser['output']>)
   }
   if (!isUndefined(ev.data.scrub)) {
-    parser.scrub(ev.data.scrub)
+    parser.scenes.scrub(ev.data.scrub)
   }
   if (!isUndefined(ev.data.params)) {
     parser.params = { ...parser.params, ...ev.data.params }
@@ -69,7 +69,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     parser.presets = { ...parser.presets, ...ev.data.presets }
   }
   if (!isUndefined(ev.data.loadFiles)) {
-    parser.loadFiles(ev.data.loadFiles)
+    parser.data.loadFiles(ev.data.loadFiles)
   }
   if (!isUndefined(ev.data.source)) {
     if (animationFrame) {

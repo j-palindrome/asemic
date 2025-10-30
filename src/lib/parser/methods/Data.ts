@@ -25,13 +25,13 @@ export class DataMethods {
    * @returns Normalized pixel value (0-1)
    */
   table(name: string, coord: string, channel: string = 'brightness'): number {
-    const [x, y] = this.parser.evalPoint(coord, { basic: true })
+    const [x, y] = this.parser.parsing.evalPoint(coord, { basic: true })
 
     // First try to get from images cache (ImageBitmap[])
-    const bitmaps = this.parser.images[this.parser.resolveName(name)]
+    const bitmaps = this.parser.images[this.parser.data.resolveName(name)]
     if (!bitmaps) {
       throw new Error(
-        `Data is not available for ${this.parser.resolveName(name)}`
+        `Data is not available for ${this.parser.data.resolveName(name)}`
       )
     }
     // Use progress or time to select frame for videos

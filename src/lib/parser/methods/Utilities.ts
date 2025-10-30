@@ -1,6 +1,5 @@
 import { splitString } from '@/lib/settings'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
-import { CACHED } from '../constants/ExpressionConstants'
 import { Parser } from '../Parser'
 import { getHeadingAt } from '../core/utilities'
 
@@ -9,6 +8,23 @@ export class UtilityMethods {
 
   constructor(parser: Parser) {
     this.parser = parser
+  }
+
+  choose(value: string | number, ...callbacks: string[]) {
+    const normalizedValue = this.parser.expressions.expr(value)
+    const numCallbacks = callbacks.length
+
+    if (numCallbacks === 0) return this.parser
+
+    // Call the selected callback
+    const rememberedValue = Math.floor(normalizedValue * numCallbacks * 0.99999)
+    if (callbacks[rememberedValue]) {
+      this.parser.textMethods.text(callbacks[rememberedValue])
+    } else {
+      throw new Error(`Remembered value not valid: ${rememberedValue}`)
+    }
+
+    return this.parser
   }
 
   getBounds(fromCurve: number, toCurve?: number) {
@@ -51,9 +67,9 @@ export class UtilityMethods {
     { backwards = true },
     ...callbacks: ((() => void) | string)[]
   ) {
-    const counts = this.parser
+    const counts = this.parser.parsing
       .tokenize(count, { separatePoints: true })
-      .map((x: string) => this.parser.expr(x))
+      .map((x: string) => this.parser.expressions.expr(x))
 
     if (callbacks.length > counts.length)
       throw new Error(
@@ -69,7 +85,7 @@ export class UtilityMethods {
         if (typeof callbacks[index] === 'function') {
           callbacks[index]()
         } else if (typeof callbacks[index] === 'string') {
-          this.parser.text(callbacks[index])
+          this.parser.textMethods.text(callbacks[index])
         }
 
         if (index + 1 < counts.length) {
@@ -86,14 +102,14 @@ export class UtilityMethods {
   }
 
   ripple(count: string, veer: string, callback: (() => void) | string) {
-    if (!this.parser.groups.length) this.parser.group()
+    if (!this.parser.groups.length) this.parser.parsing.group()
     const activeGroup = this.parser.groups[this.parser.groups.length - 1]
     const currentLength = activeGroup.length
-    const countNum = this.parser.expr(count)
+    const countNum = this.parser.expressions.expr(count)
     if (typeof callback === 'function') {
       callback()
     } else {
-      this.parser.text(callback)
+      this.parser.textMethods.text(callback)
     }
     for (let i = currentLength; i < activeGroup.length; i++) {
       const curve = activeGroup[i]
@@ -108,7 +124,7 @@ export class UtilityMethods {
           this.parser.progress.point = 0
           // debugger
           pt0.add(
-            this.parser
+            this.parser.parsing
               .evalPoint(veer)
               .scale(this.parser.currentTransform['*'])
               .rotate(heading - 0.25)
@@ -123,7 +139,7 @@ export class UtilityMethods {
             .clone(true)
             .lerp(pt1, t)
             .add(
-              this.parser
+              this.parser.parsing
                 .evalPoint(veer)
                 .scale(this.parser.currentTransform['*'])
                 .rotate(heading - 0.25)
@@ -135,7 +151,7 @@ export class UtilityMethods {
           (j + 1) / countNum / (currentLength - 1 || 1)
 
         pt1.add(
-          this.parser
+          this.parser.parsing
             .evalPoint(veer)
             .scale(this.parser.currentTransform['*'])
             .rotate(heading - 0.25)
@@ -145,23 +161,23 @@ export class UtilityMethods {
   }
 
   if(value: string, ifTrue?: string, ifFalse?: string) {
-    const exprValue = this.parser.expr(value)
+    const exprValue = this.parser.expressions.expr(value)
     if (exprValue && ifTrue) {
-      this.parser.text(ifTrue)
+      this.parser.textMethods.text(ifTrue)
     } else if (ifFalse) {
-      this.parser.text(ifFalse)
+      this.parser.textMethods.text(ifFalse)
     }
   }
 
   cinterp(count: string, callback: (() => void) | string) {
-    if (!this.parser.groups.length) this.parser.group()
+    if (!this.parser.groups.length) this.parser.parsing.group()
     const activeGroup = this.parser.groups[this.parser.groups.length - 1]
     const currentLength = activeGroup.length
-    const countNum = this.parser.expr(count)
+    const countNum = this.parser.expressions.expr(count)
     if (typeof callback === 'function') {
       callback()
     } else {
-      this.parser.text(callback)
+      this.parser.textMethods.text(callback)
     }
     for (let i = currentLength; i < activeGroup.length; i++) {
       const curve = activeGroup[i]
@@ -178,12 +194,12 @@ export class UtilityMethods {
   }
 
   within(coord0, coord1, callback: (() => void) | string) {
-    const [x, y] = this.parser.parsePoint(coord0)
-    const [x2, y2] = this.parser.parsePoint(coord1)
+    const [x, y] = this.parser.parsing.parsePoint(coord0)
+    const [x2, y2] = this.parser.parsing.parsePoint(coord1)
     const startGroup = this.parser.groups.length
     if (typeof callback === 'function') callback()
-    else this.parser.text(callback)
-    const [minX, minY, maxX, maxY] = this.parser.getBounds(startGroup)
+    else this.parser.textMethods.text(callback)
+    const [minX, minY, maxX, maxY] = this.parser.utilities.getBounds(startGroup)
     const newWidth = x2 - x
     const newHeight = y2 - y
     const oldWidth = maxX! - minX!
@@ -217,20 +233,21 @@ export class UtilityMethods {
     type: string,
     ...callbacks: (string | (() => void))[]
   ) {
-    const centerX = this.parser.expr(coords)
-    const alignX = this.parser.expr(type)
+    const centerX = this.parser.expressions.expr(coords)
+    const alignX = this.parser.expressions.expr(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group()
+      this.parser.parsing.group()
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
 
     for (let callback of callbacks) {
       const startCurve = lastGroup.length
-      if (typeof callback === 'string') this.parser.text(callback)
+      if (typeof callback === 'string') this.parser.textMethods.text(callback)
       else callback()
       const addedGroups = lastGroup.slice(startCurve)
-      const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)
+      const [minX, minY, maxX, maxY] =
+        this.parser.utilities.getBounds(startCurve)
       const change = new BasicPt(maxX - minX, 0).scale([alignX, 1])
       for (const group of addedGroups) {
         for (const pt of group.flat()) {
@@ -242,21 +259,21 @@ export class UtilityMethods {
   }
 
   align(coords: string, type: string, callback: string | (() => void)) {
-    const [centerX, centerY] = this.parser.parsePoint(coords)
-    const [alignX, alignY] = this.parser.evalPoint(type)
+    const [centerX, centerY] = this.parser.parsing.parsePoint(coords)
+    const [alignX, alignY] = this.parser.parsing.evalPoint(type)
     let lastGroup = this.parser.groups[this.parser.groups.length - 1]
     if (!lastGroup) {
-      this.parser.group()
+      this.parser.parsing.group()
       lastGroup = this.parser.groups[this.parser.groups.length - 1]
     }
     const startCurve = lastGroup.length
 
-    if (typeof callback === 'string') this.parser.text(callback)
+    if (typeof callback === 'string') this.parser.textMethods.text(callback)
     else callback()
 
     const addedGroups = lastGroup.slice(startCurve)
 
-    const [minX, minY, maxX, maxY] = this.parser.getBounds(startCurve)
+    const [minX, minY, maxX, maxY] = this.parser.utilities.getBounds(startCurve)
     const change = new BasicPt(maxX - minX, maxY - minY).scale([alignX, alignY])
 
     for (const group of addedGroups) {
@@ -269,13 +286,13 @@ export class UtilityMethods {
   }
 
   add(point: string, callback: string | (() => void)) {
-    if (!this.parser.groups.length) this.parser.group()
+    if (!this.parser.groups.length) this.parser.parsing.group()
     const activeGroup = this.parser.groups[this.parser.groups.length - 1]
     const currentLength = activeGroup.length
     if (typeof callback === 'function') {
       callback()
     } else {
-      this.parser.text(callback)
+      this.parser.textMethods.text(callback)
     }
     // this.parser.progress.countNums[1] = activeGroup.length - currentLength
     for (let i = currentLength; i < activeGroup.length; i++) {
@@ -286,7 +303,7 @@ export class UtilityMethods {
       // this.parser.progress.countNums[0] = curve.length
       for (let j = 0; j < curve.length; j++) {
         this.parser.progress.point = j / (curve.length - 1 || 1)
-        const addPt = this.parser.evalPoint(point)
+        const addPt = this.parser.parsing.evalPoint(point)
         const heading = getHeadingAt(curve, j, penulCache)
         curve[j].add(addPt.rotate(heading + 0.25))
       }
@@ -299,7 +316,7 @@ export class UtilityMethods {
     callback?: () => void,
     callback2?: () => void
   ) {
-    const exprCondition = this.parser.expr(condition)
+    const exprCondition = this.parser.expressions.expr(condition)
     if (exprCondition) {
       callback && callback()
     } else {

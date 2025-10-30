@@ -50,7 +50,6 @@ export default function calcPosition(parser: WebGPUBrush) {
       mix(width1, width0, pow(1 - t * 2, 2)), 
       mix(width1, width2, pow((t - 0.5) * 2, 2)), 
       t > 0.5);
-    width /= canvas_dimensions.x / 2;
     
     let bezier_position = normalCoords(bezierCurve(t, p0, p1, p2, side, width));
     let bezier_tangent = bezierTangent(t, p0, p1, p2);

@@ -189,15 +189,16 @@ export class AsemicPt extends BasicPt {
   }
 
   to(transform: string) {
-    const fixedTransform = this.parent.parseTransform(transform)
+    const fixedTransform =
+      this.parent.transformMethods.parseTransform(transform)
 
-    this.parent.reverseTransform(this, {
+    this.parent.transformMethods.reverseTransform(this, {
       transform: this.parent.currentTransform
     })
-    this.parent.applyTransform(this, {
+    this.parent.transformMethods.applyTransform(this, {
       transform: fixedTransform
     })
-    this.parent.applyTransform(this, {
+    this.parent.transformMethods.applyTransform(this, {
       transform: this.parent.currentTransform
     })
     return this

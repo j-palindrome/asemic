@@ -36,29 +36,29 @@ export class DrawingMethods {
       ? [start, ...multiplyPoints, end]
       : [start, ...multiplyPoints, end]
     mappedCurve.forEach((x, i) => {
-      this.parser.applyTransform(x, { relative: false })
+      this.parser.transformMethods.applyTransform(x, { relative: false })
     })
     this.parser.currentCurve.push(
       ...(add ? mappedCurve.slice(0, -1) : mappedCurve)
     )
 
     if (!add) {
-      this.parser.end()
+      this.parser.parsing.end()
     }
   }
 
   protected parseCurve(args: string[], points: string) {
-    this.parser.to('>')
-    this.parser.remap(args[0], args[1], args[2])
+    this.parser.transformMethods.to('>')
+    this.parser.transformMethods.remap(args[0], args[1], args[2])
     let arguably = points.replaceAll('$W', args[3] ?? '0')
-    this.parser.points(arguably, {
+    this.parser.parsing.points(arguably, {
       chopFirst: this.parser.currentCurve.length > 0
     })
     // if (this.parser.currentCurve.length) debugger
-    if (!args[4]) this.parser.end()
+    if (!args[4]) this.parser.parsing.end()
     // else this.parser.adding = true
 
-    this.parser.to('<')
+    this.parser.transformMethods.to('<')
   }
 
   c3(...args) {
@@ -79,8 +79,8 @@ export class DrawingMethods {
 
   circle(...args) {
     const [centerStr, whStr] = args
-    this.parser.to(`> +${centerStr} *${whStr}`)
-    this.parser.text('[-1,0 -1,-1 1,-1 1,1 -1,1]<')
-    this.parser.to('<')
+    this.parser.transformMethods.to(`> +${centerStr} *${whStr}`)
+    this.parser.textMethods.text('[-1,0 -1,-1 1,-1 1,1 -1,1]<')
+    this.parser.transformMethods.to('<')
   }
 }

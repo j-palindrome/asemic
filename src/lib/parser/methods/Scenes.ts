@@ -76,11 +76,11 @@ export class SceneMethods {
       value: this.parser.params[paramName]
         ? this.parser.params[paramName].value
         : value
-        ? this.parser.expr(value)
+        ? this.parser.expressions.expr(value)
         : 0,
-      min: this.parser.expr(min),
-      max: this.parser.expr(max),
-      exponent: this.parser.expr(exponent)
+      min: this.parser.expressions.expr(min),
+      max: this.parser.expressions.expr(max),
+      exponent: this.parser.expressions.expr(exponent)
     }
     if (!this.parser.output.params) this.parser.output.params = {}
     this.parser.output.params[paramName] = this.parser.params[paramName]
@@ -90,7 +90,7 @@ export class SceneMethods {
   }
 
   preset(presetName: string, values: string) {
-    const tokenized = this.parser.tokenize(values)
+    const tokenized = this.parser.parsing.tokenize(values)
     if (!this.parser.presets[presetName]) {
       this.parser.presets[presetName] = {}
     }
@@ -103,7 +103,7 @@ export class SceneMethods {
       }
       this.parser.presets[presetName][paramName] = {
         ...this.parser.params[paramName],
-        value: this.parser.expr(value)
+        value: this.parser.expressions.expr(value)
       }
     }
     if (!this.parser.output.presets) this.parser.output.presets = {}
@@ -116,7 +116,7 @@ export class SceneMethods {
       throw new Error(`Preset '${presetName}' not found`)
     }
 
-    const lerpAmount = this.parser.expr(amount)
+    const lerpAmount = this.parser.expressions.expr(amount)
     for (let paramName of Object.keys(this.parser.presets[presetName])) {
       if (!this.parser.params[paramName]) {
         throw new Error(
@@ -138,8 +138,21 @@ export class SceneMethods {
 
     // Reset and set the progress directly
     this.parser.reset()
-    this.parser.progress.progress = progress
+    const progTime = progress.toFixed(5)
+    const findIndex = this.parser.pausedAt.findIndex(x => x > progTime)
+    if (findIndex !== -1) {
+      this.parser.pausedAt = this.parser.pausedAt.filter(x => x < progTime)
+    }
+    if (this.parser.pauseAt > progTime) this.parser.pauseAt = false
 
-    return this.parser
+    for (let scene of this.parser.sceneList) {
+      if (progress >= scene.start + scene.offset) {
+      } else {
+        break
+      }
+      this.parser.progress.progress = progress
+
+      return this.parser
+    }
   }
 }

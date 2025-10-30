@@ -147,8 +147,10 @@ export class ParsingMethods {
     } else {
       // Relative coordinates: +x,y
       if (notation.startsWith('+')) {
-        point = this.parser.applyTransform(
-          this.parser.evalPoint(notation.substring(1), { basic: false }),
+        point = this.parser.transformMethods.applyTransform(
+          this.parser.parsing.evalPoint(notation.substring(1), {
+            basic: false
+          }),
           {
             relative: true,
             randomize
@@ -156,8 +158,8 @@ export class ParsingMethods {
         )
       } else {
         // Absolute coordinates: x,y
-        point = this.parser.applyTransform(
-          new AsemicPt(this.parser, ...this.parser.evalPoint(notation)),
+        point = this.parser.transformMethods.applyTransform(
+          new AsemicPt(this.parser, ...this.parser.parsing.evalPoint(notation)),
           { relative: forceRelative, randomize }
         )
       }
@@ -173,15 +175,17 @@ export class ParsingMethods {
     this.parser.progress.point = 1
     const endPoint = this.parsePoint(args[1], { randomize: true })
 
-    this.parser.reverseTransform(startPoint)
-    this.parser.reverseTransform(endPoint)
+    this.parser.transformMethods.reverseTransform(startPoint)
+    this.parser.transformMethods.reverseTransform(endPoint)
 
     let h = 0,
       w = 0
     if (args.length >= 3) {
-      const hwParts = this.parser.tokenize(args[2], { separatePoints: true })
-      h = this.parser.expr(hwParts[0])!
-      w = hwParts.length > 1 ? this.parser.expr(hwParts[1])! : 0
+      const hwParts = this.parser.parsing.tokenize(args[2], {
+        separatePoints: true
+      })
+      h = this.parser.expressions.expr(hwParts[0])!
+      w = hwParts.length > 1 ? this.parser.expressions.expr(hwParts[1])! : 0
     }
 
     return [startPoint, endPoint, h, w] as [AsemicPt, AsemicPt, number, number]
@@ -202,13 +206,13 @@ export class ParsingMethods {
     let point = thisPoint as string
 
     if (point === '<') {
-      return this.parser.reverseTransform(
+      return this.parser.transformMethods.reverseTransform(
         this.parser.lastPoint.clone(basic)
       ) as K extends true ? BasicPt : AsemicPt
     }
     if (point.startsWith('(') && point.endsWith(')')) {
       const sliced = point.substring(1, point.length - 1)
-      const tokens = this.parser.tokenize(sliced)
+      const tokens = this.parser.parsing.tokenize(sliced)
       if (tokens.length > 1) {
         for (let key in this.parser.pointConstants) {
           if (tokens[0] === key) {
@@ -225,11 +229,11 @@ export class ParsingMethods {
         }
       }
     } else if (point.startsWith('@')) {
-      const [theta, radius] = this.parser
+      const [theta, radius] = this.parser.parsing
         .tokenize(point.slice(1), {
           separatePoints: true
         })
-        .map((X: string) => this.parser.expr(X))
+        .map((X: string) => this.parser.expressions.expr(X))
       result = (
         basic
           ? new BasicPt(radius, 0).rotate(theta)
@@ -239,7 +243,7 @@ export class ParsingMethods {
     if (point.includes('[')) {
       const start = point.indexOf('[') + 1
       const end = point.indexOf(']')
-      const tokenized = this.parser
+      const tokenized = this.parser.parsing
         .tokenize(point.substring(start, end), { separatePoints: true })
         .map(
           (x: string) =>
@@ -250,16 +254,20 @@ export class ParsingMethods {
 
     if (!result!) {
       // try {
-      const parts = this.parser.tokenize(point, { separatePoints: true })
+      const parts = this.parser.parsing.tokenize(point, {
+        separatePoints: true
+      })
       if (parts.length === 1) {
-        const coord = this.parser.expr(parts[0])!
+        const coord = this.parser.expressions.expr(parts[0])!
         result = (
           basic
             ? new BasicPt(coord, defaultY || coord)
             : new AsemicPt(this.parser, coord, defaultY || coord)
         ) as K extends true ? BasicPt : AsemicPt
       } else {
-        const coords = parts.map((x: string) => this.parser.expr(x)!)
+        const coords = parts.map(
+          (x: string) => this.parser.expressions.expr(x)!
+        )
         result = (
           basic
             ? new BasicPt(coords[0], coords[1])
@@ -294,11 +302,15 @@ export class ParsingMethods {
     }
     const group = new AsemicGroup(this.parser, settings)
     if (group.settings.texture) {
-      if (this.parser.images[this.parser.resolveName(group.settings.texture)]) {
+      if (
+        this.parser.images[this.parser.data.resolveName(group.settings.texture)]
+      ) {
         group.imageDatas =
-          this.parser.images[this.parser.resolveName(group.settings.texture)]
-        group.xy = this.parser.evalPoint(group.settings.xy ?? '0,0')
-        group.wh = this.parser.evalPoint(group.settings.wh ?? '1,1')
+          this.parser.images[
+            this.parser.data.resolveName(group.settings.texture)
+          ]
+        group.xy = this.parser.parsing.evalPoint(group.settings.xy ?? '0,0')
+        group.wh = this.parser.parsing.evalPoint(group.settings.wh ?? '1,1')
       } else {
         throw new Error(`No texture available for ${group.settings.texture}`)
       }
@@ -327,7 +339,7 @@ export class ParsingMethods {
   }
 
   points(token: string, { chopFirst = false } = {}) {
-    const pointsTokens = this.parser.tokenize(token)
+    const pointsTokens = this.parser.parsing.tokenize(token)
 
     let totalLength =
       pointsTokens.filter((x: string) => !x.startsWith('{') && x !== '<')
@@ -343,7 +355,7 @@ export class ParsingMethods {
         return
       }
       if (pointToken.startsWith('{')) {
-        this.parser.to(pointToken.slice(1, -1))
+        this.parser.transformMethods.to(pointToken.slice(1, -1))
         return
       } else {
         this.parser.progress.point = (originalEnd + i) / this.parser.adding

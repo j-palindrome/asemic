@@ -32,38 +32,38 @@ export class TextMethods {
     }
 
     let textList = text.split('')
-    for (let i = 0; i < this.parser.expr(iterations); i++) {
+    for (let i = 0; i < this.parser.expressions.expr(iterations); i++) {
       textList = textList.map(char => rules[char] || char)
       textList = textList.flatMap(char => char.split(''))
     }
     const string = textList.join('')
-    this.parser.text(`"${string}"`)
+    this.parser.textMethods.text(`"${string}"`)
     // this.parser.error(`linden: ${string}`)
     return this.parser
   }
 
   parse(text: string) {
     const scenes = text.split('\n#')
-    let sceneList: Parameters<Parser['scene']> = []
+    let sceneList: Parameters<Parser['scenes']['scene']> = []
     for (const scene of scenes) {
       if (scene.trim() === '') continue
       const [firstLine, rest] = splitString(scene, '\n')
       const parserSettings = {
         draw: () => {
-          this.parser.text(rest)
+          this.parser.textMethods.text(rest)
         }
       } as (typeof sceneList)[number]
       const match = firstLine.match(/\{(.+)\}/)?.[1]
       if (match) {
-        this.parser.tokenize(match).forEach(setting => {
+        this.parser.parsing.tokenize(match).forEach(setting => {
           if (!setting.includes('=')) return
           const [key, value] = splitString(setting, '=')
-          parserSettings[key] = this.parser.expr(value)
+          parserSettings[key] = this.parser.expressions.expr(value)
         })
       }
       sceneList.push(parserSettings)
     }
-    this.parser.scene(...sceneList)
+    this.parser.scenes.scene(...sceneList)
     return this.parser
   }
 
@@ -75,12 +75,12 @@ export class TextMethods {
       if (spaceIndex && /^[a-z]+$/.test(content.substring(0, spaceIndex))) {
         this.resetFont(this.parser.currentFont)
         const [fontName, theseChars] = splitString(content, /\s+/)
-        const charTokens = this.parser.tokenize(theseChars)
+        const charTokens = this.parser.parsing.tokenize(theseChars)
         const chars: Record<string, () => void> = {}
         const dynamicChars: Record<string, () => void> = {}
         charTokens.forEach(line => {
           if (line === '!') {
-            this.parser.resetFont(fontName)
+            this.parser.textMethods.resetFont(fontName)
             return
           }
           let [_, char, expression, func] = line.match(/([^=]+)(\=\>?)(.+)/)!
@@ -105,7 +105,7 @@ export class TextMethods {
           } else {
             switch (expression) {
               case '=':
-                chars[char] = () => this.parser.text(func)
+                chars[char] = () => this.parser.textMethods.text(func)
                 break
               case '=>':
                 dynamicChars[char] = (...words) => {
@@ -116,7 +116,7 @@ export class TextMethods {
                       (_, index) => words[parseInt(index)] || ''
                     )
                   }
-                  this.parser.text(func)
+                  this.parser.textMethods.text(func)
                 }
                 break
             }
@@ -137,7 +137,7 @@ export class TextMethods {
           })
         }
       } else {
-        this.parser.to(content)
+        this.parser.transformMethods.to(content)
       }
     }
     const tokenLength = token.length
@@ -156,7 +156,7 @@ export class TextMethods {
         const end = i
         const content = token.substring(start, end)
         this.parser.progress.currentLine = content
-        this.parser.regex(content)
+        this.parser.textMethods.regex(content)
         continue
       }
 
@@ -190,13 +190,47 @@ export class TextMethods {
         )
 
         this.parser.progress.currentLine = token
-
-        if (
-          this.parser[funcName as keyof Parser] &&
-          typeof this.parser[funcName as keyof Parser] === 'function'
-        ) {
-          const newFunc = this.parser[funcName as keyof Parser] as Function
-          newFunc.bind(this.parser)(...this.parser.tokenize(args))
+        const usableFunctions = new Map()
+          .set('c3', this.parser.drawing.c3.bind(this.parser.drawing))
+          .set('c4', this.parser.drawing.c4.bind(this.parser.drawing))
+          .set('c5', this.parser.drawing.c5.bind(this.parser.drawing))
+          .set('c6', this.parser.drawing.c6.bind(this.parser.drawing))
+          .set('circle', this.parser.drawing.circle.bind(this.parser.drawing))
+          .set('group', this.parser.parsing.group.bind(this.parser.parsing))
+          .set(
+            'linden',
+            this.parser.textMethods.linden.bind(this.parser.textMethods)
+          )
+          .set(
+            'remap',
+            this.parser.transformMethods.remap.bind(
+              this.parser.transformMethods
+            )
+          )
+          .set(
+            'repeat',
+            this.parser.utilities.repeat.bind(this.parser.utilities)
+          )
+          .set(
+            'interp',
+            this.parser.utilities.ripple.bind(this.parser.utilities)
+          )
+          .set('?', this.parser.utilities.if.bind(this.parser.utilities))
+          .set(
+            'choose',
+            this.parser.utilities.choose.bind(this.parser.utilities)
+          )
+          .set('end', this.parser.parsing.end.bind(this.parser.parsing))
+          .set('align', this.parser.utilities.align.bind(this.parser.utilities))
+          .set(
+            'alignX',
+            this.parser.utilities.align.bind(this.parser.utilities)
+          )
+        if (usableFunctions.get(funcName as keyof Parser)) {
+          const newFunc = usableFunctions.get(
+            funcName as keyof Parser
+          ) as Function
+          newFunc(...this.parser.parsing.tokenize(args))
         } else {
           throw new Error(`Unknown function: ${funcName}`)
         }
@@ -220,13 +254,13 @@ export class TextMethods {
         const end = i
         const content = token.substring(start + 1, end)
         this.parser.progress.currentLine = content
-        this.parser.points(content)
+        this.parser.parsing.points(content)
         if (token[end + 1] === '+') {
           i++
         } else if (token[end + 1] === '<') {
-          this.parser.end({ close: true })
+          this.parser.parsing.end({ close: true })
         } else {
-          this.parser.end()
+          this.parser.parsing.end()
         }
         continue
       }
@@ -383,7 +417,9 @@ export class TextMethods {
   }
 
   keys(index: string | number) {
-    this.text(this.parser.live.keys[Math.floor(this.parser.expr(index))])
+    this.text(
+      this.parser.live.keys[Math.floor(this.parser.expressions.expr(index))]
+    )
     return this.parser
   }
 
@@ -403,8 +439,9 @@ export class TextMethods {
     const selectedText =
       cache[
         Math.floor(
-          this.parser.hash(
-            this.parser.progress.curve + this.parser.expr(seed)
+          this.parser.constants['#'](
+            (this.parser.progress.curve +
+              this.parser.expressions.expr(seed)) as any
           ) * cache.length
         )
       ]!

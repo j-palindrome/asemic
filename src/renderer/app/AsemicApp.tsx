@@ -119,34 +119,6 @@ function AsemicAppInner({
       invariant(canvas.current)
       if (!asemic.current) {
         asemic.current = new Asemic(canvas.current, data => {
-          // if (data.resetParams === true) {
-          //   socket?.emit('params:reset')
-          // }
-          // if (!isUndefined(data.params) || !isUndefined(data.presets)) {
-          //   setSchema({
-          //     params: data.params,
-          //     presets: data.presets
-          //   } as InputSchema)
-          // }
-          // if (!isUndefined(data.files) && Object.keys(data.files).length > 0) {
-          //   // Send file paths to server for loading
-          //   socket?.emit(
-          //     'files:load',
-          //     data.files,
-          //     (loadFiles: Record<string, ImageData[]>) => {
-          //       asemic.current?.postMessage({
-          //         loadFiles: mapValues(loadFiles, value => {
-          //           return value.map(value => {
-          //             const imageData = new ImageData(value.width, value.height)
-          //             imageData.data.set(new Uint8ClampedArray(value.data))
-          //             return imageData
-          //           })
-          //         })
-          //       })
-          //     }
-          //   )
-          // }
-
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
               setPauseAt(data.pauseAt)
@@ -160,29 +132,6 @@ function AsemicAppInner({
               evalFunction({ _ })
             }
           }
-          // if (!isUndefined(data.osc) && data.osc.length > 0) {
-          //   data.osc.forEach(({ path, args }) => {
-          //     // Send OSC data via Socket.IO instead of WebSocket
-          //     if (!socket) return
-          //     socket?.emit('osc:message', { address: path, data: args })
-          //   })
-          // }
-          // if (!isUndefined(data.sc) && data.sc.length > 0) {
-          //   data.sc.forEach(({ path, value }) => {
-          //     // Send OSC data via Socket.IO instead of WebSocket
-          //     if (!socket) return
-          //     const [synth, param] = splitString(path, '/')
-          //     socket?.emit('sc:set', synth, param, value)
-          //   })
-          // }
-          // if (
-          //   !isUndefined(data.scSynthDefs) &&
-          //   Object.keys(data.scSynthDefs).length > 0
-          // ) {
-          //   for (let synth in data.scSynthDefs) {
-          //     socket?.emit('sc:synth', synth, `${data.scSynthDefs[synth]}`)
-          //   }
-          // }
           if (!isUndefined(data.errors)) {
             setErrors(data.errors)
           }
@@ -621,59 +570,6 @@ function AsemicAppInner({
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>
-
-            {/* <div className='w-full flex'>
-                  <select
-                    value={selectedParam}
-                    onChange={ev => setSelectedParam(ev.target.value)}>
-                    <option value={''}></option>
-                    {Object.keys(params).map(param => (
-                      <option key={param} value={param}>
-                        {param}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedParam && params[selectedParam] && (
-                    <>
-                      <Slider
-                        values={{ x: params[selectedParam].value, y: 0 }}
-                        onChange={({ x }) =>
-                          setParams({
-                            ...params,
-                            [selectedParam]: {
-                              ...params[selectedParam],
-                              value: x
-                            }
-                          })
-                        }
-                        sliderStyle={({ x, y }) => ({
-                          width: `${x * 100}%`
-                        })}
-                        max={params[selectedParam].max}
-                        min={params[selectedParam].min}
-                        exponent={params[selectedParam].exponent}
-                        className='h-8 w-full'
-                        innerClassName='bg-white rounded-lg left-0 top-0 h-full'
-                      />
-                      <div className='text-xs mt-1'>
-                        {params[selectedParam].value.toFixed(2)}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <button
-                  onClick={copyPreset}
-                  className='ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700'
-                  title='Copy current parameter values as preset'>
-                  Copy Preset
-                </button>
-
-                {copyNotification && (
-                  <div className='absolute top-16 left-0 bg-green-600 text-white p-2 rounded text-xs max-w-md z-50'>
-                    {copyNotification}
-                  </div>
-                )} */}
           </div>
           {!perform && (
             <>

@@ -49,7 +49,7 @@ export const parserObject = (
   if (args.startsWith('{') && args.endsWith('}')) {
     args = args.substring(1, args.length - 1).trim()
   }
-  for (let arg of parser.tokenize(args)) {
+  for (let arg of parser.parsing.tokenize(args)) {
     if (arg.includes('=')) {
       let [key, value] = splitString(arg, '=')
       if (value.startsWith('"') && value.endsWith('"')) {
@@ -62,7 +62,7 @@ export const parserObject = (
     switch (typeConversions[key]) {
       case 'number':
         if (obj[key] !== undefined) {
-          obj[key] = parser.expr(obj[key])
+          obj[key] = parser.expressions.expr(obj[key])
         }
         break
       case 'boolean':

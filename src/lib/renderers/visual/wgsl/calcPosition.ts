@@ -47,8 +47,8 @@ export default function calcPosition(parser: WebGPUBrush) {
     }
     
     var width = select(
-      mix(width1, width0, pow(1 - t * 2, 2)), 
-      mix(width1, width2, pow((t - 0.5) * 2, 2)), 
+      mix(width1, width0, 1 - t * 2), 
+      mix(width1, width2, (t - 0.5) * 2),      
       t > 0.5);
     
     let bezier_position = normalCoords(bezierCurve(t, p0, p1, p2, side, width));
@@ -80,8 +80,7 @@ export default function calcPosition(parser: WebGPUBrush) {
     p0 = p0 - direction * (widths[start_at_point] / canvas_dimensions.x);
     p1 = p1 + direction * ((widths[start_at_point + 1] + CORRECTION) / canvas_dimensions.x);
 
-    let width = mix(widths[start_at_point], widths[start_at_point + 1], t)
-      / (canvas_dimensions.x / 2);
+    let width = mix(widths[start_at_point], widths[start_at_point + 1], t);
     
     let tangent = p1 - p0;
     let normal = normalize(vec2<f32>(-tangent.y, tangent.x));

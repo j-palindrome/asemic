@@ -22,6 +22,11 @@ export class ParsingMethods {
   constructor(parser: Parser) {
     this.parser = parser
   }
+
+  print(expr: string) {
+    this.parser.error(this.parser.expressions.expr(expr)!.toFixed(2))
+  }
+
   tokenize(
     source: string | number,
     {

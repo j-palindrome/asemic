@@ -192,6 +192,7 @@ export class TransformMethods {
                           this.parser.expressions.def(key, value, {
                             isStatic: true
                           })
+                          // if (this.parser.progress.scene === 3) debugger
                           break
                         case '=>':
                           this.parser.expressions.def(key, value)

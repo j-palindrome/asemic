@@ -276,10 +276,11 @@ export class ExpressionMethods {
     }
   }
 
-  def(key: string, definition: string, { isStatic = false } = {}) {
-    if (this.parser.reservedConstants.includes(key)) {
-      throw new Error(`Reserved constant: ${key}`)
+  def(term: string, definition: string, { isStatic = false } = {}) {
+    if (this.parser.reservedConstants.includes(term)) {
+      throw new Error(`Reserved constant: ${term}`)
     }
+    // if (this.parser.progress.scene === 3) debugger
 
     const values = this.parser.parsing.tokenize(definition, {
       separatePoints: true
@@ -287,10 +288,10 @@ export class ExpressionMethods {
     if (values.length > 1) {
       if (isStatic) {
         const solvedValues = values.map(x => this.parser.expressions.expr(x))
-        this.parser.constants[key] = i =>
+        this.parser.constants[term] = i =>
           solvedValues[Math.floor(this.parser.expressions.expr(i))]
       } else {
-        this.parser.constants[key] = i =>
+        this.parser.constants[term] = i =>
           this.parser.expressions.expr(
             values[Math.floor(this.parser.expressions.expr(i))]
           )
@@ -298,9 +299,9 @@ export class ExpressionMethods {
     } else {
       if (isStatic) {
         const solvedDefinition = this.expr(definition)
-        this.parser.constants[key] = () => solvedDefinition
+        this.parser.constants[term] = () => solvedDefinition
       } else {
-        this.parser.constants[key] = i =>
+        this.parser.constants[term] = i =>
           this.parser.expressions.expr(definition)
       }
     }

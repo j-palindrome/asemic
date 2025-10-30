@@ -226,6 +226,10 @@ export class TextMethods {
           )
           .set('debug', this.parser.debug.bind(this.parser))
           .set('print', this.parser.parsing.print.bind(this.parser.parsing))
+          .set(
+            'ripple',
+            this.parser.utilities.ripple.bind(this.parser.utilities)
+          )
         if (usableFunctions.get(funcName as keyof Parser)) {
           const newFunc = usableFunctions.get(
             funcName as keyof Parser

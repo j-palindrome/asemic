@@ -45,9 +45,9 @@ export class ExpressionMethods {
       throw new Error('Empty expression')
     }
     if (/[^\-\d\.]/.test(stringExpr)) {
-      const foundKey = Object.keys(this.parser.constants).find(x =>
-        stringExpr.startsWith(x)
-      )
+      const foundKey = Object.keys(this.parser.constants)
+        .filter(x => stringExpr.startsWith(x))
+        .sort(x => x.length * -1)[0]
       if (foundKey) {
         const arg1 = stringExpr.slice(foundKey.length)
         return this.parser.constants[foundKey](arg1)
@@ -274,38 +274,5 @@ export class ExpressionMethods {
       }
       return solveSplitResult(splitResult2)
     }
-  }
-
-  def(term: string, definition: string, { isStatic = false } = {}) {
-    if (this.parser.reservedConstants.includes(term)) {
-      throw new Error(`Reserved constant: ${term}`)
-    }
-    // if (this.parser.progress.scene === 3) debugger
-
-    const values = this.parser.parsing.tokenize(definition, {
-      separatePoints: true
-    })
-    if (values.length > 1) {
-      if (isStatic) {
-        const solvedValues = values.map(x => this.parser.expressions.expr(x))
-        this.parser.constants[term] = i =>
-          solvedValues[Math.floor(this.parser.expressions.expr(i))]
-      } else {
-        this.parser.constants[term] = i =>
-          this.parser.expressions.expr(
-            values[Math.floor(this.parser.expressions.expr(i))]
-          )
-      }
-    } else {
-      if (isStatic) {
-        const solvedDefinition = this.expr(definition)
-        this.parser.constants[term] = () => solvedDefinition
-      } else {
-        this.parser.constants[term] = i =>
-          this.parser.expressions.expr(definition)
-      }
-    }
-
-    return this.parser
   }
 }

@@ -107,11 +107,11 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
-      h: () => parseFromFunction(this.currentTransform.h),
-      w: () => parseFromFunction(this.currentTransform.w),
-      a: () => parseFromFunction(this.currentTransform.a),
-      s: () => parseFromFunction(this.currentTransform.s),
-      l: () => parseFromFunction(this.currentTransform.l),
+      h: x => parseFromFunction(this.currentTransform.h),
+      w: x => parseFromFunction(this.currentTransform.w),
+      a: x => parseFromFunction(this.currentTransform.a),
+      s: x => parseFromFunction(this.currentTransform.s),
+      l: x => parseFromFunction(this.currentTransform.l),
       '-': x => -1 * this.expressions.expr(x),
       N: (index = '0') => {
         if (!index) index = '0'
@@ -273,7 +273,9 @@ export class Parser {
       },
       bell: (range0to1, sign) => {
         const x = this.expressions.expr(range0to1)
-        const hash = this.expressions.expr(sign || '#')
+        const hash = this.expressions.expr(
+          sign || this.constants['#'](range0to1)
+        )
         // debugger
         return (hash > 0.5 ? 1 : -1) * x * 0.5 + 0.5
       },
@@ -472,13 +474,13 @@ export class Parser {
           }
         }
         // object.draw()
-        // try {
-        object.draw()
-        // } catch (e) {
-        //   this.error(
-        //     `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-        //   )
-        // }
+        try {
+          object.draw()
+        } catch (e) {
+          this.error(
+            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+          )
+        }
       }
       i++
     }

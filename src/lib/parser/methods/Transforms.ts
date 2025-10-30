@@ -18,7 +18,7 @@ export class TransformMethods {
     '+': new BasicPt(0, 0),
     '*': new BasicPt(1, 1),
     '@': 0,
-    w: () => this.parser.expressions.expr('px1'),
+    w: this.parser.expressions.expr('px1'),
     h: 0,
     s: 0,
     l: 1,
@@ -117,6 +117,7 @@ export class TransformMethods {
             // Handle multi-character tokens and regex matches
             switch (transform) {
               case '!':
+                const newTransform = this.defaultTransform()
                 // Reset all transformations
                 thisTransform['*'].set([1, 1])
                 thisTransform['+'].set([0, 0])
@@ -125,7 +126,7 @@ export class TransformMethods {
                 thisTransform.h = 0
                 thisTransform.s = 0
                 thisTransform.l = 1
-                thisTransform.w = 1
+                thisTransform.w = this.parser.expressions.expr('px1')
                 thisTransform.add = undefined
                 thisTransform.rotate = undefined
                 break
@@ -176,7 +177,7 @@ export class TransformMethods {
                     TransformMethods.KEY_CALL_REGEX
                   )
                   if (keyCall) {
-                    let key = keyCall[1]
+                    const key = keyCall[1]
                     const value = keyCall[3]
                     const expression = keyCall[2] // '=' or '=>'
                     if (['h', 's', 'l', 'a', 'w'].includes(key)) {
@@ -187,16 +188,44 @@ export class TransformMethods {
                         thisTransform[key] = this.parser.expressions.expr(value)
                       }
                     } else {
-                      switch (expression) {
-                        case '=':
-                          this.parser.expressions.def(key, value, {
-                            isStatic: true
-                          })
-                          // if (this.parser.progress.scene === 3) debugger
-                          break
-                        case '=>':
-                          this.parser.expressions.def(key, value)
-                          break
+                      const isStatic = !expression.includes('>')
+                      if (this.parser.reservedConstants.includes(key)) {
+                        throw new Error(`Reserved constant: ${key}`)
+                      }
+
+                      const values = this.parser.parsing.tokenize(value, {
+                        separatePoints: true
+                      })
+                      if (values.length > 1) {
+                        if (isStatic) {
+                          const solvedValues = values.map(x =>
+                            this.parser.expressions.expr(x)
+                          )
+                          this.parser.constants[key] = i =>
+                            solvedValues[
+                              Math.floor(this.parser.expressions.expr(i))
+                            ]
+                        } else {
+                          // Capture values array in closure
+                          const capturedValues = [...values]
+                          this.parser.constants[key] = i =>
+                            this.parser.expressions.expr(
+                              capturedValues[
+                                Math.floor(this.parser.expressions.expr(i))
+                              ]
+                            )
+                        }
+                      } else {
+                        if (isStatic) {
+                          const solvedDefinition =
+                            this.parser.expressions.expr(value)
+                          this.parser.constants[key] = () => solvedDefinition
+                        } else {
+                          // Capture value in closure
+                          const capturedValue = value
+                          this.parser.constants[key] = () =>
+                            this.parser.expressions.expr(capturedValue)
+                        }
                       }
                     }
                   }

@@ -283,7 +283,7 @@ function AsemicAppInner({
   const saveToFile = async () => {
     const content = editable.current?.value || scenesSource
     const timestamp = new Date().toISOString().slice(0, 10).replace(/:/g, '')
-    const filename = `asemic-${timestamp}.asemic`
+    const filename = localStorage.getItem('filename') || `${timestamp}.asemic`
 
     try {
       if ('showSaveFilePicker' in window) {
@@ -326,59 +326,59 @@ function AsemicAppInner({
   }
 
   const openFile = async () => {
-    try {
-      if ('showOpenFilePicker' in window) {
-        // Modern browsers with File System Access API
-        // @ts-ignore
-        const [fileHandle] = await window.showOpenFilePicker({
-          types: [
-            {
-              description: 'Asemic files',
-              accept: {
-                'text/plain': ['.asemic']
-              }
-            }
-          ]
-        })
-        const file = await fileHandle.getFile()
-        const content = await file.text()
-        setScenesSource(content)
-        editorRef.current?.setValue(content)
-      } else {
-        // Fallback for iPadOS and other browsers
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = '.asemic'
-        input.style.display = 'none'
+    // try {
+    // if ('showOpenFilePicker' in window) {
+    //   // Modern browsers with File System Access API
 
-        input.onchange = async e => {
-          const file = (e.target as HTMLInputElement).files?.[0]
-          if (file) {
-            try {
-              const content = await file.text()
-              setScenesSource(content)
-              editorRef.current?.setValue(content)
-              console.log('File loaded successfully')
-            } catch (error) {
-              console.error('Failed to read file:', error)
-            }
-          }
-          document.body.removeChild(input)
+    //   const [fileHandle] = await window.showOpenFilePicker({
+    //     types: [
+    //       {
+    //         description: 'Asemic files',
+    //         accept: {
+    //           'text/plain': ['.asemic']
+    //         }
+    //       }
+    //     ]
+    //   })
+    //   const file = await fileHandle.getFile()
+    //   const content = await file.text()
+    //   setScenesSource(content)
+    //   editorRef.current?.setValue(content)
+    // } else {
+    // Fallback for iPadOS and other browsers
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.asemic'
+    input.style.display = 'none'
+
+    input.onchange = async e => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          const content = await file.text()
+          setScenesSource(content)
+          editorRef.current?.setValue(content)
+          localStorage.setItem('filename', file.name)
+          console.log('File loaded successfully')
+        } catch (error) {
+          console.error('Failed to read file:', error)
         }
-
-        input.oncancel = () => {
-          document.body.removeChild(input)
-        }
-
-        document.body.appendChild(input)
-        input.click()
       }
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Failed to open file:', error)
-      }
+      document.body.removeChild(input)
     }
+
+    input.oncancel = () => {
+      document.body.removeChild(input)
+    }
+
+    document.body.appendChild(input)
+    input.click()
   }
+  // } catch (error) {
+  //   if (error.name !== 'AbortError') {
+  //     console.error('Failed to open file:', error)
+  //   }
+  // }
 
   const [perform, setPerform] = useState(settings.perform)
   useEffect(() => {

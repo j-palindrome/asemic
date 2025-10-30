@@ -512,7 +512,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           <div ref={editorDivRef} style={{ height: '100%' }} />
         </div>
         {errors.length > 0 && (
-          <div className='editor !text-red-400 w-1/3 whitespace-pre-wrap font-mono'>
+          <div className='editor !text-red-400 w-1/3'>
             {errors.join('\n---\n')}
           </div>
         )}

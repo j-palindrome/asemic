@@ -25,24 +25,20 @@ export default class Asemic {
     this.worker.terminate()
   }
 
-  setup(canvas: HTMLCanvasElement) {
-    try {
-      this.offscreenCanvas = canvas.transferControlToOffscreen()
-      this.worker.postMessage(
-        {
-          offscreenCanvas: this.offscreenCanvas
-        },
-        [this.offscreenCanvas]
-      )
-    } catch (e) {
-      console.error('Transferred already')
-    }
-  }
-
-  constructor(onmessage?: (data: Partial<Parser['output']>) => void) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    onmessage?: (data: Partial<Parser['output']>) => void
+  ) {
     // Create worker using Vite's worker import
     this.worker = new AsemicWorker({ name: 'asemic' })
 
+    this.offscreenCanvas = canvas.transferControlToOffscreen()
+    this.worker.postMessage(
+      {
+        offscreenCanvas: this.offscreenCanvas
+      },
+      [this.offscreenCanvas]
+    )
     this.worker.onmessage = (evt: { data: Partial<Parser['output']> }) => {
       if (evt.data.ready) {
         this.ready = true

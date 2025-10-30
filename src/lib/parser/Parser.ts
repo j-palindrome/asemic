@@ -3,7 +3,7 @@ import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
 import { InputSchema } from '../../renderer/inputSchema'
 import { defaultSettings, splitString } from '../settings'
 import { AsemicData, Transform } from '../types'
-import { defaultPreProcess, lerp, parseFromFunction } from '../utils'
+import { defaultPreProcess, lerp } from '../utils'
 import defaultFont from '@/lib/defaultFont.asemic?raw'
 const ONE_FRAME = 1 / 60
 
@@ -107,11 +107,6 @@ export class Parser {
 
   constants: Record<string, ((...args: string[]) => number) | (() => number)> =
     {
-      h: () => parseFromFunction(this.currentTransform.h),
-      w: () => parseFromFunction(this.currentTransform.w),
-      a: () => parseFromFunction(this.currentTransform.a),
-      s: () => parseFromFunction(this.currentTransform.s),
-      l: () => parseFromFunction(this.currentTransform.l),
       '-': x => -1 * this.expressions.expr(x),
       N: (index = '0') => {
         if (!index) index = '0'
@@ -144,7 +139,7 @@ export class Parser {
       C: () => this.progress.curve,
       L: () => this.progress.letter,
       P: () => this.progress.point,
-      px: i => (1 / this.preProcessing.width) * this.expressions.expr(i || 1),
+      px: (i = 1) => (1 / this.preProcessing.width) * this.expressions.expr(i),
       sin: x => {
         const result = Math.sin(this.expressions.expr(x) * Math.PI * 2)
         return result
@@ -238,7 +233,6 @@ export class Parser {
       },
       '~': (...fms) => {
         const currentValue = `${this.progress.scene}:${this.progress.noiseIndex}`
-
         if (!this.noiseTable[currentValue]) {
           if (!fms[0]) fms[0] = '1+#,#'
           const fmCurve = fms.map((token, i) => {
@@ -271,11 +265,13 @@ export class Parser {
         const noise = this.noiseTable[currentValue].noise(this.progress.time)
         return noise
       },
-      bell: (range0to1, sign) => {
+      bell: (range0to1, closeness) => {
         const x = this.expressions.expr(range0to1)
-        const hash = this.expressions.expr(sign || '#')
-        // debugger
-        return (hash > 0.5 ? 1 : -1) * x * 0.5 + 0.5
+        if (!closeness) closeness = '1'
+        return (
+          (this.constants['#']() > 0.5 ? 1 : -1) *
+          x ** this.expressions.expr(closeness)
+        )
       },
       tangent: (progress, curve) => {
         let lastCurve: AsemicPt[]

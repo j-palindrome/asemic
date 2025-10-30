@@ -81,7 +81,7 @@ export default class WebGPURenderer {
       for (let curve of group) {
         if (curve.length === 0) return
         if (curve.length < 3) {
-          curve.splice(1, 0, curve[0].clone(true).lerp(curve[1], 0.5))
+          curve.splice(1, 0, curve[0].clone().lerp(curve[1], 0.5))
         }
       }
     }

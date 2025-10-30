@@ -90,6 +90,7 @@ export class TextMethods {
           invariant(char, 'Character is required')
           invariant(expression, 'Expression is required')
           invariant(func, 'Function is required')
+          // if (this.parser.progress.scene > 0) debugger
           if (func === '!') {
             switch (expression) {
               case '=':
@@ -108,6 +109,7 @@ export class TextMethods {
                 break
               case '=>':
                 dynamicChars[char] = (...words) => {
+                  console.log('fixing this')
                   if (words.length > 0) {
                     func = func.replaceAll(
                       /\$([0-9]+)/g,
@@ -224,8 +226,6 @@ export class TextMethods {
             'alignX',
             this.parser.utilities.align.bind(this.parser.utilities)
           )
-          .set('debug', this.parser.debug.bind(this.parser))
-          .set('print', this.parser.parsing.print.bind(this.parser.parsing))
         if (usableFunctions.get(funcName as keyof Parser)) {
           const newFunc = usableFunctions.get(
             funcName as keyof Parser

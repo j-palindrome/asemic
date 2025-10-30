@@ -14,7 +14,6 @@ export class AsemicGroup extends Array<AsemicPt[]> {
     count: number
     correction: number
     close?: boolean
-    blend?: boolean
   } = {
     mode: 'line',
     vert: '0,0',

@@ -22,31 +22,18 @@ export default class WebGPULineBrush extends WebGPUBrush {
         targets: [
           {
             format: navigator.gpu.getPreferredCanvasFormat(),
-            blend: this.settings.blend
-              ? {
-                  color: {
-                    srcFactor: 'one',
-                    dstFactor: 'one-minus-src-alpha',
-                    operation: 'add'
-                  },
-                  alpha: {
-                    srcFactor: 'one',
-                    dstFactor: 'one-minus-src-alpha',
-                    operation: 'add'
-                  }
-                }
-              : {
-                  color: {
-                    srcFactor: 'one',
-                    dstFactor: 'zero',
-                    operation: 'add'
-                  },
-                  alpha: {
-                    srcFactor: 'one',
-                    dstFactor: 'one',
-                    operation: 'max'
-                  }
-                }
+            blend: {
+              color: {
+                srcFactor: 'one',
+                dstFactor: 'zero',
+                operation: 'add'
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one',
+                operation: 'max'
+              }
+            }
           }
         ]
       },

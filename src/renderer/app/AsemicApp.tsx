@@ -5,8 +5,6 @@ import _, { isEqual, isUndefined } from 'lodash'
 import {
   Download,
   Ellipsis,
-  Eye,
-  EyeOff,
   Info,
   LucideProps,
   Maximize2,
@@ -100,10 +98,27 @@ function AsemicAppInner({
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
+    const onResize = () => {
+      if (!canvas.current) return
+      const boundingRect = canvas.current.getBoundingClientRect()
+      if (!boundingRect.width || !boundingRect.height) return
+      devicePixelRatio = 2
+
+      // canvas.current.width = boundingRect.width * devicePixelRatio
+      // canvas.current.height = boundingRect.height * devicePixelRatio
+
+      asemic.current!.postMessage({
+        preProcess: {
+          width: boundingRect.width * devicePixelRatio,
+          height: boundingRect.height * devicePixelRatio
+        }
+      })
+    }
 
     useEffect(() => {
+      invariant(canvas.current)
       if (!asemic.current) {
-        asemic.current = new Asemic(data => {
+        asemic.current = new Asemic(canvas.current, data => {
           if (!isUndefined(data.pauseAt)) {
             if (pauseAtRef.current !== data.pauseAt) {
               setPauseAt(data.pauseAt)
@@ -131,9 +146,20 @@ function AsemicAppInner({
           }
         })
       }
+
+      const resizeObserver = new ResizeObserver(onResize)
+      resizeObserver.observe(canvas.current)
+
+      window.addEventListener('resize', onResize)
+
+      return () => {
+        resizeObserver.disconnect()
+        window.removeEventListener('resize', onResize)
+      }
     }, [asemic])
 
     useEffect(() => {
+      onResize()
       setIsSetup(true)
     }, [])
 
@@ -385,7 +411,6 @@ function AsemicAppInner({
     setPerform(settings.perform)
   }, [settings.perform])
   const [help, setHelp] = useState(false)
-  const [showCanvas, setShowCanvas] = useState(true)
 
   const frame = useRef<HTMLDivElement>(null!)
   const requestFullscreen = async () => {
@@ -459,35 +484,6 @@ function AsemicAppInner({
     }
   }
 
-  useEffect(() => {
-    const onResize = () => {
-      const boundingRect = canvas.current.getBoundingClientRect()
-      devicePixelRatio = 2
-
-      // canvas.current.width = boundingRect.width * devicePixelRatio
-      // canvas.current.height = boundingRect.height * devicePixelRatio
-
-      asemic.current!.postMessage({
-        preProcess: {
-          width: boundingRect.width * devicePixelRatio,
-          height: boundingRect.height * devicePixelRatio
-        }
-      })
-    }
-    if (showCanvas && asemic.current) {
-      asemic.current.setup(canvas.current)
-      const resizeObserver = new ResizeObserver(onResize)
-      resizeObserver.observe(canvas.current)
-
-      window.addEventListener('resize', onResize)
-      onResize()
-      return () => {
-        resizeObserver.disconnect()
-        window.removeEventListener('resize', onResize)
-      }
-    }
-  }, [showCanvas, asemic])
-
   return (
     <div className='asemic-container relative group'>
       <div
@@ -495,18 +491,16 @@ function AsemicAppInner({
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen`}
         ref={frame}>
-        {showCanvas && (
-          <canvas
-            style={{
-              width: '100%',
-              height: settings.h === 'window' ? '100%' : undefined,
-              aspectRatio:
-                settings.h === 'window' ? undefined : `1 / ${settings.h}`
-            }}
-            ref={canvas}
-            height={1080}
-            width={1080}></canvas>
-        )}
+        <canvas
+          style={{
+            width: '100%',
+            height: settings.h === 'window' ? '100%' : undefined,
+            aspectRatio:
+              settings.h === 'window' ? undefined : `1 / ${settings.h}`
+          }}
+          ref={canvas}
+          height={1080}
+          width={1080}></canvas>
 
         <div
           className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
@@ -600,15 +594,6 @@ function AsemicAppInner({
                   {<RefreshCw {...lucideProps} />}
                 </button>
                 <div className='grow' />
-                <button
-                  onClick={() => setShowCanvas(!showCanvas)}
-                  title='Toggle Canvas'>
-                  {showCanvas ? (
-                    <Eye {...lucideProps} />
-                  ) : (
-                    <EyeOff {...lucideProps} />
-                  )}
-                </button>
                 <button onClick={() => setHelp(!help)}>
                   {<Info {...lucideProps} />}
                 </button>

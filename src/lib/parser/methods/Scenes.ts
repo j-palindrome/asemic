@@ -15,7 +15,7 @@ export class SceneMethods {
       setup?: () => void
       length?: number
       offset?: number
-      pause?: number
+      pause?: number | false
     }[]
   ) {
     this.parser.output.scenes = []

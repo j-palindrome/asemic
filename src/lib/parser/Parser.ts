@@ -180,7 +180,7 @@ export class Parser {
       '<>': (...args) => {
         const progress = this.expressions.expr(args[0])
         const spread = this.expressions.expr(args[1] || '1')
-        const center = this.expressions.expr(args[2] || '0.5')
+        const center = this.expressions.expr(args[2] || '0')
         const max = center + spread / 2
         const min = center - spread / 2
         return progress * (max - min) + min

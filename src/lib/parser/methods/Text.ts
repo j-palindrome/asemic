@@ -59,6 +59,7 @@ export class TextMethods {
           if (!setting.includes('=')) return
           const [key, value] = splitString(setting, '=')
           parserSettings[key] = this.parser.expressions.expr(value)
+          parserSettings.pause = false
         })
       }
       sceneList.push(parserSettings)

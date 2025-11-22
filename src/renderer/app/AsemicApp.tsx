@@ -283,27 +283,27 @@ function AsemicAppInner({
     const filename = localStorage.getItem('filename') || `${timestamp}.asemic`
 
     try {
-      if ('showSaveFilePicker' in window) {
-        // Modern browsers with File System Access API
-        // @ts-ignore
-        const fileHandle = await window.showSaveFilePicker({
-          suggestedName: filename,
-          types: [
-            {
-              description: 'Asemic files',
-              accept: {
-                'text/plain': ['.asemic']
-              }
-            }
-          ]
-        })
-        const writable = await fileHandle.createWritable()
-        await writable.write(content)
-        await writable.close()
-        console.log('File saved successfully')
-      } else {
+      // if ('showSaveFilePicker' in window) {
+      //   // Modern browsers with File System Access API
+      //   // @ts-ignore
+      //   const fileHandle = await window.showSaveFilePicker({
+      //     suggestedName: filename,
+      //     types: [
+      //       {
+      //         description: 'Asemic files',
+      //         accept: {
+      //           'text/plain': ['.asemic']
+      //         }
+      //       }
+      //     ]
+      //   })
+      //   const writable = await fileHandle.createWritable()
+      //   await writable.write(content)
+      //   await writable.close()
+      //   console.log('File saved successfully')
+      // } else {
         // Fallback for iPadOS and other browsers
-        const blob = new Blob([content], { type: 'text/plain' })
+        const blob = new Blob([content], { type: 'application/octet-stream' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
@@ -315,11 +315,11 @@ function AsemicAppInner({
         URL.revokeObjectURL(url)
         console.log('File downloaded successfully')
       }
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Failed to save file:', error)
-      }
-    }
+    // } catch (error) {
+    //   if (error.name !== 'AbortError') {
+    //     console.error('Failed to save file:', error)
+    //   }
+    // }
   }
 
   const openFile = async () => {

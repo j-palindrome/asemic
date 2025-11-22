@@ -57,7 +57,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   if (!isUndefined(ev.data.play)) {
     parser.scenes.play(ev.data.play)
-    self.postMessage({ osc: parser.output.osc } as Partial<Parser['output']>)
   }
   if (!isUndefined(ev.data.scrub)) {
     parser.scenes.scrub(ev.data.scrub)

@@ -7,6 +7,7 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  FoldVertical,
   Info,
   LucideProps,
   Maximize2,
@@ -206,7 +207,6 @@ function AsemicAppInner({
           if (ev.key === 'ArrowLeft' && totalLength > 0) {
             ev.preventDefault()
             const newProgress = Math.max(0, progress - 0.1)
-            setProgress(newProgress)
             if (asemic.current) {
               asemic.current.postMessage({
                 scrub: newProgress
@@ -217,7 +217,6 @@ function AsemicAppInner({
           if (ev.key === 'ArrowRight' && totalLength > 0) {
             ev.preventDefault()
             const newProgress = Math.min(totalLength, progress + 0.1)
-            setProgress(newProgress)
             if (asemic.current) {
               asemic.current.postMessage({
                 scrub: newProgress
@@ -227,7 +226,6 @@ function AsemicAppInner({
           }
           if (ev.key === 'Home' && totalLength > 0) {
             ev.preventDefault()
-            setProgress(0)
             if (asemic.current) {
               asemic.current.postMessage({
                 scrub: 0
@@ -237,7 +235,6 @@ function AsemicAppInner({
           }
           if (ev.key === 'End' && totalLength > 0) {
             ev.preventDefault()
-            setProgress(totalLength)
             if (asemic.current) {
               asemic.current.postMessage({
                 scrub: totalLength
@@ -451,7 +448,7 @@ function AsemicAppInner({
     const x = clientX - rect.left
     const newProgress = (x / rect.width) * totalLength
 
-    setProgress(newProgress)
+    // setProgress(newProgress)
     if (asemic.current) {
       asemic.current.postMessage({
         scrub: newProgress
@@ -514,9 +511,16 @@ function AsemicAppInner({
           <div className='flex items-center px-0 py-1 z-100'>
             <button
               onClick={() => {
-                asemic.current!.postMessage({
-                  play: true
-                } as AsemicData)
+                console.log(pauseAtRef.current)
+                if (pauseAtRef.current) {
+                  asemic.current!.postMessage({
+                    play: true
+                  } as AsemicData)
+                } else {
+                  asemic.current!.postMessage({
+                    play: { pauseAt: progress }
+                  } as AsemicData)
+                }
               }}>
               {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
             </button>
@@ -561,14 +565,12 @@ function AsemicAppInner({
                   return (
                     <div
                       key={index}
-                      className='absolute h-4 w-4 rounded-full font-mono text-[10px] bg-black text-white flex items-center justify-center'
+                      className='absolute h-4 w-1 rounded-lg font-mono text-[10px] bg-[#68788f] text-white flex items-center justify-center'
                       style={{
                         left: `${sceneStart.toFixed(1)}%`,
                         top: '50%',
                         transform: 'translateY(-50%)'
-                      }}>
-                      {index}
-                    </div>
+                      }}></div>
                   )
                 })}
               </div>
@@ -591,9 +593,20 @@ function AsemicAppInner({
                   }}>
                   <Power {...lucideProps} />
                 </button>
+                <button onClick={() => editorRef.current?.toggleFoldAll()}>
+                  <FoldVertical {...lucideProps} />
+                </button>
 
                 <button
                   onClick={() => {
+                    const scene = editorRef.current?.getScene()
+                    if (scene !== undefined) {
+                      if (asemic.current) {
+                        asemic.current.postMessage({
+                          scrub: scenes[scene]
+                        } as Partial<AsemicData>)
+                      }
+                    }
                     setScenesSource(editorRef.current?.getValue() ?? '')
                   }}
                   title={'Set Value'}>

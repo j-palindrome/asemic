@@ -32,7 +32,9 @@ import {
   syntaxTree,
   foldGutter,
   foldKeymap,
-  foldService
+  foldService,
+  foldAll,
+  unfoldAll
 } from '@codemirror/language'
 // @ts-ignore
 import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
@@ -64,12 +66,26 @@ export interface AsemicEditorRef {
   getValue: () => string
   setValue: (value: string) => void
   insertAtCursor: (text: string) => void
+  toggleFoldAll: () => void
+  getScene: () => number | undefined
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
   ({ help, setHelp, defaultValue, onChange, errors }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
+    const [allFolded, setAllFolded] = React.useState(false)
+
+    const toggleFoldAll = () => {
+      if (viewRef.current) {
+        if (allFolded) {
+          unfoldAll(viewRef.current)
+        } else {
+          foldAll(viewRef.current)
+        }
+        setAllFolded(!allFolded)
+      }
+    }
 
     useImperativeHandle(
       ref,
@@ -99,9 +115,25 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
               selection: { anchor: selection.from + text.length }
             })
           }
-        }
+        },
+        getScene: () => {
+          if (viewRef.current) {
+            const { state } = viewRef.current
+            const cursorPos = state.selection.main.head
+            const cursorLine = state.doc.lineAt(cursorPos)
+            let scene = 0
+            for (let i = 1; i <= cursorLine.number; i++) {
+              const line = state.doc.line(i)
+              if (line.text.trimStart().startsWith('#')) {
+                scene++
+              }
+            }
+            return scene - 1
+          }
+        },
+        toggleFoldAll
       }),
-      []
+      [allFolded]
     )
 
     const foldingOnIndent = foldService.of((state, from, to) => {
@@ -191,7 +223,8 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         { tag: t.className, color: '#818cf8' },
         { tag: t.variableName, color: '#95d2ff' },
         { tag: t.name, color: '#9edbf1' },
-        { tag: t.string, color: '#a3ffc1' }
+        { tag: t.string, color: '#63989b' },
+        { tag: t.comment, color: '#adbac7' }
       ])
 
       const drawingMethods = [

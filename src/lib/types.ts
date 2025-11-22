@@ -12,7 +12,10 @@ export type AsemicData = {
     text: string[]
     index: { value: number }
   }
-  play?: boolean | { scene: number }
+  play?:
+    | boolean
+    | { scene: number; pauseAt: undefined }
+    | { pauseAt: number; scene: undefined }
   mouse?: { x: number; y: number; cursorPosition: number }
   scrub?: number
   offscreenCanvas?: OffscreenCanvas

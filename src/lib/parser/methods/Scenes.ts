@@ -43,7 +43,12 @@ export class SceneMethods {
         this.parser.pauseAt = false
       }
     } else if (typeof play === 'object') {
-      if (!isUndefined(play.scene) && this.parser.sceneList[play.scene]) {
+      if (!isUndefined(play.pauseAt)) {
+        this.parser.pauseAt = play.pauseAt.toFixed(5)
+      } else if (
+        !isUndefined(play.scene) &&
+        this.parser.sceneList[play.scene]
+      ) {
         this.parser.reset()
         this.parser.setup(this.parser.rawSource)
         for (let i = 0; i < play.scene; i++) {

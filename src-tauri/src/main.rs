@@ -32,28 +32,106 @@ struct DrawOutput {
     progress: f64,
 }
 
-fn traverse_tree(node: &SyntaxNode, source: &str, depth: usize) {
-    let indent = "  ".repeat(depth);
-    let text = &source[node.from..node.to];
-    println!("{}Node: {} [{}-{}]: {:?}", indent, node.name, node.from, node.to, text);
-    
-    for child in &node.children {
-        traverse_tree(child, source, depth + 1);
+struct RustParser {
+    source: String,
+    tree: SyntaxNode,
+    total_length: f64,
+    scene_count: usize,
+    errors: Vec<String>,
+}
+
+impl RustParser {
+    fn new(input: ParserInput) -> Self {
+        Self {
+            source: input.source,
+            tree: input.tree,
+            total_length: 0.0,
+            scene_count: 0,
+            errors: Vec::new(),
+        }
+    }
+
+    fn parse(&mut self) -> Result<ParserState, String> {
+        println!("\n=== Syntax Tree ===");
+        println!("Root: {} [{}-{}]", self.tree.name, self.tree.from, self.tree.to);
+        
+        // Traverse and parse the syntax tree
+        self.traverse_node(&self.tree.clone(), 0)?;
+        
+        println!("=== End Syntax Tree ===\n");
+        
+        Ok(ParserState {
+            total_length: self.total_length,
+            scene_count: self.scene_count,
+        })
+    }
+
+    fn traverse_node(&mut self, node: &SyntaxNode, depth: usize) -> Result<(), String> {
+        let indent = "  ".repeat(depth);
+        let text = &self.source[node.from..node.to];
+        
+        // Enhanced logging with more details
+        println!(
+            "{}├─ {} [{}-{}] (len: {}) text: {:?}", 
+            indent, 
+            node.name, 
+            node.from, 
+            node.to,
+            node.to - node.from,
+            if text.len() > 50 { 
+                format!("{}...", &text[..50]) 
+            } else { 
+                text.to_string() 
+            }
+        );
+        
+        // TODO: Handle different node types based on node.name
+        match node.name.as_str() {
+            "Scene" => {
+                self.scene_count += 1;
+                println!("{}   └─ Found scene #{}", indent, self.scene_count);
+                // TODO: Parse scene length
+            }
+            "Command" => {
+                println!("{}   └─ Found command: {:?}", indent, text);
+                // TODO: Parse commands
+            }
+            "Expression" => {
+                println!("{}   └─ Found expression: {:?}", indent, text);
+                // TODO: Parse expressions
+            }
+            _ => {}
+        }
+        
+        // Recursively traverse children
+        for child in &node.children {
+            self.traverse_node(child, depth + 1)?;
+        }
+        
+        Ok(())
     }
 }
 
 #[tauri::command]
 async fn parser_setup(input: ParserInput) -> Result<ParserState, String> {
-    println!("Received syntax tree with {} top-level children", input.tree.children.len());
+    // println!("\n{}", "=".repeat(60));
+    println!("RUST PARSER INVOKED");
+    println!("{}", "=".repeat(60));
+    println!("Source length: {} characters", input.source.len());
+    println!("Tree root: {} with {} children", input.tree.name, input.tree.children.len());
+    println!("{}\n", "=".repeat(60));
     
-    // Traverse the syntax tree
-    traverse_tree(&input.tree, &input.source, 0);
+    let mut parser = RustParser::new(input);
+    let result = parser.parse()?;
     
-    // TODO: Implement actual parser logic based on tree traversal
-    Ok(ParserState {
-        total_length: 0.0,
-        scene_count: 0,
-    })
+    println!("\n{}", "=".repeat(60));
+    println!("PARSER RESULT");
+    println!("{}", "=".repeat(60));
+    println!("Total length: {}", result.total_length);
+    println!("Scene count: {}", result.scene_count);
+    println!("{}\n", "=".repeat(60));
+    
+    Ok(result)
 }
 
 #[tauri::command]
@@ -69,6 +147,7 @@ async fn parser_draw(progress: f64) -> Result<DrawOutput, String> {
 #[tauri::command]
 async fn parser_eval_expression(expr: String) -> Result<f64, String> {
     // TODO: Implement expression evaluation
+    println!("Evaluating expression: {}", expr);
     Ok(0.0)
 }
 

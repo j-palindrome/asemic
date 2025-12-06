@@ -117,9 +117,9 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       }
 
       const tree = viewRef.current.state.doc.toString()
-      const syntaxTree = syntaxTree(viewRef.current.state)
+      const tree2 = syntaxTree(viewRef.current.state)
 
-      return serializeNode(syntaxTree.topNode)
+      return serializeNode(tree2.topNode)
     }
 
     useImperativeHandle(
@@ -260,7 +260,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         { tag: t.variableName, color: '#95d2ff' },
         { tag: t.name, color: '#9edbf1' },
         { tag: t.string, color: '#63989b' },
-        { tag: t.comment, color: '#adbac7' }
+        { tag: t.comment, color: '#adbac7', class: 'font-serif' }
       ])
 
       const drawingMethods = [

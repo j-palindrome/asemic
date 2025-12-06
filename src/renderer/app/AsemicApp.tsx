@@ -102,6 +102,8 @@ function AsemicAppInner({
     setScenes
   ] = useProgress()
 
+  const [useRustParser, setUseRustParser] = useState(false)
+
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
     const [isSetup, setIsSetup] = useState(false)
@@ -145,30 +147,49 @@ function AsemicAppInner({
     useEffect(() => {
       if (!isSetup) return
       const restart = async () => {
-        // Get syntax tree from editor
-        const syntaxTree = editorRef.current?.getSyntaxTree()
+        if (useRustParser) {
+          // Rust parser path
+          const syntaxTree = editorRef.current?.getSyntaxTree()
+          console.log('Syntax tree:', JSON.stringify(syntaxTree, null, 2))
 
-        if (!syntaxTree) {
-          console.warn('No syntax tree available')
-          return
-        }
+          if (!syntaxTree) {
+            console.warn('No syntax tree available')
+            return
+          }
 
-        // Call Rust parser with tree instead of raw source
-        try {
-          const parserState = await invoke('parser_setup', {
-            input: {
-              source: scenesSourceRef.current,
-              tree: syntaxTree
+          try {
+            const parserState = await invoke('parser_setup', {
+              input: {
+                source: scenesSourceRef.current,
+                tree: syntaxTree
+              }
+            })
+            console.log('Rust parser initialized:', parserState)
+          } catch (error) {
+            console.error('Rust parser setup failed:', error)
+          }
+        } else {
+          // Original JS parser path
+          const preProcess = {
+            replacements: {}
+          } as Parser['preProcessing']
+          const links = scenesSource.match(/\[\[.*?\]\]/)
+          if (links) {
+            for (let link of links) {
+              const fileName = link.substring(2, link.length - 2)
+              preProcess.replacements[link] = (
+                await getRequire(fileName)
+              ).trim()
             }
+          }
+          asemic.current?.postMessage({
+            source: scenesSourceRef.current,
+            preProcess
           })
-          setTotalLength(parserState.total_length)
-          // Update other state based on parser response
-        } catch (error) {
-          console.error('Parser setup failed:', error)
         }
       }
       restart()
-    }, [scenesSource, isSetup])
+    }, [scenesSource, isSetup, useRustParser])
   }
   setup()
 
@@ -662,6 +683,12 @@ function AsemicAppInner({
                   />
                 }
               </button> */}
+                <button
+                  className={`${useRustParser ? '!bg-green-200/40' : ''}`}
+                  onClick={() => setUseRustParser(!useRustParser)}
+                  title='Toggle Rust Parser'>
+                  {useRustParser ? '🦀' : 'JS'}
+                </button>
               </div>
               <AsemicEditor
                 ref={editorRef}

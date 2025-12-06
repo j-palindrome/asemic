@@ -499,33 +499,91 @@ function AsemicAppInner({
   }
 
   const editorRef = useRef<AsemicEditorRef | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const isScrollingRef = useRef(false)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef({ y: 0, scrollTop: 0 })
 
-  const updatePosition = (e: React.MouseEvent | React.TouchEvent) => {
-    // Check if it's a mouse event with button pressed
-    if ('buttons' in e && e.buttons !== 1) {
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    // Ignore scroll events when playback is active (not paused)
+    if (!pauseAtRef.current) {
       return
     }
 
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+    const target = e.currentTarget
+    const scrollPercent =
+      target.scrollTop / (target.scrollHeight - target.clientHeight || 1)
+    const newProgress = scrollPercent * totalLength
 
-    // Get x position from either mouse or touch event
-    const clientX =
-      'touches' in e && e.touches.length > 0
-        ? e.touches[0].clientX
-        : 'clientX' in e
-        ? e.clientX
-        : 0
+    // Set scrolling flag
+    isScrollingRef.current = true
 
-    const x = clientX - rect.left
-    const newProgress = (x / (rect.width ?? 1)) * totalLength
+    // Clear previous timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current)
+    }
 
-    // setProgress(newProgress)
+    // Reset scrolling flag after scroll ends
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrollingRef.current = false
+    }, 150)
+
     if (asemic.current) {
       asemic.current.postMessage({
         scrub: newProgress
       } as AsemicData)
     }
   }
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!scrollContainerRef.current) return
+    isDraggingRef.current = true
+    dragStartRef.current = {
+      y: e.clientY,
+      scrollTop: scrollContainerRef.current.scrollTop
+    }
+    e.preventDefault()
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current || !scrollContainerRef.current) return
+
+    const deltaY = e.clientY - dragStartRef.current.y
+    scrollContainerRef.current.scrollTop =
+      dragStartRef.current.scrollTop - deltaY
+    e.preventDefault()
+  }
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false
+  }
+
+  const handleMouseLeave = () => {
+    isDraggingRef.current = false
+  }
+
+  useEffect(() => {
+    // Add global mouse up listener to catch mouse up outside the element
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
+
+  // Update scroll position when progress changes externally (but not during user scrolling)
+  useEffect(() => {
+    if (isScrollingRef.current) return // Skip if user is scrolling
+
+    if (scrollContainerRef.current && totalLength > 0) {
+      const scrollPercent = progress / totalLength
+      const scrollTop =
+        scrollPercent *
+        (scrollContainerRef.current.scrollHeight -
+          scrollContainerRef.current.clientHeight)
+      scrollContainerRef.current.scrollTop = scrollTop
+    }
+  }, [progress, totalLength])
 
   useEffect(() => {
     const onResize = () => {
@@ -576,8 +634,54 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
+        {/* Vertical playbar on the right */}
         <div
-          className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
+          ref={scrollContainerRef}
+          className='fixed top-0 right-0 h-full w-12 overflow-y-scroll overflow-x-hidden !z-100 scrollbar-hide cursor-grab active:cursor-grabbing'
+          onScroll={handleScroll}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            userSelect: 'none'
+          }}>
+          {/* Scrollable content area - height determines scroll range */}
+          <div
+            style={{
+              height: `calc(${Math.max(200, scenes.length * 100)}vh)`,
+              position: 'relative'
+            }}>
+            {/* Scene markers */}
+            {scenes.map((scene, index) => {
+              // Position based on scene progress value relative to totalLength
+              const scenePercent =
+                totalLength > 0 ? (scene / totalLength) * 100 : 0
+              return (
+                <div
+                  key={index}
+                  className='absolute w-8 h-1 rounded-lg bg-[#68788f] left-1/2 -translate-x-1/2'
+                  style={{
+                    top: `${scenePercent}%`
+                  }}>
+                  <span className='text-[10px] text-white ml-10 whitespace-nowrap'>
+                    {index}
+                  </span>
+                </div>
+              )
+            })}
+            {/* Progress indicator */}
+            <div
+              className='sticky top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-[#3b82f6] rounded-lg z-10'
+              style={{ pointerEvents: 'none' }}
+            />
+          </div>
+        </div>
+
+        <div
+          className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100'
           onPointerDownCapture={checkLive}>
           <div className='flex items-center px-0 py-1 z-100'>
             <button
@@ -594,57 +698,7 @@ function AsemicAppInner({
               }}>
               {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
             </button>
-            <div
-              className='w-full h-5 flex items-center cursor-pointer relative select-none'
-              onMouseMove={updatePosition}
-              onMouseDown={updatePosition}
-              onTouchMove={updatePosition}
-              onTouchStart={updatePosition}>
-              <div
-                className='absolute h-1 rounded-lg'
-                style={{
-                  left: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: '100%',
-                  background: '#4b5563'
-                }}
-              />
-              <div
-                className='absolute h-1 rounded-lg'
-                style={{
-                  left: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: `${(progress / totalLength) * 100}%`,
-                  border: '1 white'
-                }}
-              />
-              <div
-                className='absolute h-full w-2 rounded-lg'
-                style={{
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  left: `${(progress / totalLength) * 100}%`,
-                  background: '#3b82f6'
-                }}
-              />
-              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                {scenes.map((scene, index) => {
-                  const sceneStart = (scene / totalLength) * 100
-                  return (
-                    <div
-                      key={index}
-                      className='absolute h-4 w-1 rounded-lg font-mono text-[10px] bg-[#68788f] text-white flex items-center justify-center'
-                      style={{
-                        left: `${sceneStart.toFixed(1)}%`,
-                        top: '50%',
-                        transform: 'translateY(-50%)'
-                      }}></div>
-                  )
-                })}
-              </div>
-            </div>
+            <div className='grow' />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>

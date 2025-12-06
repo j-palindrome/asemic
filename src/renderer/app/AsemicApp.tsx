@@ -13,6 +13,7 @@ import {
   Maximize2,
   Pause,
   Play,
+  Plus,
   Power,
   RefreshCw,
   Save,
@@ -21,6 +22,9 @@ import {
 import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
+import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { invoke } from '@tauri-apps/api/core'
 
 function AsemicAppInner({
   source,
@@ -141,20 +145,27 @@ function AsemicAppInner({
     useEffect(() => {
       if (!isSetup) return
       const restart = async () => {
-        const preProcess = {
-          replacements: {}
-        } as Parser['preProcessing']
-        const links = scenesSource.match(/\[\[.*?\]\]/)
-        if (links) {
-          for (let link of links) {
-            const fileName = link.substring(2, link.length - 2)
-            preProcess.replacements[link] = (await getRequire(fileName)).trim()
-          }
+        // Get syntax tree from editor
+        const syntaxTree = editorRef.current?.getSyntaxTree()
+
+        if (!syntaxTree) {
+          console.warn('No syntax tree available')
+          return
         }
-        asemic.current?.postMessage({
-          source: scenesSourceRef.current,
-          preProcess
-        })
+
+        // Call Rust parser with tree instead of raw source
+        try {
+          const parserState = await invoke('parser_setup', {
+            input: {
+              source: scenesSourceRef.current,
+              tree: syntaxTree
+            }
+          })
+          setTotalLength(parserState.total_length)
+          // Update other state based on parser response
+        } catch (error) {
+          console.error('Parser setup failed:', error)
+        }
       }
       restart()
     }, [scenesSource, isSetup])
@@ -277,105 +288,80 @@ function AsemicAppInner({
   }
   const [live, isLive, setIsLive] = useKeys()
 
+  const currentFilePathRef = useRef<string | null>(null)
+
   const saveToFile = async () => {
     const content = editable.current?.value || scenesSource
-    const timestamp = new Date().toISOString().slice(0, 10).replace(/:/g, '')
-    const filename = localStorage.getItem('filename') || `${timestamp}.asemic`
 
     try {
-      // if ('showSaveFilePicker' in window) {
-      //   // Modern browsers with File System Access API
-      //   // @ts-ignore
-      //   const fileHandle = await window.showSaveFilePicker({
-      //     suggestedName: filename,
-      //     types: [
-      //       {
-      //         description: 'Asemic files',
-      //         accept: {
-      //           'text/plain': ['.asemic']
-      //         }
-      //       }
-      //     ]
-      //   })
-      //   const writable = await fileHandle.createWritable()
-      //   await writable.write(content)
-      //   await writable.close()
-      //   console.log('File saved successfully')
-      // } else {
-        // Fallback for iPadOS and other browsers
-        const blob = new Blob([content], { type: 'application/octet-stream' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename
-        a.style.display = 'none'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        console.log('File downloaded successfully')
+      let filePath = currentFilePathRef.current
+
+      if (!filePath) {
+        // First save - show save dialog
+        const timestamp = new Date()
+          .toISOString()
+          .slice(0, 10)
+          .replace(/:/g, '')
+        const suggestedName =
+          localStorage.getItem('filename') || `${timestamp}.asemic`
+
+        filePath = await saveDialog({
+          defaultPath: suggestedName,
+          filters: [
+            {
+              name: 'Asemic files',
+              extensions: ['asemic']
+            }
+          ]
+        })
+
+        if (!filePath) {
+          // User cancelled
+          return
+        }
+
+        currentFilePathRef.current = filePath
+        const fileName = filePath.split(/[/\\]/).pop() || suggestedName
+        localStorage.setItem('filename', fileName)
       }
-    // } catch (error) {
-    //   if (error.name !== 'AbortError') {
-    //     console.error('Failed to save file:', error)
-    //   }
-    // }
+
+      // Write to file
+      await writeTextFile(filePath, content)
+    } catch (error) {
+      console.error('Failed to save file:', error)
+    }
   }
 
   const openFile = async () => {
-    // try {
-    // if ('showOpenFilePicker' in window) {
-    //   // Modern browsers with File System Access API
+    try {
+      const filePath = await open({
+        multiple: false,
+        directory: false,
+        pickerMode: 'document'
+        // filters: [
+        //   {
+        //     name: 'Asemic files',
+        //     extensions: ['.asemic', '.txt']
+        //   }
+        // ]
+      })
 
-    //   const [fileHandle] = await window.showOpenFilePicker({
-    //     types: [
-    //       {
-    //         description: 'Asemic files',
-    //         accept: {
-    //           'text/plain': ['.asemic']
-    //         }
-    //       }
-    //     ]
-    //   })
-    //   const file = await fileHandle.getFile()
-    //   const content = await file.text()
-    //   setScenesSource(content)
-    //   editorRef.current?.setValue(content)
-    // } else {
-    // Fallback for iPadOS and other browsers
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.asemic'
-    input.style.display = 'none'
-
-    input.onchange = async e => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
-        try {
-          const content = await file.text()
-          setScenesSource(content)
-          editorRef.current?.setValue(content)
-          localStorage.setItem('filename', file.name)
-          console.log('File loaded successfully')
-        } catch (error) {
-          console.error('Failed to read file:', error)
-        }
+      if (!filePath) {
+        // User cancelled
+        return
       }
-      document.body.removeChild(input)
-    }
 
-    input.oncancel = () => {
-      document.body.removeChild(input)
+      const content = await readTextFile(filePath as string)
+      setScenesSource(content)
+      editorRef.current?.setValue(content)
+      currentFilePathRef.current = filePath as string
+      const fileName =
+        (filePath as string).split(/[/\\]/).pop() || 'untitled.asemic'
+      localStorage.setItem('filename', fileName)
+    } catch (error) {
+      console.error('Failed to open file:', error)
     }
-
-    document.body.appendChild(input)
-    input.click()
   }
-  // } catch (error) {
-  //   if (error.name !== 'AbortError') {
-  //     console.error('Failed to open file:', error)
-  //   }
-  // }
 
   const [perform, setPerform] = useState(settings.perform)
   useEffect(() => {
@@ -415,8 +401,9 @@ function AsemicAppInner({
     }
     if (isLive && editorRef.current) {
       const rect = canvas.current.getBoundingClientRect()
-      const x = (ev.clientX - rect.left) / rect.width
-      const y = (ev.clientY - rect.top) / rect.height
+      if (!rect) return
+      const x = (ev.clientX - rect.left) / (rect.width || 1080)
+      const y = (ev.clientY - rect.top) / (rect.height || 1080)
       const newPoint = `${x.toFixed(2).replace('.00', '')},${y
         .toFixed(2)
         .replace('.00', '')} `
@@ -446,7 +433,7 @@ function AsemicAppInner({
         : 0
 
     const x = clientX - rect.left
-    const newProgress = (x / rect.width) * totalLength
+    const newProgress = (x / (rect.width ?? 1)) * totalLength
 
     // setProgress(newProgress)
     if (asemic.current) {
@@ -464,14 +451,15 @@ function AsemicAppInner({
       // canvas.current.width = boundingRect.width * devicePixelRatio
       // canvas.current.height = boundingRect.height * devicePixelRatio
 
+      console.log(boundingRect.width, boundingRect.height)
       asemic.current!.postMessage({
         preProcess: {
-          width: boundingRect.width * devicePixelRatio,
-          height: boundingRect.height * devicePixelRatio
+          width: (boundingRect.width || 1080) * devicePixelRatio,
+          height: (boundingRect.height || 1080) * devicePixelRatio
         }
       })
     }
-    if (showCanvas && asemic.current) {
+    if (asemic.current) {
       asemic.current.setup(canvas.current)
       const resizeObserver = new ResizeObserver(onResize)
       resizeObserver.observe(canvas.current)
@@ -492,18 +480,17 @@ function AsemicAppInner({
           settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
         } fullscreen:max-h-screen`}
         ref={frame}>
-        {showCanvas && (
-          <canvas
-            style={{
-              width: '100%',
-              height: settings.h === 'window' ? '100%' : undefined,
-              aspectRatio:
-                settings.h === 'window' ? undefined : `1 / ${settings.h}`
-            }}
-            ref={canvas}
-            height={1080}
-            width={1080}></canvas>
-        )}
+        <canvas
+          style={{
+            width: '100%',
+            height: settings.h === 'window' ? '100%' : undefined,
+            aspectRatio:
+              settings.h === 'window' ? undefined : `1 / ${settings.h}`,
+            display: showCanvas ? 'block' : 'none'
+          }}
+          ref={canvas}
+          height={1080}
+          width={1080}></canvas>
 
         <div
           className='fixed top-1 left-1 h-full w-[calc(100%-50px)] flex-col flex !z-100'
@@ -511,7 +498,6 @@ function AsemicAppInner({
           <div className='flex items-center px-0 py-1 z-100'>
             <button
               onClick={() => {
-                console.log(pauseAtRef.current)
                 if (pauseAtRef.current) {
                   asemic.current!.postMessage({
                     play: true
@@ -636,6 +622,15 @@ function AsemicAppInner({
 
                 <button onClick={saveToFile} title='Save to .js file'>
                   <Download {...lucideProps} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    currentFilePathRef.current = null
+                    saveToFile()
+                  }}
+                  title='New File'>
+                  <Plus {...lucideProps} />
                 </button>
 
                 <button onClick={openFile} title='Open Asemic file'>

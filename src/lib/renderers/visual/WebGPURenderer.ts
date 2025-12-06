@@ -25,9 +25,7 @@ export default class WebGPURenderer {
   }
 
   async setup() {
-    const adapter = await navigator.gpu.requestAdapter({
-      featureLevel: 'compatibility'
-    })
+    const adapter = await navigator.gpu.requestAdapter()
     invariant(adapter)
     const device = await adapter.requestDevice()
     invariant(device)

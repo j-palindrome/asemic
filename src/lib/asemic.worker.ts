@@ -47,9 +47,9 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
-    if (!isUndefined(parser.preProcessing.width))
+    if (parser.preProcessing.width)
       offscreenCanvas.width = parser.preProcessing.width
-    if (!isUndefined(parser.preProcessing.height))
+    if (parser.preProcessing.height)
       offscreenCanvas.height = parser.preProcessing.height
   }
   if (!isUndefined(ev.data.live)) {
@@ -109,17 +109,5 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       cancelAnimationFrame(animationFrame)
     }
     animationFrame = requestAnimationFrame(animate)
-  }
-
-  if (parser.settings.h === 'auto') {
-    const maxY = max(flatMap(parser.groups.flat(), '1'))! + 0.1
-
-    if (offscreenCanvas.height !== Math.floor(maxY * offscreenCanvas.width)) {
-      offscreenCanvas.height = offscreenCanvas.width * maxY
-      parser.preProcessing.height = offscreenCanvas.height
-      self.postMessage({
-        preProcessing: parser.preProcessing
-      } as Partial<Parser['output']>)
-    }
   }
 }

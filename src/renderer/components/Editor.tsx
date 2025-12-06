@@ -68,6 +68,14 @@ export interface AsemicEditorRef {
   insertAtCursor: (text: string) => void
   toggleFoldAll: () => void
   getScene: () => number | undefined
+  getSyntaxTree: () => SerializedSyntaxNode | null
+}
+
+interface SerializedSyntaxNode {
+  name: string
+  from: number
+  to: number
+  children: SerializedSyntaxNode[]
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
@@ -85,6 +93,33 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         }
         setAllFolded(!allFolded)
       }
+    }
+
+    const getSyntaxTree = (): SerializedSyntaxNode | null => {
+      if (!viewRef.current) return null
+
+      const serializeNode = (node: any): SerializedSyntaxNode => {
+        const children: SerializedSyntaxNode[] = []
+        const cursor = node.cursor()
+
+        if (cursor.firstChild()) {
+          do {
+            children.push(serializeNode(cursor.node))
+          } while (cursor.nextSibling())
+        }
+
+        return {
+          name: node.name,
+          from: node.from,
+          to: node.to,
+          children
+        }
+      }
+
+      const tree = viewRef.current.state.doc.toString()
+      const syntaxTree = syntaxTree(viewRef.current.state)
+
+      return serializeNode(syntaxTree.topNode)
     }
 
     useImperativeHandle(
@@ -131,7 +166,8 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
             return scene - 1
           }
         },
-        toggleFoldAll
+        toggleFoldAll,
+        getSyntaxTree
       }),
       [allFolded]
     )
@@ -573,7 +609,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       }
 
       // Parse and print the result once on mount
-      parseAndLog()
+      // parseAndLog()
       return () => {
         viewRef.current?.destroy()
         viewRef.current = null

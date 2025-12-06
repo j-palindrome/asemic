@@ -104,6 +104,19 @@ function AsemicAppInner({
     setScenes
   ] = useProgress()
 
+  // Calculate active scene based on current progress
+  const activeScene = useMemo(() => {
+    if (scenes.length === 0) return 0
+
+    // Find which scene we're currently in
+    for (let i = scenes.length - 1; i >= 0; i--) {
+      if (progress >= scenes[i]) {
+        return i
+      }
+    }
+    return 0
+  }, [progress, scenes])
+
   const [useRustParser, setUseRustParser] = useState(false)
 
   const setup = () => {
@@ -753,6 +766,7 @@ function AsemicAppInner({
                 errors={errors}
                 help={help}
                 setHelp={setHelp}
+                activeScene={activeScene}
               />
             </>
           )}

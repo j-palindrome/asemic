@@ -11,6 +11,7 @@ import {
   Info,
   LucideProps,
   Maximize2,
+  Music,
   Pause,
   Play,
   Plus,
@@ -23,8 +24,9 @@ import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 
 function AsemicAppInner({
   source,
@@ -384,6 +386,54 @@ function AsemicAppInner({
     }
   }
 
+  const [audioFiles, setAudioFiles] = useState<Map<string, HTMLAudioElement>>(
+    new Map()
+  )
+
+  const loadAudioFolder = async () => {
+    try {
+      const folderPath = await open({
+        multiple: false,
+        directory: true
+      })
+
+      if (!folderPath) {
+        // User cancelled
+        return
+      }
+
+      const entries = await readDir(folderPath as string)
+      const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac']
+      const newAudioFiles = new Map<string, HTMLAudioElement>()
+
+      for (const entry of entries) {
+        if (!entry.isFile) continue
+
+        const lowerName = entry.name.toLowerCase()
+        const hasAudioExt = audioExtensions.some(ext => lowerName.endsWith(ext))
+
+        if (hasAudioExt) {
+          const fullPath = `${folderPath}/${entry.name}`
+          const audio = new Audio(convertFileSrc(fullPath))
+
+          // Preload the audio
+          audio.preload = 'auto'
+
+          // Store with filename (without extension) as key
+          const nameWithoutExt = entry.name.replace(/\.[^/.]+$/, '')
+          newAudioFiles.set(nameWithoutExt, audio)
+
+          console.log(`Loaded audio file: ${nameWithoutExt}`)
+        }
+      }
+
+      setAudioFiles(newAudioFiles)
+      console.log(`Loaded ${newAudioFiles.size} audio files from folder`)
+    } catch (error) {
+      console.error('Failed to load audio folder:', error)
+    }
+  }
+
   const [perform, setPerform] = useState(settings.perform)
   useEffect(() => {
     setPerform(settings.perform)
@@ -656,6 +706,10 @@ function AsemicAppInner({
 
                 <button onClick={openFile} title='Open Asemic file'>
                   <Upload {...lucideProps} />
+                </button>
+
+                <button onClick={loadAudioFolder} title='Load Audio Folder'>
+                  <Music {...lucideProps} />
                 </button>
 
                 {/* <input

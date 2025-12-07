@@ -9,25 +9,25 @@ export class SceneMethods {
     this.parser = parser
   }
 
-  scene(
-    ...scenes: {
-      draw: () => void
-      setup?: () => void
-      length?: number
-      offset?: number
-      pause?: number | false
-    }[]
-  ) {
+  scene(...scenes: AsemicScene[]) {
     this.parser.output.scenes = []
-    for (let { length = 0.1, offset = 0, pause = 0, draw, setup } of scenes) {
+    for (let scene of scenes) {
+      const length = scene.timing?.length ?? 0.1
+      const offset = scene.timing?.offset ?? 0
+      const pause = scene.timing?.pause ?? 0
+
       this.parser.sceneList.push({
-        draw,
-        setup,
-        isSetup: false,
-        start: this.parser.totalLength,
-        length,
-        offset,
-        pause
+        asemic: scene.asemic,
+        comment: scene.comment ?? '',
+        timing: {
+          offset,
+          length,
+          pause
+        },
+        runtime: {
+          start: this.parser.totalLength,
+          isSetup: false
+        }
       })
       this.parser.output.scenes.push(this.parser.totalLength)
       this.parser.totalLength += length - offset
@@ -53,16 +53,16 @@ export class SceneMethods {
         this.parser.setup(this.parser.rawSource)
         for (let i = 0; i < play.scene; i++) {
           try {
-            this.parser.sceneList[i].setup?.()
-            this.parser.sceneList[i].isSetup = true
+            // Mark previous scenes as setup
+            this.parser.sceneList[i].runtime.isSetup = true
           } catch (e: any) {
             this.parser.output.errors.push(`Error in scene ${i}: ${e.message}`)
           }
         }
         this.parser.mode = 'normal'
         this.parser.progress.progress =
-          this.parser.sceneList[play.scene].start +
-          this.parser.sceneList[play.scene].offset
+          this.parser.sceneList[play.scene].runtime.start +
+          this.parser.sceneList[play.scene].timing.offset
         const fixedProgress = this.parser.progress.progress.toFixed(5)
         this.parser.pausedAt = this.parser.pausedAt.filter(
           (x: string) => x <= fixedProgress
@@ -151,7 +151,7 @@ export class SceneMethods {
     if (this.parser.pauseAt > progTime) this.parser.pauseAt = false
 
     for (let scene of this.parser.sceneList) {
-      if (progress >= scene.start + scene.offset) {
+      if (progress >= scene.runtime.start + scene.timing.offset) {
       } else {
         break
       }

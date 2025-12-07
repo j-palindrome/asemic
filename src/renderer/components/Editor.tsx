@@ -2,7 +2,9 @@ import React, {
   useRef,
   useImperativeHandle,
   forwardRef,
-  useEffect
+  useEffect,
+  useState,
+  useMemo
 } from 'react'
 import {
   drawSelection,
@@ -24,6 +26,7 @@ import {
 } from '@codemirror/autocomplete'
 import { Extension } from '@codemirror/state'
 import { Parser } from '@/lib'
+import type { AsemicScene } from '@/lib/types.d'
 import {
   delimitedIndent,
   LanguageSupport,
@@ -114,7 +117,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       }
 
       // Build fold/unfold effects
-      const effects = []
+      const effects: any[] = []
 
       // First unfold everything to reset
       for (let i = 0; i < sceneStarts.length; i++) {
@@ -671,6 +674,76 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       }
     }, [])
 
+    // Parse scenes from the document
+    const scenes: AsemicScene[] = useMemo(() => {
+      const text = viewRef.current?.state.doc.toString() || defaultValue
+      const sceneStrings = text.split('\n#')
+      return sceneStrings
+        .filter(s => s.trim() !== '')
+        .map(scene => {
+          const [firstLine, ...rest] = scene.split('\n')
+          const timing: AsemicScene['timing'] = {}
+
+          // Parse timing from first line
+          const match = firstLine.match(/\{(.+)\}/)?.[1]
+          if (match) {
+            const settings = match.split(/[,;]/).map(s => s.trim())
+            settings.forEach(setting => {
+              const [key, value] = setting.split('=').map(s => s.trim())
+              if (key === 'length') timing.length = parseFloat(value)
+              if (key === 'offset') timing.offset = parseFloat(value)
+              if (key === 'pause')
+                timing.pause = value === 'false' ? false : parseFloat(value)
+            })
+          }
+
+          return {
+            asemic: rest.join('\n'),
+            comment: firstLine.replace(/\{.+\}/, '').trim(),
+            timing: Object.keys(timing).length > 0 ? timing : undefined
+          }
+        })
+    }, [defaultValue])
+
+    const currentScene: AsemicScene | undefined = scenes[activeScene]
+
+    const [sceneEdit, setSceneEdit] = useState<AsemicScene | null>(null)
+
+    useEffect(() => {
+      if (currentScene) {
+        setSceneEdit({ ...currentScene })
+      }
+    }, [activeScene, currentScene])
+
+    const updateScene = () => {
+      if (!sceneEdit || !viewRef.current) return
+
+      // Rebuild the full document with updated scene
+      const updatedScenes = [...scenes]
+      updatedScenes[activeScene] = sceneEdit
+
+      const newDoc = updatedScenes
+        .map(scene => {
+          const timingStr = scene.timing
+            ? `{${Object.entries(scene.timing)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(', ')}}`
+            : ''
+          return `#${scene.comment || ''}${timingStr}\n${scene.asemic}`
+        })
+        .join('\n')
+
+      viewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: viewRef.current.state.doc.length,
+          insert: newDoc
+        }
+      })
+
+      onChange(newDoc)
+    }
+
     return (
       <div className='flex h-0 grow w-full relative'>
         <div
@@ -678,7 +751,118 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
             errors.length > 0 ? 'w-2/3' : 'w-full'
           }`}
           style={{ height: '100%' }}>
-          <div ref={editorDivRef} style={{ height: '100%' }} />
+          {currentScene && sceneEdit ? (
+            <div className='h-full flex flex-col gap-4 p-4 overflow-auto'>
+              <div className='flex flex-col gap-2'>
+                <label className='text-sm font-semibold'>
+                  Scene {activeScene + 1}: {currentScene.comment}
+                </label>
+              </div>
+
+              {/* Timing Controls */}
+              <div className='flex gap-4 items-center'>
+                <div className='flex flex-col gap-1'>
+                  <label className='text-xs text-gray-400'>Length</label>
+                  <input
+                    type='number'
+                    step='0.1'
+                    value={sceneEdit.timing?.length ?? 0.1}
+                    onChange={e => {
+                      setSceneEdit({
+                        ...sceneEdit,
+                        timing: {
+                          ...sceneEdit.timing,
+                          length: parseFloat(e.target.value) || 0.1
+                        }
+                      })
+                    }}
+                    onBlur={updateScene}
+                    className='bg-transparent hover:bg-gray-800 px-2 py-1 rounded w-24 transition-colors'
+                  />
+                </div>
+                <div className='flex flex-col gap-1'>
+                  <label className='text-xs text-gray-400'>Offset</label>
+                  <input
+                    type='number'
+                    step='0.1'
+                    value={sceneEdit.timing?.offset ?? 0}
+                    onChange={e => {
+                      setSceneEdit({
+                        ...sceneEdit,
+                        timing: {
+                          ...sceneEdit.timing,
+                          offset: parseFloat(e.target.value) || 0
+                        }
+                      })
+                    }}
+                    onBlur={updateScene}
+                    className='bg-transparent hover:bg-gray-800 px-2 py-1 rounded w-24 transition-colors'
+                  />
+                </div>
+                <div className='flex flex-col gap-1'>
+                  <label className='text-xs text-gray-400'>Pause</label>
+                  <input
+                    type='number'
+                    step='0.1'
+                    value={
+                      sceneEdit.timing?.pause === false
+                        ? 0
+                        : sceneEdit.timing?.pause ?? 0
+                    }
+                    onChange={e => {
+                      const val = parseFloat(e.target.value)
+                      setSceneEdit({
+                        ...sceneEdit,
+                        timing: {
+                          ...sceneEdit.timing,
+                          pause: val === 0 ? false : val
+                        }
+                      })
+                    }}
+                    onBlur={updateScene}
+                    className='bg-transparent hover:bg-gray-800 px-2 py-1 rounded w-24 transition-colors'
+                  />
+                </div>
+              </div>
+
+              {/* Text Editor */}
+              <div className='flex flex-col gap-2 flex-1'>
+                <label className='text-sm font-semibold'>Text</label>
+                <textarea
+                  value={sceneEdit.asemic}
+                  onChange={e => {
+                    setSceneEdit({
+                      ...sceneEdit,
+                      asemic: e.target.value
+                    })
+                  }}
+                  onBlur={updateScene}
+                  className='bg-transparent hover:bg-gray-800 px-3 py-2 rounded flex-1 font-mono text-sm resize-none transition-colors'
+                  placeholder='Enter asemic text...'
+                />
+              </div>
+
+              {/* Full Editor Toggle */}
+              <button
+                onClick={() => {
+                  const editorDiv = document.querySelector(
+                    '.codemirror-editor'
+                  ) as HTMLDivElement
+                  if (editorDiv) {
+                    editorDiv.style.display =
+                      editorDiv.style.display === 'none' ? 'block' : 'none'
+                  }
+                }}
+                className='text-xs text-gray-400 hover:text-white'>
+                Show/Hide Full Editor
+              </button>
+            </div>
+          ) : null}
+          <div
+            ref={editorDivRef}
+            style={{ height: '100%' }}
+            className='codemirror-editor'
+          />
         </div>
         {errors.length > 0 && (
           <div className='editor !text-red-400 w-1/3 whitespace-pre-wrap font-mono'>

@@ -40,6 +40,9 @@ SynthDef(\voicePassthrough, {
 (
 ~voice = Synth(\voicePassthrough);
 )
+(
+s.freeAll;
+)
 
 
 

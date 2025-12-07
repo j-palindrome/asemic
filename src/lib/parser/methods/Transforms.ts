@@ -8,7 +8,7 @@ export class TransformMethods {
 
   // Performance caches
   private regexCache = new Map<string, RegExp>()
-  private static readonly KEY_CALL_REGEX = /^([a-zA-Z0-9_]+)(\=[\>\|]?)(.+)/
+  private static readonly KEY_CALL_REGEX = /^([a-zA-Z0-9_]+)(\|?\=[\>\|]?)(.+)/
 
   constructor(parser: Parser) {
     this.parser = parser
@@ -179,7 +179,8 @@ export class TransformMethods {
                   if (keyCall) {
                     const key = keyCall[1]
                     const value = keyCall[3]
-                    const expression = keyCall[2] // '=' or '=>'
+                    const expression = keyCall[2] // '=', '=>', '|=', '|=>'
+
                     if (['h', 's', 'l', 'a', 'w'].includes(key)) {
                       if (expression.includes('>')) {
                         thisTransform[key] = () =>

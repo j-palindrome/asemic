@@ -43,17 +43,13 @@ export class Parser {
   pausedAt: string[] = []
   pauseAt: string | false = false
   sceneList: {
-    asemic: string
-    comment: string
-    timing: {
-      offset: number
-      length: number
-      pause: false | number
-    }
-    runtime: {
-      start: number
-      isSetup: boolean
-    }
+    start: number
+    length: number
+    draw: () => void
+    pause: false | number
+    offset: number
+    isSetup: boolean
+    setup?: () => void
   }[] = []
   params = {} as InputSchema['params']
   progress = {
@@ -451,36 +447,35 @@ export class Parser {
     let i = 0
     for (let object of this.sceneList) {
       if (
-        this.progress.progress >= object.runtime.start &&
-        this.progress.progress < object.runtime.start + object.timing.length
+        this.progress.progress >= object.start &&
+        this.progress.progress < object.start + object.length
       ) {
         this.reset({ newFrame: false })
         this.progress.scrub =
-          (this.progress.progress - object.runtime.start) / object.timing.length
-        this.progress.scrubTime = this.progress.progress - object.runtime.start
+          (this.progress.progress - object.start) / object.length
+        this.progress.scrubTime = this.progress.progress - object.start
         this.progress.scene = i
         this.progress.noiseIndex = 0
 
-        if (!object.runtime.isSetup) {
-          // Setup phase - could be used for initialization
-          object.runtime.isSetup = true
+        if (!object.isSetup) {
+          object.setup?.()
+          object.isSetup = true
         }
 
         if (
           this.pauseAt === false &&
-          object.timing.pause !== false &&
-          this.progress.progress >= object.runtime.start + object.timing.pause
+          object.pause !== false &&
+          this.progress.progress >= object.start + object.pause
         ) {
-          const pause = (object.runtime.start + object.timing.pause).toFixed(5)
+          const pause = (object.start + object.pause).toFixed(5)
           if (!this.pausedAt.includes(pause)) {
             this.pauseAt = pause
             break
           }
         }
-
-        // Execute the asemic code for this scene
+        // object.draw()
         try {
-          this.textMethods.text(object.asemic)
+          object.draw()
         } catch (e) {
           this.error(
             `Error at ${this.progress.currentLine}: ${(e as Error).message}`

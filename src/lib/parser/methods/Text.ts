@@ -48,32 +48,20 @@ export class TextMethods {
     for (const scene of scenes) {
       if (scene.trim() === '') continue
       const [firstLine, rest] = splitString(scene, '\n')
-
-      // Parse timing settings from first line
-      const timing: {
-        length?: number
-        offset?: number
-        pause?: number | false
-      } = {}
+      const parserSettings = {
+        draw: () => {
+          this.parser.textMethods.text(rest)
+        }
+      } as (typeof sceneList)[number]
       const match = firstLine.match(/\{(.+)\}/)?.[1]
       if (match) {
         this.parser.parsing.tokenize(match).forEach(setting => {
           if (!setting.includes('=')) return
           const [key, value] = splitString(setting, '=')
-          if (['length', 'offset', 'pause'].includes(key)) {
-            timing[key] = this.parser.expressions.expr(value)
-          }
+          parserSettings[key] = this.parser.expressions.expr(value)
         })
       }
-
-      // Create JSON scene structure
-      const sceneObj = {
-        asemic: rest,
-        comment: firstLine.replace(/\{.+\}/, '').trim(),
-        timing: Object.keys(timing).length > 0 ? timing : undefined
-      }
-
-      sceneList.push(sceneObj)
+      sceneList.push(parserSettings)
     }
     this.parser.scenes.scene(...sceneList)
     return this.parser

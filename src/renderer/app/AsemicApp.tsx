@@ -118,6 +118,7 @@ function AsemicAppInner({
   }, [progress, scenes])
 
   const [useRustParser, setUseRustParser] = useState(false)
+  const animationFrameRef = useRef<number | null>(null)
 
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
@@ -180,10 +181,67 @@ function AsemicAppInner({
               }
             })
             console.log('Rust parser initialized:', parserState)
+
+            // Start animation loop for Rust parser
+            const animate = async () => {
+              if (!useRustParser) return
+
+              try {
+                // Get current scene settings
+                const lines = scenesSourceRef.current.split('\n#')
+                const sceneSettings: {
+                  length: number
+                  offset: number
+                  pause: number | false
+                  params?: Record<string, number>
+                } = { length: 0.1, offset: 0, pause: 0 }
+
+                if (activeScene < lines.length) {
+                  const sceneText = lines[activeScene]
+                  const firstLine = sceneText?.split('\n')[0]
+                  const jsonMatch = firstLine?.match(/\{.+\}/)
+                  if (jsonMatch) {
+                    try {
+                      Object.assign(sceneSettings, JSON.parse(jsonMatch[0]))
+                    } catch (e) {}
+                  }
+                }
+
+                // Call Rust parser_draw with current state
+                const drawOutput = await invoke('parser_draw', {
+                  input: {
+                    progress,
+                    scene_index: activeScene,
+                    scene_settings: sceneSettings
+                  }
+                })
+
+                // TODO: Handle drawOutput (render groups, update errors, etc.)
+                console.log('Draw output:', drawOutput)
+              } catch (error) {
+                console.error('Rust parser_draw failed:', error)
+              }
+
+              animationFrameRef.current = requestAnimationFrame(animate)
+            }
+
+            // Cancel any existing animation frame
+            if (animationFrameRef.current) {
+              cancelAnimationFrame(animationFrameRef.current)
+            }
+
+            // Start animation loop
+            animationFrameRef.current = requestAnimationFrame(animate)
           } catch (error) {
             console.error('Rust parser setup failed:', error)
           }
         } else {
+          // Cancel Rust parser animation loop if disabled
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current)
+            animationFrameRef.current = null
+          }
+
           // Original JS parser path
           const preProcess = {
             replacements: {}
@@ -197,6 +255,25 @@ function AsemicAppInner({
               ).trim()
             }
           }
+
+          // Extract params from active scene and send to parser
+          const lines = scenesSource.split('\n#')
+          if (activeScene < lines.length) {
+            const sceneText = lines[activeScene]
+            const firstLine = sceneText?.split('\n')[0]
+            const jsonMatch = firstLine?.match(/\{.+\}/)
+            if (jsonMatch) {
+              try {
+                const settings = JSON.parse(jsonMatch[0])
+                if (settings.params) {
+                  asemic.current?.postMessage({
+                    params: settings.params
+                  })
+                }
+              } catch (e) {}
+            }
+          }
+
           asemic.current?.postMessage({
             source: scenesSourceRef.current,
             preProcess
@@ -204,7 +281,14 @@ function AsemicAppInner({
         }
       }
       restart()
-    }, [scenesSource, isSetup, useRustParser])
+
+      // Cleanup: cancel animation frame on unmount or when dependencies change
+      return () => {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current)
+        }
+      }
+    }, [scenesSource, isSetup, useRustParser, progress, activeScene])
   }
   setup()
 
@@ -323,6 +407,69 @@ function AsemicAppInner({
     return [live, isLive, setIsLive] as const
   }
   const [live, isLive, setIsLive] = useKeys()
+
+  // Scene settings state
+  const [showSceneSettings, setShowSceneSettings] = useState(false)
+  const [activeSceneSettings, setActiveSceneSettings] = useState<{
+    length?: number
+    offset?: number
+    pause?: number | false
+    params?: Record<string, number>
+  }>({})
+
+  // Extract settings from active scene
+  useEffect(() => {
+    try {
+      const lines = scenesSource.split('\n#')
+      if (activeScene < lines.length) {
+        const sceneText = lines[activeScene]
+        const firstLine = sceneText?.split('\n')[0]
+        const jsonMatch = firstLine?.match(/\{.+\}/)
+        if (jsonMatch) {
+          try {
+            const settings = JSON.parse(jsonMatch[0])
+            setActiveSceneSettings(settings)
+          } catch (e) {
+            setActiveSceneSettings({})
+          }
+        } else {
+          setActiveSceneSettings({})
+        }
+      }
+    } catch (e) {
+      setActiveSceneSettings({})
+    }
+  }, [scenesSource, activeScene])
+
+  // Update scene settings in source
+  const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
+    try {
+      const lines = scenesSource.split('\n#')
+      if (activeScene < lines.length) {
+        const sceneLines = lines[activeScene].split('\n')
+        const firstLine = sceneLines[0]
+        const jsonMatch = firstLine?.match(/\{.+\}/)
+
+        // Create new settings JSON
+        const settingsJson = JSON.stringify(newSettings)
+
+        if (jsonMatch) {
+          // Replace existing settings
+          sceneLines[0] = firstLine.replace(/\{.+\}/, settingsJson)
+        } else {
+          // Add settings to first line
+          sceneLines[0] = settingsJson + (firstLine ? '\n' + firstLine : '')
+        }
+
+        lines[activeScene] = sceneLines.join('\n')
+        const newSource = lines.join('\n#')
+        setScenesSource(newSource)
+        editorRef.current?.setValue(newSource)
+      }
+    } catch (e) {
+      console.error('Failed to update scene settings:', e)
+    }
+  }
 
   const currentFilePathRef = useRef<string | null>(null)
 
@@ -750,6 +897,13 @@ function AsemicAppInner({
                   {<Info {...lucideProps} />}
                 </button>
 
+                <button
+                  onClick={() => setShowSceneSettings(!showSceneSettings)}
+                  className={`${showSceneSettings ? '!bg-blue-200/40' : ''}`}
+                  title='Scene Settings'>
+                  <Save {...lucideProps} />
+                </button>
+
                 {/* <button
                 className={`${audio ? '!bg-blue-200/40' : ''}`}
                 onClick={() => {
@@ -822,6 +976,161 @@ function AsemicAppInner({
                 setHelp={setHelp}
                 activeScene={activeScene}
               />
+
+              {/* Scene Settings Panel */}
+              {showSceneSettings && (
+                <div className='absolute bottom-0 left-0 right-0 bg-black/90 border-t border-white/20 p-3 z-50'>
+                  <div className='flex items-center gap-2 mb-2'>
+                    <span className='text-white text-sm font-semibold'>
+                      Scene {activeScene} Settings
+                    </span>
+                    <button
+                      className='ml-auto'
+                      onClick={() => setShowSceneSettings(false)}>
+                      ✕
+                    </button>
+                  </div>
+                  <div className='grid grid-cols-3 gap-3 text-xs'>
+                    <div>
+                      <label className='text-white/70 block mb-1'>Length</label>
+                      <input
+                        type='number'
+                        step='0.1'
+                        value={activeSceneSettings.length ?? 0.1}
+                        onChange={e => {
+                          const newSettings = {
+                            ...activeSceneSettings,
+                            length: parseFloat(e.target.value) || 0.1
+                          }
+                          setActiveSceneSettings(newSettings)
+                          updateSceneSettings(newSettings)
+                        }}
+                        className='w-full bg-white/10 text-white px-2 py-1 rounded'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-white/70 block mb-1'>Offset</label>
+                      <input
+                        type='number'
+                        step='0.1'
+                        value={activeSceneSettings.offset ?? 0}
+                        onChange={e => {
+                          const newSettings = {
+                            ...activeSceneSettings,
+                            offset: parseFloat(e.target.value) || 0
+                          }
+                          setActiveSceneSettings(newSettings)
+                          updateSceneSettings(newSettings)
+                        }}
+                        className='w-full bg-white/10 text-white px-2 py-1 rounded'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-white/70 block mb-1'>Pause</label>
+                      <input
+                        type='number'
+                        step='0.1'
+                        value={
+                          activeSceneSettings.pause === false
+                            ? -1
+                            : activeSceneSettings.pause ?? 0
+                        }
+                        onChange={e => {
+                          const val = parseFloat(e.target.value)
+                          const newSettings = {
+                            ...activeSceneSettings,
+                            pause: (val < 0 ? false : val) as number | false
+                          }
+                          setActiveSceneSettings(newSettings)
+                          updateSceneSettings(newSettings)
+                        }}
+                        className='w-full bg-white/10 text-white px-2 py-1 rounded'
+                      />
+                      <span className='text-white/50 text-[10px]'>
+                        (-1 for false)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Params Section */}
+                  <div className='mt-3 border-t border-white/10 pt-3'>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <label className='text-white/70 text-sm font-semibold'>
+                        Params (Global)
+                      </label>
+                      <button
+                        onClick={() => {
+                          const paramName = prompt('Enter parameter name:')
+                          if (paramName) {
+                            const newSettings = {
+                              ...activeSceneSettings,
+                              params: {
+                                ...activeSceneSettings.params,
+                                [paramName]: 0
+                              }
+                            }
+                            setActiveSceneSettings(newSettings)
+                            updateSceneSettings(newSettings)
+                          }
+                        }}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                        + Add
+                      </button>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      {Object.entries(activeSceneSettings.params || {}).map(
+                        ([key, value]) => (
+                          <div key={key} className='flex items-center gap-2'>
+                            <label className='text-white/70 text-xs flex-shrink-0'>
+                              {key}
+                            </label>
+                            <input
+                              type='number'
+                              step='0.01'
+                              value={value}
+                              onChange={e => {
+                                const newParams = {
+                                  ...activeSceneSettings.params
+                                }
+                                newParams[key] = parseFloat(e.target.value) || 0
+                                const newSettings = {
+                                  ...activeSceneSettings,
+                                  params: newParams
+                                }
+                                setActiveSceneSettings(newSettings)
+                                updateSceneSettings(newSettings)
+                              }}
+                              className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                            />
+                            <button
+                              onClick={() => {
+                                const newParams = {
+                                  ...activeSceneSettings.params
+                                }
+                                delete newParams[key]
+                                const newSettings = {
+                                  ...activeSceneSettings,
+                                  params: newParams
+                                }
+                                setActiveSceneSettings(newSettings)
+                                updateSceneSettings(newSettings)
+                              }}
+                              className='text-white/50 hover:text-red-400 text-xs'>
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    {(!activeSceneSettings.params ||
+                      Object.keys(activeSceneSettings.params).length === 0) && (
+                      <p className='text-white/40 text-xs italic'>
+                        No params defined
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -26,6 +26,25 @@ struct ParserState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct SceneSettings {
+    #[serde(default)]
+    length: Option<f64>,
+    #[serde(default)]
+    offset: Option<f64>,
+    #[serde(default)]
+    pause: Option<f64>,
+    #[serde(default)]
+    params: Option<std::collections::HashMap<String, f64>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DrawInput {
+    progress: f64,
+    scene_index: usize,
+    scene_settings: SceneSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct DrawOutput {
     groups: Vec<Vec<[f64; 2]>>,
     errors: Vec<String>,
@@ -135,12 +154,19 @@ async fn parser_setup(input: ParserInput) -> Result<ParserState, String> {
 }
 
 #[tauri::command]
-async fn parser_draw(progress: f64) -> Result<DrawOutput, String> {
-    // TODO: Implement parser draw
+async fn parser_draw(input: DrawInput) -> Result<DrawOutput, String> {
+    println!("\n=== PARSER DRAW FRAME ===");
+    println!("Progress: {}", input.progress);
+    println!("Scene index: {}", input.scene_index);
+    println!("Scene settings: {:?}", input.scene_settings);
+    println!("=== END FRAME ===\n");
+    
+    // TODO: Implement actual drawing logic
+    // For now, just return empty output
     Ok(DrawOutput {
         groups: vec![],
         errors: vec![],
-        progress: 0.0,
+        progress: input.progress,
     })
 }
 

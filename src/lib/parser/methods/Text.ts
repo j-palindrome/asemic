@@ -57,21 +57,9 @@ export class TextMethods {
       // Try to parse as JSON first
       const jsonMatch = firstLine.match(/\{.+\}/)
       if (jsonMatch) {
-        try {
-          const settings = JSON.parse(jsonMatch[0])
-          // Apply JSON settings directly (they're already evaluated)
-          Object.assign(parserSettings, settings)
-        } catch (e) {
-          // Fall back to old format: key=value syntax
-          const oldFormatMatch = firstLine.match(/\{(.+)\}/)?.[1]
-          if (oldFormatMatch) {
-            this.parser.parsing.tokenize(oldFormatMatch).forEach(setting => {
-              if (!setting.includes('=')) return
-              const [key, value] = splitString(setting, '=')
-              parserSettings[key] = this.parser.expressions.expr(value)
-            })
-          }
-        }
+        const settings = JSON.parse(jsonMatch[0])
+        // Apply JSON settings directly (they're already evaluated)
+        Object.assign(parserSettings, settings)
       }
 
       sceneList.push(parserSettings)

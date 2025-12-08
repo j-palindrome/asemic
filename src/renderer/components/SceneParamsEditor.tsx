@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
+import AsemicExpressionEditor from './AsemicExpressionEditor'
 
 type ParamConfig = {
   default: number
@@ -13,7 +14,7 @@ type SceneSettings = {
   offset?: number
   pause?: number | false
   params?: Record<string, ParamConfig>
-  osc?: Array<{ name: string; value: number }>
+  osc?: Array<{ name: string; value: number | string }>
   audioTrack?: string
 }
 
@@ -321,20 +322,24 @@ export default function SceneSettingsPanel({
                 }}
                 className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
               />
-              <input
-                type='number'
-                step='0.01'
-                value={osc.value}
-                onChange={e => {
-                  const newOsc = [...(settings.osc || [])]
-                  newOsc[index] = {
-                    ...newOsc[index],
-                    value: parseFloat(e.target.value) || 0
+              <div className='w-48 bg-white/10 rounded px-1 py-0.5'>
+                <AsemicExpressionEditor
+                  value={
+                    typeof osc.value === 'number'
+                      ? osc.value.toString()
+                      : osc.value.toString()
                   }
-                  onUpdate({ ...settings, osc: newOsc })
-                }}
-                className='w-24 bg-white/10 text-white px-2 py-1 rounded text-xs'
-              />
+                  onChange={value => {
+                    const newOsc = [...(settings.osc || [])]
+                    // Store as string to preserve expressions, will be evaluated later
+                    newOsc[index] = {
+                      ...newOsc[index],
+                      value: value as any
+                    }
+                    onUpdate({ ...settings, osc: newOsc })
+                  }}
+                />
+              </div>
               <button
                 onClick={() => {
                   const newOsc = [...(settings.osc || [])]
@@ -346,6 +351,9 @@ export default function SceneSettingsPanel({
               </button>
             </div>
           ))}
+        </div>
+        <div className='text-white/50 text-[10px] mt-1'>
+          Values support Asemic expressions (e.g., T, I, ~, etc.)
         </div>
         {(!settings.osc || settings.osc.length === 0) && (
           <p className='text-white/40 text-xs italic'>

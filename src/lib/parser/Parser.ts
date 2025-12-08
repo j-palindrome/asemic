@@ -15,7 +15,6 @@ import { defaultOutput } from './core/Output'
 import { DataMethods } from './methods/Data'
 import { DrawingMethods } from './methods/Drawing'
 import { ExpressionMethods } from './methods/Expressions'
-import { OSCMethods } from './methods/OSC'
 import { ParsingMethods } from './methods/Parsing'
 import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
@@ -376,7 +375,6 @@ export class Parser {
   textMethods: TextMethods
   utilities: UtilityMethods
   scenes: SceneMethods
-  oscMethods: OSCMethods
   parsing: ParsingMethods
   data: DataMethods
 
@@ -395,7 +393,6 @@ export class Parser {
     this.textMethods = new TextMethods(this)
     this.utilities = new UtilityMethods(this)
     this.scenes = new SceneMethods(this)
-    this.oscMethods = new OSCMethods(this)
     this.parsing = new ParsingMethods(this)
     this.data = new DataMethods(this)
   }

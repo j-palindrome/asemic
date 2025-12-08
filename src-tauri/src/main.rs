@@ -26,6 +26,12 @@ struct ParserState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct OscMessage {
+    name: String,
+    value: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SceneSettings {
     #[serde(default)]
     length: Option<f64>,
@@ -35,6 +41,8 @@ struct SceneSettings {
     pause: Option<f64>,
     #[serde(default)]
     params: Option<std::collections::HashMap<String, f64>>,
+    #[serde(default)]
+    osc: Option<Vec<OscMessage>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,6 +167,17 @@ async fn parser_draw(input: DrawInput) -> Result<DrawOutput, String> {
     println!("Progress: {}", input.progress);
     println!("Scene index: {}", input.scene_index);
     println!("Scene settings: {:?}", input.scene_settings);
+    
+    // Send OSC messages if any are defined
+    if let Some(osc_messages) = &input.scene_settings.osc {
+        println!("\n📡 OSC Messages to send:");
+        for msg in osc_messages {
+            println!("  {} -> {}", msg.name, msg.value);
+            // TODO: Actually send OSC messages here
+            // This would require integrating an OSC library
+        }
+    }
+    
     println!("=== END FRAME ===\n");
     
     // TODO: Implement actual drawing logic

@@ -104,6 +104,91 @@ function AsemicAppInner({
     setScenes
   ] = useProgress()
 
+  // Audio playback using Web Audio API
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const currentAudioTrackRef = useRef<string | null>(null)
+  const [audioBuffers, setAudioBuffers] = useState<Map<string, AudioBuffer>>(
+    new Map()
+  )
+
+  // Initialize Web Audio context
+  useEffect(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext()
+    }
+    return () => {
+      if (audioSourceRef.current) {
+        audioSourceRef.current.stop()
+      }
+    }
+  }, [])
+
+  // Load audio file and convert to AudioBuffer
+  const loadAudioTrack = async (filePath: string) => {
+    try {
+      if (!audioContextRef.current) return
+
+      const response = await fetch(convertFileSrc(filePath))
+      const arrayBuffer = await response.arrayBuffer()
+      const audioBuffer = await audioContextRef.current.decodeAudioData(
+        arrayBuffer
+      )
+
+      setAudioBuffers(prev => {
+        const next = new Map(prev)
+        next.set(filePath, audioBuffer)
+        return next
+      })
+
+      console.log(`Loaded audio track: ${filePath}`)
+      return audioBuffer
+    } catch (error) {
+      console.error('Failed to load audio track:', error)
+      return null
+    }
+  }
+
+  // Play audio track with looping
+  const playAudioTrack = async (filePath: string) => {
+    if (!audioContextRef.current) return
+
+    // Stop current audio if playing
+    if (audioSourceRef.current) {
+      audioSourceRef.current.stop()
+      audioSourceRef.current = null
+    }
+
+    // Get or load audio buffer
+    let audioBuffer: AudioBuffer | undefined = audioBuffers.get(filePath)
+    if (!audioBuffer) {
+      const loadedBuffer = await loadAudioTrack(filePath)
+      if (!loadedBuffer) return
+      audioBuffer = loadedBuffer
+    }
+
+    // Create and start audio source
+    const source = audioContextRef.current.createBufferSource()
+    source.buffer = audioBuffer
+    source.loop = true
+    source.connect(audioContextRef.current.destination)
+    source.start(0)
+
+    audioSourceRef.current = source
+    currentAudioTrackRef.current = filePath
+    console.log(`Playing audio track: ${filePath}`)
+  }
+
+  // Stop audio playback
+  const stopAudioTrack = () => {
+    if (audioSourceRef.current) {
+      audioSourceRef.current.stop()
+      audioSourceRef.current = null
+      currentAudioTrackRef.current = null
+      console.log('Stopped audio track')
+    }
+  }
+
   // Calculate active scene based on current progress
   const activeScene = useMemo(() => {
     if (scenes.length === 0) return 0
@@ -193,7 +278,16 @@ function AsemicAppInner({
                   length: number
                   offset: number
                   pause: number | false
-                  params?: Record<string, number>
+                  params?: Record<
+                    string,
+                    {
+                      default: number
+                      max: number
+                      min: number
+                      exponent: number
+                    }
+                  >
+                  osc?: Array<{ name: string; value: number }>
                 } = { length: 0.1, offset: 0, pause: 0 }
 
                 if (activeScene < lines.length) {
@@ -410,11 +504,18 @@ function AsemicAppInner({
 
   // Scene settings state
   const [showSceneSettings, setShowSceneSettings] = useState(false)
+  const [showAddParam, setShowAddParam] = useState(false)
+  const [newParamName, setNewParamName] = useState('')
   const [activeSceneSettings, setActiveSceneSettings] = useState<{
     length?: number
     offset?: number
     pause?: number | false
-    params?: Record<string, number>
+    params?: Record<
+      string,
+      { default: number; max: number; min: number; exponent: number }
+    >
+    osc?: Array<{ name: string; value: number }>
+    audioTrack?: string
   }>({})
 
   // Extract settings from active scene
@@ -440,6 +541,17 @@ function AsemicAppInner({
       setActiveSceneSettings({})
     }
   }, [scenesSource, activeScene])
+
+  // Play/stop audio based on active scene
+  useEffect(() => {
+    const audioTrack = activeSceneSettings.audioTrack
+
+    if (audioTrack && audioTrack !== currentAudioTrackRef.current) {
+      playAudioTrack(audioTrack)
+    } else if (!audioTrack && currentAudioTrackRef.current) {
+      stopAudioTrack()
+    }
+  }, [activeSceneSettings.audioTrack, activeScene])
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
@@ -1059,65 +1171,221 @@ function AsemicAppInner({
                         Params (Global)
                       </label>
                       <button
-                        onClick={() => {
-                          const paramName = prompt('Enter parameter name:')
-                          if (paramName) {
-                            const newSettings = {
-                              ...activeSceneSettings,
-                              params: {
-                                ...activeSceneSettings.params,
-                                [paramName]: 0
-                              }
-                            }
-                            setActiveSceneSettings(newSettings)
-                            updateSceneSettings(newSettings)
-                          }
+                        onClick={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShowAddParam(true)
                         }}
                         className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
                         + Add
                       </button>
                     </div>
-                    <div className='grid grid-cols-2 gap-2'>
+
+                    {/* Add Param Input */}
+                    {showAddParam && (
+                      <div className='mb-3 p-2 bg-white/5 rounded border border-white/20'>
+                        <div className='flex items-center gap-2'>
+                          <input
+                            type='text'
+                            placeholder='Parameter name'
+                            value={newParamName}
+                            onChange={e => setNewParamName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && newParamName.trim()) {
+                                const newSettings = {
+                                  ...activeSceneSettings,
+                                  params: {
+                                    ...activeSceneSettings.params,
+                                    [newParamName.trim()]: {
+                                      default: 0.5,
+                                      max: 1,
+                                      min: 0,
+                                      exponent: 1
+                                    }
+                                  }
+                                }
+                                setActiveSceneSettings(newSettings)
+                                updateSceneSettings(newSettings)
+                                setNewParamName('')
+                                setShowAddParam(false)
+                              } else if (e.key === 'Escape') {
+                                setNewParamName('')
+                                setShowAddParam(false)
+                              }
+                            }}
+                            autoFocus
+                            className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                          />
+                          <button
+                            onClick={() => {
+                              if (newParamName.trim()) {
+                                const newSettings = {
+                                  ...activeSceneSettings,
+                                  params: {
+                                    ...activeSceneSettings.params,
+                                    [newParamName.trim()]: {
+                                      default: 0.5,
+                                      max: 1,
+                                      min: 0,
+                                      exponent: 1
+                                    }
+                                  }
+                                }
+                                setActiveSceneSettings(newSettings)
+                                updateSceneSettings(newSettings)
+                                setNewParamName('')
+                                setShowAddParam(false)
+                              }
+                            }}
+                            className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                            Add
+                          </button>
+                          <button
+                            onClick={() => {
+                              setNewParamName('')
+                              setShowAddParam(false)
+                            }}
+                            className='text-white/50 hover:text-white text-xs'>
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className='space-y-3'>
                       {Object.entries(activeSceneSettings.params || {}).map(
-                        ([key, value]) => (
-                          <div key={key} className='flex items-center gap-2'>
-                            <label className='text-white/70 text-xs flex-shrink-0'>
-                              {key}
-                            </label>
-                            <input
-                              type='number'
-                              step='0.01'
-                              value={value}
-                              onChange={e => {
-                                const newParams = {
-                                  ...activeSceneSettings.params
-                                }
-                                newParams[key] = parseFloat(e.target.value) || 0
-                                const newSettings = {
-                                  ...activeSceneSettings,
-                                  params: newParams
-                                }
-                                setActiveSceneSettings(newSettings)
-                                updateSceneSettings(newSettings)
-                              }}
-                              className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
-                            />
-                            <button
-                              onClick={() => {
-                                const newParams = {
-                                  ...activeSceneSettings.params
-                                }
-                                delete newParams[key]
-                                const newSettings = {
-                                  ...activeSceneSettings,
-                                  params: newParams
-                                }
-                                setActiveSceneSettings(newSettings)
-                                updateSceneSettings(newSettings)
-                              }}
-                              className='text-white/50 hover:text-red-400 text-xs'>
-                              ✕
-                            </button>
+                        ([key, paramConfig]) => (
+                          <div
+                            key={key}
+                            className='bg-white/5 p-2 rounded border border-white/10'>
+                            <div className='flex items-center justify-between mb-2'>
+                              <label className='text-white/90 text-sm font-medium'>
+                                {key}
+                              </label>
+                              <button
+                                onClick={() => {
+                                  const newParams = {
+                                    ...activeSceneSettings.params
+                                  }
+                                  delete newParams[key]
+                                  const newSettings = {
+                                    ...activeSceneSettings,
+                                    params: newParams
+                                  }
+                                  setActiveSceneSettings(newSettings)
+                                  updateSceneSettings(newSettings)
+                                }}
+                                className='text-white/50 hover:text-red-400 text-xs'>
+                                ✕
+                              </button>
+                            </div>
+                            <div className='grid grid-cols-2 gap-2'>
+                              <div>
+                                <label className='text-white/50 text-xs block mb-1'>
+                                  Default
+                                </label>
+                                <input
+                                  type='number'
+                                  step='0.01'
+                                  value={paramConfig.default}
+                                  onChange={e => {
+                                    const newParams = {
+                                      ...activeSceneSettings.params,
+                                      [key]: {
+                                        ...paramConfig,
+                                        default: parseFloat(e.target.value) || 0
+                                      }
+                                    }
+                                    const newSettings = {
+                                      ...activeSceneSettings,
+                                      params: newParams
+                                    }
+                                    setActiveSceneSettings(newSettings)
+                                    updateSceneSettings(newSettings)
+                                  }}
+                                  className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                                />
+                              </div>
+                              <div>
+                                <label className='text-white/50 text-xs block mb-1'>
+                                  Min
+                                </label>
+                                <input
+                                  type='number'
+                                  step='0.01'
+                                  value={paramConfig.min}
+                                  onChange={e => {
+                                    const newParams = {
+                                      ...activeSceneSettings.params,
+                                      [key]: {
+                                        ...paramConfig,
+                                        min: parseFloat(e.target.value) || 0
+                                      }
+                                    }
+                                    const newSettings = {
+                                      ...activeSceneSettings,
+                                      params: newParams
+                                    }
+                                    setActiveSceneSettings(newSettings)
+                                    updateSceneSettings(newSettings)
+                                  }}
+                                  className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                                />
+                              </div>
+                              <div>
+                                <label className='text-white/50 text-xs block mb-1'>
+                                  Max
+                                </label>
+                                <input
+                                  type='number'
+                                  step='0.01'
+                                  value={paramConfig.max}
+                                  onChange={e => {
+                                    const newParams = {
+                                      ...activeSceneSettings.params,
+                                      [key]: {
+                                        ...paramConfig,
+                                        max: parseFloat(e.target.value) || 1
+                                      }
+                                    }
+                                    const newSettings = {
+                                      ...activeSceneSettings,
+                                      params: newParams
+                                    }
+                                    setActiveSceneSettings(newSettings)
+                                    updateSceneSettings(newSettings)
+                                  }}
+                                  className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                                />
+                              </div>
+                              <div>
+                                <label className='text-white/50 text-xs block mb-1'>
+                                  Exponent
+                                </label>
+                                <input
+                                  type='number'
+                                  step='0.1'
+                                  value={paramConfig.exponent}
+                                  onChange={e => {
+                                    const newParams = {
+                                      ...activeSceneSettings.params,
+                                      [key]: {
+                                        ...paramConfig,
+                                        exponent:
+                                          parseFloat(e.target.value) || 1
+                                      }
+                                    }
+                                    const newSettings = {
+                                      ...activeSceneSettings,
+                                      params: newParams
+                                    }
+                                    setActiveSceneSettings(newSettings)
+                                    updateSceneSettings(newSettings)
+                                  }}
+                                  className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                                />
+                              </div>
+                            </div>
                           </div>
                         )
                       )}
@@ -1126,6 +1394,172 @@ function AsemicAppInner({
                       Object.keys(activeSceneSettings.params).length === 0) && (
                       <p className='text-white/40 text-xs italic'>
                         No params defined
+                      </p>
+                    )}
+                  </div>
+
+                  {/* OSC Messages Section */}
+                  <div className='mt-3 border-t border-white/10 pt-3'>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <label className='text-white/70 text-sm font-semibold'>
+                        OSC Messages
+                      </label>
+                      <button
+                        onClick={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const newSettings = {
+                            ...activeSceneSettings,
+                            osc: [
+                              ...(activeSceneSettings.osc || []),
+                              { name: '', value: 0 }
+                            ]
+                          }
+                          setActiveSceneSettings(newSettings)
+                          updateSceneSettings(newSettings)
+                        }}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                        + Add
+                      </button>
+                    </div>
+                    <div className='flex flex-col gap-2'>
+                      {(activeSceneSettings.osc || []).map((osc, index) => (
+                        <div key={index} className='flex items-center gap-2'>
+                          <input
+                            type='text'
+                            placeholder='OSC path'
+                            value={osc.name}
+                            onChange={e => {
+                              const newOsc = [
+                                ...(activeSceneSettings.osc || [])
+                              ]
+                              newOsc[index] = {
+                                ...newOsc[index],
+                                name: e.target.value
+                              }
+                              const newSettings = {
+                                ...activeSceneSettings,
+                                osc: newOsc
+                              }
+                              setActiveSceneSettings(newSettings)
+                              updateSceneSettings(newSettings)
+                            }}
+                            className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                          />
+                          <input
+                            type='number'
+                            step='0.01'
+                            value={osc.value}
+                            onChange={e => {
+                              const newOsc = [
+                                ...(activeSceneSettings.osc || [])
+                              ]
+                              newOsc[index] = {
+                                ...newOsc[index],
+                                value: parseFloat(e.target.value) || 0
+                              }
+                              const newSettings = {
+                                ...activeSceneSettings,
+                                osc: newOsc
+                              }
+                              setActiveSceneSettings(newSettings)
+                              updateSceneSettings(newSettings)
+                            }}
+                            className='w-24 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                          />
+                          <button
+                            onClick={() => {
+                              const newOsc = [
+                                ...(activeSceneSettings.osc || [])
+                              ]
+                              newOsc.splice(index, 1)
+                              const newSettings = {
+                                ...activeSceneSettings,
+                                osc: newOsc
+                              }
+                              setActiveSceneSettings(newSettings)
+                              updateSceneSettings(newSettings)
+                            }}
+                            className='text-white/50 hover:text-red-400 text-xs'>
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {(!activeSceneSettings.osc ||
+                      activeSceneSettings.osc.length === 0) && (
+                      <p className='text-white/40 text-xs italic'>
+                        No OSC messages defined
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Audio Track Section */}
+                  <div className='mt-3 border-t border-white/10 pt-3'>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <label className='text-white/70 text-sm font-semibold'>
+                        Audio Track
+                      </label>
+                      <button
+                        onClick={async e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          try {
+                            const filePath = await open({
+                              multiple: false,
+                              directory: false,
+                              filters: [
+                                {
+                                  name: 'Audio files',
+                                  extensions: [
+                                    'mp3',
+                                    'wav',
+                                    'ogg',
+                                    'm4a',
+                                    'flac',
+                                    'aac'
+                                  ]
+                                }
+                              ]
+                            })
+
+                            if (filePath) {
+                              const newSettings = {
+                                ...activeSceneSettings,
+                                audioTrack: filePath as string
+                              }
+                              setActiveSceneSettings(newSettings)
+                              updateSceneSettings(newSettings)
+                            }
+                          } catch (error) {
+                            console.error('Failed to select audio file:', error)
+                          }
+                        }}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                        Select File
+                      </button>
+                      {activeSceneSettings.audioTrack && (
+                        <button
+                          onClick={() => {
+                            const newSettings = {
+                              ...activeSceneSettings,
+                              audioTrack: undefined
+                            }
+                            setActiveSceneSettings(newSettings)
+                            updateSceneSettings(newSettings)
+                          }}
+                          className='text-white/50 hover:text-red-400 text-xs'>
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {activeSceneSettings.audioTrack ? (
+                      <div className='text-white/70 text-xs break-all'>
+                        {activeSceneSettings.audioTrack.split('/').pop()}
+                      </div>
+                    ) : (
+                      <p className='text-white/40 text-xs italic'>
+                        No audio track selected
                       </p>
                     )}
                   </div>

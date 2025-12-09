@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-/// <reference types="./electron.d.ts" />
 
 interface ImportMetaEnv {
   readonly VITE_OSC_PORT: string

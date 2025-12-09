@@ -36,13 +36,7 @@ function AsemicWrapper() {
   )
 
   const getRequire = useCallback(async (file: string): Promise<string> => {
-    // In Electron, we can use the file system API
-    if (window.electronAPI) {
-      const result = await window.electronAPI.readFile(file)
-      if (result.success && result.content) {
-        return result.content
-      }
-    }
+    // File system API not available in web version
     return ''
   }, [])
 

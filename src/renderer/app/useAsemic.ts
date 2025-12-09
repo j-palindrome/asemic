@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useElectronFileOperations } from '../hooks/useElectronFileOperations'
 import { isUndefined } from 'lodash'
 import { useSocket } from '../schema'
 import { AsemicData } from '@/lib'
@@ -17,8 +16,6 @@ export function useAsemic({
       params: schema?.params
     })
   }, [schema])
-
-  const { saveFile, openFile: openElectronFile } = useElectronFileOperations()
 
   const useRecording = () => {
     const [isRecording, setIsRecording] = useState(false)

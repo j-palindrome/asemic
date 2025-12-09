@@ -14,39 +14,36 @@ yarn add asemic
 
 ## Development
 
-### Electron App
+### Web Development
 
-This project can be run as an Electron desktop application with full file system access:
-
-```bash
-# Development (runs Electron with hot reload)
-pnpm run electron:dev
-
-# Build the library
-pnpm run build
-
-# Build the Electron app
-pnpm run build:electron
-
-# Package the app for distribution
-pnpm run dist
-```
-
-### Web Server
-
-To run the web server for browser development:
+Run the web-based development server:
 
 ```bash
 # Start the development server
-pnpm run dev:server
+pnpm run dev
+
+# Build the library
+pnpm run build
 ```
 
-The Electron app provides:
+### Tauri Desktop App
+
+This project can be built as a Tauri desktop application with native file system access:
+
+```bash
+# Development (runs Tauri with hot reload)
+pnpm tauri dev
+
+# Build the Tauri app
+pnpm tauri build
+```
+
+The Tauri app provides:
 
 - Native file dialog for opening/saving .asemic files
 - Better performance for complex visualizations
 - Desktop app experience
-- Cross-platform support (macOS, Windows, Linux)
+- Cross-platform support (macOS, Windows, Linux, iOS)
 
 ## Usage
 

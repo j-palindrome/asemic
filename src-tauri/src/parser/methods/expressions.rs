@@ -2,6 +2,21 @@ use std::collections::HashMap;
 
 /// A static expression parser for Asemic expressions.
 /// This is a port of the TypeScript expr() function without global state.
+/// 
+/// Supported operators: &, |, ^, _, +, -, *, /, %, (, )
+/// 
+/// Supported constants and functions:
+/// - Progress: S (scrub), C (curve), L (letter), P (point)
+/// - Indexing: N (count), I (index), i (normalized index 0-1)
+/// - Time: T [multiplier] (time with optional multiplier)
+/// - Dimensions: H [multiplier] (height ratio), px [multiplier] (pixel size)
+/// - Math: sin, abs, PHI (golden ratio), fib (fibonacci)
+/// - Logic: ! (NOT), ? condition true false (ternary)
+/// - Interpolation: > fade val1 val2... (lerp/fade), <> progress [spread] [center] (range mapping)
+/// - Selection: choose index val1 val2..., mix val1 val2... (average)
+/// - Randomness: # [seed] (hash function)
+/// - Special: sah val1 val2 (sample and hold), bell x [sign], peaks position peak1 peak2...
+/// - Not fully implemented: ~ (FM synthesis), tangent, table (require additional context)
 pub struct ExpressionParser {
     // Cache for operator splits to improve performance
     operator_split_cache: HashMap<String, Vec<SplitResult>>,
@@ -9,12 +24,33 @@ pub struct ExpressionParser {
     time: f64,
     width: f64,
     height: f64,
+    // Progress state
+    scrub: f64,
+    curve: f64,
+    letter: f64,
+    point: f64,
+    scene: usize,
+    noise_index: usize,
+    // Index tracking
+    indexes: Vec<f64>,
+    count_nums: Vec<f64>,
+    // Seeds for hash function
+    seeds: Vec<f64>,
+    // Noise table for stateful functions
+    noise_table: HashMap<String, NoiseState>,
 }
 
 #[derive(Debug, Clone)]
 struct SplitResult {
     string: String,
     operator_type: String,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+enum NoiseState {
+    SampleAndHold { value: f64, sampling: bool },
+    FmSynthesis { freq: f64, phase: f64, fm_curve: Vec<(f64, f64)>, freq_phases: Vec<f64> },
 }
 
 impl ExpressionParser {
@@ -24,6 +60,16 @@ impl ExpressionParser {
             time: 0.0,
             width: 1920.0,
             height: 1080.0,
+            scrub: 0.0,
+            curve: 0.0,
+            letter: 0.0,
+            point: 0.0,
+            scene: 0,
+            noise_index: 0,
+            indexes: vec![0.0; 3],
+            count_nums: vec![0.0; 3],
+            seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
+            noise_table: HashMap::new(),
         }
     }
 
@@ -33,6 +79,16 @@ impl ExpressionParser {
             time,
             width,
             height,
+            scrub: 0.0,
+            curve: 0.0,
+            letter: 0.0,
+            point: 0.0,
+            scene: 0,
+            noise_index: 0,
+            indexes: vec![0.0; 3],
+            count_nums: vec![0.0; 3],
+            seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
+            noise_table: HashMap::new(),
         }
     }
 
@@ -43,6 +99,19 @@ impl ExpressionParser {
     pub fn set_dimensions(&mut self, width: f64, height: f64) {
         self.width = width;
         self.height = height;
+    }
+
+    pub fn set_progress(&mut self, scrub: f64, curve: f64, letter: f64, point: f64, scene: usize) {
+        self.scrub = scrub;
+        self.curve = curve;
+        self.letter = letter;
+        self.point = point;
+        self.scene = scene;
+    }
+
+    pub fn set_indexes(&mut self, indexes: Vec<f64>, count_nums: Vec<f64>) {
+        self.indexes = indexes;
+        self.count_nums = count_nums;
     }
 
     /// Main expression evaluation function
@@ -121,6 +190,58 @@ impl ExpressionParser {
         let args = &parts[1..];
 
         match func_name {
+            // Progress constants
+            "S" => Ok(self.scrub),
+            "C" => Ok(self.curve),
+            "L" => Ok(self.letter),
+            "P" => Ok(self.point),
+            // Index constants
+            "N" => {
+                let index = if args.is_empty() {
+                    0
+                } else {
+                    self.expr(args[0])? as usize
+                };
+                if index >= self.count_nums.len() {
+                    return Err(format!("N index {} out of range", index));
+                }
+                Ok(self.count_nums[index])
+            }
+            "I" => {
+                let index = if args.is_empty() {
+                    0
+                } else {
+                    self.expr(args[0])? as usize
+                };
+                if index >= self.indexes.len() {
+                    return Err(format!("I index {} out of range", index));
+                }
+                Ok(self.indexes[index])
+            }
+            "i" => {
+                let index = if args.is_empty() {
+                    0
+                } else {
+                    self.expr(args[0])?.floor() as usize
+                };
+                if index >= self.indexes.len() || index >= self.count_nums.len() {
+                    return Err(format!("i index {} out of range", index));
+                }
+                let count = self.count_nums[index] - 1.0;
+                if count <= 0.0 {
+                    Ok(0.0)
+                } else {
+                    Ok(self.indexes[index] / count)
+                }
+            }
+            // Negation operator
+            "-" => {
+                if args.is_empty() {
+                    return Err("- requires an argument".to_string());
+                }
+                let val = self.expr(args[0])?;
+                Ok(-val)
+            }
             // Time constant
             "T" => {
                 if args.is_empty() {
@@ -265,14 +386,15 @@ impl ExpressionParser {
                 }
                 Ok(b)
             }
-            // Hash function (simplified - uses simple hash without global state)
+            // Hash function with seed array
             "#" => {
                 let seed = if args.is_empty() {
-                    0.0
+                    self.curve
                 } else {
                     self.expr(args[0])?
                 };
-                let hash = (seed * 43758.5453123) % 1.0;
+                let seed_offset = self.seeds.get((self.curve as usize) % 100).unwrap_or(&0.0);
+                let hash = (seed * (43758.5453123 + seed_offset)) % 1.0;
                 Ok(hash)
             }
             // Range mapping: <> progress spread center
@@ -294,6 +416,85 @@ impl ExpressionParser {
                 let max = center + spread / 2.0;
                 let min = center - spread / 2.0;
                 Ok(progress * (max - min) + min)
+            }
+            // Sample and hold
+            "sah" => {
+                if args.len() < 2 {
+                    return Err("sah requires 2 arguments".to_string());
+                }
+                let key = format!("{}:{}", self.scene, self.noise_index);
+                self.noise_index += 1;
+                
+                let val1 = self.expr(args[0])?;
+                let val2 = self.expr(args[1])?;
+                
+                let state = self.noise_table.entry(key.clone()).or_insert(
+                    NoiseState::SampleAndHold { value: 0.0, sampling: false }
+                );
+                
+                if let NoiseState::SampleAndHold { value, sampling } = state {
+                    if val2 > 0.5 && !*sampling {
+                        *sampling = true;
+                        *value = val1;
+                    } else if val2 <= 0.5 {
+                        *sampling = false;
+                    }
+                    Ok(*value)
+                } else {
+                    Err("sah state corrupted".to_string())
+                }
+            }
+            // FM synthesis noise (simplified version - full implementation requires curve parsing)
+            "~" => {
+                // Note: This is a simplified version. Full implementation would require
+                // parsing FM curve parameters which depends on point parsing.
+                Err("~ (FM synthesis) not fully implemented in Rust parser".to_string())
+            }
+            // Bell curve
+            "bell" => {
+                if args.is_empty() {
+                    return Err("bell requires at least 1 argument".to_string());
+                }
+                let x = self.expr(args[0])?;
+                let hash = if args.len() > 1 {
+                    self.expr(args[1])?
+                } else {
+                    self.eval_constant(&format!("# {}", args[0]))?
+                };
+                Ok((if hash > 0.5 { 1.0 } else { -1.0 }) * x * 0.5 + 0.5)
+            }
+            // Tangent (requires curve data - not fully implementable without curve context)
+            "tangent" => {
+                Err("tangent requires curve data and is not fully implemented in Rust parser".to_string())
+            }
+            // Peaks function
+            "peaks" => {
+                if args.len() < 2 {
+                    return Err("peaks requires at least 2 arguments".to_string());
+                }
+                let pos = self.expr(args[0])?;
+                
+                // Note: Full implementation requires point parsing.
+                // Simplified version assumes peaks are "x,y" format
+                for peak_str in &args[1..] {
+                    let parts: Vec<&str> = peak_str.split(',').collect();
+                    if parts.len() >= 2 {
+                        let peak_pos = parts[0].parse::<f64>()
+                            .map_err(|_| format!("Invalid peak position: {}", parts[0]))?;
+                        let peak_width = parts[1].parse::<f64>()
+                            .map_err(|_| format!("Invalid peak width: {}", parts[1]))?;
+                        
+                        let diff = (pos - peak_pos).abs();
+                        if diff < peak_width {
+                            return Ok(1.0 - diff / peak_width);
+                        }
+                    }
+                }
+                Ok(0.0)
+            }
+            // Table lookup (requires image data - not implementable without external data)
+            "table" => {
+                Err("table requires image data and is not fully implemented in Rust parser".to_string())
             }
             _ => Err(format!("Unknown function or constant: {}", func_name))
         }
@@ -394,7 +595,7 @@ impl ExpressionParser {
                 Vec::new()
             };
             
-            let mut middle = if idx > 0 {
+            let middle = if idx > 0 {
                 vec![SplitResult {
                     string: format!("{:.4}", inner_result),
                     operator_type: split_result[idx - 1].operator_type.clone(),
@@ -586,6 +787,32 @@ mod tests {
         // Test ternary
         assert_eq!(parser.expr("? 1 5 10").unwrap(), 5.0);
         assert_eq!(parser.expr("? 0 5 10").unwrap(), 10.0);
+    }
+    
+    #[test]
+    fn test_new_constants() {
+        let mut parser = ExpressionParser::new();
+        
+        // Test progress constants
+        parser.set_progress(0.5, 10.0, 5.0, 3.0, 2);
+        assert_eq!(parser.expr("S").unwrap(), 0.5);
+        assert_eq!(parser.expr("C").unwrap(), 10.0);
+        assert_eq!(parser.expr("L").unwrap(), 5.0);
+        assert_eq!(parser.expr("P").unwrap(), 3.0);
+        
+        // Test index constants
+        parser.set_indexes(vec![0.0, 5.0, 10.0], vec![1.0, 10.0, 20.0]);
+        assert_eq!(parser.expr("N").unwrap(), 1.0);
+        assert_eq!(parser.expr("N 1").unwrap(), 10.0);
+        assert_eq!(parser.expr("I").unwrap(), 0.0);
+        assert_eq!(parser.expr("I 1").unwrap(), 5.0);
+        assert!((parser.expr("i 1").unwrap() - 5.0/9.0).abs() < 0.001);
+        
+        // Test negation
+        assert_eq!(parser.expr("- 5").unwrap(), -5.0);
+        
+        // Test bell
+        assert!((parser.expr("bell 0.5 0.3").unwrap() - 0.25).abs() < 0.1);
     }
 
     #[test]

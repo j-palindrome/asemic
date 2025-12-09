@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 export interface ParserState {
   time: number
-  progress: number
   scrub: number
   width: number
   height: number
@@ -32,13 +31,10 @@ export async function updateParserTime(time: number): Promise<void> {
 }
 
 /**
- * Update progress and scene
+ * Update scene
  */
-export async function updateParserProgress(
-  progress: number,
-  scene: number
-): Promise<void> {
-  await invoke('update_parser_progress', { progress, scene })
+export async function updateParserProgress(scene: number): Promise<void> {
+  await invoke('update_parser_progress', { scene })
 }
 
 /**
@@ -49,6 +45,13 @@ export async function updateParserDimensions(
   height: number
 ): Promise<void> {
   await invoke('update_parser_dimensions', { width, height })
+}
+
+/**
+ * Update scrub position
+ */
+export async function updateParserScrub(scrub: number): Promise<void> {
+  await invoke('update_parser_scrub', { scrub })
 }
 
 /**

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParserState {
     pub time: f64,
-    pub progress: f64,
     pub scrub: f64,
     pub width: f64,
     pub height: f64,
@@ -17,7 +16,6 @@ impl Default for ParserState {
     fn default() -> Self {
         Self {
             time: 0.0,
-            progress: 0.0,
             scrub: 0.0,
             width: 1920.0,
             height: 1080.0,

@@ -196,7 +196,6 @@ async fn parser_eval_expression(
     expr: String,
     state: State<'_, AppState>,
 ) -> Result<f64, String> {
-    println!("Evaluating expression: {}", expr);
     
     // Get current state for context
     let parser_state = state.parser_state.lock().unwrap();
@@ -205,6 +204,16 @@ async fn parser_eval_expression(
         parser_state.width,
         parser_state.height,
     );
+    
+    // Set scrub and other progress values from global state
+    parser.set_progress(
+        parser_state.scrub,
+        0.0, // curve - local parsing state
+        0.0, // letter - local parsing state
+        0.0, // point - local parsing state
+        parser_state.scene,
+    );
+    
     drop(parser_state); // Release lock
     
     parser.expr(&expr)
@@ -238,12 +247,10 @@ async fn update_parser_time(
 
 #[tauri::command]
 async fn update_parser_progress(
-    progress: f64,
     scene: usize,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.progress = progress;
     parser_state.scene = scene;
     Ok(())
 }
@@ -257,6 +264,16 @@ async fn update_parser_dimensions(
     let mut parser_state = state.parser_state.lock().unwrap();
     parser_state.width = width;
     parser_state.height = height;
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_parser_scrub(
+    scrub: f64,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut parser_state = state.parser_state.lock().unwrap();
+    parser_state.scrub = scrub;
     Ok(())
 }
 
@@ -274,6 +291,7 @@ fn main() {
             update_parser_time,
             update_parser_progress,
             update_parser_dimensions,
+            update_parser_scrub,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

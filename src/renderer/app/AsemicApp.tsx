@@ -227,9 +227,8 @@ function AsemicAppInner({
           }
           if (!isUndefined(data.progress)) {
             setProgress(data.progress)
-            // Update Rust state when progress changes
+            // Update Rust state when scene changes
             invoke('update_parser_progress', {
-              progress: data.progress,
               scene: activeScene
             }).catch(console.error)
           }
@@ -312,7 +311,6 @@ function AsemicAppInner({
                 if (sceneSettings.osc && sceneSettings.osc.length > 0) {
                   // First update the state context for evaluations
                   await invoke('update_parser_progress', {
-                    progress,
                     scene: activeScene
                   })
 
@@ -475,6 +473,9 @@ function AsemicAppInner({
               asemic.current.postMessage({
                 scrub: newProgress
               } as Partial<AsemicData>)
+              invoke('update_parser_scrub', { scrub: newProgress }).catch(
+                console.error
+              )
             }
             return
           }
@@ -485,6 +486,9 @@ function AsemicAppInner({
               asemic.current.postMessage({
                 scrub: newProgress
               } as AsemicData)
+              invoke('update_parser_scrub', { scrub: newProgress }).catch(
+                console.error
+              )
             }
             return
           }
@@ -494,6 +498,7 @@ function AsemicAppInner({
               asemic.current.postMessage({
                 scrub: 0
               } as AsemicData)
+              invoke('update_parser_scrub', { scrub: 0 }).catch(console.error)
             }
             return
           }
@@ -503,6 +508,9 @@ function AsemicAppInner({
               asemic.current.postMessage({
                 scrub: totalLength
               } as AsemicData)
+              invoke('update_parser_scrub', { scrub: totalLength }).catch(
+                console.error
+              )
             }
             return
           }
@@ -826,6 +834,7 @@ function AsemicAppInner({
       asemic.current.postMessage({
         scrub: newProgress
       } as AsemicData)
+      invoke('update_parser_scrub', { scrub: newProgress }).catch(console.error)
     }
   }
 
@@ -1027,6 +1036,9 @@ function AsemicAppInner({
                         asemic.current.postMessage({
                           scrub: scenes[scene]
                         } as Partial<AsemicData>)
+                        invoke('update_parser_scrub', {
+                          scrub: scenes[scene]
+                        }).catch(console.error)
                       }
                     }
                     setScenesSource(editorRef.current?.getValue() ?? '')

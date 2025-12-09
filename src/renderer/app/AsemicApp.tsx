@@ -281,7 +281,7 @@ function AsemicAppInner({
                       exponent: number
                     }
                   >
-                  osc?: Array<{ name: string; value: number }>
+                  osc?: Array<{ name: string; value: number | string }>
                 } = { length: 0.1, offset: 0, pause: 0 }
 
                 if (activeScene < lines.length) {
@@ -293,6 +293,33 @@ function AsemicAppInner({
                       Object.assign(sceneSettings, JSON.parse(jsonMatch[0]))
                     } catch (e) {}
                   }
+                }
+
+                // Evaluate OSC expressions if present
+                if (sceneSettings.osc && sceneSettings.osc.length > 0) {
+                  const evaluatedOsc = await Promise.all(
+                    sceneSettings.osc.map(async oscMsg => {
+                      try {
+                        // If value is a string expression, evaluate it
+                        if (typeof oscMsg.value === 'string') {
+                          const result = await invoke<number>(
+                            'parser_eval_expression',
+                            { expr: oscMsg.value }
+                          )
+                          console.log(`OSC ${oscMsg.name}: ${result}`)
+                          return { name: oscMsg.name, value: result }
+                        }
+                        // If already a number, keep it
+                        console.log(`OSC ${oscMsg.name}: ${oscMsg.value}`)
+                        return oscMsg
+                      } catch (error) {
+                        console.error(error)
+                        // If evaluation fails, default to 0
+                        return { name: oscMsg.name, value: 0 }
+                      }
+                    })
+                  )
+                  sceneSettings.osc = evaluatedOsc
                 }
 
                 // Call Rust parser_draw with current state

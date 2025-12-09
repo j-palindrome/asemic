@@ -329,6 +329,9 @@ export default function SceneSettingsPanel({
                       ? osc.value.toString()
                       : osc.value.toString()
                   }
+                  onEvaluate={result => {
+                    console.log(result)
+                  }}
                   onChange={value => {
                     const newOsc = [...(settings.osc || [])]
                     // Store as string to preserve expressions, will be evaluated later

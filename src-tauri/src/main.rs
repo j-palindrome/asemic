@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use app_lib::parser_state::{AppState, ParserState};
+use app_lib::parser_state::{AppState, ParserState, SceneMetadata};
 use tauri::State;
 
 // CodeMirror syntax tree node structure
@@ -248,10 +248,12 @@ async fn update_parser_time(
 #[tauri::command]
 async fn update_parser_progress(
     scene: usize,
+    scrub: f64,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut parser_state = state.parser_state.lock().unwrap();
     parser_state.scene = scene;
+    parser_state.scrub = scrub;
     Ok(())
 }
 
@@ -268,12 +270,12 @@ async fn update_parser_dimensions(
 }
 
 #[tauri::command]
-async fn update_parser_scrub(
-    scrub: f64,
+async fn update_scene_metadata(
+    scenes: Vec<SceneMetadata>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.scrub = scrub;
+    parser_state.scenes = scenes;
     Ok(())
 }
 
@@ -291,7 +293,7 @@ fn main() {
             update_parser_time,
             update_parser_progress,
             update_parser_dimensions,
-            update_parser_scrub,
+            update_scene_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

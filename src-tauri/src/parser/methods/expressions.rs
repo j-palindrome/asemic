@@ -1,5 +1,13 @@
 use std::collections::HashMap;
 
+/// Scene metadata for calculating scene-relative scrub values
+#[derive(Debug, Clone)]
+pub struct SceneMetadata {
+    pub start: f64,
+    pub length: f64,
+    pub offset: f64,
+}
+
 /// A static expression parser for Asemic expressions.
 /// This is a port of the TypeScript expr() function without global state.
 /// 
@@ -38,6 +46,9 @@ pub struct ExpressionParser {
     seeds: Vec<f64>,
     // Noise table for stateful functions
     noise_table: HashMap<String, NoiseState>,
+    // Scene metadata for calculating scene-relative scrub
+    scenes: Vec<SceneMetadata>,
+    total_length: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +81,8 @@ impl ExpressionParser {
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
+            scenes: Vec::new(),
+            total_length: 0.0,
         }
     }
 
@@ -89,6 +102,8 @@ impl ExpressionParser {
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
+            scenes: Vec::new(),
+            total_length: 0.0,
         }
     }
 
@@ -112,6 +127,31 @@ impl ExpressionParser {
     pub fn set_indexes(&mut self, indexes: Vec<f64>, count_nums: Vec<f64>) {
         self.indexes = indexes;
         self.count_nums = count_nums;
+    }
+
+    pub fn set_scenes(&mut self, scenes: Vec<SceneMetadata>, total_length: f64) {
+        self.scenes = scenes;
+        self.total_length = total_length;
+    }
+
+    /// Calculate scene-relative scrub value
+    /// Returns normalized 0-1 progress within the current scene
+    fn calculate_scene_scrub(&self) -> f64 {
+        if self.scenes.is_empty() || self.scene >= self.scenes.len() {
+            // No scene data available, return raw scrub
+            return self.scrub;
+        }
+
+        let current_scene = &self.scenes[self.scene];
+        
+        // Scene-relative scrub: (global_progress - scene_start) / scene_length
+        // This matches the TypeScript implementation:
+        // this.progress.scrub = (this.progress.progress - object.start) / object.length
+        if current_scene.length > 0.0 {
+            (self.scrub - current_scene.start) / current_scene.length
+        } else {
+            0.0
+        }
     }
 
     /// Main expression evaluation function
@@ -191,7 +231,7 @@ impl ExpressionParser {
 
         match func_name {
             // Progress constants
-            "S" => Ok(self.scrub),
+            "S" => Ok(self.calculate_scene_scrub()),
             "C" => Ok(self.curve),
             "L" => Ok(self.letter),
             "P" => Ok(self.point),
@@ -813,6 +853,42 @@ mod tests {
         
         // Test bell
         assert!((parser.expr("bell 0.5 0.3").unwrap() - 0.25).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_scene_relative_scrub() {
+        let mut parser = ExpressionParser::new();
+        
+        // Set up three scenes:
+        // Scene 0: start=0.0, length=1.0, offset=0.0
+        // Scene 1: start=1.0, length=2.0, offset=0.0
+        // Scene 2: start=3.0, length=1.5, offset=0.0
+        let scenes = vec![
+            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0 },
+            SceneMetadata { start: 1.0, length: 2.0, offset: 0.0 },
+            SceneMetadata { start: 3.0, length: 1.5, offset: 0.0 },
+        ];
+        parser.set_scenes(scenes, 4.5);
+        
+        // Test scene 0 at 50% progress (global: 0.5)
+        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        assert!((parser.expr("S").unwrap() - 0.5).abs() < 0.001); // (0.5 - 0.0) / 1.0 = 0.5
+        
+        // Test scene 1 at 25% progress (global: 1.5)
+        parser.set_progress(1.5, 0.0, 0.0, 0.0, 1);
+        assert!((parser.expr("S").unwrap() - 0.25).abs() < 0.001); // (1.5 - 1.0) / 2.0 = 0.25
+        
+        // Test scene 1 at 75% progress (global: 2.5)
+        parser.set_progress(2.5, 0.0, 0.0, 0.0, 1);
+        assert!((parser.expr("S").unwrap() - 0.75).abs() < 0.001); // (2.5 - 1.0) / 2.0 = 0.75
+        
+        // Test scene 2 at start (global: 3.0)
+        parser.set_progress(3.0, 0.0, 0.0, 0.0, 2);
+        assert!((parser.expr("S").unwrap() - 0.0).abs() < 0.001); // (3.0 - 3.0) / 1.5 = 0.0
+        
+        // Test scene 2 at 100% (global: 4.5)
+        parser.set_progress(4.5, 0.0, 0.0, 0.0, 2);
+        assert!((parser.expr("S").unwrap() - 1.0).abs() < 0.001); // (4.5 - 3.0) / 1.5 = 1.0
     }
 
     #[test]

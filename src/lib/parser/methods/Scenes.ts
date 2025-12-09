@@ -19,6 +19,7 @@ export class SceneMethods {
     }[]
   ) {
     this.parser.output.scenes = []
+    this.parser.output.sceneMetadata = []
     for (let { length = 0.1, offset = 0, pause = 0, draw, setup } of scenes) {
       this.parser.sceneList.push({
         draw,
@@ -30,6 +31,11 @@ export class SceneMethods {
         pause
       })
       this.parser.output.scenes.push(this.parser.totalLength)
+      this.parser.output.sceneMetadata.push({
+        start: this.parser.totalLength,
+        length,
+        offset
+      })
       this.parser.totalLength += length - offset
     }
     this.parser.output.totalLength = this.parser.totalLength

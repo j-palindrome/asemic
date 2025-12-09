@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 
+export interface SceneMetadata {
+  start: number
+  length: number
+  offset: number
+}
+
 export interface ParserState {
   time: number
   scrub: number
@@ -7,6 +13,7 @@ export interface ParserState {
   height: number
   scene: number
   total_length: number
+  scenes: SceneMetadata[]
 }
 
 /**
@@ -31,10 +38,13 @@ export async function updateParserTime(time: number): Promise<void> {
 }
 
 /**
- * Update scene
+ * Update scene and scrub position
  */
-export async function updateParserProgress(scene: number): Promise<void> {
-  await invoke('update_parser_progress', { scene })
+export async function updateParserProgress(
+  scene: number,
+  scrub: number
+): Promise<void> {
+  await invoke('update_parser_progress', { scene, scrub })
 }
 
 /**
@@ -48,10 +58,12 @@ export async function updateParserDimensions(
 }
 
 /**
- * Update scrub position
+ * Update scene metadata for scrub calculations
  */
-export async function updateParserScrub(scrub: number): Promise<void> {
-  await invoke('update_parser_scrub', { scrub })
+export async function updateSceneMetadata(
+  scenes: SceneMetadata[]
+): Promise<void> {
+  await invoke('update_scene_metadata', { scenes })
 }
 
 /**

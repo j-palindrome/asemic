@@ -1,5 +1,11 @@
 import { InputSchema } from '@/renderer/inputSchema'
 
+export interface SceneMetadata {
+  start: number
+  length: number
+  offset: number
+}
+
 export const defaultOutput = () => ({
   curves: [],
   errors: [] as string[],
@@ -12,5 +18,6 @@ export const defaultOutput = () => ({
   frameReady: undefined as boolean | undefined,
   totalLength: undefined as number | undefined,
   scenes: undefined as number[] | undefined,
+  sceneMetadata: undefined as SceneMetadata[] | undefined,
   progress: undefined as number | undefined
 })

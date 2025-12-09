@@ -1,6 +1,14 @@
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
+/// Scene metadata for calculating scene-relative scrub values
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneMetadata {
+    pub start: f64,
+    pub length: f64,
+    pub offset: f64,
+}
+
 /// Shared parser state accessible across the application
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParserState {
@@ -10,6 +18,7 @@ pub struct ParserState {
     pub height: f64,
     pub scene: usize,
     pub total_length: f64,
+    pub scenes: Vec<SceneMetadata>,
 }
 
 impl Default for ParserState {
@@ -21,6 +30,7 @@ impl Default for ParserState {
             height: 1080.0,
             scene: 0,
             total_length: 0.0,
+            scenes: Vec::new(),
         }
     }
 }

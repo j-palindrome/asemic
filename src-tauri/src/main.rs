@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use app_lib::parser_state::{AppState, ParserState};
+use tauri::State;
 
 // CodeMirror syntax tree node structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,7 +22,7 @@ struct ParserInput {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ParserState {
+struct ParserSetupResult {
     total_length: f64,
     scene_count: usize,
 }
@@ -78,7 +80,7 @@ impl RustParser {
         }
     }
 
-    fn parse(&mut self) -> Result<ParserState, String> {
+    fn parse(&mut self) -> Result<ParserSetupResult, String> {
         println!("\n=== Syntax Tree ===");
         println!("Root: {} [{}-{}]", self.tree.name, self.tree.from, self.tree.to);
         
@@ -87,7 +89,7 @@ impl RustParser {
         
         println!("=== End Syntax Tree ===\n");
         
-        Ok(ParserState {
+        Ok(ParserSetupResult {
             total_length: self.total_length,
             scene_count: self.scene_count,
         })
@@ -140,7 +142,7 @@ impl RustParser {
 }
 
 #[tauri::command]
-async fn parser_setup(input: ParserInput) -> Result<ParserState, String> {
+async fn parser_setup(input: ParserInput) -> Result<ParserSetupResult, String> {
     // println!("\n{}", "=".repeat(60));
     println!("RUST PARSER INVOKED");
     println!("{}", "=".repeat(60));
@@ -190,20 +192,88 @@ async fn parser_draw(input: DrawInput) -> Result<DrawOutput, String> {
 }
 
 #[tauri::command]
-async fn parser_eval_expression(expr: String) -> Result<f64, String> {
+async fn parser_eval_expression(
+    expr: String,
+    state: State<'_, AppState>,
+) -> Result<f64, String> {
     println!("Evaluating expression: {}", expr);
-    let mut parser = app_lib::parser::ExpressionParser::new();
+    
+    // Get current state for context
+    let parser_state = state.parser_state.lock().unwrap();
+    let mut parser = app_lib::parser::ExpressionParser::with_context(
+        parser_state.time,
+        parser_state.width,
+        parser_state.height,
+    );
+    drop(parser_state); // Release lock
+    
     parser.expr(&expr)
+}
+
+#[tauri::command]
+async fn get_parser_state(state: State<'_, AppState>) -> Result<ParserState, String> {
+    let parser_state = state.parser_state.lock().unwrap();
+    Ok(parser_state.clone())
+}
+
+#[tauri::command]
+async fn update_parser_state(
+    updates: ParserState,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut parser_state = state.parser_state.lock().unwrap();
+    *parser_state = updates;
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_parser_time(
+    time: f64,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut parser_state = state.parser_state.lock().unwrap();
+    parser_state.time = time;
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_parser_progress(
+    progress: f64,
+    scene: usize,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut parser_state = state.parser_state.lock().unwrap();
+    parser_state.progress = progress;
+    parser_state.scene = scene;
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_parser_dimensions(
+    width: f64,
+    height: f64,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut parser_state = state.parser_state.lock().unwrap();
+    parser_state.width = width;
+    parser_state.height = height;
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             parser_setup,
             parser_draw,
             parser_eval_expression,
+            get_parser_state,
+            update_parser_state,
+            update_parser_time,
+            update_parser_progress,
+            update_parser_dimensions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

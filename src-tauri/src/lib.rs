@@ -1,4 +1,5 @@
 pub mod parser;
+pub mod parser_state;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

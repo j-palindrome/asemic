@@ -227,6 +227,11 @@ function AsemicAppInner({
           }
           if (!isUndefined(data.progress)) {
             setProgress(data.progress)
+            // Update Rust state when progress changes
+            invoke('update_parser_progress', {
+              progress: data.progress,
+              scene: activeScene
+            }).catch(console.error)
           }
           if (!isUndefined(data.totalLength)) {
             setTotalLength(data.totalLength)
@@ -240,6 +245,14 @@ function AsemicAppInner({
 
     useEffect(() => {
       setIsSetup(true)
+
+      // Sync time periodically
+      const timeInterval = setInterval(() => {
+        const currentTime = performance.now() / 1000
+        invoke('update_parser_time', { time: currentTime }).catch(console.error)
+      }, 100) // Update every 100ms
+
+      return () => clearInterval(timeInterval)
     }, [])
 
     useEffect(() => {
@@ -297,6 +310,12 @@ function AsemicAppInner({
 
                 // Evaluate OSC expressions if present
                 if (sceneSettings.osc && sceneSettings.osc.length > 0) {
+                  // First update the state context for evaluations
+                  await invoke('update_parser_progress', {
+                    progress,
+                    scene: activeScene
+                  })
+
                   const evaluatedOsc = await Promise.all(
                     sceneSettings.osc.map(async oscMsg => {
                       try {
@@ -532,7 +551,7 @@ function AsemicAppInner({
       string,
       { default: number; max: number; min: number; exponent: number }
     >
-    osc?: Array<{ name: string; value: number }>
+    osc?: Array<{ name: string; value: number | string }>
     audioTrack?: string
   }>({})
 
@@ -775,7 +794,7 @@ function AsemicAppInner({
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const isScrollingRef = useRef(false)
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const scrollTimeoutRef = useRef<number | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ y: 0, scrollTop: 0 })
 
@@ -867,10 +886,16 @@ function AsemicAppInner({
       // canvas.current.width = boundingRect.width * devicePixelRatio
       // canvas.current.height = boundingRect.height * devicePixelRatio
 
+      const width = (boundingRect.width || 1080) * devicePixelRatio
+      const height = (boundingRect.height || 1080) * devicePixelRatio
+
+      // Update Rust state with new dimensions
+      invoke('update_parser_dimensions', { width, height }).catch(console.error)
+
       asemic.current!.postMessage({
         preProcess: {
-          width: (boundingRect.width || 1080) * devicePixelRatio,
-          height: (boundingRect.height || 1080) * devicePixelRatio
+          width,
+          height
         }
       })
     }

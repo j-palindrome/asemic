@@ -191,9 +191,9 @@ async fn parser_draw(input: DrawInput) -> Result<DrawOutput, String> {
 
 #[tauri::command]
 async fn parser_eval_expression(expr: String) -> Result<f64, String> {
-    // TODO: Implement expression evaluation
     println!("Evaluating expression: {}", expr);
-    Ok(0.0)
+    let mut parser = app_lib::parser::ExpressionParser::new();
+    parser.expr(&expr)
 }
 
 fn main() {

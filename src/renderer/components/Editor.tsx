@@ -659,7 +659,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         if (viewRef.current) {
           const doc = viewRef.current.state.doc.toString()
           const tree = EXAMPLELanguage.parser.parse(doc)
-          console.log(printTree(tree, doc))
+          // printTree output removed
         }
       }
 

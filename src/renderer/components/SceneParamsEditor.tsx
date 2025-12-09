@@ -388,7 +388,7 @@ export default function SceneSettingsPanel({
                   onUpdate({ ...settings, audioTrack: filePath as string })
                 }
               } catch (error) {
-                console.error('Failed to select audio file:', error)
+                // Ignore audio file selection errors
               }
             }}
             className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>

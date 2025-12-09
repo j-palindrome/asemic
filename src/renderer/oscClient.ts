@@ -37,7 +37,6 @@ export class OSCClient {
         this.setupDirectConnection()
       }
     } catch (error) {
-      console.error('❌ Failed to connect to OSC WebSocket:', error)
       this.scheduleReconnect()
     }
   }
@@ -56,7 +55,6 @@ export class OSCClient {
           // Ignore non-OSC messages
         }
       })
-      console.log('🔌 Connected to OSC server via Vite HMR')
     } else {
       // Fallback to direct connection
       this.setupDirectConnection()
@@ -67,7 +65,6 @@ export class OSCClient {
     this.ws = new WebSocket(this.wsUrl)
 
     this.ws.onopen = () => {
-      console.log('🔌 Connected to OSC WebSocket server')
       this.reconnectAttempts = 0
     }
 
@@ -76,12 +73,11 @@ export class OSCClient {
         const message: OSCMessage = JSON.parse(event.data)
         this.handleMessage(message)
       } catch (error) {
-        console.error('❌ Failed to parse OSC message:', error)
+        // Ignore parse errors
       }
     }
 
     this.ws.onclose = () => {
-      console.log('🔌 OSC WebSocket connection closed')
       this.scheduleReconnect()
     }
 
@@ -93,23 +89,14 @@ export class OSCClient {
   private scheduleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
-      console.log(
-        `🔄 Reconnecting to OSC server (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
-      )
 
       setTimeout(() => {
         this.connect()
       }, this.reconnectDelay * this.reconnectAttempts)
-    } else {
-      console.error(
-        '❌ Max reconnection attempts reached. OSC connection failed.'
-      )
     }
   }
 
   private handleMessage(message: OSCMessage) {
-    console.log('📨 OSC message received:', message)
-
     // Call type-specific handlers
     const typeHandlers = this.messageHandlers.get(message.type) || []
     typeHandlers.forEach(handler => handler(message))
@@ -161,9 +148,6 @@ export class OSCClient {
         data: args
       }
       this.ws.send(JSON.stringify(message))
-      console.log(`📤 OSC message sent: ${address}`, args)
-    } else {
-      console.warn('⚠️ Cannot send OSC message: WebSocket not connected')
     }
   }
 

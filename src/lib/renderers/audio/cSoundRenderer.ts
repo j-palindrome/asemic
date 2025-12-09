@@ -41,7 +41,7 @@ export default class CSoundRenderer<
           await (this.ctx.destination as any).setSinkId(externalDevice.deviceId)
         }
       } catch (error) {
-        console.warn('Could not set audio output device:', error)
+        // Could not set audio output device
       }
     }
 

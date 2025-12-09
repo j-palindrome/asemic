@@ -142,10 +142,8 @@ function AsemicAppInner({
         return next
       })
 
-      console.log(`Loaded audio track: ${filePath}`)
       return audioBuffer
     } catch (error) {
-      console.error('Failed to load audio track:', error)
       return null
     }
   }
@@ -177,7 +175,6 @@ function AsemicAppInner({
 
     audioSourceRef.current = source
     currentAudioTrackRef.current = filePath
-    console.log(`Playing audio track: ${filePath}`)
   }
 
   // Stop audio playback
@@ -186,7 +183,6 @@ function AsemicAppInner({
       audioSourceRef.current.stop()
       audioSourceRef.current = null
       currentAudioTrackRef.current = null
-      console.log('Stopped audio track')
     }
   }
 
@@ -252,10 +248,8 @@ function AsemicAppInner({
         if (useRustParser) {
           // Rust parser path
           const syntaxTree = editorRef.current?.getSyntaxTree()
-          console.log('Syntax tree:', JSON.stringify(syntaxTree, null, 2))
 
           if (!syntaxTree) {
-            console.warn('No syntax tree available')
             return
           }
 
@@ -266,7 +260,6 @@ function AsemicAppInner({
                 tree: syntaxTree
               }
             })
-            console.log('Rust parser initialized:', parserState)
 
             // Start animation loop for Rust parser
             const animate = async () => {
@@ -312,9 +305,8 @@ function AsemicAppInner({
                 })
 
                 // TODO: Handle drawOutput (render groups, update errors, etc.)
-                console.log('Draw output:', drawOutput)
               } catch (error) {
-                console.error('Rust parser_draw failed:', error)
+                // Rust parser_draw failed
               }
 
               animationFrameRef.current = requestAnimationFrame(animate)
@@ -328,7 +320,7 @@ function AsemicAppInner({
             // Start animation loop
             animationFrameRef.current = requestAnimationFrame(animate)
           } catch (error) {
-            console.error('Rust parser setup failed:', error)
+            // Rust parser setup failed
           }
         } else {
           // Cancel Rust parser animation loop if disabled
@@ -578,7 +570,7 @@ function AsemicAppInner({
         editorRef.current?.setValue(newSource)
       }
     } catch (e) {
-      console.error('Failed to update scene settings:', e)
+      // Failed to update scene settings
     }
   }
 
@@ -622,7 +614,7 @@ function AsemicAppInner({
       // Write to file
       await writeTextFile(filePath, content)
     } catch (error) {
-      console.error('Failed to save file:', error)
+      // Failed to save file
     }
   }
 
@@ -693,15 +685,12 @@ function AsemicAppInner({
           // Store with filename (without extension) as key
           const nameWithoutExt = entry.name.replace(/\.[^/.]+$/, '')
           newAudioFiles.set(nameWithoutExt, audio)
-
-          console.log(`Loaded audio file: ${nameWithoutExt}`)
         }
       }
 
       setAudioFiles(newAudioFiles)
-      console.log(`Loaded ${newAudioFiles.size} audio files from folder`)
     } catch (error) {
-      console.error('Failed to load audio folder:', error)
+      // Failed to load audio folder
     }
   }
 
@@ -851,7 +840,6 @@ function AsemicAppInner({
       // canvas.current.width = boundingRect.width * devicePixelRatio
       // canvas.current.height = boundingRect.height * devicePixelRatio
 
-      console.log(boundingRect.width, boundingRect.height)
       asemic.current!.postMessage({
         preProcess: {
           width: (boundingRect.width || 1080) * devicePixelRatio,

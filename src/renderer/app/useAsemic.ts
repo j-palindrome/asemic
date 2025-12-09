@@ -92,7 +92,6 @@ export function useAsemic({
 
         setIsRecording(true)
       } catch (error) {
-        console.error('Failed to start recording:', error)
         setIsRecording(false)
       }
     }
@@ -119,7 +118,6 @@ export function useAsemic({
           setIsRecording(false) // ADD
         } // ADD
       } catch (error) {
-        console.error('Failed to stop recording:', error)
         setIsRecording(false)
       }
     }
@@ -152,7 +150,6 @@ export function useAsemic({
         URL.revokeObjectURL(url)
         setIsRecording(false)
       } catch (error) {
-        console.error('Failed to save recording:', error)
         setIsRecording(false)
       }
     }

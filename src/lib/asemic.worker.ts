@@ -61,12 +61,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.scrub)) {
     parser.scenes.scrub(ev.data.scrub)
   }
-  if (!isUndefined(ev.data.params)) {
-    parser.params = { ...parser.params, ...ev.data.params }
-  }
-  if (!isUndefined(ev.data.presets)) {
-    parser.presets = { ...parser.presets, ...ev.data.presets }
-  }
   if (!isUndefined(ev.data.loadFiles)) {
     parser.data.loadFiles(ev.data.loadFiles)
   }
@@ -91,14 +85,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       animationFrame = requestAnimationFrame(animate)
       ready = false
       parser.draw()
-      for (let group of parser.groups) {
-        if (group.settings.synth) {
-          parser.output.sc.push({
-            path: `${group.settings.synth}/buffer`,
-            value: group[0].flatMap(x => [x[0], x[1]])
-          })
-        }
-      }
       renderer.render(parser.groups)
 
       ready = true

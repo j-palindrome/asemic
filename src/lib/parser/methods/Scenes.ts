@@ -72,68 +72,13 @@ export class SceneMethods {
     }
   }
 
-  param(
-    paramName: string,
-    { value, min = 0, max = 1, exponent = 1 }: InputSchema['params'][string]
-  ) {
-    this.parser.params[paramName] = {
-      type: 'number',
-      value: this.parser.params[paramName]
-        ? this.parser.params[paramName].value
-        : value
-        ? this.parser.expressions.expr(value)
-        : 0,
-      min: this.parser.expressions.expr(min),
-      max: this.parser.expressions.expr(max),
-      exponent: this.parser.expressions.expr(exponent)
-    }
-    if (!this.parser.output.params) this.parser.output.params = {}
-    this.parser.output.params[paramName] = this.parser.params[paramName]
-    this.parser.constants[paramName] = () => this.parser.params[paramName].value
-
-    return this.parser
-  }
-
   preset(presetName: string, values: string) {
-    const tokenized = this.parser.parsing.tokenize(values)
-    if (!this.parser.presets[presetName]) {
-      this.parser.presets[presetName] = {}
-    }
-    for (let token of tokenized) {
-      const [paramName, value] = token.split('=')
-      if (!this.parser.params[paramName]) {
-        throw new Error(
-          `Parameter '${paramName}' must be defined before creating preset`
-        )
-      }
-      this.parser.presets[presetName][paramName] = {
-        ...this.parser.params[paramName],
-        value: this.parser.expressions.expr(value)
-      }
-    }
-    if (!this.parser.output.presets) this.parser.output.presets = {}
-    this.parser.output.presets[presetName] = this.parser.presets[presetName]
+    // Method removed - params no longer managed by parser
     return this.parser
   }
 
   toPreset(presetName: string, amount: string | number = 1) {
-    if (!this.parser.presets[presetName]) {
-      throw new Error(`Preset '${presetName}' not found`)
-    }
-
-    const lerpAmount = this.parser.expressions.expr(amount)
-    for (let paramName of Object.keys(this.parser.presets[presetName])) {
-      if (!this.parser.params[paramName]) {
-        throw new Error(
-          `Parameter '${paramName}' not found for preset '${presetName}'`
-        )
-      }
-
-      const targetValue = this.parser.presets[presetName][paramName].value
-      const currentValue = this.parser.params[paramName].value
-      this.parser.params[paramName].value =
-        currentValue + (targetValue - currentValue) * lerpAmount
-    }
+    // Method removed - params no longer managed by parser
     return this.parser
   }
 

@@ -27,7 +27,6 @@ export { AsemicGroup }
 const PHI = 1.6180339887
 export class Parser {
   rawSource = ''
-  presets: Record<string, InputSchema['params']> = {}
   mode = 'normal' as 'normal' | 'blank'
   adding = 0
   debugged = new Map<string, { errors: string[] }>()
@@ -50,7 +49,6 @@ export class Parser {
     isSetup: boolean
     setup?: () => void
   }[] = []
-  params = {} as InputSchema['params']
   progress = {
     currentLine: '',
     noiseIndex: 0,
@@ -523,7 +521,6 @@ export class Parser {
     this.rawSource = source
     for (let font in this.fonts) this.textMethods.resetFont(font)
 
-    this.output.resetParams = true
     this.output.resetPresets = true
     // try {
     this.textMethods.parse(source)

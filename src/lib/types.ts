@@ -1,11 +1,11 @@
 import { Color, Pt } from 'pts'
-import { Parser } from './parser/Parser'
+import { Parser, Scene } from './parser/Parser'
 import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
 export type { Parser } from './parser/Parser'
 
 export type AsemicData = {
-  source?: string
+  scene?: Scene
   preProcess?: Partial<Parser['preProcessing']>
   live: {
     keys: string[]
@@ -46,25 +46,4 @@ export type FlatTransform = {
   width: number
   length?: number
   offset?: number
-}
-
-// Add Socket.IO event types for file handling
-export interface ReceiveMap {
-  'params:reset': () => void
-  params: (obj: any) => void
-  'sc:synth': (name: string, synthDef: string) => void
-  'sc:set': (name: string, param: string, value: number | number[]) => void
-  'sc:on': () => void
-  'sc:off': () => void
-  'files:load': (
-    files: string[],
-    callback: (filesBitmaps: Record<string, ImageData[]>) => void
-  ) => void
-  disconnect: () => void
-}
-
-export interface SendMap {
-  params: (schema: any) => void
-  'asemic:param': (args: any[]) => void
-  'osc:message': (data: { address: string; data: any[] }) => void
 }

@@ -43,28 +43,6 @@ export class TextMethods {
     return this.parser
   }
 
-  parse(text: string) {
-    // Try to parse as JSON array first
-    const trimmedText = text.trim()
-
-    const sceneObjects = JSON.parse(trimmedText) as Array<
-      SceneSettings & { code: string }
-    >
-    const sceneList: Parameters<Parser['scenes']['scene']> = sceneObjects.map(
-      sceneObj => {
-        const { code, ...settings } = sceneObj
-        return {
-          ...settings,
-          draw: () => {
-            this.parser.textMethods.text(code)
-          }
-        }
-      }
-    )
-    this.parser.scenes.scene(...sceneList)
-    return this.parser
-  }
-
   text(token: string) {
     token = token.replace(/\/\/.+/gm, '')
     const parseTo = (content: string) => {

@@ -1,7 +1,7 @@
 import { flatMap, isUndefined, max } from 'lodash'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData, FlatTransform } from './types'
-import { Parser } from './parser/Parser'
+import { Parser, Scene } from './parser/Parser'
 import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 // import { generators, generators as realOsc } from 'hydra-ts'
 
@@ -12,6 +12,7 @@ let animationFrame: number | null = null
 let ready = true
 // Video recording state
 let isRecording = false
+let currentScene: Scene | null = null
 
 const startRecording = async () => {
   if (isRecording) return
@@ -64,18 +65,15 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.loadFiles)) {
     parser.data.loadFiles(ev.data.loadFiles)
   }
-  if (!isUndefined(ev.data.source)) {
+  if (!isUndefined(ev.data.scene)) {
+    currentScene = ev.data.scene
+    if (ev.data.preProcess) {
+      parser.preProcessing = { ...parser.preProcessing, ...ev.data.preProcess }
+    }
+
+    // Start animation loop with the new scene
     if (animationFrame) {
       cancelAnimationFrame(animationFrame)
-    }
-    if (parser.rawSource !== ev.data.source) {
-      parser.rawSource = ev.data.source
-      parser.setup(ev.data.source)
-
-      self.postMessage({
-        settings: parser.settings,
-        ...parser.output
-      } as Partial<Parser['output']>)
     }
 
     const animate = async () => {
@@ -84,16 +82,24 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
       }
       animationFrame = requestAnimationFrame(animate)
       ready = false
-      parser.draw()
-      renderer.render(parser.groups)
+
+      if (currentScene) {
+        parser.draw(currentScene)
+        renderer.render(parser.groups)
+      }
 
       ready = true
-
       self.postMessage(parser.output)
     }
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame)
-    }
+
     animationFrame = requestAnimationFrame(animate)
   }
+}
+
+function draw() {
+  if (!currentScene) return
+
+  parser.draw(currentScene)
+
+  renderer.render(parser.groups)
 }

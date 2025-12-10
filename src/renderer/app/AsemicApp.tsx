@@ -1,5 +1,5 @@
 import Asemic from '@/lib/Asemic'
-import { Parser } from '@/lib/parser/Parser'
+import { Parser, Scene } from '@/lib/parser/Parser'
 import { AsemicData } from '@/lib/types'
 import _, { isEqual, isUndefined } from 'lodash'
 import {
@@ -412,12 +412,22 @@ function AsemicAppInner({
               params: sceneSettings.params
             })
           }
-        }
 
-        asemic.current?.postMessage({
-          source: scenesSourceRef.current,
-          preProcess
-        })
+          // Send the current scene to the parser
+          const currentScene: Scene = {
+            code: sceneSettings.code || '',
+            length: sceneSettings.length,
+            offset: sceneSettings.offset,
+            pause: sceneSettings.pause,
+            params: sceneSettings.params
+          }
+
+          console.log('posting', currentScene)
+          asemic.current?.postMessage({
+            scene: currentScene,
+            preProcess
+          })
+        }
       }
       restart()
     }, [scenesSource, isSetup, activeScene, scenesArray])

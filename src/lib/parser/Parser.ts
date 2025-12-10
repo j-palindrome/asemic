@@ -25,6 +25,19 @@ import { AsemicFont } from '../AsemicFont'
 
 export { AsemicGroup }
 const PHI = 1.6180339887
+
+export interface Scene {
+  code: string
+  length?: number
+  offset?: number
+  pause?: number | false
+  params?: Record<
+    string,
+    { value: number; min: number; max: number; exponent: number }
+  >
+  [key: string]: any
+}
+
 export class Parser {
   rawSource = ''
   mode = 'normal' as 'normal' | 'blank'
@@ -40,15 +53,6 @@ export class Parser {
   totalLength = 0
   pausedAt: string[] = []
   pauseAt: string | false = false
-  sceneList: {
-    start: number
-    length: number
-    draw: () => void
-    pause: false | number
-    offset: number
-    isSetup: boolean
-    setup?: () => void
-  }[] = []
   progress = {
     currentLine: '',
     noiseIndex: 0,
@@ -433,52 +437,28 @@ export class Parser {
     this.progress.accumIndex = 0
   }
 
-  draw() {
+  draw(scene: Scene) {
     try {
       this.reset()
     } catch (e) {
       this.error(`Error at reset: ${(e as Error).message}`)
     }
-    let i = 0
-    for (let object of this.sceneList) {
-      if (
-        this.progress.progress >= object.start &&
-        this.progress.progress < object.start + object.length
-      ) {
-        this.reset({ newFrame: false })
-        this.progress.scrub =
-          (this.progress.progress - object.start) / object.length
-        this.progress.scrubTime = this.progress.progress - object.start
-        this.progress.scene = i
-        this.progress.noiseIndex = 0
 
-        if (!object.isSetup) {
-          object.setup?.()
-          object.isSetup = true
-        }
+    // Set progress values to 0 for now
+    this.progress.scrub = 0
+    this.progress.scrubTime = 0
+    this.progress.progress = 0
+    this.progress.noiseIndex = 0
 
-        if (
-          this.pauseAt === false &&
-          object.pause !== false &&
-          this.progress.progress >= object.start + object.pause
-        ) {
-          const pause = (object.start + object.pause).toFixed(5)
-          if (!this.pausedAt.includes(pause)) {
-            this.pauseAt = pause
-            break
-          }
-        }
-        // object.draw()
-        try {
-          object.draw()
-        } catch (e) {
-          this.error(
-            `Error at ${this.progress.currentLine}: ${(e as Error).message}`
-          )
-        }
-      }
-      i++
+    // Execute the scene's code
+    try {
+      this.textMethods.text(scene.code)
+    } catch (e) {
+      this.error(
+        `Error at ${this.progress.currentLine}: ${(e as Error).message}`
+      )
     }
+
     this.output.progress = this.progress.progress
     this.output.pauseAt = this.pauseAt
   }
@@ -517,17 +497,10 @@ export class Parser {
     this.textMethods.text(defaultFont)
 
     this.settings = defaultSettings()
-    this.sceneList = []
     this.rawSource = source
     for (let font in this.fonts) this.textMethods.resetFont(font)
 
     this.output.resetPresets = true
-    // try {
-    this.textMethods.parse(source)
-    // } catch (e: any) {
-    //   console.error(e)
-    // }
-
     this.noiseTable = {}
 
     return this

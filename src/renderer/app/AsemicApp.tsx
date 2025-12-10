@@ -291,6 +291,12 @@ function AsemicAppInner({
 
     // Animation loop - increments global time, scene-relative scrub, and updates parser
     const lastFrameTimeRef = useRef<number>(performance.now())
+    const scenesArrayRef = useRef(scenesArray)
+
+    useEffect(() => {
+      scenesArrayRef.current = scenesArray
+    }, [scenesArray])
+
     useEffect(() => {
       const animate = async () => {
         try {
@@ -298,8 +304,9 @@ function AsemicAppInner({
           const deltaTime = (now - lastFrameTimeRef.current) / 1000 // Convert to seconds
           lastFrameTimeRef.current = now
 
-          // Get current scene settings
-          const sceneSettings: SceneSettings = scenesArray[
+          // Get current scene settings from ref (always fresh)
+          const currentScenesArray = scenesArrayRef.current
+          const sceneSettings: SceneSettings = currentScenesArray[
             activeSceneRef.current
           ] || {
             length: 0.1,
@@ -315,50 +322,24 @@ function AsemicAppInner({
 
             const newScrub = (sceneSettings.scrub || 0) + deltaTime
             const sceneLength = sceneSettings.length || 0.1
+            const sceneOffset = sceneSettings.offset || 0
+            const effectiveLength = sceneLength - sceneOffset
 
-            // Check if we should transition to next scene
-            if (
-              newScrub >= sceneLength &&
-              activeSceneRef.current < scenesArray.length - 1
-            ) {
-              // Transition to next scene
-              const nextSceneIndex = activeSceneRef.current + 1
-
-              // Reset current scene's scrub
-              const newScenesArray = [...scenesArray]
-              newScenesArray[activeSceneRef.current] = {
-                ...sceneSettings,
-                scrub: 0
-              }
-
-              // Initialize next scene scrub if needed
-              if (newScenesArray[nextSceneIndex].scrub === undefined) {
-                newScenesArray[nextSceneIndex] = {
-                  ...newScenesArray[nextSceneIndex],
-                  scrub: 0
-                }
-              }
-
-              const newSource = JSON.stringify(newScenesArray, null, 2)
-              setScenesSource(newSource)
-            } else {
-              // Update current scene scrub only
-              const newScenesArray = [...scenesArray]
-              const clampedScrub = Math.min(newScrub, sceneLength)
-              newScenesArray[activeSceneRef.current] = {
-                ...sceneSettings,
-                scrub: clampedScrub
-              }
-              const newSource = JSON.stringify(newScenesArray, null, 2)
-              setScenesSource(newSource)
+            // Simply update current scene's scrub, don't manage transitions here
+            const newScenesArray = [...currentScenesArray]
+            newScenesArray[activeSceneRef.current] = {
+              ...sceneSettings,
+              scrub: newScrub
             }
+            const newSource = JSON.stringify(newScenesArray, null, 2)
+            setScenesSource(newSource)
           }
 
           // Update parser with current scene
           const preProcess = {
             replacements: {}
           } as Parser['preProcessing']
-          const links = scenesSource.match(/\[\[.*?\]\]/)
+          const links = scenesSourceRef.current.match(/\[\[.*?\]\]/)
           if (links) {
             for (let link of links) {
               const fileName = link.substring(2, link.length - 2)
@@ -368,8 +349,9 @@ function AsemicAppInner({
             }
           }
 
-          if (activeSceneRef.current < scenesArray.length) {
-            const currentSceneSettings = scenesArray[activeSceneRef.current]
+          if (activeSceneRef.current < currentScenesArray.length) {
+            const currentSceneSettings =
+              currentScenesArray[activeSceneRef.current]
             const currentScene: Scene = {
               code: currentSceneSettings.code || '',
               length: currentSceneSettings.length,
@@ -399,7 +381,7 @@ function AsemicAppInner({
               (boundingRect?.height || 1080) * (devicePixelRatio || 2)
 
             // Build scene metadata array
-            const sceneMetadata = scenesArray.map((scene, idx) => ({
+            const sceneMetadata = currentScenesArray.map((scene, idx) => ({
               start: 0, // Will be calculated if needed
               length: scene.length || 0.1,
               offset: scene.offset || 0,
@@ -463,7 +445,7 @@ function AsemicAppInner({
           animationFrameRef.current = null
         }
       }
-    }, [isSetup, scenesArray, activeScene, scenesSource, getRequire])
+    }, [isSetup, getRequire])
   }
   setup()
 
@@ -737,63 +719,6 @@ function AsemicAppInner({
   const scrollTimeoutRef = useRef<number | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ y: 0, scrollTop: 0 })
-  const scrubIntervalRef = useRef<number | null>(null)
-
-  // Handle scrubber button hold
-  const handleScrubberMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    isScrollingRef.current = true
-
-    const incrementScrub = () => {
-      const sceneSettings = scenesArray[activeScene] || {}
-      const sceneLength = sceneSettings.length || 0.1
-      const currentScrub = sceneSettings.scrub || 0
-      const delta = 0.016 // ~1 frame at 60fps
-
-      let newScrub = currentScrub + delta
-      let newActiveScene = activeScene
-
-      // Handle scene transitions
-      if (newScrub > sceneLength && activeScene < scenesArray.length - 1) {
-        newActiveScene = activeScene + 1
-        newScrub = newScrub - sceneLength
-      } else {
-        newScrub = Math.min(newScrub, sceneLength)
-      }
-
-      // Update scenes array
-      const newScenesArray = [...scenesArray]
-      newScenesArray[newActiveScene] = {
-        ...scenesArray[newActiveScene],
-        scrub: newScrub
-      }
-      const newSource = JSON.stringify(newScenesArray, null, 2)
-      setScenesSource(newSource)
-    }
-
-    // Immediate first increment
-    incrementScrub()
-
-    // Continue incrementing while held
-    scrubIntervalRef.current = window.setInterval(incrementScrub, 16) // ~60fps
-  }
-
-  const handleScrubberMouseUp = () => {
-    if (scrubIntervalRef.current !== null) {
-      clearInterval(scrubIntervalRef.current)
-      scrubIntervalRef.current = null
-    }
-    isScrollingRef.current = false
-  }
-
-  useEffect(() => {
-    // Clean up interval on unmount
-    return () => {
-      if (scrubIntervalRef.current !== null) {
-        clearInterval(scrubIntervalRef.current)
-      }
-    }
-  }, [])
 
   const handleMouseUp = () => {
     isDraggingRef.current = false
@@ -897,13 +822,22 @@ function AsemicAppInner({
             <button onClick={() => setShowSceneSettings(!showSceneSettings)}>
               <Settings2 {...lucideProps} />
             </button>
-            {/* Scrubber button - hold to increment scrub */}
-            <div
-              className='w-8 h-5 bg-white bg-opacity-20 rounded cursor-pointer hover:bg-opacity-30 active:bg-opacity-40'
-              onMouseDown={handleScrubberMouseDown}
-              onMouseUp={handleScrubberMouseUp}
-              onMouseLeave={handleScrubberMouseUp}
-            />
+            {/* Scrub progress display */}
+            <div className='text-white text-xs opacity-50 px-2 font-mono'>
+              {(() => {
+                const currentScrub = activeSceneSettings.scrub || 0
+                const length = activeSceneSettings.length || 0.1
+                const offset = activeSceneSettings.offset || 0
+                const effectiveLength = length - offset
+                return `${currentScrub.toFixed(2)}s / ${effectiveLength.toFixed(
+                  2
+                )}s`
+              })()}
+            </div>
+            {/* Scene counter display */}
+            <div className='text-white text-xs opacity-50 px-2 font-mono'>
+              Scene {activeScene + 1} / {scenesArray.length}
+            </div>
             <div className='grow' />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}

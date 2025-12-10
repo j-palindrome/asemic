@@ -4,6 +4,7 @@ export interface SceneMetadata {
   start: number
   length: number
   offset: number
+  params?: Record<string, number>
 }
 
 export interface ParserState {

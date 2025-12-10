@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
+import Slider from './Slider'
 
 type ParamConfig = {
   default: number
   max: number
   min: number
   exponent: number
+  value: number
 }
 
 type SceneSettings = {
@@ -46,7 +48,8 @@ export default function SceneSettingsPanel({
             default: 0.5,
             max: 1,
             min: 0,
-            exponent: 1
+            exponent: 1,
+            value: 0.5
           }
         }
       })
@@ -203,12 +206,50 @@ export default function SceneSettingsPanel({
                 <label className='text-white/90 text-sm font-medium'>
                   {key}
                 </label>
-                <button
-                  onClick={() => handleDeleteParam(key)}
-                  className='text-white/50 hover:text-red-400 text-xs'>
-                  ✕
-                </button>
+                <div className='flex items-center gap-2'>
+                  <span className='text-white/70 text-xs'>
+                    {paramConfig.value?.toFixed(3) ??
+                      paramConfig.default.toFixed(3)}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteParam(key)}
+                    className='text-white/50 hover:text-red-400 text-xs'>
+                    ✕
+                  </button>
+                </div>
               </div>
+
+              {/* Value Slider */}
+              <div className='mb-3'>
+                <div className='relative h-8 bg-white/5 rounded'>
+                  <Slider
+                    className='w-full h-full'
+                    innerClassName=''
+                    min={paramConfig.min}
+                    max={paramConfig.max}
+                    exponent={paramConfig.exponent}
+                    values={{
+                      x: paramConfig.value ?? paramConfig.default,
+                      y: 0
+                    }}
+                    sliderStyle={({ x }) => ({
+                      left: `${x * 100}%`,
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: 'white',
+                      position: 'absolute',
+                      pointerEvents: 'none'
+                    })}
+                    onChange={({ x }) => {
+                      handleUpdateParam(key, 'value', x)
+                    }}
+                  />
+                </div>
+              </div>
+
               <div className='grid grid-cols-2 gap-2'>
                 <div>
                   <label className='text-white/50 text-xs block mb-1'>

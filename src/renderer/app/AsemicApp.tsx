@@ -245,9 +245,44 @@ function AsemicAppInner({
             setScenes(data.scenes)
           }
           if (!isUndefined(data.sceneMetadata)) {
+            // Enrich scene metadata with param values from scene settings
+            const enrichedMetadata = data.sceneMetadata.map(
+              (metadata, index) => {
+                const lines = scenesSourceRef.current.split('\n#')
+                if (index < lines.length) {
+                  const sceneText = lines[index]
+                  const firstLine = sceneText?.split('\n')[0]
+                  const jsonMatch = firstLine?.match(/\{.+\}/)
+                  if (jsonMatch) {
+                    try {
+                      const sceneSettings = JSON.parse(jsonMatch[0])
+                      if (sceneSettings.params) {
+                        // Extract param values from scene settings
+                        const params: Record<string, number> = {}
+                        for (const [key, config] of Object.entries(
+                          sceneSettings.params
+                        )) {
+                          const paramConfig = config as {
+                            value?: number
+                            default?: number
+                          }
+                          params[key] =
+                            paramConfig.value ?? paramConfig.default ?? 0
+                        }
+                        return { ...metadata, params }
+                      }
+                    } catch (e) {
+                      // Failed to parse scene settings
+                    }
+                  }
+                }
+                return metadata
+              }
+            )
+
             // Sync scene metadata to Rust for scene-relative scrub calculations
             invoke('update_scene_metadata', {
-              scenes: data.sceneMetadata
+              scenes: enrichedMetadata
             }).catch(console.error)
           }
         })
@@ -544,7 +579,13 @@ function AsemicAppInner({
     pause?: number | false
     params?: Record<
       string,
-      { default: number; max: number; min: number; exponent: number }
+      {
+        default: number
+        max: number
+        min: number
+        exponent: number
+        value: number
+      }
     >
     osc?: Array<{ name: string; value: number | string }>
     audioTrack?: string
@@ -561,6 +602,15 @@ function AsemicAppInner({
         if (jsonMatch) {
           try {
             const settings = JSON.parse(jsonMatch[0])
+            // Normalize params to ensure they have value field
+            if (settings.params) {
+              for (const [key, param] of Object.entries(settings.params)) {
+                const p = param as any
+                if (p.value === undefined) {
+                  p.value = p.default ?? 0
+                }
+              }
+            }
             setActiveSceneSettings(settings)
           } catch (e) {
             setActiveSceneSettings({})

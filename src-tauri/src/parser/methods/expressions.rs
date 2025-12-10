@@ -8,6 +8,8 @@ pub struct SceneMetadata {
     pub start: f64,
     pub length: f64,
     pub offset: f64,
+    #[serde(default)]
+    pub params: HashMap<String, f64>,
 }
 
 /// A static expression parser for Asemic expressions.
@@ -130,6 +132,15 @@ impl ExpressionParser {
 
     pub fn set_scene_metadata(&mut self, scene_metadata: Vec<SceneMetadata>) {
         self.scene_metadata = scene_metadata;
+    }
+
+    /// Get a parameter value from the current scene's metadata
+    pub fn get_param(&self, name: &str) -> Option<f64> {
+        if self.scene >= self.scene_metadata.len() {
+            return None;
+        }
+        
+        self.scene_metadata[self.scene].params.get(name).copied()
     }
 
     /// Get scene-relative scrub position (0-1 within current scene)
@@ -535,7 +546,14 @@ impl ExpressionParser {
             "table" => {
                 Err("table requires image data and is not fully implemented in Rust parser".to_string())
             }
-            _ => Err(format!("Unknown function or constant: {}", func_name))
+            _ => {
+                // Check if it's a parameter name from scene metadata
+                if let Some(value) = self.get_param(func_name) {
+                    Ok(value)
+                } else {
+                    Err(format!("Unknown function or constant: {}", func_name))
+                }
+            }
         }
     }
 
@@ -919,9 +937,9 @@ mod tests {
         
         // Set up scene metadata: 3 scenes
         let scenes = vec![
-            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0 },
-            SceneMetadata { start: 1.0, length: 2.0, offset: 0.5 },
-            SceneMetadata { start: 2.5, length: 1.5, offset: 0.0 },
+            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0, params: HashMap::new() },
+            SceneMetadata { start: 1.0, length: 2.0, offset: 0.5, params: HashMap::new() },
+            SceneMetadata { start: 2.5, length: 1.5, offset: 0.0, params: HashMap::new() },
         ];
         parser.set_scene_metadata(scenes);
         
@@ -943,5 +961,53 @@ mod tests {
         // Test scene 2 at end
         parser.set_progress(4.0, 0.0, 0.0, 0.0, 2);
         assert!((parser.expr("s").unwrap() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_scene_params() {
+        let mut parser = ExpressionParser::new();
+        
+        // Set up scene metadata with params
+        let mut params1 = HashMap::new();
+        params1.insert("speed".to_string(), 2.5);
+        params1.insert("size".to_string(), 0.75);
+        
+        let mut params2 = HashMap::new();
+        params2.insert("speed".to_string(), 1.0);
+        params2.insert("size".to_string(), 0.5);
+        
+        let scenes = vec![
+            SceneMetadata {
+                start: 0.0,
+                length: 1.0,
+                offset: 0.0,
+                params: params1,
+            },
+            SceneMetadata {
+                start: 1.0,
+                length: 2.0,
+                offset: 0.5,
+                params: params2,
+            },
+        ];
+        parser.set_scene_metadata(scenes);
+        
+        // Test accessing params from scene 0
+        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        assert_eq!(parser.expr("speed").unwrap(), 2.5);
+        assert_eq!(parser.expr("size").unwrap(), 0.75);
+        
+        // Test accessing params from scene 1
+        parser.set_progress(1.5, 0.0, 0.0, 0.0, 1);
+        assert_eq!(parser.expr("speed").unwrap(), 1.0);
+        assert_eq!(parser.expr("size").unwrap(), 0.5);
+        
+        // Test using params in expressions
+        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        assert_eq!(parser.expr("speed*2").unwrap(), 5.0);
+        assert_eq!(parser.expr("size+0.25").unwrap(), 1.0);
+        
+        // Test unknown param
+        assert!(parser.expr("unknown").is_err());
     }
 }

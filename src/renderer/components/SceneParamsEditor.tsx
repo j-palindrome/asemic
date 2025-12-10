@@ -22,6 +22,8 @@ export interface SceneSettings {
   oscHost?: string
   oscPort?: number
   audioTrack?: string
+  scrub?: number
+  time?: number
 }
 
 interface SceneSettingsPanelProps {

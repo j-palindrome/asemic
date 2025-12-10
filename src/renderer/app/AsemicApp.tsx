@@ -97,26 +97,11 @@ function AsemicAppInner({
 
   const useProgress = () => {
     const [progress, setProgress] = useState(0)
-    const [totalLength, setTotalLength] = useState(0)
     const [scenes, setScenes] = useState<number[]>([])
 
-    return [
-      progress,
-      setProgress,
-      totalLength,
-      setTotalLength,
-      scenes,
-      setScenes
-    ] as const
+    return [progress, setProgress, scenes, setScenes] as const
   }
-  const [
-    progress,
-    setProgress,
-    totalLength,
-    setTotalLength,
-    scenes,
-    setScenes
-  ] = useProgress()
+  const [progress, setProgress, scenes, setScenes] = useProgress()
 
   // Audio playback using Web Audio API
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -244,14 +229,7 @@ function AsemicAppInner({
           }
           if (!isUndefined(data.progress)) {
             setProgress(data.progress)
-            // Update Rust state when scene changes
-            invoke('update_parser_progress', {
-              scene: activeScene,
-              scrub: data.progress
-            }).catch(console.error)
-          }
-          if (!isUndefined(data.totalLength)) {
-            setTotalLength(data.totalLength)
+            // Remove Rust state sync
           }
           if (!isUndefined(data.scenes)) {
             setScenes(data.scenes)
@@ -331,12 +309,9 @@ function AsemicAppInner({
 
           // Evaluate OSC expressions if present
           if (sceneSettings.osc && sceneSettings.osc.length > 0) {
-            await invoke('update_parser_progress', {
-              scene: activeSceneRef.current,
-              scrub: progress
-            })
+            // Remove progress sync - use scene's own scrub value
 
-            // Send OSC messages - evaluate expressions and transmit
+            // Send OSC messages
             const oscHost = sceneSettings.oscHost || '127.0.0.1'
             const oscPort = sceneSettings.oscPort || 57120
 
@@ -407,22 +382,18 @@ function AsemicAppInner({
         // Extract params from active scene and send to parser
         if (activeScene < scenesArray.length) {
           const sceneSettings = scenesArray[activeScene]
-          if (sceneSettings.params) {
-            asemic.current?.postMessage({
-              params: sceneSettings.params
-            })
-          }
 
-          // Send the current scene to the parser
+          // Send the current scene to the parser with its own time values
           const currentScene: Scene = {
             code: sceneSettings.code || '',
             length: sceneSettings.length,
             offset: sceneSettings.offset,
             pause: sceneSettings.pause,
-            params: sceneSettings.params
+            params: sceneSettings.params,
+            scrub: sceneSettings.scrub || 0,
+            time: sceneSettings.time || 0
           }
 
-          console.log('posting', currentScene)
           asemic.current?.postMessage({
             scene: currentScene,
             preProcess
@@ -433,13 +404,6 @@ function AsemicAppInner({
     }, [scenesSource, isSetup, activeScene, scenesArray])
   }
   setup()
-
-  const editable = useRef<HTMLTextAreaElement>(null!)
-
-  useEffect(() => {
-    if (!editable.current) return
-    editable.current.value = scenesSource
-  }, [scenesSource])
 
   const useKeys = () => {
     const [live, setLive] = useState({
@@ -476,61 +440,7 @@ function AsemicAppInner({
             }
             return
           }
-          // Scrubber keyboard controls
-          if (ev.key === 'ArrowLeft' && totalLength > 0) {
-            ev.preventDefault()
-            const newProgress = Math.max(0, progress - 0.1)
-            if (asemic.current) {
-              asemic.current.postMessage({
-                scrub: newProgress
-              } as Partial<AsemicData>)
-              invoke('update_parser_progress', {
-                scene: activeScene,
-                scrub: newProgress
-              }).catch(console.error)
-            }
-            return
-          }
-          if (ev.key === 'ArrowRight' && totalLength > 0) {
-            ev.preventDefault()
-            const newProgress = Math.min(totalLength, progress + 0.1)
-            if (asemic.current) {
-              asemic.current.postMessage({
-                scrub: newProgress
-              } as AsemicData)
-              invoke('update_parser_progress', {
-                scene: activeScene,
-                scrub: newProgress
-              }).catch(console.error)
-            }
-            return
-          }
-          if (ev.key === 'Home' && totalLength > 0) {
-            ev.preventDefault()
-            if (asemic.current) {
-              asemic.current.postMessage({
-                scrub: 0
-              } as AsemicData)
-              invoke('update_parser_progress', {
-                scene: activeScene,
-                scrub: 0
-              }).catch(console.error)
-            }
-            return
-          }
-          if (ev.key === 'End' && totalLength > 0) {
-            ev.preventDefault()
-            if (asemic.current) {
-              asemic.current.postMessage({
-                scrub: totalLength
-              } as AsemicData)
-              invoke('update_parser_progress', {
-                scene: activeScene,
-                scrub: totalLength
-              }).catch(console.error)
-            }
-            return
-          }
+          // Remove End key handling that used totalLength
         } else if (isLive) {
           if (ev.key === 'Escape') {
             setIsLive(false)
@@ -579,19 +489,6 @@ function AsemicAppInner({
     }
     return ''
   }, [scenesArray, activeScene])
-
-  // Update current scene code when editor changes
-  const updateCurrentSceneCode = (newCode: string) => {
-    const newScenesArray = [...scenesArray]
-    if (activeScene < newScenesArray.length) {
-      newScenesArray[activeScene] = {
-        ...newScenesArray[activeScene],
-        code: newCode
-      }
-      const newSource = JSON.stringify(newScenesArray, null, 2)
-      setScenesSource(newSource)
-    }
-  }
 
   // Extract settings from active scene
   useEffect(() => {
@@ -774,38 +671,7 @@ function AsemicAppInner({
   const dragStartRef = useRef({ y: 0, scrollTop: 0 })
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    // Ignore scroll events when playback is active (not paused)
-    if (!pauseAtRef.current) {
-      return
-    }
-
-    const target = e.currentTarget
-    const scrollPercent =
-      target.scrollTop / (target.scrollHeight - target.clientHeight || 1)
-    const newProgress = scrollPercent * totalLength
-
-    // Set scrolling flag
-    isScrollingRef.current = true
-
-    // Clear previous timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current)
-    }
-
-    // Reset scrolling flag after scroll ends
-    scrollTimeoutRef.current = setTimeout(() => {
-      isScrollingRef.current = false
-    }, 150)
-
-    if (asemic.current) {
-      asemic.current.postMessage({
-        scrub: newProgress
-      } as AsemicData)
-      invoke('update_parser_progress', {
-        scene: activeScene,
-        scrub: newProgress
-      }).catch(console.error)
-    }
+    // Remove scroll handling - scenes manage their own time
   }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -843,19 +709,19 @@ function AsemicAppInner({
     }
   }, [])
 
-  // Update scroll position when progress changes externally (but not during user scrolling)
+  // Update scroll position based on scene-relative progress
   useEffect(() => {
     if (isScrollingRef.current) return // Skip if user is scrolling
 
-    if (scrollContainerRef.current && totalLength > 0) {
-      const scrollPercent = progress / totalLength
+    if (scrollContainerRef.current && activeSceneSettings.length) {
+      const scrollPercent = progress / (activeSceneSettings.length || 1)
       const scrollTop =
         scrollPercent *
         (scrollContainerRef.current.scrollHeight -
           scrollContainerRef.current.clientHeight)
       scrollContainerRef.current.scrollTop = scrollTop
     }
-  }, [progress, totalLength])
+  }, [progress, activeSceneSettings.length])
 
   useEffect(() => {
     const onResize = () => {
@@ -910,52 +776,6 @@ function AsemicAppInner({
           ref={canvas}
           height={1080}
           width={1080}></canvas>
-
-        {/* Vertical playbar on the right */}
-        <div
-          ref={scrollContainerRef}
-          className='fixed top-0 right-0 h-full w-12 overflow-y-scroll overflow-x-hidden !z-100 scrollbar-hide cursor-grab active:cursor-grabbing'
-          onScroll={handleScroll}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            userSelect: 'none'
-          }}>
-          {/* Scrollable content area - height determines scroll range */}
-          <div
-            style={{
-              height: `calc(${Math.max(200, scenes.length * 100)}vh)`,
-              position: 'relative'
-            }}>
-            {/* Scene markers */}
-            {scenes.map((scene, index) => {
-              // Position based on scene progress value relative to totalLength
-              const scenePercent =
-                totalLength > 0 ? (scene / totalLength) * 100 : 0
-              return (
-                <div
-                  key={index}
-                  className='absolute w-8 h-1 rounded-lg bg-[#68788f] left-1/2 -translate-x-1/2'
-                  style={{
-                    top: `${scenePercent}%`
-                  }}>
-                  <span className='text-[10px] text-white ml-10 whitespace-nowrap'>
-                    {index}
-                  </span>
-                </div>
-              )
-            })}
-            {/* Progress indicator */}
-            <div
-              className='sticky top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-[#3b82f6] rounded-lg z-10'
-              style={{ pointerEvents: 'none' }}
-            />
-          </div>
-        </div>
 
         <div
           className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100'

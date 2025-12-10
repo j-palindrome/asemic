@@ -208,15 +208,6 @@ async fn parser_eval_expression(
         parser_state.height,
     );
     
-    // Set progress state
-    parser.set_progress(
-        parser_state.scrub,
-        0.0, // curve - would need to be tracked
-        0.0, // letter - would need to be tracked
-        0.0, // point - would need to be tracked
-        parser_state.scene,
-    );
-    
     // Set scene metadata if available
     if !parser_state.scenes.is_empty() {
         parser.set_scene_metadata(parser_state.scenes.clone());

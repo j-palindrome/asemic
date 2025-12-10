@@ -5,19 +5,14 @@ import { InputSchema } from '../renderer/inputSchema'
 export type { Parser } from './parser/Parser'
 
 export type AsemicData = {
-  scene?: Scene
   preProcess?: Partial<Parser['preProcessing']>
+  scene?: Scene
   live: {
     keys: string[]
-    text: string[]
     index: { value: number }
   }
-  play?:
-    | boolean
-    | { scene: number; pauseAt: undefined }
-    | { pauseAt: number; scene: undefined }
+  play?: boolean | { pauseAt: number }
   mouse?: { x: number; y: number; cursorPosition: number }
-  scrub?: number
   offscreenCanvas?: OffscreenCanvas
   startRecording?: boolean
   stopRecording?: boolean

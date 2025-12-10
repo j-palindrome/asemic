@@ -31,6 +31,8 @@ export interface Scene {
   length?: number
   offset?: number
   pause?: number | false
+  scrub?: number // Current scrub position within this scene
+  time?: number // Current time value for this scene
   params?: Record<
     string,
     { value: number; min: number; max: number; exponent: number }
@@ -50,7 +52,6 @@ export class Parser {
   currentTransform: Transform
   transformStack: Transform[] = []
   namedTransforms: Record<string, Transform> = {}
-  totalLength = 0
   pausedAt: string[] = []
   pauseAt: string | false = false
   progress = {
@@ -67,9 +68,7 @@ export class Parser {
     letter: 0,
     scrub: 0,
     scrubTime: 0,
-    progress: 0,
-    scene: 0,
-    regexCache: {} as Record<string, string[]>
+    progress: 0
   }
   live = {
     keys: ['']
@@ -414,9 +413,9 @@ export class Parser {
       this.groups = []
       this.progress.time = performance.now() / 1000
       this.progress.progress += this.pauseAt !== false ? 0 : ONE_FRAME
-      if (this.progress.progress >= this.totalLength - ONE_FRAME) {
+      // Remove totalLength comparison
+      if (this.pauseAt === false) {
         this.pausedAt = []
-        this.progress.progress = 0
       }
 
       this.output = defaultOutput()
@@ -493,7 +492,6 @@ export class Parser {
   setup(source: string) {
     this.progress.seeds = range(100).map(x => Math.random())
     this.fonts = {}
-    this.totalLength = 0
     this.textMethods.text(defaultFont)
 
     this.settings = defaultSettings()
@@ -504,9 +502,5 @@ export class Parser {
     this.noiseTable = {}
 
     return this
-  }
-
-  get duration() {
-    return this.totalLength
   }
 }

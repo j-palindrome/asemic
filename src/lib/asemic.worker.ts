@@ -66,9 +66,19 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     parser.data.loadFiles(ev.data.loadFiles)
   }
   if (!isUndefined(ev.data.scene)) {
+    console.log('received scene')
+
     currentScene = ev.data.scene
     if (ev.data.preProcess) {
       parser.preProcessing = { ...parser.preProcessing, ...ev.data.preProcess }
+    }
+
+    // Update parser progress with scene's scrub and time values
+    if (currentScene.scrub !== undefined) {
+      parser.progress.scrub = currentScene.scrub
+    }
+    if (currentScene.time !== undefined) {
+      parser.progress.time = currentScene.time
     }
 
     // Start animation loop with the new scene
@@ -85,6 +95,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
       if (currentScene) {
         parser.draw(currentScene)
+        console.log('drawing', currentScene)
         renderer.render(parser.groups)
       }
 
@@ -94,12 +105,4 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
 
     animationFrame = requestAnimationFrame(animate)
   }
-}
-
-function draw() {
-  if (!currentScene) return
-
-  parser.draw(currentScene)
-
-  renderer.render(parser.groups)
 }

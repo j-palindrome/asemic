@@ -36,12 +36,12 @@ pub struct ExpressionParser {
     time: f64,
     width: f64,
     height: f64,
-    // Progress state
-    scrub: f64,
+    // Remove scrub field - use from scene metadata only
+    // Remove scene field - no global scene tracking
+    // Local parsing state
     curve: f64,
     letter: f64,
     point: f64,
-    scene: usize,
     noise_index: usize,
     // Index tracking
     indexes: Vec<f64>,
@@ -52,6 +52,8 @@ pub struct ExpressionParser {
     noise_table: HashMap<String, NoiseState>,
     // Scene metadata for scene-relative calculations
     scene_metadata: Vec<SceneMetadata>,
+    // Current scene index for param lookups
+    current_scene: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -74,17 +76,16 @@ impl ExpressionParser {
             time: 0.0,
             width: 1920.0,
             height: 1080.0,
-            scrub: 0.0,
             curve: 0.0,
             letter: 0.0,
             point: 0.0,
-            scene: 0,
             noise_index: 0,
             indexes: vec![0.0; 3],
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
             scene_metadata: Vec::new(),
+            current_scene: 0,
         }
     }
 
@@ -94,17 +95,16 @@ impl ExpressionParser {
             time,
             width,
             height,
-            scrub: 0.0,
             curve: 0.0,
             letter: 0.0,
             point: 0.0,
-            scene: 0,
             noise_index: 0,
             indexes: vec![0.0; 3],
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
             scene_metadata: Vec::new(),
+            current_scene: 0,
         }
     }
 
@@ -117,12 +117,14 @@ impl ExpressionParser {
         self.height = height;
     }
 
-    pub fn set_progress(&mut self, scrub: f64, curve: f64, letter: f64, point: f64, scene: usize) {
-        self.scrub = scrub;
+    pub fn set_current_scene(&mut self, scene: usize) {
+        self.current_scene = scene;
+    }
+
+    pub fn set_local_progress(&mut self, curve: f64, letter: f64, point: f64) {
         self.curve = curve;
         self.letter = letter;
         self.point = point;
-        self.scene = scene;
     }
 
     pub fn set_indexes(&mut self, indexes: Vec<f64>, count_nums: Vec<f64>) {
@@ -136,28 +138,11 @@ impl ExpressionParser {
 
     /// Get a parameter value from the current scene's metadata
     pub fn get_param(&self, name: &str) -> Option<f64> {
-        if self.scene >= self.scene_metadata.len() {
+        if self.current_scene >= self.scene_metadata.len() {
             return None;
         }
         
-        self.scene_metadata[self.scene].params.get(name).copied()
-    }
-
-    /// Get scene-relative scrub position (0-1 within current scene)
-    pub fn get_scene_relative_scrub(&self) -> f64 {
-        if self.scene >= self.scene_metadata.len() {
-            return 0.0;
-        }
-        
-        let scene = &self.scene_metadata[self.scene];
-        let scene_progress = self.scrub - scene.start;
-        let scene_duration = scene.length - scene.offset;
-        
-        if scene_duration <= 0.0 {
-            return 0.0;
-        }
-        
-        (scene_progress / scene_duration).clamp(0.0, 1.0)
+        self.scene_metadata[self.current_scene].params.get(name).copied()
     }
 
     /// Main expression evaluation functio
@@ -237,10 +222,15 @@ impl ExpressionParser {
 
         match func_name {
             // Progress constants
-            "S" => Ok(self.scrub),
+            // Remove "S" constant - no global scrub
             "s" => {
-                // Scene-relative scrub (0-1 within current scene)
-                Ok(self.get_scene_relative_scrub())
+                // Scene-relative scrub from scene metadata
+                if self.current_scene >= self.scene_metadata.len() {
+                    return Ok(0.0);
+                }
+                let scene = &self.scene_metadata[self.current_scene];
+                // Use scene's own scrub value if available
+                Ok(scene.params.get("scrub").copied().unwrap_or(0.0))
             }
             "C" => Ok(self.curve),
             "L" => Ok(self.letter),
@@ -472,7 +462,7 @@ impl ExpressionParser {
                 if args.len() < 2 {
                     return Err("sah requires 2 arguments".to_string());
                 }
-                let key = format!("{}:{}", self.scene, self.noise_index);
+                let key = format!("{}:{}", self.current_scene, self.noise_index);
                 self.noise_index += 1;
                 
                 let val1 = self.expr(args[0])?;
@@ -880,9 +870,9 @@ mod tests {
     fn test_progress_constants() {
         let mut parser = ExpressionParser::new();
         
-        // Test progress constants
-        parser.set_progress(0.5, 10.0, 5.0, 3.0, 2);
-        assert_eq!(parser.expr("S").unwrap(), 0.5);
+        // Test local progress constants
+        parser.set_local_progress(10.0, 5.0, 3.0);
+        parser.set_current_scene(0);
         assert_eq!(parser.expr("C").unwrap(), 10.0);
         assert_eq!(parser.expr("L").unwrap(), 5.0);
         assert_eq!(parser.expr("P").unwrap(), 3.0);
@@ -932,38 +922,6 @@ mod tests {
     }
 
     #[test]
-    fn test_scene_relative_scrub() {
-        let mut parser = ExpressionParser::new();
-        
-        // Set up scene metadata: 3 scenes
-        let scenes = vec![
-            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0, params: HashMap::new() },
-            SceneMetadata { start: 1.0, length: 2.0, offset: 0.5, params: HashMap::new() },
-            SceneMetadata { start: 2.5, length: 1.5, offset: 0.0, params: HashMap::new() },
-        ];
-        parser.set_scene_metadata(scenes);
-        
-        // Test scene 0: scrub at 0.5 out of 1.0 length = 0.5 relative
-        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
-        assert!((parser.expr("s").unwrap() - 0.5).abs() < 0.001);
-        
-        // Test scene 1: scrub at 2.0, scene starts at 1.0, length 2.0, offset 0.5
-        // Scene duration = 2.0 - 0.5 = 1.5
-        // Scene progress = 2.0 - 1.0 = 1.0
-        // Relative = 1.0 / 1.5 = 0.666...
-        parser.set_progress(2.0, 0.0, 0.0, 0.0, 1);
-        assert!((parser.expr("s").unwrap() - 0.6666666).abs() < 0.001);
-        
-        // Test scene 2 at start
-        parser.set_progress(2.5, 0.0, 0.0, 0.0, 2);
-        assert!((parser.expr("s").unwrap() - 0.0).abs() < 0.001);
-        
-        // Test scene 2 at end
-        parser.set_progress(4.0, 0.0, 0.0, 0.0, 2);
-        assert!((parser.expr("s").unwrap() - 1.0).abs() < 0.001);
-    }
-
-    #[test]
     fn test_scene_params() {
         let mut parser = ExpressionParser::new();
         
@@ -971,10 +929,12 @@ mod tests {
         let mut params1 = HashMap::new();
         params1.insert("speed".to_string(), 2.5);
         params1.insert("size".to_string(), 0.75);
+        params1.insert("scrub".to_string(), 0.5);
         
         let mut params2 = HashMap::new();
         params2.insert("speed".to_string(), 1.0);
         params2.insert("size".to_string(), 0.5);
+        params2.insert("scrub".to_string(), 0.75);
         
         let scenes = vec![
             SceneMetadata {
@@ -993,17 +953,19 @@ mod tests {
         parser.set_scene_metadata(scenes);
         
         // Test accessing params from scene 0
-        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        parser.set_current_scene(0);
         assert_eq!(parser.expr("speed").unwrap(), 2.5);
         assert_eq!(parser.expr("size").unwrap(), 0.75);
+        assert_eq!(parser.expr("s").unwrap(), 0.5);
         
         // Test accessing params from scene 1
-        parser.set_progress(1.5, 0.0, 0.0, 0.0, 1);
+        parser.set_current_scene(1);
         assert_eq!(parser.expr("speed").unwrap(), 1.0);
         assert_eq!(parser.expr("size").unwrap(), 0.5);
+        assert_eq!(parser.expr("s").unwrap(), 0.75);
         
         // Test using params in expressions
-        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        parser.set_current_scene(0);
         assert_eq!(parser.expr("speed*2").unwrap(), 5.0);
         assert_eq!(parser.expr("size+0.25").unwrap(), 1.0);
         

@@ -29,13 +29,6 @@ export default class Asemic {
       })
     }
 
-    if (!isUndefined(data.scene)) {
-      this.worker.postMessage({
-        scene: data.scene,
-        preProcess: data.preProcess
-      })
-    }
-
     if (!isUndefined(data.live)) {
       this.worker.postMessage({
         live: data.live
@@ -45,12 +38,6 @@ export default class Asemic {
     if (!isUndefined(data.play)) {
       this.worker.postMessage({
         play: data.play
-      })
-    }
-
-    if (!isUndefined(data.scrub)) {
-      this.worker.postMessage({
-        scrub: data.scrub
       })
     }
 
@@ -75,6 +62,12 @@ export default class Asemic {
     if (!isUndefined(data.loadFiles)) {
       this.worker.postMessage({
         loadFiles: data.loadFiles
+      })
+    }
+
+    if (!isUndefined(data.scene)) {
+      this.worker.postMessage({
+        scene: data.scene
       })
     }
   }

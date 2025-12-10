@@ -4,7 +4,6 @@ import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 
 type ParamConfig = {
-  default: number
   max: number
   min: number
   exponent: number
@@ -45,7 +44,6 @@ export default function SceneSettingsPanel({
         params: {
           ...settings.params,
           [newParamName.trim()]: {
-            default: 0.5,
             max: 1,
             min: 0,
             exponent: 1,
@@ -202,72 +200,22 @@ export default function SceneSettingsPanel({
             <div
               key={key}
               className='bg-white/5 p-2 rounded border border-white/10'>
-              <div className='flex items-center justify-between mb-2'>
-                <label className='text-white/90 text-sm font-medium'>
-                  {key}
-                </label>
-                <div className='flex items-center gap-2'>
+              {/* Title and Controls Row */}
+              <div className='flex items-end gap-2 mb-2'>
+                <div className='flex-1 min-w-[80px]'>
+                  <label className='text-white/50 text-xs block mb-1'>
+                    Name
+                  </label>
+                  <div className='text-white/90 text-sm font-medium'>{key}</div>
+                </div>
+                <div className='min-w-[50px]'>
+                  <label className='text-white/50 text-xs block mb-1'>
+                    Value
+                  </label>
                   <span className='text-white/70 text-xs'>
                     {paramConfig.value?.toFixed(3) ??
-                      paramConfig.default.toFixed(3)}
+                      paramConfig.min.toFixed(3)}
                   </span>
-                  <button
-                    onClick={() => handleDeleteParam(key)}
-                    className='text-white/50 hover:text-red-400 text-xs'>
-                    ✕
-                  </button>
-                </div>
-              </div>
-
-              {/* Value Slider */}
-              <div className='mb-3'>
-                <div className='relative h-8 bg-white/5 rounded'>
-                  <Slider
-                    className='w-full h-full'
-                    innerClassName=''
-                    min={paramConfig.min}
-                    max={paramConfig.max}
-                    exponent={paramConfig.exponent}
-                    values={{
-                      x: paramConfig.value ?? paramConfig.default,
-                      y: 0
-                    }}
-                    sliderStyle={({ x }) => ({
-                      left: `${x * 100}%`,
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      backgroundColor: 'white',
-                      position: 'absolute',
-                      pointerEvents: 'none'
-                    })}
-                    onChange={({ x }) => {
-                      handleUpdateParam(key, 'value', x)
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className='grid grid-cols-2 gap-2'>
-                <div>
-                  <label className='text-white/50 text-xs block mb-1'>
-                    Default
-                  </label>
-                  <input
-                    type='number'
-                    step='0.01'
-                    value={paramConfig.default}
-                    onChange={e =>
-                      handleUpdateParam(
-                        key,
-                        'default',
-                        parseFloat(e.target.value) || 0
-                      )
-                    }
-                    className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
-                  />
                 </div>
                 <div>
                   <label className='text-white/50 text-xs block mb-1'>
@@ -284,7 +232,7 @@ export default function SceneSettingsPanel({
                         parseFloat(e.target.value) || 0
                       )
                     }
-                    className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                   />
                 </div>
                 <div>
@@ -302,12 +250,12 @@ export default function SceneSettingsPanel({
                         parseFloat(e.target.value) || 1
                       )
                     }
-                    className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                   />
                 </div>
                 <div>
                   <label className='text-white/50 text-xs block mb-1'>
-                    Exponent
+                    Exp
                   </label>
                   <input
                     type='number'
@@ -320,9 +268,43 @@ export default function SceneSettingsPanel({
                         parseFloat(e.target.value) || 1
                       )
                     }
-                    className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    className='w-14 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                   />
                 </div>
+                <button
+                  onClick={() => handleDeleteParam(key)}
+                  className='text-white/50 hover:text-red-400 text-xs pb-1'>
+                  ✕
+                </button>
+              </div>
+
+              {/* Value Slider Row */}
+              <div className='relative h-8 bg-white/5 rounded'>
+                <Slider
+                  className='w-full h-full'
+                  innerClassName=''
+                  min={paramConfig.min}
+                  max={paramConfig.max}
+                  exponent={paramConfig.exponent}
+                  values={{
+                    x: paramConfig.value ?? paramConfig.min,
+                    y: 0
+                  }}
+                  sliderStyle={({ x }) => ({
+                    left: `${x * 100}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: 'white',
+                    position: 'absolute',
+                    pointerEvents: 'none'
+                  })}
+                  onChange={({ x }) => {
+                    handleUpdateParam(key, 'value', x)
+                  }}
+                />
               </div>
             </div>
           ))}

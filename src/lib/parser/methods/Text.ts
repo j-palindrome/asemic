@@ -5,6 +5,7 @@ import { split } from 'lodash'
 import invariant from 'tiny-invariant'
 import { AsemicFont } from '@/lib/AsemicFont'
 import { parserObject } from '../core/utilities'
+import { SceneSettings } from '@/renderer/components/SceneParamsEditor'
 
 export class TextMethods {
   parser: Parser
@@ -43,27 +44,23 @@ export class TextMethods {
   }
 
   parse(text: string) {
-    const scenes = text.split('\n#')
-    let sceneList: Parameters<Parser['scenes']['scene']> = []
-    for (const scene of scenes) {
-      if (scene.trim() === '') continue
-      const [firstLine, rest] = splitString(scene, '\n')
-      const parserSettings = {
-        draw: () => {
-          this.parser.textMethods.text(rest)
+    // Try to parse as JSON array first
+    const trimmedText = text.trim()
+
+    const sceneObjects = JSON.parse(trimmedText) as Array<
+      SceneSettings & { code: string }
+    >
+    const sceneList: Parameters<Parser['scenes']['scene']> = sceneObjects.map(
+      sceneObj => {
+        const { code, ...settings } = sceneObj
+        return {
+          ...settings,
+          draw: () => {
+            this.parser.textMethods.text(code)
+          }
         }
-      } as (typeof sceneList)[number]
-
-      // Try to parse as JSON first
-      const jsonMatch = firstLine.match(/\{.+\}/)
-      if (jsonMatch) {
-        const settings = JSON.parse(jsonMatch[0])
-        // Apply JSON settings directly (they're already evaluated)
-        Object.assign(parserSettings, settings)
       }
-
-      sceneList.push(parserSettings)
-    }
+    )
     this.parser.scenes.scene(...sceneList)
     return this.parser
   }

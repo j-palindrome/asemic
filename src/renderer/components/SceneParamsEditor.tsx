@@ -10,7 +10,7 @@ type ParamConfig = {
   value: number
 }
 
-type SceneSettings = {
+export type SceneSettings = {
   length?: number
   offset?: number
   pause?: number | false
@@ -19,6 +19,7 @@ type SceneSettings = {
   oscHost?: string
   oscPort?: number
   audioTrack?: string
+  code?: string
 }
 
 interface SceneSettingsPanelProps {

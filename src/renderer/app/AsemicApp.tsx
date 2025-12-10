@@ -5,17 +5,12 @@ import _, { isEqual, isUndefined } from 'lodash'
 import {
   Download,
   Ellipsis,
-  Eye,
-  EyeOff,
-  FoldVertical,
   Info,
   LucideProps,
   Maximize2,
-  Music,
   Pause,
   Play,
   Plus,
-  Power,
   RefreshCw,
   Save,
   Settings2,
@@ -222,7 +217,6 @@ function AsemicAppInner({
     activeSceneRef.current = activeScene
   }, [activeScene])
 
-  const [useRustParser, setUseRustParser] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
 
   const setup = () => {
@@ -322,7 +316,7 @@ function AsemicAppInner({
       return () => clearInterval(timeInterval)
     }, [])
 
-    // Separate effect for Rust parser animation loop
+    // Rust parser animation loop (always active)
     useEffect(() => {
       const animate = async () => {
         try {
@@ -382,7 +376,7 @@ function AsemicAppInner({
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
       }
-      if (useRustParser && isSetup) {
+      if (isSetup) {
         animationFrameRef.current = requestAnimationFrame(animate)
       }
 
@@ -392,7 +386,7 @@ function AsemicAppInner({
           animationFrameRef.current = null
         }
       }
-    }, [useRustParser, isSetup, scenesArray])
+    }, [isSetup, scenesArray])
 
     // Separate effect for JS parser setup
     useEffect(() => {
@@ -634,11 +628,35 @@ function AsemicAppInner({
         }
         const newSource = JSON.stringify(newScenesArray, null, 2)
         setScenesSource(newSource)
-        editorRef.current?.setValue(newScenesArray[activeScene].code || '')
+        // Update editor with code if it changed
+        if (newSettings.code !== undefined) {
+          editorRef.current?.setValue(newSettings.code)
+        }
       }
     } catch (e) {
       // Failed to update scene settings
     }
+  }
+
+  // Add new scene after current scene
+  const addSceneAfterCurrent = () => {
+    const newScenesArray = [...scenesArray]
+    // Insert empty scene after current scene
+    newScenesArray.splice(activeScene + 1, 0, {})
+    const newSource = JSON.stringify(newScenesArray, null, 2)
+    setScenesSource(newSource)
+  }
+
+  // Delete current scene
+  const deleteCurrentScene = () => {
+    if (scenesArray.length <= 1) {
+      // Don't delete if it's the only scene
+      return
+    }
+    const newScenesArray = [...scenesArray]
+    newScenesArray.splice(activeScene, 1)
+    const newSource = JSON.stringify(newScenesArray, null, 2)
+    setScenesSource(newSource)
   }
 
   // Audio track loading and playback
@@ -947,6 +965,12 @@ function AsemicAppInner({
               }}>
               {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
             </button>
+            <button onClick={() => setHelp(!help)}>
+              {<Info {...lucideProps} />}
+            </button>
+            <button onClick={() => setShowSceneSettings(!showSceneSettings)}>
+              <Settings2 {...lucideProps} />
+            </button>
             <div className='grow' />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
@@ -954,77 +978,6 @@ function AsemicAppInner({
           </div>
           {!perform && (
             <>
-              <div className='w-full flex !text-xs *:!text-xs h-fit *:!h-[26px]'>
-                <button
-                  className={`${isLive ? '!bg-blue-200/40' : ''}`}
-                  onClick={ev => {
-                    ev.preventDefault()
-                    ev.stopPropagation()
-                    const activeElement = document.activeElement as HTMLElement
-                    activeElement.blur()
-                    setIsLive(!isLive)
-                  }}>
-                  <Power {...lucideProps} />
-                </button>
-                <button onClick={() => editorRef.current?.toggleFoldAll()}>
-                  <FoldVertical {...lucideProps} />
-                </button>
-                <div className='grow' />
-                <button
-                  onClick={() => setShowCanvas(!showCanvas)}
-                  title='Toggle Canvas'>
-                  {showCanvas ? (
-                    <Eye {...lucideProps} />
-                  ) : (
-                    <EyeOff {...lucideProps} />
-                  )}
-                </button>
-                <button onClick={() => setHelp(!help)}>
-                  {<Info {...lucideProps} />}
-                </button>
-
-                <button
-                  onClick={() => setShowSceneSettings(!showSceneSettings)}>
-                  <Settings2 {...lucideProps} />
-                </button>
-
-                <button onClick={loadAudioFolder} title='Load Audio Folder'>
-                  <Music {...lucideProps} />
-                </button>
-
-                {/* <input
-                ref={fileInputRef}
-                type='file'
-                accept='.js,.ts'
-                style={{ display: 'none' }}
-                onChange={handleFileLoad}
-              /> */}
-
-                {/*<input
-                ref={imageInputRef}
-                type='file'
-                accept='image/*,video/*'
-                style={{ display: 'none' }}
-                onChange={handleImageLoad}
-              /> */}
-
-                {/* <button onClick={() => setPerform(true)}>
-                {
-                  <PanelTopClose
-                    color='white'
-                    className='py-0.5'
-                    opacity={0.5}
-                  />
-                }
-              </button> */}
-                <button
-                  className={`${useRustParser ? '!bg-green-200/40' : ''}`}
-                  onClick={() => setUseRustParser(!useRustParser)}
-                  title='Toggle Rust Parser'>
-                  {useRustParser ? '🦀' : 'JS'}
-                </button>
-              </div>
-
               {/* Scene Settings Panel - Now contains the editor */}
               {showSceneSettings && (
                 <SceneSettingsPanel
@@ -1034,6 +987,8 @@ function AsemicAppInner({
                     setActiveSceneSettings(newSettings)
                     updateSceneSettings(newSettings)
                   }}
+                  onAddScene={addSceneAfterCurrent}
+                  onDeleteScene={deleteCurrentScene}
                   onClose={() => setShowSceneSettings(false)}
                 />
               )}

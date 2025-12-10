@@ -62,6 +62,7 @@ interface Props {
   errors: string[]
   help: boolean
   setHelp: (help: boolean) => void
+  className?: string
 }
 
 export interface AsemicEditorRef {
@@ -80,7 +81,7 @@ interface SerializedSyntaxNode {
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
-  ({ help, setHelp, defaultValue, onChange, errors }, ref) => {
+  ({ help, setHelp, defaultValue, onChange, errors, className }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
     const [allFolded, setAllFolded] = React.useState(false)
@@ -602,8 +603,24 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       }
     }, [])
 
+    // Update editor content when defaultValue changes (e.g., when loading scenes)
+    useEffect(() => {
+      if (
+        viewRef.current &&
+        defaultValue !== viewRef.current.state.doc.toString()
+      ) {
+        viewRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: viewRef.current.state.doc.length,
+            insert: defaultValue
+          }
+        })
+      }
+    }, [defaultValue])
+
     return (
-      <div className='h-[300px] w-full relative'>
+      <div className={`h-[300px] w-full relative ${className || ''}`}>
         <div
           className={`editor text-white ${
             errors.length > 0 ? 'w-2/3' : 'w-full'

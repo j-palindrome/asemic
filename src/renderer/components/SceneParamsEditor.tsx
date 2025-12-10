@@ -11,7 +11,9 @@ type ParamConfig = {
   value: number
 }
 
-export type SceneSettings = {
+export interface SceneSettings {
+  code?: string
+  text?: string
   length?: number
   offset?: number
   pause?: number | false
@@ -20,13 +22,14 @@ export type SceneSettings = {
   oscHost?: string
   oscPort?: number
   audioTrack?: string
-  code?: string
 }
 
 interface SceneSettingsPanelProps {
   activeScene: number
   settings: SceneSettings
   onUpdate: (settings: SceneSettings) => void
+  onAddScene: () => void
+  onDeleteScene: () => void
   onClose: () => void
 }
 
@@ -34,11 +37,14 @@ export default function SceneSettingsPanel({
   activeScene,
   settings,
   onUpdate,
+  onAddScene,
+  onDeleteScene,
   onClose
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
   const editorRef = useRef<AsemicEditorRef | null>(null)
+  const textEditorRef = useRef<AsemicEditorRef | null>(null)
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -83,14 +89,23 @@ export default function SceneSettingsPanel({
   }
 
   return (
-    <div className='absolute bottom-0 left-0 right-0 border-t border-white/20 z-50 flex flex-col h-[50vh]'>
+    <div className='absolute bottom-0 left-0 right-0 border-t border-white/20 z-50 flex flex-col h-[calc(100vh-60px)]'>
       {/* Header */}
       <div className='flex items-center gap-2 p-3 border-b border-white/20'>
         <span className='text-white text-sm font-semibold'>
           Scene {activeScene} Settings
         </span>
-        <button className='ml-auto' onClick={onClose}>
-          ✕
+        <button
+          onClick={onAddScene}
+          className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+          title='Add scene after this one'>
+          +
+        </button>
+        <button
+          onClick={onDeleteScene}
+          className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
+          title='Delete current scene'>
+          Delete
         </button>
       </div>
 
@@ -126,6 +141,27 @@ export default function SceneSettingsPanel({
           help={false}
           setHelp={() => {}}
         />
+        {/* Text/Notes editor in EB Garamond */}
+        <div className='mt-2'>
+          <label className='text-xs text-white/50 mb-1 block'>Notes</label>
+          <div
+            className='text-editor'
+            style={{ fontFamily: 'EB Garamond, serif' }}>
+            <AsemicEditor
+              ref={textEditorRef}
+              defaultValue={settings.text || ''}
+              onChange={value => {
+                if (value !== undefined) {
+                  onUpdate({ ...settings, text: value })
+                }
+              }}
+              errors={[]}
+              help={false}
+              setHelp={() => {}}
+            />
+          </div>
+        </div>
+
         {/* Basic Settings */}
         <div className='grid grid-cols-3 gap-3 text-xs'>
           <div>

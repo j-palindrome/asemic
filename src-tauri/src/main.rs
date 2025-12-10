@@ -28,7 +28,7 @@ struct ParserSetupResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct OscMessage {
+struct OscMessageStruct {
     name: String,
     value: f64,
 }
@@ -44,7 +44,7 @@ struct SceneSettings {
     #[serde(default)]
     params: Option<std::collections::HashMap<String, f64>>,
     #[serde(default)]
-    osc: Option<Vec<OscMessage>>,
+    osc: Option<Vec<OscMessageStruct>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -194,29 +194,41 @@ async fn parser_draw(input: DrawInput) -> Result<DrawOutput, String> {
 #[tauri::command]
 async fn parser_eval_expression(
     expr: String,
+    osc_address: String,
+    osc_host: String,
+    osc_port: u16,
     state: State<'_, AppState>,
 ) -> Result<f64, String> {
-    
-    // Get current state for context
     let parser_state = state.parser_state.lock().unwrap();
+    
+    // Create parser with current state
     let mut parser = app_lib::parser::ExpressionParser::with_context(
         parser_state.time,
         parser_state.width,
         parser_state.height,
     );
     
-    // Set scrub and other progress values from global state
+    // Set progress state
     parser.set_progress(
         parser_state.scrub,
-        0.0, // curve - local parsing state
-        0.0, // letter - local parsing state
-        0.0, // point - local parsing state
+        0.0, // curve - would need to be tracked
+        0.0, // letter - would need to be tracked
+        0.0, // point - would need to be tracked
         parser_state.scene,
     );
     
-    drop(parser_state); // Release lock
+    // Set scene metadata if available
+    if !parser_state.scenes.is_empty() {
+        parser.set_scene_metadata(parser_state.scenes.clone());
+    }
     
-    parser.expr(&expr)
+    // Evaluate expression
+    let result = parser.expr(&expr)?;
+    
+    // Send OSC message
+    parser.send_osc(&osc_address, result, &osc_host, osc_port)?;
+    
+    Ok(result)
 }
 
 #[tauri::command]

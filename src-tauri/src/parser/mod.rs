@@ -21,6 +21,7 @@ pub mod methods {
 
 // Re-export the expression parser for easy access
 pub use methods::expressions::ExpressionParser;
+pub use methods::expressions::SceneMetadata;
 
 use serde::{Deserialize, Serialize};
 // use std::collections::HashMap;

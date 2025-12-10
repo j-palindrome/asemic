@@ -199,6 +199,11 @@ function AsemicAppInner({
     return 0
   }, [progress, scenes])
 
+  const activeSceneRef = useRef(activeScene)
+  useEffect(() => {
+    activeSceneRef.current = activeScene
+  }, [activeScene])
+
   const [useRustParser, setUseRustParser] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
 
@@ -261,173 +266,141 @@ function AsemicAppInner({
       return () => clearInterval(timeInterval)
     }, [])
 
+    // Separate effect for Rust parser animation loop
     useEffect(() => {
-      if (!isSetup) return
-      const restart = async () => {
-        if (useRustParser) {
-          // Rust parser path
-          const syntaxTree = editorRef.current?.getSyntaxTree()
-
-          if (!syntaxTree) {
-            return
-          }
-
-          try {
-            const parserState = await invoke('parser_setup', {
-              input: {
-                source: scenesSourceRef.current,
-                tree: syntaxTree
+      const animate = async () => {
+        try {
+          // Get current scene settings
+          const lines = scenesSourceRef.current.split('\n#')
+          const sceneSettings: {
+            length: number
+            offset: number
+            pause: number | false
+            params?: Record<
+              string,
+              {
+                default: number
+                max: number
+                min: number
+                exponent: number
               }
-            })
+            >
+            osc?: Array<{ name: string; value: number | string }>
+            oscHost?: string
+            oscPort?: number
+          } = { length: 0.1, offset: 0, pause: 0 }
 
-            // Start animation loop for Rust parser
-            const animate = async () => {
-              if (!useRustParser) return
-
-              try {
-                // Get current scene settings
-                const lines = scenesSourceRef.current.split('\n#')
-                const sceneSettings: {
-                  length: number
-                  offset: number
-                  pause: number | false
-                  params?: Record<
-                    string,
-                    {
-                      default: number
-                      max: number
-                      min: number
-                      exponent: number
-                    }
-                  >
-                  osc?: Array<{ name: string; value: number | string }>
-                } = { length: 0.1, offset: 0, pause: 0 }
-
-                if (activeScene < lines.length) {
-                  const sceneText = lines[activeScene]
-                  const firstLine = sceneText?.split('\n')[0]
-                  const jsonMatch = firstLine?.match(/\{.+\}/)
-                  if (jsonMatch) {
-                    try {
-                      Object.assign(sceneSettings, JSON.parse(jsonMatch[0]))
-                    } catch (e) {}
-                  }
-                }
-
-                // Evaluate OSC expressions if present
-                if (sceneSettings.osc && sceneSettings.osc.length > 0) {
-                  // First update the state context for evaluations
-                  await invoke('update_parser_progress', {
-                    scene: activeScene,
-                    scrub: progress
-                  })
-
-                  const evaluatedOsc = await Promise.all(
-                    sceneSettings.osc.map(async oscMsg => {
-                      try {
-                        // If value is a string expression, evaluate it
-                        if (typeof oscMsg.value === 'string') {
-                          const result = await invoke<number>(
-                            'parser_eval_expression',
-                            { expr: oscMsg.value }
-                          )
-                          console.log(`OSC ${oscMsg.name}: ${result}`)
-                          return { name: oscMsg.name, value: result }
-                        }
-                        // If already a number, keep it
-                        console.log(`OSC ${oscMsg.name}: ${oscMsg.value}`)
-                        return oscMsg
-                      } catch (error) {
-                        console.error(error)
-                        // If evaluation fails, default to 0
-                        return { name: oscMsg.name, value: 0 }
-                      }
-                    })
-                  )
-                  sceneSettings.osc = evaluatedOsc
-                }
-
-                // Call Rust parser_draw with current state
-                const drawOutput = await invoke('parser_draw', {
-                  input: {
-                    progress,
-                    scene_index: activeScene,
-                    scene_settings: sceneSettings
-                  }
-                })
-
-                // TODO: Handle drawOutput (render groups, update errors, etc.)
-              } catch (error) {
-                // Rust parser_draw failed
-              }
-
-              animationFrameRef.current = requestAnimationFrame(animate)
-            }
-
-            // Cancel any existing animation frame
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current)
-            }
-
-            // Start animation loop
-            animationFrameRef.current = requestAnimationFrame(animate)
-          } catch (error) {
-            // Rust parser setup failed
-          }
-        } else {
-          // Cancel Rust parser animation loop if disabled
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current)
-            animationFrameRef.current = null
-          }
-
-          // Original JS parser path
-          const preProcess = {
-            replacements: {}
-          } as Parser['preProcessing']
-          const links = scenesSource.match(/\[\[.*?\]\]/)
-          if (links) {
-            for (let link of links) {
-              const fileName = link.substring(2, link.length - 2)
-              preProcess.replacements[link] = (
-                await getRequire(fileName)
-              ).trim()
-            }
-          }
-
-          // Extract params from active scene and send to parser
-          const lines = scenesSource.split('\n#')
-          if (activeScene < lines.length) {
-            const sceneText = lines[activeScene]
+          if (activeSceneRef.current < lines.length) {
+            const sceneText = lines[activeSceneRef.current]
             const firstLine = sceneText?.split('\n')[0]
             const jsonMatch = firstLine?.match(/\{.+\}/)
             if (jsonMatch) {
               try {
-                const settings = JSON.parse(jsonMatch[0])
-                if (settings.params) {
-                  asemic.current?.postMessage({
-                    params: settings.params
-                  })
-                }
+                Object.assign(sceneSettings, JSON.parse(jsonMatch[0]))
               } catch (e) {}
             }
           }
 
-          asemic.current?.postMessage({
-            source: scenesSourceRef.current,
-            preProcess
-          })
+          // Evaluate OSC expressions if present
+          if (sceneSettings.osc && sceneSettings.osc.length > 0) {
+            await invoke('update_parser_progress', {
+              scene: activeSceneRef.current,
+              scrub: progress
+            })
+
+            // Send OSC messages - evaluate expressions and transmit
+            const oscHost = sceneSettings.oscHost || '127.0.0.1'
+            const oscPort = sceneSettings.oscPort || 57120
+
+            await Promise.all(
+              sceneSettings.osc.map(async oscMsg => {
+                try {
+                  if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
+                    // Evaluate expression and send OSC message
+                    await invoke<number>('parser_eval_expression', {
+                      expr: oscMsg.value,
+                      oscAddress: oscMsg.name,
+                      oscHost: oscHost,
+                      oscPort: oscPort
+                    })
+                  } else if (typeof oscMsg.value === 'number') {
+                    // For static numbers, still send via same path for consistency
+                    await invoke<number>('parser_eval_expression', {
+                      expr: oscMsg.value.toString(),
+                      oscAddress: oscMsg.name,
+                      oscHost: oscHost,
+                      oscPort: oscPort
+                    })
+                  }
+                } catch (error) {
+                  console.error(`OSC send error for ${oscMsg.name}:`, error)
+                }
+              })
+            )
+          }
+        } catch (error) {
+          console.error('Rust parser error:', error)
         }
+
+        animationFrameRef.current = requestAnimationFrame(animate)
+      }
+
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      if (useRustParser && isSetup) {
+        animationFrameRef.current = requestAnimationFrame(animate)
+      }
+
+      return () => {
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current)
+          animationFrameRef.current = null
+        }
+      }
+    }, [useRustParser, isSetup, scenesSource])
+
+    // Separate effect for JS parser setup
+    useEffect(() => {
+      if (!isSetup) return
+
+      const restart = async () => {
+        const preProcess = {
+          replacements: {}
+        } as Parser['preProcessing']
+        const links = scenesSource.match(/\[\[.*?\]\]/)
+        if (links) {
+          for (let link of links) {
+            const fileName = link.substring(2, link.length - 2)
+            preProcess.replacements[link] = (await getRequire(fileName)).trim()
+          }
+        }
+
+        // Extract params from active scene and send to parser
+        const lines = scenesSource.split('\n#')
+        if (activeScene < lines.length) {
+          const sceneText = lines[activeScene]
+          const firstLine = sceneText?.split('\n')[0]
+          const jsonMatch = firstLine?.match(/\{.+\}/)
+          if (jsonMatch) {
+            try {
+              const settings = JSON.parse(jsonMatch[0])
+              if (settings.params) {
+                asemic.current?.postMessage({
+                  params: settings.params
+                })
+              }
+            } catch (e) {}
+          }
+        }
+
+        asemic.current?.postMessage({
+          source: scenesSourceRef.current,
+          preProcess
+        })
       }
       restart()
-
-      // Cleanup: cancel animation frame on unmount or when dependencies change
-      return () => {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current)
-        }
-      }
-    }, [scenesSource, isSetup, useRustParser, progress, activeScene])
+    }, [scenesSource, isSetup, activeScene])
   }
   setup()
 

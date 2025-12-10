@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::net::UdpSocket;
+use rosc::{OscMessage, OscPacket, OscType, encoder};
+use serde::{Deserialize, Serialize};
 
-/// Scene metadata for calculating scene-relative scrub values
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneMetadata {
     pub start: f64,
     pub length: f64,
@@ -14,7 +16,7 @@ pub struct SceneMetadata {
 /// Supported operators: &, |, ^, _, +, -, *, /, %, (, )
 /// 
 /// Supported constants and functions:
-/// - Progress: S (scrub), C (curve), L (letter), P (point)
+/// - Progress: S (global scrub), s (scene-relative 0-1), C (curve), L (letter), P (point)
 /// - Indexing: N (count), I (index), i (normalized index 0-1)
 /// - Time: T [multiplier] (time with optional multiplier)
 /// - Dimensions: H [multiplier] (height ratio), px [multiplier] (pixel size)
@@ -46,9 +48,8 @@ pub struct ExpressionParser {
     seeds: Vec<f64>,
     // Noise table for stateful functions
     noise_table: HashMap<String, NoiseState>,
-    // Scene metadata for calculating scene-relative scrub
-    scenes: Vec<SceneMetadata>,
-    total_length: f64,
+    // Scene metadata for scene-relative calculations
+    scene_metadata: Vec<SceneMetadata>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,8 +82,7 @@ impl ExpressionParser {
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
-            scenes: Vec::new(),
-            total_length: 0.0,
+            scene_metadata: Vec::new(),
         }
     }
 
@@ -102,8 +102,7 @@ impl ExpressionParser {
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
-            scenes: Vec::new(),
-            total_length: 0.0,
+            scene_metadata: Vec::new(),
         }
     }
 
@@ -129,32 +128,28 @@ impl ExpressionParser {
         self.count_nums = count_nums;
     }
 
-    pub fn set_scenes(&mut self, scenes: Vec<SceneMetadata>, total_length: f64) {
-        self.scenes = scenes;
-        self.total_length = total_length;
+    pub fn set_scene_metadata(&mut self, scene_metadata: Vec<SceneMetadata>) {
+        self.scene_metadata = scene_metadata;
     }
 
-    /// Calculate scene-relative scrub value
-    /// Returns normalized 0-1 progress within the current scene
-    fn calculate_scene_scrub(&self) -> f64 {
-        if self.scenes.is_empty() || self.scene >= self.scenes.len() {
-            // No scene data available, return raw scrub
-            return self.scrub;
+    /// Get scene-relative scrub position (0-1 within current scene)
+    pub fn get_scene_relative_scrub(&self) -> f64 {
+        if self.scene >= self.scene_metadata.len() {
+            return 0.0;
         }
-
-        let current_scene = &self.scenes[self.scene];
         
-        // Scene-relative scrub: (global_progress - scene_start) / scene_length
-        // This matches the TypeScript implementation:
-        // this.progress.scrub = (this.progress.progress - object.start) / object.length
-        if current_scene.length > 0.0 {
-            (self.scrub - current_scene.start) / current_scene.length
-        } else {
-            0.0
+        let scene = &self.scene_metadata[self.scene];
+        let scene_progress = self.scrub - scene.start;
+        let scene_duration = scene.length - scene.offset;
+        
+        if scene_duration <= 0.0 {
+            return 0.0;
         }
+        
+        (scene_progress / scene_duration).clamp(0.0, 1.0)
     }
 
-    /// Main expression evaluation function
+    /// Main expression evaluation functio
     /// Evaluates mathematical expressions with operators: &, |, ^, _, +, -, *, /, %, (, )
     /// Also supports function calls with space-separated arguments
     pub fn expr(&mut self, expr: &str) -> Result<f64, String> {
@@ -231,7 +226,11 @@ impl ExpressionParser {
 
         match func_name {
             // Progress constants
-            "S" => Ok(self.calculate_scene_scrub()),
+            "S" => Ok(self.scrub),
+            "s" => {
+                // Scene-relative scrub (0-1 within current scene)
+                Ok(self.get_scene_relative_scrub())
+            }
             "C" => Ok(self.curve),
             "L" => Ok(self.letter),
             "P" => Ok(self.point),
@@ -721,6 +720,36 @@ impl ExpressionParser {
             Self::is_number(s)
         }
     }
+
+    /// Send an OSC message with the evaluated expression result
+    pub fn send_osc(&self, address: &str, value: f64, host: &str, port: u16) -> Result<(), String> {
+        let target_addr = format!("{}:{}", host, port);
+        
+        // Bind to any available port on localhost
+        let socket = UdpSocket::bind("0.0.0.0:0")
+            .map_err(|e| format!("Failed to bind UDP socket: {}", e))?;
+        
+        // Set timeout to prevent blocking indefinitely
+        socket.set_write_timeout(Some(std::time::Duration::from_secs(1)))
+            .map_err(|e| format!("Failed to set socket timeout: {}", e))?;
+        
+        // Create OSC message
+        let msg = OscMessage {
+            addr: address.to_string(),
+            args: vec![OscType::Float(value as f32)],
+        };
+        
+        // Encode message to bytes
+        let packet = OscPacket::Message(msg);
+        let msg_buf = encoder::encode(&packet)
+            .map_err(|e| format!("Failed to encode OSC message: {}", e))?;
+        
+        // Send the message
+        socket.send_to(&msg_buf, &target_addr)
+            .map_err(|e| format!("Failed to send OSC message to {}: {}", target_addr, e))?;
+        
+        Ok(())
+    }
 }
 
 impl Default for ExpressionParser {
@@ -830,7 +859,7 @@ mod tests {
     }
     
     #[test]
-    fn test_new_constants() {
+    fn test_progress_constants() {
         let mut parser = ExpressionParser::new();
         
         // Test progress constants
@@ -853,42 +882,6 @@ mod tests {
         
         // Test bell
         assert!((parser.expr("bell 0.5 0.3").unwrap() - 0.25).abs() < 0.1);
-    }
-
-    #[test]
-    fn test_scene_relative_scrub() {
-        let mut parser = ExpressionParser::new();
-        
-        // Set up three scenes:
-        // Scene 0: start=0.0, length=1.0, offset=0.0
-        // Scene 1: start=1.0, length=2.0, offset=0.0
-        // Scene 2: start=3.0, length=1.5, offset=0.0
-        let scenes = vec![
-            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0 },
-            SceneMetadata { start: 1.0, length: 2.0, offset: 0.0 },
-            SceneMetadata { start: 3.0, length: 1.5, offset: 0.0 },
-        ];
-        parser.set_scenes(scenes, 4.5);
-        
-        // Test scene 0 at 50% progress (global: 0.5)
-        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
-        assert!((parser.expr("S").unwrap() - 0.5).abs() < 0.001); // (0.5 - 0.0) / 1.0 = 0.5
-        
-        // Test scene 1 at 25% progress (global: 1.5)
-        parser.set_progress(1.5, 0.0, 0.0, 0.0, 1);
-        assert!((parser.expr("S").unwrap() - 0.25).abs() < 0.001); // (1.5 - 1.0) / 2.0 = 0.25
-        
-        // Test scene 1 at 75% progress (global: 2.5)
-        parser.set_progress(2.5, 0.0, 0.0, 0.0, 1);
-        assert!((parser.expr("S").unwrap() - 0.75).abs() < 0.001); // (2.5 - 1.0) / 2.0 = 0.75
-        
-        // Test scene 2 at start (global: 3.0)
-        parser.set_progress(3.0, 0.0, 0.0, 0.0, 2);
-        assert!((parser.expr("S").unwrap() - 0.0).abs() < 0.001); // (3.0 - 3.0) / 1.5 = 0.0
-        
-        // Test scene 2 at 100% (global: 4.5)
-        parser.set_progress(4.5, 0.0, 0.0, 0.0, 2);
-        assert!((parser.expr("S").unwrap() - 1.0).abs() < 0.001); // (4.5 - 3.0) / 1.5 = 1.0
     }
 
     #[test]
@@ -918,5 +911,37 @@ mod tests {
         assert_eq!(parser.expr("> 0 10 20").unwrap(), 10.0);
         assert!((parser.expr("> 1 10 20").unwrap() - 20.0).abs() < 0.01);
         assert!((parser.expr("> 0.5 10 20").unwrap() - 15.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_scene_relative_scrub() {
+        let mut parser = ExpressionParser::new();
+        
+        // Set up scene metadata: 3 scenes
+        let scenes = vec![
+            SceneMetadata { start: 0.0, length: 1.0, offset: 0.0 },
+            SceneMetadata { start: 1.0, length: 2.0, offset: 0.5 },
+            SceneMetadata { start: 2.5, length: 1.5, offset: 0.0 },
+        ];
+        parser.set_scene_metadata(scenes);
+        
+        // Test scene 0: scrub at 0.5 out of 1.0 length = 0.5 relative
+        parser.set_progress(0.5, 0.0, 0.0, 0.0, 0);
+        assert!((parser.expr("s").unwrap() - 0.5).abs() < 0.001);
+        
+        // Test scene 1: scrub at 2.0, scene starts at 1.0, length 2.0, offset 0.5
+        // Scene duration = 2.0 - 0.5 = 1.5
+        // Scene progress = 2.0 - 1.0 = 1.0
+        // Relative = 1.0 / 1.5 = 0.666...
+        parser.set_progress(2.0, 0.0, 0.0, 0.0, 1);
+        assert!((parser.expr("s").unwrap() - 0.6666666).abs() < 0.001);
+        
+        // Test scene 2 at start
+        parser.set_progress(2.5, 0.0, 0.0, 0.0, 2);
+        assert!((parser.expr("s").unwrap() - 0.0).abs() < 0.001);
+        
+        // Test scene 2 at end
+        parser.set_progress(4.0, 0.0, 0.0, 0.0, 2);
+        assert!((parser.expr("s").unwrap() - 1.0).abs() < 0.001);
     }
 }

@@ -40,11 +40,35 @@ SynthDef(\voicePassthrough, {
 (
 ~voice = Synth(\voicePassthrough);
 )
+
+// OSC listener for /sc/sample messages to control delayTime
 (
-s.freeAll;
+// Free any existing OSC listener
+OSCdef(\sampleDelayTime).free;
+
+// Create new listener on default port (57120)
+OSCdef(\sampleDelayTime, { |msg, time, addr, recvPort|
+  var value = msg[1]; // Get the first argument from the OSC message
+  "Received OSC message: % from % on port %".format(msg, addr, recvPort).postln;
+
+  if(~voice.notNil, {
+    ~voice.set(\delayTime, value.clip(0.0, 2.0)); // Clip to valid range
+    "DelayTime set to: %".format(value).postln;
+  }, {
+    "Voice synth not running".postln;
+  });
+}, '/sc/sample');
+
+"OSC listener active on port % for /sc/sample".format(NetAddr.langPort).postln;
 )
 
+OSCFunc.trace(true);
 
+// Test the OSC listener locally
+(
+"Testing OSC listener...".postln;
+NetAddr("127.0.0.1", NetAddr.langPort).sendMsg('/sc/sample', 0.75);
+)
 
 // Usage example:
 // Start the synth

@@ -1,13 +1,8 @@
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
-/// Scene metadata for calculating scene-relative scrub values
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SceneMetadata {
-    pub start: f64,
-    pub length: f64,
-    pub offset: f64,
-}
+// Re-export SceneMetadata from parser to avoid duplication
+pub use crate::parser::SceneMetadata;
 
 /// Shared parser state accessible across the application
 #[derive(Debug, Clone, Serialize, Deserialize)]

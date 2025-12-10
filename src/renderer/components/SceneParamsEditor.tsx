@@ -15,6 +15,8 @@ type SceneSettings = {
   pause?: number | false
   params?: Record<string, ParamConfig>
   osc?: Array<{ name: string; value: number | string }>
+  oscHost?: string
+  oscPort?: number
   audioTrack?: string
 }
 
@@ -295,6 +297,25 @@ export default function SceneSettingsPanel({
           <label className='text-white/70 text-sm font-semibold'>
             OSC Messages
           </label>
+          <input
+            type='text'
+            placeholder='Host (localhost)'
+            value={settings.oscHost || 'localhost'}
+            onChange={e => onUpdate({ ...settings, oscHost: e.target.value })}
+            className='w-24 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
+          />
+          <input
+            type='number'
+            placeholder='Port'
+            value={settings.oscPort || 57120}
+            onChange={e =>
+              onUpdate({
+                ...settings,
+                oscPort: parseInt(e.target.value) || 57120
+              })
+            }
+            className='w-16 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
+          />
           <button
             onClick={e => {
               e.preventDefault()

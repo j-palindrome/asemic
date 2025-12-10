@@ -83,7 +83,7 @@ export default function SceneSettingsPanel({
   }
 
   return (
-    <div className='absolute bottom-0 left-0 right-0 bg-black/90 border-t border-white/20 z-50 flex flex-col h-[80vh]'>
+    <div className='absolute bottom-0 left-0 right-0 border-t border-white/20 z-50 flex flex-col h-[50vh]'>
       {/* Header */}
       <div className='flex items-center gap-2 p-3 border-b border-white/20'>
         <span className='text-white text-sm font-semibold'>
@@ -96,6 +96,24 @@ export default function SceneSettingsPanel({
 
       {/* Settings Panel - Scrollable */}
       <div className='overflow-y-auto p-3 border-t border-white/20'>
+        {/* Editor Update Button */}
+        <div className='flex items-center gap-2 mb-2'>
+          <span className='text-white/70 text-sm font-semibold'>Code</span>
+          <button
+            onClick={() => {
+              const currentCode = editorRef.current?.getValue()
+              if (currentCode !== undefined) {
+                onUpdate({ ...settings, code: currentCode })
+              }
+            }}
+            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+            Update Code
+          </button>
+          <span className='text-white/50 text-[10px] ml-auto'>
+            Cmd+Enter to update
+          </span>
+        </div>
+
         <AsemicEditor
           ref={editorRef}
           defaultValue={settings.code || ''}

@@ -289,7 +289,7 @@ function AsemicAppInner({
       setIsSetup(true)
     }, [])
 
-    // Animation loop - increments global time and scene-relative scrub
+    // Animation loop - increments global time, scene-relative scrub, and updates parser
     const lastFrameTimeRef = useRef<number>(performance.now())
     useEffect(() => {
       const animate = async () => {
@@ -352,6 +352,38 @@ function AsemicAppInner({
               const newSource = JSON.stringify(newScenesArray, null, 2)
               setScenesSource(newSource)
             }
+          }
+
+          // Update parser with current scene
+          const preProcess = {
+            replacements: {}
+          } as Parser['preProcessing']
+          const links = scenesSource.match(/\[\[.*?\]\]/)
+          if (links) {
+            for (let link of links) {
+              const fileName = link.substring(2, link.length - 2)
+              preProcess.replacements[link] = (
+                await getRequire(fileName)
+              ).trim()
+            }
+          }
+
+          if (activeSceneRef.current < scenesArray.length) {
+            const currentSceneSettings = scenesArray[activeSceneRef.current]
+            const currentScene: Scene = {
+              code: currentSceneSettings.code || '',
+              length: currentSceneSettings.length,
+              offset: currentSceneSettings.offset,
+              pause: currentSceneSettings.pause,
+              params: currentSceneSettings.params,
+              scrub: currentSceneSettings.scrub || 0
+            }
+
+            asemic.current?.postMessage({
+              scene: currentScene,
+              sceneIndex: activeSceneRef.current,
+              preProcess
+            })
           }
 
           // Evaluate OSC expressions if present
@@ -431,47 +463,7 @@ function AsemicAppInner({
           animationFrameRef.current = null
         }
       }
-    }, [isSetup, scenesArray, activeScene])
-
-    // Separate effect for JS parser setup
-    useEffect(() => {
-      if (!isSetup) return
-
-      const restart = async () => {
-        const preProcess = {
-          replacements: {}
-        } as Parser['preProcessing']
-        const links = scenesSource.match(/\[\[.*?\]\]/)
-        if (links) {
-          for (let link of links) {
-            const fileName = link.substring(2, link.length - 2)
-            preProcess.replacements[link] = (await getRequire(fileName)).trim()
-          }
-        }
-
-        // Extract params from active scene and send to parser
-        if (activeScene < scenesArray.length) {
-          const sceneSettings = scenesArray[activeScene]
-
-          // Send the current scene to the parser with scene-relative scrub
-          const currentScene: Scene = {
-            code: sceneSettings.code || '',
-            length: sceneSettings.length,
-            offset: sceneSettings.offset,
-            pause: sceneSettings.pause,
-            params: sceneSettings.params,
-            scrub: sceneSettings.scrub || 0
-          }
-
-          asemic.current?.postMessage({
-            scene: currentScene,
-            sceneIndex: activeScene, // Send scene index for noise table isolation
-            preProcess
-          })
-        }
-      }
-      restart()
-    }, [scenesSource, isSetup, activeScene, scenesArray])
+    }, [isSetup, scenesArray, activeScene, scenesSource, getRequire])
   }
   setup()
 

@@ -476,7 +476,6 @@ export class Parser {
           `[${curve.map(x => `${toFixed(x[0])},${toFixed(x[1])}`).join(' ')}]`
       )
       .join('\n')
-    this.output.errors.push(c)
     return c
   }
 

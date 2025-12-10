@@ -8,23 +8,7 @@ import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 let parser: Parser = new Parser()
 let renderer: WebGPURenderer
 let offscreenCanvas: OffscreenCanvas
-let animationFrame: number | null = null
-let ready = true
-// Video recording state
-let isRecording = false
 let currentScene: Scene | null = null
-
-const startRecording = async () => {
-  if (isRecording) return
-  isRecording = true
-  self.postMessage({ recordingStarted: true } as Partial<Parser['output']>)
-}
-
-const stopRecording = async () => {
-  if (!isRecording) return
-  isRecording = false
-  self.postMessage({ recordingStopped: true } as Partial<Parser['output']>)
-}
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
@@ -38,13 +22,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   // if (!renderer?.device || !offscreenCanvas) return
   if (!offscreenCanvas) return
-
-  if (!isUndefined(ev.data.startRecording)) {
-    startRecording()
-  }
-  if (!isUndefined(ev.data.stopRecording)) {
-    stopRecording()
-  }
 
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
@@ -64,39 +41,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   if (!isUndefined(ev.data.scene)) {
     currentScene = ev.data.scene
-    if (ev.data.preProcess) {
-      parser.preProcessing = { ...parser.preProcessing, ...ev.data.preProcess }
-    }
-
-    // Update parser progress with scene's scrub value and scene index
-    if (currentScene.scrub !== undefined) {
-      parser.progress.scrub = currentScene.scrub
-    }
-    if (ev.data.sceneIndex !== undefined) {
-      parser.progress.scene = ev.data.sceneIndex
-    }
-
-    // Start animation loop with the new scene
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame)
-    }
-
-    const animate = async () => {
-      if (!ready && animationFrame) {
-        cancelAnimationFrame(animationFrame)
-      }
-      animationFrame = requestAnimationFrame(animate)
-      ready = false
-
-      if (currentScene) {
-        parser.draw(currentScene)
-        renderer.render(parser.groups)
-      }
-
-      ready = true
-      self.postMessage(parser.output)
-    }
-
-    animationFrame = requestAnimationFrame(animate)
+    parser.draw(currentScene)
+    renderer.render(parser.groups)
   }
 }

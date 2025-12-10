@@ -20,7 +20,7 @@ pub struct SceneMetadata {
 /// Supported constants and functions:
 /// - Progress: S (global scrub), s (scene-relative 0-1), C (curve), L (letter), P (point)
 /// - Indexing: N (count), I (index), i (normalized index 0-1)
-/// - Time: T [multiplier] (time with optional multiplier)
+/// - Time: T [multiplier] (current time in seconds with optional multiplier)
 /// - Dimensions: H [multiplier] (height ratio), px [multiplier] (pixel size)
 /// - Math: sin, abs, PHI (golden ratio), fib (fibonacci)
 /// - Logic: ! (NOT), ? condition true false (ternary)
@@ -33,7 +33,6 @@ pub struct ExpressionParser {
     // Cache for operator splits to improve performance
     operator_split_cache: HashMap<String, Vec<SplitResult>>,
     // Parser state for constants
-    time: f64,
     width: f64,
     height: f64,
     // Remove scrub field - use from scene metadata only
@@ -54,6 +53,8 @@ pub struct ExpressionParser {
     scene_metadata: Vec<SceneMetadata>,
     // Current scene index for param lookups
     current_scene: usize,
+    // Cache size limit to prevent unbounded growth
+    cache_max_size: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -73,7 +74,6 @@ impl ExpressionParser {
     pub fn new() -> Self {
         Self {
             operator_split_cache: HashMap::new(),
-            time: 0.0,
             width: 1920.0,
             height: 1080.0,
             curve: 0.0,
@@ -86,13 +86,13 @@ impl ExpressionParser {
             noise_table: HashMap::new(),
             scene_metadata: Vec::new(),
             current_scene: 0,
+            cache_max_size: 1000, // Limit cache to 1000 entries
         }
     }
 
-    pub fn with_context(time: f64, width: f64, height: f64) -> Self {
+    pub fn with_dimensions(width: f64, height: f64) -> Self {
         Self {
             operator_split_cache: HashMap::new(),
-            time,
             width,
             height,
             curve: 0.0,
@@ -105,11 +105,8 @@ impl ExpressionParser {
             noise_table: HashMap::new(),
             scene_metadata: Vec::new(),
             current_scene: 0,
+            cache_max_size: 1000, // Limit cache to 1000 entries
         }
-    }
-
-    pub fn set_time(&mut self, time: f64) {
-        self.time = time;
     }
 
     pub fn set_dimensions(&mut self, width: f64, height: f64) {
@@ -134,6 +131,9 @@ impl ExpressionParser {
 
     pub fn set_scene_metadata(&mut self, scene_metadata: Vec<SceneMetadata>) {
         self.scene_metadata = scene_metadata;
+        // Clear noise table when scene metadata changes to prevent memory leak
+        // Noise states are scene-specific, so old entries become stale
+        self.noise_table.clear();
     }
 
     /// Get a parameter value from the current scene's metadata
@@ -174,6 +174,10 @@ impl ExpressionParser {
             cached.clone()
         } else {
             let splits = self.split_by_operators(&expr)?;
+            // Clear cache if it's grown too large to prevent memory leak
+            if self.operator_split_cache.len() >= self.cache_max_size {
+                self.operator_split_cache.clear();
+            }
             self.operator_split_cache.insert(expr.clone(), splits.clone());
             splits
         };
@@ -282,13 +286,17 @@ impl ExpressionParser {
                 let val = self.expr(args[0])?;
                 Ok(-val)
             }
-            // Time constant
+            // Time constant - returns current time in seconds
             "T" => {
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64();
                 if args.is_empty() {
-                    Ok(self.time)
+                    Ok(current_time)
                 } else {
                     let multiplier = self.expr(args[0])?;
-                    Ok(self.time * multiplier)
+                    Ok(current_time * multiplier)
                 }
             }
             // Height-to-width ratio
@@ -841,11 +849,10 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        let mut parser = ExpressionParser::with_context(1.0, 1920.0, 1080.0);
+        let mut parser = ExpressionParser::with_dimensions(1920.0, 1080.0);
         
-        // Test time constant
-        assert_eq!(parser.expr("T").unwrap(), 1.0);
-        assert_eq!(parser.expr("T 2").unwrap(), 2.0);
+        // Test time constant - just verify it returns a positive number
+        assert!(parser.expr("T").unwrap() > 0.0);
         
         // Test height ratio
         let h_ratio = 1080.0 / 1920.0;

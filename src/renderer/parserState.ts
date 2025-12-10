@@ -32,13 +32,6 @@ export async function updateParserState(state: ParserState): Promise<void> {
 }
 
 /**
- * Update only the time value
- */
-export async function updateParserTime(time: number): Promise<void> {
-  await invoke('update_parser_time', { time })
-}
-
-/**
  * Update scene and scrub position
  */
 export async function updateParserProgress(

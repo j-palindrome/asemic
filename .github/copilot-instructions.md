@@ -32,16 +32,19 @@ Asemic is a creative coding library for generative asemic writing and visual syn
 
 ### The Problem
 
-Some constants represent **global application state** that needs to be synchronized between TypeScript and Rust for hybrid parsing. Others are **local parsing state** that only exists during expression evaluation.
+Some constants represent **global application state** that needs to be synchronized between TypeScript and Rust for hybrid parsing. Others are **local parsing state** that only exists during expression evaluation. Additionally, some constants like time are computed on-demand rather than stored.
 
 ### Global vs Local Constants
 
 **Global Constants (Synced to Tauri):**
 
-- `T` - Time (updates every 100ms for animation)
 - `S` - Scrub position (manual timeline control)
 - `H` - Height-to-width ratio (canvas dimensions)
 - `scene` - Current scene index
+
+**Computed Constants (Not stored, calculated on-demand):**
+
+- `T` - Current time in seconds (uses `performance.now()` directly)
 
 **Local Constants (Parser-only, NOT synced):**
 
@@ -62,7 +65,6 @@ Global constants are defined in `src/lib/parser/Parser.ts`:
 
 ```typescript
 progress = {
-  time: performance.now() / 1000, // T - Global
   scrub: 0, // S - Global
   progress: 0, // Global
   scene: 0, // Global
@@ -76,7 +78,7 @@ progress = {
 
 // Constants that reference this state:
 constants = {
-  T: x => this.progress.time * (x ? this.expressions.expr(x) : 1),
+  T: x => (performance.now() / 1000) * (x ? this.expressions.expr(x) : 1), // Computed on-demand
   S: () => this.progress.scrub,
   I: solveIndex => this.progress.indexes[solveIndex || 0], // Local only
   N: solveIndex => this.progress.countNums[solveIndex || 0], // Local only
@@ -91,18 +93,7 @@ constants = {
 **Time Constant (`T`):**
 
 ```
-Browser Performance API → Parser State → Tauri Command → Rust State
-   (every 100ms)        (progress.time)  (invoke)    (AppState)
-```
-
-Implementation in `src/renderer/app/AsemicApp.tsx`:
-
-```typescript
-// Periodic time sync (lines 249-253)
-const timeInterval = setInterval(() => {
-  const currentTime = performance.now() / 1000
-  invoke('update_parser_time', { time: currentTime })
-}, 100) // Updates every 100ms
+No synchronization needed - computed directly from performance.now() / 1000
 ```
 
 **Progress & Scene Constants:**
@@ -115,12 +106,12 @@ Parser Draw → onmessage callback → Tauri Command → Rust State
 Implementation in `src/renderer/app/AsemicApp.tsx`:
 
 ```typescript
-// On-demand progress sync (lines 231-234)
+// On-demand progress sync
 if (!isUndefined(data.progress)) {
   setProgress(data.progress)
   invoke('update_parser_progress', {
-    progress: data.progress,
-    scene: activeScene
+    scene: activeScene,
+    scrub: clampedScrub
   })
 }
 ```
@@ -131,8 +122,6 @@ if (!isUndefined(data.progress)) {
 
 ```rust
 pub struct ParserState {
-    pub time: f64,        // T constant
-    pub progress: f64,    // Current playback position
     pub scrub: f64,       // S constant (manual scrubbing)
     pub width: f64,       // Canvas width
     pub height: f64,      // Canvas height (used for H constant)
@@ -149,24 +138,14 @@ pub struct AppState {
 
 ```rust
 #[tauri::command]
-async fn update_parser_time(
-    time: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.time = time;
-    Ok(())
-}
-
-#[tauri::command]
 async fn update_parser_progress(
-    progress: f64,
     scene: usize,
+    scrub: f64,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.progress = progress;
     parser_state.scene = scene;
+    parser_state.scrub = scrub;
     Ok(())
 }
 

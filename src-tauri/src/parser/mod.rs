@@ -72,7 +72,6 @@ pub struct Progress {
     current_line: String,
     noise_index: usize,
     point: usize,
-    time: f64,
     curve: usize,
     seeds: Vec<f64>,
     indexes: Vec<usize>,
@@ -151,7 +150,6 @@ impl Parser {
     fn reset(&mut self, new_frame: bool) -> Result<(), String> {
         if new_frame {
             self.groups.clear();
-            self.progress.time = current_time();
             // Update progress
         }
         // Reset transforms and state

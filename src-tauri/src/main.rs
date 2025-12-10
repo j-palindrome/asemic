@@ -199,18 +199,23 @@ async fn parser_eval_expression(
     osc_port: u16,
     state: State<'_, AppState>,
 ) -> Result<f64, String> {
-    let parser_state = state.parser_state.lock().unwrap();
+    let (width, height, current_scene, scene_metadata) = {
+        let parser_state = state.parser_state.lock().unwrap();
+        // Only clone what we need, release lock immediately
+        (parser_state.width, parser_state.height, 
+         parser_state.scene, parser_state.scenes.clone())
+    };
     
     // Create parser with current state
-    let mut parser = app_lib::parser::ExpressionParser::with_context(
-        parser_state.time,
-        parser_state.width,
-        parser_state.height,
+    let mut parser = app_lib::parser::ExpressionParser::with_dimensions(
+        width,
+        height,
     );
     
     // Set scene metadata if available
-    if !parser_state.scenes.is_empty() {
-        parser.set_scene_metadata(parser_state.scenes.clone());
+    if !scene_metadata.is_empty() {
+        parser.set_current_scene(current_scene);
+        parser.set_scene_metadata(scene_metadata);
     }
     
     // Evaluate expression
@@ -235,16 +240,6 @@ async fn update_parser_state(
 ) -> Result<(), String> {
     let mut parser_state = state.parser_state.lock().unwrap();
     *parser_state = updates;
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_parser_time(
-    time: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.time = time;
     Ok(())
 }
 
@@ -293,7 +288,6 @@ fn main() {
             parser_eval_expression,
             get_parser_state,
             update_parser_state,
-            update_parser_time,
             update_parser_progress,
             update_parser_dimensions,
             update_scene_metadata,

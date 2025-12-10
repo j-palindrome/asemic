@@ -31,8 +31,8 @@ export interface Scene {
   length?: number
   offset?: number
   pause?: number | false
-  scrub?: number // Current scrub position within this scene
-  time?: number // Current time value for this scene
+  scrub?: number // Current scrub position within this scene (0 to length)
+  time?: number // Deprecated: Global time is now tracked separately in AsemicApp
   params?: Record<
     string,
     { value: number; min: number; max: number; exponent: number }
@@ -58,7 +58,6 @@ export class Parser {
     currentLine: '',
     noiseIndex: 0,
     point: 0,
-    time: performance.now() / 1000,
     curve: 0,
     seeds: range(100).map(x => Math.random()),
     indexes: range(3).map(x => 0),
@@ -68,7 +67,8 @@ export class Parser {
     letter: 0,
     scrub: 0,
     scrubTime: 0,
-    progress: 0
+    progress: 0,
+    scene: 0 // Current scene index for noise table isolation
   }
   live = {
     keys: ['']
@@ -131,7 +131,7 @@ export class Parser {
         )
       },
       T: x => {
-        return this.progress.time * (x ? this.expressions.expr(x) : 1)
+        return (performance.now() / 1000) * (x ? this.expressions.expr(x) : 1)
       },
       '!': continuing => {
         const continuingSolved = this.expressions.expr(continuing)
@@ -268,7 +268,9 @@ export class Parser {
         }
         this.progress.noiseIndex++
 
-        const noise = this.noiseTable[currentValue].noise(this.progress.time)
+        const noise = this.noiseTable[currentValue].noise(
+          performance.now() / 1000
+        )
         return noise
       },
       bell: (range0to1, sign) => {
@@ -411,7 +413,6 @@ export class Parser {
   reset({ newFrame = true } = {}) {
     if (newFrame) {
       this.groups = []
-      this.progress.time = performance.now() / 1000
       this.progress.progress += this.pauseAt !== false ? 0 : ONE_FRAME
       // Remove totalLength comparison
       if (this.pauseAt === false) {

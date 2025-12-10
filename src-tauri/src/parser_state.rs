@@ -7,7 +7,6 @@ pub use crate::parser::SceneMetadata;
 /// Shared parser state accessible across the application
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParserState {
-    pub time: f64,
     pub scrub: f64,
     pub width: f64,
     pub height: f64,
@@ -19,7 +18,6 @@ pub struct ParserState {
 impl Default for ParserState {
     fn default() -> Self {
         Self {
-            time: 0.0,
             scrub: 0.0,
             width: 1920.0,
             height: 1080.0,

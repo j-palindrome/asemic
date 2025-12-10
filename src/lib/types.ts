@@ -7,6 +7,7 @@ export type { Parser } from './parser/Parser'
 export type AsemicData = {
   preProcess?: Partial<Parser['preProcessing']>
   scene?: Scene
+  sceneIndex?: number // Index of current scene for noise table isolation
   live: {
     keys: string[]
     index: { value: number }

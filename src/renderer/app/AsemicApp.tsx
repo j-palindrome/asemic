@@ -203,6 +203,7 @@ function AsemicAppInner({
   }, [activeScene])
 
   const animationFrameRef = useRef<number | null>(null)
+  const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
 
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
@@ -284,65 +285,109 @@ function AsemicAppInner({
 
     useEffect(() => {
       setIsSetup(true)
-
-      // Sync time periodically
-      const timeInterval = setInterval(() => {
-        const currentTime = performance.now() / 1000
-        invoke('update_parser_time', { time: currentTime }).catch(console.error)
-      }, 100) // Update every 100ms
-
-      return () => clearInterval(timeInterval)
     }, [])
 
-    // Rust parser animation loop (always active)
+    // Animation loop - increments global time and scene-relative scrub
+    const lastFrameTimeRef = useRef<number>(performance.now())
     useEffect(() => {
       const animate = async () => {
         try {
+          const now = performance.now()
+          const deltaTime = (now - lastFrameTimeRef.current) / 1000 // Convert to seconds
+          lastFrameTimeRef.current = now
+
           // Get current scene settings
           const sceneSettings: SceneSettings = scenesArray[
             activeSceneRef.current
           ] || {
             length: 0.1,
             offset: 0,
-            pause: 0
+            pause: 0,
+            scrub: 0
+          }
+
+          // Only increment if not paused and not manually scrubbing
+          if (!pauseAtRef.current && !isScrollingRef.current) {
+            // Global time always increments
+            globalTimeRef.current += deltaTime
+
+            const newScrub = (sceneSettings.scrub || 0) + deltaTime
+            const sceneLength = sceneSettings.length || 0.1
+
+            // Check if we should transition to next scene
+            if (
+              newScrub >= sceneLength &&
+              activeSceneRef.current < scenesArray.length - 1
+            ) {
+              // Transition to next scene
+              const nextSceneIndex = activeSceneRef.current + 1
+
+              // Reset current scene's scrub
+              const newScenesArray = [...scenesArray]
+              newScenesArray[activeSceneRef.current] = {
+                ...sceneSettings,
+                scrub: 0
+              }
+
+              // Initialize next scene scrub if needed
+              if (newScenesArray[nextSceneIndex].scrub === undefined) {
+                newScenesArray[nextSceneIndex] = {
+                  ...newScenesArray[nextSceneIndex],
+                  scrub: 0
+                }
+              }
+
+              const newSource = JSON.stringify(newScenesArray, null, 2)
+              setScenesSource(newSource)
+            } else {
+              // Update current scene scrub only
+              const newScenesArray = [...scenesArray]
+              const clampedScrub = Math.min(newScrub, sceneLength)
+              newScenesArray[activeSceneRef.current] = {
+                ...sceneSettings,
+                scrub: clampedScrub
+              }
+              const newSource = JSON.stringify(newScenesArray, null, 2)
+              setScenesSource(newSource)
+
+              // Sync scene-relative scrub to Rust
+              invoke('update_parser_progress', {
+                scene: activeSceneRef.current,
+                scrub: clampedScrub
+              }).catch(console.error)
+            }
           }
 
           // Evaluate OSC expressions if present
           if (sceneSettings.osc && sceneSettings.osc.length > 0) {
-            // Remove progress sync - use scene's own scrub value
-
-            // Send OSC messages
             const oscHost = sceneSettings.oscHost || '127.0.0.1'
             const oscPort = sceneSettings.oscPort || 57120
 
-            await Promise.all(
-              sceneSettings.osc.map(async oscMsg => {
-                try {
-                  if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
-                    // Evaluate expression and send OSC message
-                    await invoke<number>('parser_eval_expression', {
-                      expr: oscMsg.value,
-                      oscAddress: oscMsg.name,
-                      oscHost: oscHost,
-                      oscPort: oscPort
-                    })
-                  } else if (typeof oscMsg.value === 'number') {
-                    // For static numbers, still send via same path for consistency
-                    await invoke<number>('parser_eval_expression', {
-                      expr: oscMsg.value.toString(),
-                      oscAddress: oscMsg.name,
-                      oscHost: oscHost,
-                      oscPort: oscPort
-                    })
-                  }
-                } catch (error) {
-                  console.error(`OSC send error for ${oscMsg.name}:`, error)
+            // Process OSC messages sequentially to avoid overwhelming the parser
+            for (const oscMsg of sceneSettings.osc) {
+              try {
+                if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
+                  await invoke<number>('parser_eval_expression', {
+                    expr: oscMsg.value,
+                    oscAddress: oscMsg.name,
+                    oscHost: oscHost,
+                    oscPort: oscPort
+                  })
+                } else if (typeof oscMsg.value === 'number') {
+                  await invoke<number>('parser_eval_expression', {
+                    expr: oscMsg.value.toString(),
+                    oscAddress: oscMsg.name,
+                    oscHost: oscHost,
+                    oscPort: oscPort
+                  })
                 }
-              })
-            )
+              } catch (error) {
+                // Silent fail to prevent console spam
+              }
+            }
           }
         } catch (error) {
-          console.error('Rust parser error:', error)
+          console.error('Animation loop error:', error)
         }
 
         animationFrameRef.current = requestAnimationFrame(animate)
@@ -352,6 +397,7 @@ function AsemicAppInner({
         cancelAnimationFrame(animationFrameRef.current)
       }
       if (isSetup) {
+        lastFrameTimeRef.current = performance.now()
         animationFrameRef.current = requestAnimationFrame(animate)
       }
 
@@ -361,7 +407,7 @@ function AsemicAppInner({
           animationFrameRef.current = null
         }
       }
-    }, [isSetup, scenesArray])
+    }, [isSetup, scenesArray, activeScene])
 
     // Separate effect for JS parser setup
     useEffect(() => {
@@ -383,19 +429,19 @@ function AsemicAppInner({
         if (activeScene < scenesArray.length) {
           const sceneSettings = scenesArray[activeScene]
 
-          // Send the current scene to the parser with its own time values
+          // Send the current scene to the parser with scene-relative scrub
           const currentScene: Scene = {
             code: sceneSettings.code || '',
             length: sceneSettings.length,
             offset: sceneSettings.offset,
             pause: sceneSettings.pause,
             params: sceneSettings.params,
-            scrub: sceneSettings.scrub || 0,
-            time: sceneSettings.time || 0
+            scrub: sceneSettings.scrub || 0
           }
 
           asemic.current?.postMessage({
             scene: currentScene,
+            sceneIndex: activeScene, // Send scene index for noise table isolation
             preProcess
           })
         }
@@ -504,12 +550,16 @@ function AsemicAppInner({
             }
           }
         }
+        // Initialize scrub if not present
+        if (sceneSettings.scrub === undefined) {
+          sceneSettings.scrub = 0
+        }
         setActiveSceneSettings(sceneSettings)
       } else {
-        setActiveSceneSettings({})
+        setActiveSceneSettings({ scrub: 0 })
       }
     } catch (e) {
-      setActiveSceneSettings({})
+      setActiveSceneSettings({ scrub: 0 })
     }
   }, [scenesArray, activeScene])
 
@@ -548,8 +598,10 @@ function AsemicAppInner({
   // Add new scene after current scene
   const addSceneAfterCurrent = () => {
     const newScenesArray = [...scenesArray]
-    // Insert empty scene after current scene
-    newScenesArray.splice(activeScene + 1, 0, {})
+    // Insert empty scene after current scene with initialized scrub
+    newScenesArray.splice(activeScene + 1, 0, {
+      scrub: 0
+    })
     const newSource = JSON.stringify(newScenesArray, null, 2)
     setScenesSource(newSource)
   }
@@ -669,35 +721,71 @@ function AsemicAppInner({
   const scrollTimeoutRef = useRef<number | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ y: 0, scrollTop: 0 })
+  const scrubIntervalRef = useRef<number | null>(null)
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    // Remove scroll handling - scenes manage their own time
-  }
+  // Handle scrubber button hold
+  const handleScrubberMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    isScrollingRef.current = true
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!scrollContainerRef.current) return
-    isDraggingRef.current = true
-    dragStartRef.current = {
-      y: e.clientY,
-      scrollTop: scrollContainerRef.current.scrollTop
+    const incrementScrub = () => {
+      const sceneSettings = scenesArray[activeScene] || {}
+      const sceneLength = sceneSettings.length || 0.1
+      const currentScrub = sceneSettings.scrub || 0
+      const delta = 0.016 // ~1 frame at 60fps
+
+      let newScrub = currentScrub + delta
+      let newActiveScene = activeScene
+
+      // Handle scene transitions
+      if (newScrub > sceneLength && activeScene < scenesArray.length - 1) {
+        newActiveScene = activeScene + 1
+        newScrub = newScrub - sceneLength
+      } else {
+        newScrub = Math.min(newScrub, sceneLength)
+      }
+
+      // Update scenes array
+      const newScenesArray = [...scenesArray]
+      newScenesArray[newActiveScene] = {
+        ...scenesArray[newActiveScene],
+        scrub: newScrub
+      }
+      const newSource = JSON.stringify(newScenesArray, null, 2)
+      setScenesSource(newSource)
+
+      // Sync to Rust
+      invoke('update_parser_progress', {
+        scene: newActiveScene,
+        scrub: newScrub
+      }).catch(console.error)
     }
-    e.preventDefault()
+
+    // Immediate first increment
+    incrementScrub()
+
+    // Continue incrementing while held
+    scrubIntervalRef.current = window.setInterval(incrementScrub, 16) // ~60fps
   }
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current || !scrollContainerRef.current) return
-
-    const deltaY = e.clientY - dragStartRef.current.y
-    scrollContainerRef.current.scrollTop =
-      dragStartRef.current.scrollTop - deltaY
-    e.preventDefault()
+  const handleScrubberMouseUp = () => {
+    if (scrubIntervalRef.current !== null) {
+      clearInterval(scrubIntervalRef.current)
+      scrubIntervalRef.current = null
+    }
+    isScrollingRef.current = false
   }
+
+  useEffect(() => {
+    // Clean up interval on unmount
+    return () => {
+      if (scrubIntervalRef.current !== null) {
+        clearInterval(scrubIntervalRef.current)
+      }
+    }
+  }, [])
 
   const handleMouseUp = () => {
-    isDraggingRef.current = false
-  }
-
-  const handleMouseLeave = () => {
     isDraggingRef.current = false
   }
 
@@ -709,19 +797,20 @@ function AsemicAppInner({
     }
   }, [])
 
-  // Update scroll position based on scene-relative progress
+  // Update scroll position based on scene scrub value
   useEffect(() => {
     if (isScrollingRef.current) return // Skip if user is scrolling
 
     if (scrollContainerRef.current && activeSceneSettings.length) {
-      const scrollPercent = progress / (activeSceneSettings.length || 1)
+      const scrubValue = activeSceneSettings.scrub || 0
+      const scrollPercent = scrubValue / (activeSceneSettings.length || 1)
       const scrollTop =
         scrollPercent *
         (scrollContainerRef.current.scrollHeight -
           scrollContainerRef.current.clientHeight)
       scrollContainerRef.current.scrollTop = scrollTop
     }
-  }, [progress, activeSceneSettings.length])
+  }, [activeSceneSettings.scrub, activeSceneSettings.length])
 
   useEffect(() => {
     const onResize = () => {
@@ -778,9 +867,9 @@ function AsemicAppInner({
           width={1080}></canvas>
 
         <div
-          className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100'
+          className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100 pointer-events-none'
           onPointerDownCapture={checkLive}>
-          <div className='flex items-center px-0 py-1 z-100'>
+          <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
             <button
               onClick={() => {
                 if (pauseAtRef.current) {
@@ -801,6 +890,13 @@ function AsemicAppInner({
             <button onClick={() => setShowSceneSettings(!showSceneSettings)}>
               <Settings2 {...lucideProps} />
             </button>
+            {/* Scrubber button - hold to increment scrub */}
+            <div
+              className='w-8 h-5 bg-white bg-opacity-20 rounded cursor-pointer hover:bg-opacity-30 active:bg-opacity-40'
+              onMouseDown={handleScrubberMouseDown}
+              onMouseUp={handleScrubberMouseUp}
+              onMouseLeave={handleScrubberMouseUp}
+            />
             <div className='grow' />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
@@ -810,17 +906,19 @@ function AsemicAppInner({
             <>
               {/* Scene Settings Panel - Now contains the editor */}
               {showSceneSettings && (
-                <SceneSettingsPanel
-                  activeScene={activeScene}
-                  settings={activeSceneSettings}
-                  onUpdate={newSettings => {
-                    setActiveSceneSettings(newSettings)
-                    updateSceneSettings(newSettings)
-                  }}
-                  onAddScene={addSceneAfterCurrent}
-                  onDeleteScene={deleteCurrentScene}
-                  onClose={() => setShowSceneSettings(false)}
-                />
+                <div className='pointer-events-auto'>
+                  <SceneSettingsPanel
+                    activeScene={activeScene}
+                    settings={activeSceneSettings}
+                    onUpdate={newSettings => {
+                      setActiveSceneSettings(newSettings)
+                      updateSceneSettings(newSettings)
+                    }}
+                    onAddScene={addSceneAfterCurrent}
+                    onDeleteScene={deleteCurrentScene}
+                    onClose={() => setShowSceneSettings(false)}
+                  />
+                </div>
               )}
             </>
           )}

@@ -62,6 +62,7 @@ OSCdef(\sampleDelayTime, { |msg, time, addr, recvPort|
 "OSC listener active on port % for /sc/sample".format(NetAddr.langPort).postln;
 )
 
+OSCFunc.trace(true);
 OSCFunc.trace(false);
 
 // Test the OSC listener locally

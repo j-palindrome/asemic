@@ -7,62 +7,30 @@ export interface SceneMetadata {
   params?: Record<string, number>
 }
 
-export interface ParserState {
-  time: number
-  scrub: number
-  width: number
-  height: number
-  scene: number
-  total_length: number
-  scenes: SceneMetadata[]
-}
-
 /**
- * Get the current parser state from Rust backend
+ * Evaluate an Asemic expression with full scene context
+ * All state is passed directly, no global state in Rust
  */
-export async function getParserState(): Promise<ParserState> {
-  return await invoke<ParserState>('get_parser_state')
-}
-
-/**
- * Update the entire parser state
- */
-export async function updateParserState(state: ParserState): Promise<void> {
-  await invoke('update_parser_state', { updates: state })
-}
-
-/**
- * Update scene and scrub position
- */
-export async function updateParserProgress(
-  scene: number,
-  scrub: number
-): Promise<void> {
-  await invoke('update_parser_progress', { scene, scrub })
-}
-
-/**
- * Update canvas dimensions
- */
-export async function updateParserDimensions(
-  width: number,
-  height: number
-): Promise<void> {
-  await invoke('update_parser_dimensions', { width, height })
-}
-
-/**
- * Update scene metadata for scrub calculations
- */
-export async function updateSceneMetadata(
-  scenes: SceneMetadata[]
-): Promise<void> {
-  await invoke('update_scene_metadata', { scenes })
-}
-
-/**
- * Evaluate an Asemic expression with current parser context
- */
-export async function evalExpression(expr: string): Promise<number> {
-  return await invoke<number>('parser_eval_expression', { expr })
+export async function evalExpression(
+  expr: string,
+  options: {
+    oscAddress?: string
+    oscHost?: string
+    oscPort?: number
+    width: number
+    height: number
+    currentScene: number
+    sceneMetadata: SceneMetadata[]
+  }
+): Promise<number> {
+  return await invoke<number>('parser_eval_expression', {
+    expr,
+    oscAddress: options.oscAddress || '',
+    oscHost: options.oscHost || '127.0.0.1',
+    oscPort: options.oscPort || 57120,
+    width: options.width,
+    height: options.height,
+    currentScene: options.currentScene,
+    sceneMetadata: options.sceneMetadata
+  })
 }

@@ -2,8 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use app_lib::parser_state::{AppState, ParserState, SceneMetadata};
-use tauri::State;
+use app_lib::parser::SceneMetadata;
 
 // CodeMirror syntax tree node structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,16 +196,12 @@ async fn parser_eval_expression(
     osc_address: String,
     osc_host: String,
     osc_port: u16,
-    state: State<'_, AppState>,
+    width: f64,
+    height: f64,
+    current_scene: usize,
+    scene_metadata: Vec<SceneMetadata>,
 ) -> Result<f64, String> {
-    let (width, height, current_scene, scene_metadata) = {
-        let parser_state = state.parser_state.lock().unwrap();
-        // Only clone what we need, release lock immediately
-        (parser_state.width, parser_state.height, 
-         parser_state.scene, parser_state.scenes.clone())
-    };
-    
-    // Create parser with current state
+    // Create parser with dimensions
     let mut parser = app_lib::parser::ExpressionParser::with_dimensions(
         width,
         height,
@@ -227,70 +222,14 @@ async fn parser_eval_expression(
     Ok(result)
 }
 
-#[tauri::command]
-async fn get_parser_state(state: State<'_, AppState>) -> Result<ParserState, String> {
-    let parser_state = state.parser_state.lock().unwrap();
-    Ok(parser_state.clone())
-}
-
-#[tauri::command]
-async fn update_parser_state(
-    updates: ParserState,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    *parser_state = updates;
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_parser_progress(
-    scene: usize,
-    scrub: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.scene = scene;
-    parser_state.scrub = scrub;
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_parser_dimensions(
-    width: f64,
-    height: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.width = width;
-    parser_state.height = height;
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_scene_metadata(
-    scenes: Vec<SceneMetadata>,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.scenes = scenes;
-    Ok(())
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             parser_setup,
             parser_draw,
             parser_eval_expression,
-            get_parser_state,
-            update_parser_state,
-            update_parser_progress,
-            update_parser_dimensions,
-            update_scene_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

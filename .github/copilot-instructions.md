@@ -28,199 +28,158 @@ Asemic is a creative coding library for generative asemic writing and visual syn
    - File system operations
    - Future: Performance-critical parsing operations
 
-## State Synchronization: Constants → Tauri
+## State Synchronization: No Global State in Rust
 
-### The Problem
+### Architecture Decision
 
-Some constants represent **global application state** that needs to be synchronized between TypeScript and Rust for hybrid parsing. Others are **local parsing state** that only exists during expression evaluation. Additionally, some constants like time are computed on-demand rather than stored.
+**The Rust backend has NO global state.** All parser state is ephemeral and passed directly to the expression parser when needed. This simplifies the architecture and prevents synchronization complexity.
 
-### Global vs Local Constants
-
-**Global Constants (Synced to Tauri):**
-
-- `S` - Scrub position (manual timeline control)
-- `H` - Height-to-width ratio (canvas dimensions)
-- `scene` - Current scene index
+### Parser Constants
 
 **Computed Constants (Not stored, calculated on-demand):**
 
-- `T` - Current time in seconds (uses `performance.now()` directly)
+- `T` - Current time in seconds (uses `performance.now()` or `SystemTime::now()` directly)
 
-**Local Constants (Parser-only, NOT synced):**
+**Local Constants (Parser-only, ephemeral per evaluation):**
 
-- `I` - Current loop index (ephemeral, changes per loop iteration)
-- `N` - Total loop count (ephemeral, changes per loop)
+- `S` - Scrub position (passed in scene metadata)
+- `H` - Height-to-width ratio (passed as dimensions)
+- `scene` - Current scene index (passed as parameter)
+- `I` - Current loop index (ephemeral during parsing)
+- `N` - Total loop count (ephemeral during parsing)
 - `i` - Normalized loop progress 0-1 (derived from I/N)
-- `C` - Current curve index (ephemeral, changes per curve)
-- `L` - Current letter (ephemeral, changes per letter)
-- `P` - Current point (ephemeral, changes per point)
+- `C` - Current curve index (ephemeral during parsing)
+- `L` - Current letter (ephemeral during parsing)
+- `P` - Current point (ephemeral during parsing)
 
-These local constants are stored in the `ExpressionParser` struct (`src-tauri/src/parser/methods/expressions.rs`) as private fields used only during parsing. They don't need to be in the global `ParserState` or synced via Tauri commands.
+### How Expression Evaluation Works
 
-### How Global Constants are Synced
+#### 1. JavaScript Parser (Main Implementation)
 
-#### 1. JavaScript Parser Constants
-
-Global constants are defined in `src/lib/parser/Parser.ts`:
+The TypeScript parser in `src/lib/parser/Parser.ts` is the primary parser and handles all drawing operations:
 
 ```typescript
 progress = {
-  scrub: 0, // S - Global
-  progress: 0, // Global
-  scene: 0, // Global
-  // Local parsing state (not synced):
-  curve: 0, // C - Local
-  indexes: [0, 0, 0], // I - Local
-  countNums: [0, 0, 0], // N - Local
-  letter: 0, // L - Local
-  point: 0 // P - Local
+  scrub: 0,
+  progress: 0,
+  scene: 0,
+  curve: 0,
+  indexes: [0, 0, 0],
+  countNums: [0, 0, 0],
+  letter: 0,
+  point: 0
 }
 
-// Constants that reference this state:
 constants = {
-  T: x => (performance.now() / 1000) * (x ? this.expressions.expr(x) : 1), // Computed on-demand
-  S: () => this.progress.scrub,
-  I: solveIndex => this.progress.indexes[solveIndex || 0], // Local only
-  N: solveIndex => this.progress.countNums[solveIndex || 0], // Local only
-  C: () => this.progress.curve, // Local only
-  L: () => this.progress.letter, // Local only
-  P: () => this.progress.point // Local only
+  T: x => (performance.now() / 1000) * (x ? this.expressions.expr(x) : 1),
+  S: () => this.progress.scrub
+  // ... other constants
 }
 ```
 
-#### 2. Synchronization Flow
+#### 2. Rust Expression Parser (OSC Only)
 
-**Time Constant (`T`):**
+The Rust expression parser in `src-tauri/src/parser/methods/expressions.rs` is used ONLY for evaluating OSC expressions. It receives full scene context on each call:
+
+```rust
+pub async fn parser_eval_expression(
+    expr: String,
+    osc_address: String,
+    osc_host: String,
+    osc_port: u16,
+    width: f64,              // Canvas dimensions
+    height: f64,
+    current_scene: usize,    // Active scene index
+    scene_metadata: Vec<SceneMetadata>, // All scene data
+) -> Result<f64, String>
+```
+
+**No State Synchronization:**
+
+- No periodic updates
+- No global state to keep in sync
+- All context passed directly with each evaluation
+- Stateless and thread-safe
+
+#### 3. TypeScript → Rust Flow (OSC Expressions Only)
 
 ```
-No synchronization needed - computed directly from performance.now() / 1000
-```
-
-**Progress & Scene Constants:**
-
-```
-Parser Draw → onmessage callback → Tauri Command → Rust State
-  (worker)      (AsemicApp)         (invoke)       (AppState)
+AsemicApp.tsx → invoke('parser_eval_expression') → Rust ExpressionParser → OSC Send
+    ↓
+  Passes full context:
+  - Canvas dimensions
+  - Current scene index
+  - All scene metadata
+  - Expression to evaluate
 ```
 
 Implementation in `src/renderer/app/AsemicApp.tsx`:
 
 ```typescript
-// On-demand progress sync
-if (!isUndefined(data.progress)) {
-  setProgress(data.progress)
-  invoke('update_parser_progress', {
-    scene: activeScene,
-    scrub: clampedScrub
-  })
-}
-```
+// Build scene metadata array
+const sceneMetadata = scenesArray.map((scene, idx) => ({
+  start: 0,
+  length: scene.length || 0.1,
+  offset: scene.offset || 0,
+  params: scene.params
+    ? Object.entries(scene.params).reduce((acc, [key, config]) => {
+        acc[key] = config.value ?? config.default ?? 0
+        return acc
+      }, {} as Record<string, number>)
+    : {}
+}))
 
-#### 3. Rust Backend Storage
-
-**Shared State Structure** (`src-tauri/src/parser_state.rs`):
-
-```rust
-pub struct ParserState {
-    pub scrub: f64,       // S constant (manual scrubbing)
-    pub width: f64,       // Canvas width
-    pub height: f64,      // Canvas height (used for H constant)
-    pub scene: usize,     // Current scene index
-    pub total_length: f64,// Total duration
-}
-
-pub struct AppState {
-    pub parser_state: Mutex<ParserState>, // Thread-safe access
-}
-```
-
-**Tauri Commands** (`src-tauri/src/main.rs`):
-
-```rust
-#[tauri::command]
-async fn update_parser_progress(
-    scene: usize,
-    scrub: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.scene = scene;
-    parser_state.scrub = scrub;
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_parser_dimensions(
-    width: f64,
-    height: f64,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    parser_state.width = width;
-    parser_state.height = height;
-    Ok(())
-}
-```
-
-#### 4. Helper API
-
-`src/renderer/parserState.ts` provides clean TypeScript wrappers:
-
-```typescript
-export async function updateParserTime(time: number): Promise<void>
-export async function updateParserProgress(
-  progress: number,
-  scene: number
-): Promise<void>
-export async function updateParserDimensions(
-  width: number,
-  height: number
-): Promise<void>
-export async function getParserState(): Promise<ParserState>
+// Evaluate and send OSC
+await invoke<number>('parser_eval_expression', {
+  expr: oscMsg.value,
+  oscAddress: oscMsg.name,
+  oscHost: oscHost,
+  oscPort: oscPort,
+  width,
+  height,
+  currentScene: activeScene,
+  sceneMetadata
+})
 ```
 
 ### Key Architectural Decisions
 
-1. **Unidirectional Flow**: State flows JavaScript → Rust only
+1. **Stateless Rust Parser**: No global state in Rust
 
-   - Rust is authoritative consumer, not producer (currently)
-   - Simplifies synchronization logic
-   - Prevents circular updates
+   - All context passed with each expression evaluation
+   - Simplifies architecture and prevents sync bugs
+   - Thread-safe by design (no shared mutable state)
 
-2. **Periodic vs On-Demand Updates**:
+2. **Direct Parameter Passing**:
 
-   - **Time**: Updated every 100ms (periodic) - needed for animation
-   - **Progress/Scene**: Updated when changed (on-demand) - less frequent
-   - **Dimensions**: Updated on resize (on-demand) - rare
+   - Canvas dimensions passed directly when needed
+   - Scene metadata passed as complete array
+   - Current scene index passed explicitly
 
-3. **Thread Safety**:
-
-   - `Mutex<ParserState>` allows safe concurrent access
-   - Multiple commands can update different fields
-   - Lock is held only during brief update operations
-
-4. **Separation of Concerns**:
-   - Parser logic remains in TypeScript (proven, fast)
-   - Rust handles native integration and state persistence
+3. **Separation of Concerns**:
+   - TypeScript parser handles all drawing operations
+   - Rust parser handles ONLY OSC expression evaluation
    - Clean API boundary via Tauri commands
 
 ## Parser Constants Reference
 
-| Constant | Description                 | Type     | Scope  | Synced to Rust          |
-| -------- | --------------------------- | -------- | ------ | ----------------------- |
-| `T`      | Current time in seconds     | `number` | Global | ✅ Yes (`time`)         |
-| `S`      | Scrub position              | `number` | Global | ✅ Yes (`scrub`)        |
-| `H`      | Height-to-width ratio       | `number` | Global | ✅ Yes (`height/width`) |
-| `I`      | Current loop index          | `number` | Local  | ❌ Parser-only          |
-| `N`      | Total loop count            | `number` | Local  | ❌ Parser-only          |
-| `i`      | Current loop progress (0-1) | `number` | Local  | ❌ Parser-only          |
-| `C`      | Current curve index         | `number` | Local  | ❌ Parser-only          |
-| `L`      | Current letter              | `number` | Local  | ❌ Parser-only          |
-| `P`      | Current point               | `number` | Local  | ❌ Parser-only          |
+| Constant | Description                 | Type     | Scope     | Passed to Rust          |
+| -------- | --------------------------- | -------- | --------- | ----------------------- |
+| `T`      | Current time in seconds     | `number` | Computed  | ❌ Computed on-demand   |
+| `S`      | Scrub position              | `number` | Local     | ✅ Yes (scene metadata) |
+| `H`      | Height-to-width ratio       | `number` | Parameter | ✅ Yes (dimensions)     |
+| `scene`  | Current scene index         | `number` | Parameter | ✅ Yes (currentScene)   |
+| `I`      | Current loop index          | `number` | Local     | ❌ Parser-only          |
+| `N`      | Total loop count            | `number` | Local     | ❌ Parser-only          |
+| `i`      | Current loop progress (0-1) | `number` | Local     | ❌ Parser-only          |
+| `C`      | Current curve index         | `number` | Local     | ❌ Parser-only          |
+| `L`      | Current letter              | `number` | Local     | ❌ Parser-only          |
+| `P`      | Current point               | `number` | Local     | ❌ Parser-only          |
 
 **Scope Legend:**
 
-- **Global**: Application-level state, synced between TypeScript and Rust
+- **Computed**: Calculated on-demand using current system time
+- **Parameter**: Passed as function parameter when needed
 - **Local**: Ephemeral parsing state, exists only during expression evaluation
 
 ## Web Worker Architecture
@@ -273,10 +232,12 @@ src/
 │
 src-tauri/
 ├── src/
-│   ├── main.rs              # Tauri commands
-│   ├── parser_state.rs      # Shared state definition
-│   └── parser/              # Future: Rust parser implementation
-│       └── mod.rs
+│   ├── main.rs              # Tauri commands (parser_eval_expression only)
+│   ├── parser_state.rs      # Re-exports SceneMetadata
+│   └── parser/              # Expression parser for OSC
+│       ├── mod.rs           # Future: Full Rust parser
+│       └── methods/
+│           └── expressions.rs  # Stateless expression evaluator
 ```
 
 ## Development Guidelines
@@ -300,12 +261,11 @@ src-tauri/
    }
    ```
 
-3. **Sync to Rust** (if needed):
+3. **For OSC Expressions** (if needed in Rust):
 
-   - Add field to `ParserState` struct
-   - Create or extend Tauri command
-   - Call command when value changes
-   - Update helper in `parserState.ts`
+   - Add constant to `ExpressionParser` in `expressions.rs`
+   - Pass context via function parameters (no global state)
+   - Update `parser_eval_expression` signature if needed
 
 4. **Document in Editor.tsx**:
    ```typescript
@@ -318,12 +278,29 @@ src-tauri/
    ]
    ```
 
-### Testing State Sync
+### Using the Expression Parser
 
-1. Check parser state in worker: `console.log(parser.progress)`
-2. Check Rust state: Add debug logging to Tauri commands
-3. Verify timing: Ensure updates don't occur more frequently than needed
-4. Test threading: Ensure no race conditions with concurrent updates
+The Rust expression parser receives all context directly:
+
+```typescript
+await invoke<number>('parser_eval_expression', {
+  expr: 'speed * 2',
+  oscAddress: '/synth/freq',
+  oscHost: '127.0.0.1',
+  oscPort: 57120,
+  width: 1920,
+  height: 1080,
+  currentScene: 0,
+  sceneMetadata: [
+    {
+      start: 0,
+      length: 10,
+      offset: 0,
+      params: { speed: 2.5, size: 0.75 }
+    }
+  ]
+})
+```
 
 ## Future Considerations
 
@@ -333,39 +310,32 @@ The current setup prepares for a future where:
 
 - Rust handles performance-critical parsing (syntax tree traversal)
 - TypeScript handles dynamic expression evaluation
-- State is bidirectional: Rust → TypeScript for parser output
-
-### State Persistence
-
-The Rust state infrastructure enables:
-
-- Saving/loading parser state across sessions
-- Recording playback positions
-- Undo/redo functionality
-- Project state management
+- Communication is stateless: all context passed per-call
 
 ### Performance Optimization
 
 Current bottlenecks to address:
 
-- 100ms time sync interval (consider requestAnimationFrame alignment)
-- Mutex lock contention if many concurrent updates
-- Serialization overhead in Tauri IPC
+- Serialization overhead in Tauri IPC (passing scene metadata on each call)
+- Consider caching scene metadata in Rust if OSC updates are frequent
+- Expression parser cache for repeated expressions
 
 ## Common Patterns
 
-### Adding a Tauri Command
+### Calling OSC Expression Parser
 
-```rust
-#[tauri::command]
-async fn command_name(
-    param: Type,
-    state: State<'_, AppState>,
-) -> Result<ReturnType, String> {
-    let mut parser_state = state.parser_state.lock().unwrap();
-    // Update state
-    Ok(result)
-}
+```typescript
+import { evalExpression } from '@/renderer/parserState'
+
+const result = await evalExpression('T * speed', {
+  oscAddress: '/osc/address',
+  oscHost: '127.0.0.1',
+  oscPort: 57120,
+  width: canvasWidth,
+  height: canvasHeight,
+  currentScene: activeSceneIndex,
+  sceneMetadata: scenesMetadataArray
+})
 ```
 
 ### Calling from TypeScript
@@ -373,23 +343,22 @@ async fn command_name(
 ```typescript
 import { invoke } from '@tauri-apps/api/core'
 
-await invoke('command_name', { param: value })
-```
-
-### Safe State Updates
-
-```typescript
-// Always check for undefined before syncing
-if (!isUndefined(data.newValue)) {
-  setLocalState(data.newValue)
-  invoke('update_state', { newValue: data.newValue }).catch(console.error) // Handle failures gracefully
-}
+await invoke('parser_eval_expression', {
+  expr: 'expression',
+  oscAddress: '/address',
+  oscHost: 'host',
+  oscPort: port,
+  width,
+  height,
+  currentScene,
+  sceneMetadata
+})
 ```
 
 ## Resources
 
-- Parser constants: `src/lib/parser/Parser.ts` (lines 129-180)
-- State sync implementation: `src/renderer/app/AsemicApp.tsx` (lines 206-253)
-- Rust state definition: `src-tauri/src/parser_state.rs`
-- Tauri commands: `src-tauri/src/main.rs` (lines 220-281)
+- Parser constants: `src/lib/parser/Parser.ts`
+- Expression parser: `src-tauri/src/parser/methods/expressions.rs`
+- OSC integration: `src/renderer/app/AsemicApp.tsx` (OSC loop)
+- Tauri commands: `src-tauri/src/main.rs`
 - Helper API: `src/renderer/parserState.ts`

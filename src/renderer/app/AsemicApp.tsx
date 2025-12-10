@@ -248,7 +248,12 @@ function AsemicAppInner({
                       code: string
                       params?: Record<
                         string,
-                        { value?: number; default?: number }
+                        {
+                          value?: number
+                          min?: number
+                          max?: number
+                          exponent?: number
+                        }
                       >
                       [key: string]: any
                     }>
@@ -260,7 +265,7 @@ function AsemicAppInner({
                         for (const [key, config] of Object.entries(
                           sceneSettings.params
                         )) {
-                          params[key] = config.value ?? config.default ?? 0
+                          params[key] = config.value ?? config.min ?? 0
                         }
                         return { ...metadata, params }
                       }
@@ -274,10 +279,7 @@ function AsemicAppInner({
               }
             )
 
-            // Sync scene metadata to Rust for scene-relative scrub calculations
-            invoke('update_scene_metadata', {
-              scenes: enrichedMetadata
-            }).catch(console.error)
+            // Scene metadata is now passed directly to parser_eval_expression when needed
           }
         })
       }
@@ -349,12 +351,6 @@ function AsemicAppInner({
               }
               const newSource = JSON.stringify(newScenesArray, null, 2)
               setScenesSource(newSource)
-
-              // Sync scene-relative scrub to Rust
-              invoke('update_parser_progress', {
-                scene: activeSceneRef.current,
-                scrub: clampedScrub
-              }).catch(console.error)
             }
           }
 
@@ -362,6 +358,26 @@ function AsemicAppInner({
           if (sceneSettings.osc && sceneSettings.osc.length > 0) {
             const oscHost = sceneSettings.oscHost || '127.0.0.1'
             const oscPort = sceneSettings.oscPort || 57120
+
+            // Get canvas dimensions
+            const boundingRect = canvas.current?.getBoundingClientRect()
+            const width =
+              (boundingRect?.width || 1080) * (devicePixelRatio || 2)
+            const height =
+              (boundingRect?.height || 1080) * (devicePixelRatio || 2)
+
+            // Build scene metadata array
+            const sceneMetadata = scenesArray.map((scene, idx) => ({
+              start: 0, // Will be calculated if needed
+              length: scene.length || 0.1,
+              offset: scene.offset || 0,
+              params: scene.params
+                ? Object.entries(scene.params).reduce((acc, [key, config]) => {
+                    acc[key] = config.value ?? config.min ?? 0
+                    return acc
+                  }, {} as Record<string, number>)
+                : {}
+            }))
 
             // Process OSC messages sequentially to avoid overwhelming the parser
             for (const oscMsg of sceneSettings.osc) {
@@ -371,14 +387,22 @@ function AsemicAppInner({
                     expr: oscMsg.value,
                     oscAddress: oscMsg.name,
                     oscHost: oscHost,
-                    oscPort: oscPort
+                    oscPort: oscPort,
+                    width,
+                    height,
+                    currentScene: activeSceneRef.current,
+                    sceneMetadata
                   })
                 } else if (typeof oscMsg.value === 'number') {
                   await invoke<number>('parser_eval_expression', {
                     expr: oscMsg.value.toString(),
                     oscAddress: oscMsg.name,
                     oscHost: oscHost,
-                    oscPort: oscPort
+                    oscPort: oscPort,
+                    width,
+                    height,
+                    currentScene: activeSceneRef.current,
+                    sceneMetadata
                   })
                 }
               } catch (error) {
@@ -546,7 +570,7 @@ function AsemicAppInner({
           for (const [key, param] of Object.entries(sceneSettings.params)) {
             const p = param as any
             if (p.value === undefined) {
-              p.value = p.default ?? 0
+              p.value = p.min ?? 0
             }
           }
         }
@@ -753,12 +777,6 @@ function AsemicAppInner({
       }
       const newSource = JSON.stringify(newScenesArray, null, 2)
       setScenesSource(newSource)
-
-      // Sync to Rust
-      invoke('update_parser_progress', {
-        scene: newActiveScene,
-        scrub: newScrub
-      }).catch(console.error)
     }
 
     // Immediate first increment
@@ -822,9 +840,6 @@ function AsemicAppInner({
 
       const width = (boundingRect.width || 1080) * devicePixelRatio
       const height = (boundingRect.height || 1080) * devicePixelRatio
-
-      // Update Rust state with new dimensions
-      invoke('update_parser_dimensions', { width, height }).catch(console.error)
 
       asemic.current!.postMessage({
         preProcess: {

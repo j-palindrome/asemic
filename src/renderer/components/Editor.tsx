@@ -62,7 +62,6 @@ interface Props {
   errors: string[]
   help: boolean
   setHelp: (help: boolean) => void
-  activeScene: number
 }
 
 export interface AsemicEditorRef {
@@ -70,7 +69,6 @@ export interface AsemicEditorRef {
   setValue: (value: string) => void
   insertAtCursor: (text: string) => void
   toggleFoldAll: () => void
-  getScene: () => number | undefined
   getSyntaxTree: () => SerializedSyntaxNode | null
 }
 
@@ -82,7 +80,7 @@ interface SerializedSyntaxNode {
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
-  ({ help, setHelp, defaultValue, onChange, errors, activeScene }, ref) => {
+  ({ help, setHelp, defaultValue, onChange, errors }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
     const [allFolded, setAllFolded] = React.useState(false)
@@ -95,53 +93,6 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           foldAll(viewRef.current)
         }
         setAllFolded(!allFolded)
-      }
-    }
-
-    const foldInactiveScenes = () => {
-      if (!viewRef.current) return
-
-      const { state } = viewRef.current
-      const doc = state.doc
-      const sceneStarts: { line: number; from: number; to: number }[] = []
-
-      // Find all lines that start scenes (lines starting with #)
-      for (let i = 1; i <= doc.lines; i++) {
-        const line = doc.line(i)
-        if (line.text.trimStart().startsWith('#')) {
-          sceneStarts.push({ line: i, from: line.from, to: line.to })
-        }
-      }
-
-      // Build fold/unfold effects
-      const effects = []
-
-      // First unfold everything to reset
-      for (let i = 0; i < sceneStarts.length; i++) {
-        const scene = sceneStarts[i]
-        const nextScene = sceneStarts[i + 1]
-        const foldEnd = nextScene ? nextScene.from - 1 : doc.length
-
-        if (foldEnd > scene.to) {
-          effects.push(unfoldEffect.of({ from: scene.to, to: foldEnd }))
-        }
-      }
-
-      // Then fold all scenes except the active one
-      for (let i = 0; i < sceneStarts.length; i++) {
-        if (i !== activeScene) {
-          const scene = sceneStarts[i]
-          const nextScene = sceneStarts[i + 1]
-          const foldEnd = nextScene ? nextScene.from - 1 : doc.length
-
-          if (foldEnd > scene.to) {
-            effects.push(foldEffect.of({ from: scene.to, to: foldEnd }))
-          }
-        }
-      }
-
-      if (effects.length > 0) {
-        viewRef.current.dispatch({ effects })
       }
     }
 
@@ -201,31 +152,11 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
             })
           }
         },
-        getScene: () => {
-          if (viewRef.current) {
-            const { state } = viewRef.current
-            const cursorPos = state.selection.main.head
-            const cursorLine = state.doc.lineAt(cursorPos)
-            let scene = 0
-            for (let i = 1; i <= cursorLine.number; i++) {
-              const line = state.doc.line(i)
-              if (line.text.trimStart().startsWith('#')) {
-                scene++
-              }
-            }
-            return scene - 1
-          }
-        },
         toggleFoldAll,
         getSyntaxTree
       }),
       [allFolded]
     )
-
-    // Fold inactive scenes whenever activeScene changes
-    useEffect(() => {
-      foldInactiveScenes()
-    }, [activeScene])
 
     const foldingOnIndent = foldService.of((state, from, to) => {
       const line = state.doc.lineAt(from) // First line
@@ -241,7 +172,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
       let nextLine = line
       while (nextLine.number < lines) {
         nextLine = state.doc.line(nextLine.number + 1) // Next line
-        const nextIndent = nextLine.text.search(/#/) // Indent level of the next line
+        const nextIndent = nextLine.text.search(/#/)
 
         // If the next line is on a deeper indent level, add it to the fold
         if (nextIndent !== 0) {
@@ -672,7 +603,7 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
     }, [])
 
     return (
-      <div className='flex h-0 grow w-full relative'>
+      <div className='h-[300px] w-full relative'>
         <div
           className={`editor text-white ${
             errors.length > 0 ? 'w-2/3' : 'w-full'

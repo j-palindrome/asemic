@@ -18,12 +18,15 @@ import {
   Power,
   RefreshCw,
   Save,
+  Settings2,
   Upload
 } from 'lucide-react'
 import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
-import SceneSettingsPanel from '../components/SceneParamsEditor'
+import SceneSettingsPanel, {
+  SceneSettings
+} from '../components/SceneParamsEditor'
 import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
@@ -39,6 +42,21 @@ function AsemicAppInner({
   getRequire: (file: string) => Promise<string>
 }) {
   const [scenesSource, setScenesSource] = useState(source)
+
+  // Parse scenes as JSON array
+  const scenesArray = useMemo(() => {
+    try {
+      const trimmedSource = scenesSource.trim()
+      if (trimmedSource.startsWith('[')) {
+        return JSON.parse(trimmedSource) as SceneSettings[]
+      }
+      // Fallback: treat as single scene with code property
+      return [{ code: trimmedSource }] as SceneSettings[]
+    } catch (e) {
+      // On parse error, return single empty scene
+      return [{}] as SceneSettings[]
+    }
+  }, [scenesSource])
   useEffect(() => {
     if (scenesSource !== source) {
       save(scenesSource, { reload: false })
@@ -248,34 +266,37 @@ function AsemicAppInner({
             // Enrich scene metadata with param values from scene settings
             const enrichedMetadata = data.sceneMetadata.map(
               (metadata, index) => {
-                const lines = scenesSourceRef.current.split('\n#')
-                if (index < lines.length) {
-                  const sceneText = lines[index]
-                  const firstLine = sceneText?.split('\n')[0]
-                  const jsonMatch = firstLine?.match(/\{.+\}/)
-                  if (jsonMatch) {
-                    try {
-                      const sceneSettings = JSON.parse(jsonMatch[0])
+                const trimmedSource = scenesSourceRef.current.trim()
+
+                // Handle JSON array format
+                if (trimmedSource.startsWith('[')) {
+                  try {
+                    const sceneObjects = JSON.parse(trimmedSource) as Array<{
+                      code: string
+                      params?: Record<
+                        string,
+                        { value?: number; default?: number }
+                      >
+                      [key: string]: any
+                    }>
+
+                    if (index < sceneObjects.length) {
+                      const sceneSettings = sceneObjects[index]
                       if (sceneSettings.params) {
-                        // Extract param values from scene settings
                         const params: Record<string, number> = {}
                         for (const [key, config] of Object.entries(
                           sceneSettings.params
                         )) {
-                          const paramConfig = config as {
-                            value?: number
-                            default?: number
-                          }
-                          params[key] =
-                            paramConfig.value ?? paramConfig.default ?? 0
+                          params[key] = config.value ?? config.default ?? 0
                         }
                         return { ...metadata, params }
                       }
-                    } catch (e) {
-                      // Failed to parse scene settings
                     }
+                  } catch (e) {
+                    // Failed to parse JSON array
                   }
                 }
+
                 return metadata
               }
             )
@@ -306,34 +327,12 @@ function AsemicAppInner({
       const animate = async () => {
         try {
           // Get current scene settings
-          const lines = scenesSourceRef.current.split('\n#')
-          const sceneSettings: {
-            length: number
-            offset: number
-            pause: number | false
-            params?: Record<
-              string,
-              {
-                default: number
-                max: number
-                min: number
-                exponent: number
-              }
-            >
-            osc?: Array<{ name: string; value: number | string }>
-            oscHost?: string
-            oscPort?: number
-          } = { length: 0.1, offset: 0, pause: 0 }
-
-          if (activeSceneRef.current < lines.length) {
-            const sceneText = lines[activeSceneRef.current]
-            const firstLine = sceneText?.split('\n')[0]
-            const jsonMatch = firstLine?.match(/\{.+\}/)
-            if (jsonMatch) {
-              try {
-                Object.assign(sceneSettings, JSON.parse(jsonMatch[0]))
-              } catch (e) {}
-            }
+          const sceneSettings: SceneSettings = scenesArray[
+            activeSceneRef.current
+          ] || {
+            length: 0.1,
+            offset: 0,
+            pause: 0
           }
 
           // Evaluate OSC expressions if present
@@ -393,7 +392,7 @@ function AsemicAppInner({
           animationFrameRef.current = null
         }
       }
-    }, [useRustParser, isSetup, scenesSource])
+    }, [useRustParser, isSetup, scenesArray])
 
     // Separate effect for JS parser setup
     useEffect(() => {
@@ -412,20 +411,12 @@ function AsemicAppInner({
         }
 
         // Extract params from active scene and send to parser
-        const lines = scenesSource.split('\n#')
-        if (activeScene < lines.length) {
-          const sceneText = lines[activeScene]
-          const firstLine = sceneText?.split('\n')[0]
-          const jsonMatch = firstLine?.match(/\{.+\}/)
-          if (jsonMatch) {
-            try {
-              const settings = JSON.parse(jsonMatch[0])
-              if (settings.params) {
-                asemic.current?.postMessage({
-                  params: settings.params
-                })
-              }
-            } catch (e) {}
+        if (activeScene < scenesArray.length) {
+          const sceneSettings = scenesArray[activeScene]
+          if (sceneSettings.params) {
+            asemic.current?.postMessage({
+              params: sceneSettings.params
+            })
           }
         }
 
@@ -435,7 +426,7 @@ function AsemicAppInner({
         })
       }
       restart()
-    }, [scenesSource, isSetup, activeScene])
+    }, [scenesSource, isSetup, activeScene, scenesArray])
   }
   setup()
 
@@ -572,57 +563,54 @@ function AsemicAppInner({
   const [live, isLive, setIsLive] = useKeys()
 
   // Scene settings state
-  const [showSceneSettings, setShowSceneSettings] = useState(false)
-  const [activeSceneSettings, setActiveSceneSettings] = useState<{
-    length?: number
-    offset?: number
-    pause?: number | false
-    params?: Record<
-      string,
-      {
-        default: number
-        max: number
-        min: number
-        exponent: number
-        value: number
+  const [showSceneSettings, setShowSceneSettings] = useState(true) // Changed to true by default
+  const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
+    {}
+  )
+
+  // Extract current scene code
+  const currentSceneCode = useMemo(() => {
+    if (activeScene < scenesArray.length) {
+      return scenesArray[activeScene].code || ''
+    }
+    return ''
+  }, [scenesArray, activeScene])
+
+  // Update current scene code when editor changes
+  const updateCurrentSceneCode = (newCode: string) => {
+    const newScenesArray = [...scenesArray]
+    if (activeScene < newScenesArray.length) {
+      newScenesArray[activeScene] = {
+        ...newScenesArray[activeScene],
+        code: newCode
       }
-    >
-    osc?: Array<{ name: string; value: number | string }>
-    audioTrack?: string
-  }>({})
+      const newSource = JSON.stringify(newScenesArray, null, 2)
+      setScenesSource(newSource)
+    }
+  }
 
   // Extract settings from active scene
   useEffect(() => {
     try {
-      const lines = scenesSource.split('\n#')
-      if (activeScene < lines.length) {
-        const sceneText = lines[activeScene]
-        const firstLine = sceneText?.split('\n')[0]
-        const jsonMatch = firstLine?.match(/\{.+\}/)
-        if (jsonMatch) {
-          try {
-            const settings = JSON.parse(jsonMatch[0])
-            // Normalize params to ensure they have value field
-            if (settings.params) {
-              for (const [key, param] of Object.entries(settings.params)) {
-                const p = param as any
-                if (p.value === undefined) {
-                  p.value = p.default ?? 0
-                }
-              }
+      if (activeScene < scenesArray.length) {
+        const sceneSettings = scenesArray[activeScene]
+        // Normalize params to ensure they have value field
+        if (sceneSettings.params) {
+          for (const [key, param] of Object.entries(sceneSettings.params)) {
+            const p = param as any
+            if (p.value === undefined) {
+              p.value = p.default ?? 0
             }
-            setActiveSceneSettings(settings)
-          } catch (e) {
-            setActiveSceneSettings({})
           }
-        } else {
-          setActiveSceneSettings({})
         }
+        setActiveSceneSettings(sceneSettings)
+      } else {
+        setActiveSceneSettings({})
       }
     } catch (e) {
       setActiveSceneSettings({})
     }
-  }, [scenesSource, activeScene])
+  }, [scenesArray, activeScene])
 
   // Play/stop audio based on active scene
   useEffect(() => {
@@ -638,108 +626,22 @@ function AsemicAppInner({
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
     try {
-      const lines = scenesSource.split('\n#')
-      if (activeScene < lines.length) {
-        const sceneLines = lines[activeScene].split('\n')
-        const firstLine = sceneLines[0]
-        const jsonMatch = firstLine?.match(/\{.+\}/)
-
-        // Create new settings JSON
-        const settingsJson = JSON.stringify(newSettings)
-
-        if (jsonMatch) {
-          // Replace existing settings
-          sceneLines[0] = firstLine.replace(/\{.+\}/, settingsJson)
-        } else {
-          // Add settings to first line
-          sceneLines[0] = settingsJson + (firstLine ? '\n' + firstLine : '')
+      const newScenesArray = [...scenesArray]
+      if (activeScene < newScenesArray.length) {
+        newScenesArray[activeScene] = {
+          ...newScenesArray[activeScene],
+          ...newSettings
         }
-
-        lines[activeScene] = sceneLines.join('\n')
-        const newSource = lines.join('\n#')
+        const newSource = JSON.stringify(newScenesArray, null, 2)
         setScenesSource(newSource)
-        editorRef.current?.setValue(newSource)
+        editorRef.current?.setValue(newScenesArray[activeScene].code || '')
       }
     } catch (e) {
       // Failed to update scene settings
     }
   }
 
-  const currentFilePathRef = useRef<string | null>(null)
-
-  const saveToFile = async () => {
-    const content = editable.current?.value || scenesSource
-
-    try {
-      let filePath = currentFilePathRef.current
-
-      if (!filePath) {
-        // First save - show save dialog
-        const timestamp = new Date()
-          .toISOString()
-          .slice(0, 10)
-          .replace(/:/g, '')
-        const suggestedName =
-          localStorage.getItem('filename') || `${timestamp}.asemic`
-
-        filePath = await saveDialog({
-          defaultPath: suggestedName,
-          filters: [
-            {
-              name: 'Asemic files',
-              extensions: ['asemic']
-            }
-          ]
-        })
-
-        if (!filePath) {
-          // User cancelled
-          return
-        }
-
-        currentFilePathRef.current = filePath
-        const fileName = filePath.split(/[/\\]/).pop() || suggestedName
-        localStorage.setItem('filename', fileName)
-      }
-
-      // Write to file
-      await writeTextFile(filePath, content)
-    } catch (error) {
-      // Failed to save file
-    }
-  }
-
-  const openFile = async () => {
-    try {
-      const filePath = await open({
-        multiple: false,
-        directory: false,
-        pickerMode: 'document'
-        // filters: [
-        //   {
-        //     name: 'Asemic files',
-        //     extensions: ['.asemic', '.txt']
-        //   }
-        // ]
-      })
-
-      if (!filePath) {
-        // User cancelled
-        return
-      }
-
-      const content = await readTextFile(filePath as string)
-      setScenesSource(content)
-      editorRef.current?.setValue(content)
-      currentFilePathRef.current = filePath as string
-      const fileName =
-        (filePath as string).split(/[/\\]/).pop() || 'untitled.asemic'
-      localStorage.setItem('filename', fileName)
-    } catch (error) {
-      console.error('Failed to open file:', error)
-    }
-  }
-
+  // Audio track loading and playback
   const [audioFiles, setAudioFiles] = useState<Map<string, HTMLAudioElement>>(
     new Map()
   )
@@ -1067,26 +969,6 @@ function AsemicAppInner({
                 <button onClick={() => editorRef.current?.toggleFoldAll()}>
                   <FoldVertical {...lucideProps} />
                 </button>
-
-                <button
-                  onClick={() => {
-                    const scene = editorRef.current?.getScene()
-                    if (scene !== undefined) {
-                      if (asemic.current) {
-                        asemic.current.postMessage({
-                          scrub: scenes[scene]
-                        } as Partial<AsemicData>)
-                        invoke('update_parser_progress', {
-                          scene: scene,
-                          scrub: scenes[scene]
-                        }).catch(console.error)
-                      }
-                    }
-                    setScenesSource(editorRef.current?.getValue() ?? '')
-                  }}
-                  title={'Set Value'}>
-                  {<RefreshCw {...lucideProps} />}
-                </button>
                 <div className='grow' />
                 <button
                   onClick={() => setShowCanvas(!showCanvas)}
@@ -1102,35 +984,8 @@ function AsemicAppInner({
                 </button>
 
                 <button
-                  onClick={() => setShowSceneSettings(!showSceneSettings)}
-                  className={`${showSceneSettings ? '!bg-blue-200/40' : ''}`}
-                  title='Scene Settings'>
-                  <Save {...lucideProps} />
-                </button>
-
-                {/* <button
-                className={`${audio ? '!bg-blue-200/40' : ''}`}
-                onClick={() => {
-                  setAudio(!audio)
-                }}>
-                {<Speaker {...lucideProps} />}
-              </button> */}
-
-                <button onClick={saveToFile} title='Save to .js file'>
-                  <Download {...lucideProps} />
-                </button>
-
-                <button
-                  onClick={() => {
-                    currentFilePathRef.current = null
-                    saveToFile()
-                  }}
-                  title='New File'>
-                  <Plus {...lucideProps} />
-                </button>
-
-                <button onClick={openFile} title='Open Asemic file'>
-                  <Upload {...lucideProps} />
+                  onClick={() => setShowSceneSettings(!showSceneSettings)}>
+                  <Settings2 {...lucideProps} />
                 </button>
 
                 <button onClick={loadAudioFolder} title='Load Audio Folder'>
@@ -1169,19 +1024,8 @@ function AsemicAppInner({
                   {useRustParser ? '🦀' : 'JS'}
                 </button>
               </div>
-              <AsemicEditor
-                ref={editorRef}
-                defaultValue={scenesSource}
-                onChange={value => {
-                  setScenesSource(value!)
-                }}
-                errors={errors}
-                help={help}
-                setHelp={setHelp}
-                activeScene={activeScene}
-              />
 
-              {/* Scene Settings Panel */}
+              {/* Scene Settings Panel - Now contains the editor */}
               {showSceneSettings && (
                 <SceneSettingsPanel
                   activeScene={activeScene}

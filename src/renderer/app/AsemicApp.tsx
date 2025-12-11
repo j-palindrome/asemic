@@ -538,6 +538,7 @@ function AsemicAppInner({
     } catch (e) {
       setActiveSceneSettings({})
     }
+    asemic.current?.postMessage({ reset: true })
   }, [scenesArray, activeScene])
 
   // Play/stop audio based on active scene

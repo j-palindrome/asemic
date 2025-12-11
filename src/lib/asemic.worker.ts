@@ -23,6 +23,9 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   // if (!renderer?.device || !offscreenCanvas) return
   if (!offscreenCanvas) return
 
+  if (!isUndefined(ev.data.reset) && ev.data.reset) {
+    parser.setup()
+  }
   if (!isUndefined(ev.data.preProcess) && renderer) {
     Object.assign(parser.preProcessing, ev.data.preProcess)
     if (parser.preProcessing.width)

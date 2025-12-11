@@ -245,7 +245,6 @@ export class Parser {
               defaultY: i === 0 ? Math.random() : 1
             })
           })
-          // if (this.progress.scene === 5) debugger
           const freq = fmCurve[0][0] * Math.PI * 2
           const phase = fmCurve[0][1] * Math.PI * 2
           let freqPhases = fmCurve.map(() => Math.random() * Math.PI * 2)
@@ -496,6 +495,7 @@ export class Parser {
 
     this.output.resetPresets = true
     this.noiseTable = {}
+    console.log('reset parser')
 
     return this
   }

@@ -14,63 +14,7 @@ export default class Asemic {
   messageQueue: Partial<AsemicData>[] = []
 
   postMessage(data: Partial<AsemicData>) {
-    if (!isUndefined(data.offscreenCanvas)) {
-      this.worker.postMessage(
-        {
-          offscreenCanvas: data.offscreenCanvas
-        },
-        [data.offscreenCanvas]
-      )
-    }
-
-    if (!isUndefined(data.preProcess)) {
-      this.worker.postMessage({
-        preProcess: data.preProcess
-      })
-    }
-
-    if (!isUndefined(data.live)) {
-      this.worker.postMessage({
-        live: data.live
-      })
-    }
-
-    if (!isUndefined(data.play)) {
-      this.worker.postMessage({
-        play: data.play
-      })
-    }
-
-    if (!isUndefined(data.startRecording)) {
-      this.worker.postMessage({
-        startRecording: data.startRecording
-      })
-    }
-
-    if (!isUndefined(data.stopRecording)) {
-      this.worker.postMessage({
-        stopRecording: data.stopRecording
-      })
-    }
-
-    if (!isUndefined(data.files)) {
-      this.worker.postMessage({
-        files: data.files
-      })
-    }
-
-    if (!isUndefined(data.loadFiles)) {
-      this.worker.postMessage({
-        loadFiles: data.loadFiles
-      })
-    }
-
-    if (!isUndefined(data.scene)) {
-      this.worker.postMessage({
-        scene: data.scene,
-        sceneIndex: data.sceneIndex
-      })
-    }
+    this.worker.postMessage(data)
   }
 
   dispose() {

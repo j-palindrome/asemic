@@ -493,14 +493,6 @@ function AsemicAppInner({
     index: number
   } | null>(null)
 
-  // Extract current scene code
-  const currentSceneCode = useMemo(() => {
-    if (activeScene < scenesArray.length) {
-      return scenesArray[activeScene].code || ''
-    }
-    return ''
-  }, [scenesArray, activeScene])
-
   // Extract settings from active scene
   useEffect(() => {
     try {

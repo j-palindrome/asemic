@@ -227,7 +227,7 @@ impl ExpressionParser {
         match func_name {
             // Progress constants
             // Remove "S" constant - no global scrub
-            "s" => {
+            "S" => {
                 // Scene-relative scrub from scene metadata
                 if self.current_scene >= self.scene_metadata.len() {
                     return Ok(0.0);

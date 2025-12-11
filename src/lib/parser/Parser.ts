@@ -31,12 +31,12 @@ export interface Scene {
   length?: number
   offset?: number
   pause?: number | false
-  scrub?: number // Current scrub position within this scene (0 to length)
-  time?: number // Deprecated: Global time is now tracked separately in AsemicApp
   params?: Record<
     string,
     { value: number; min: number; max: number; exponent: number }
   >
+  // Runtime-only properties (not persisted):
+  // scrub?: number - Current playback position within scene (calculated from global progress)
   [key: string]: any
 }
 

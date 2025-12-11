@@ -67,7 +67,8 @@ export default class Asemic {
 
     if (!isUndefined(data.scene)) {
       this.worker.postMessage({
-        scene: data.scene
+        scene: data.scene,
+        sceneIndex: data.sceneIndex
       })
     }
   }

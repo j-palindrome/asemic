@@ -65,6 +65,7 @@ struct RustParser {
     tree: SyntaxNode,
     total_length: f64,
     scene_count: usize,
+    #[allow(dead_code)]
     errors: Vec<String>,
 }
 
@@ -222,6 +223,107 @@ async fn parser_eval_expression(
     Ok(result)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonFileData {
+    pub content: String,
+    pub file_name: String,
+}
+
+#[tauri::command]
+async fn load_json_file(file_path: String) -> Result<JsonFileData, String> {
+    use std::fs;
+    use std::path::Path;
+
+    let path = Path::new(&file_path);
+    
+    // Verify the file exists and is a JSON file
+    if !path.exists() {
+        return Err(format!("File not found: {}", file_path));
+    }
+
+    if let Some(ext) = path.extension() {
+        if ext.to_string_lossy() != "json" {
+            return Err(format!("File must be a JSON file, got: {:?}", ext));
+        }
+    } else {
+        return Err("File has no extension".to_string());
+    }
+
+    // Read the file content
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+
+    // Validate JSON
+    serde_json::from_str::<serde_json::Value>(&content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    // Get file name
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown.json")
+        .to_string();
+
+    Ok(JsonFileData { content, file_name })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParsedJsonResult {
+    pub success: bool,
+    pub data: Option<serde_json::Value>,
+    pub error: Option<String>,
+    pub file_name: String,
+    pub preview: Option<String>,
+}
+
+#[tauri::command]
+fn parse_json_file(json_content: String, file_name: String) -> ParsedJsonResult {
+    match serde_json::from_str::<serde_json::Value>(&json_content) {
+        Ok(data) => {
+            let preview = match &data {
+                serde_json::Value::Array(arr) => {
+                    Some(format!("Array with {} elements", arr.len()))
+                }
+                serde_json::Value::Object(obj) => {
+                    let keys: Vec<_> = obj.keys().take(5).cloned().collect();
+                    Some(format!("Object with keys: {}", keys.join(", ")))
+                }
+                _ => Some(format!("Value: {:?}", data)),
+            };
+
+            ParsedJsonResult {
+                success: true,
+                data: Some(data),
+                error: None,
+                file_name,
+                preview,
+            }
+        }
+        Err(e) => ParsedJsonResult {
+            success: false,
+            data: None,
+            error: Some(format!("JSON parsing error: {}", e)),
+            file_name,
+            preview: None,
+        },
+    }
+}
+
+#[tauri::command]
+async fn save_json_file(file_path: String, json_content: String) -> Result<String, String> {
+    use std::fs;
+
+    // Validate JSON before saving
+    serde_json::from_str::<serde_json::Value>(&json_content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    // Write to file
+    fs::write(&file_path, json_content)
+        .map_err(|e| format!("Failed to save file: {}", e))?;
+
+    Ok(format!("File saved: {}", file_path))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -230,6 +332,9 @@ fn main() {
             parser_setup,
             parser_draw,
             parser_eval_expression,
+            load_json_file,
+            parse_json_file,
+            save_json_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

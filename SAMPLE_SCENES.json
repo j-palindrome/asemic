@@ -1,0 +1,21 @@
+[
+  {
+    "code": "loop(8) { circle(i/8, 0.5, 0.02 + sin(T) * 0.01) }",
+    "length": 5,
+    "offset": 0,
+    "params": {
+      "speed": 1.0,
+      "size": 1.0
+    }
+  },
+  {
+    "code": "spiral()",
+    "length": 3,
+    "offset": 0.2
+  },
+  {
+    "code": "square(0.3, 0.3, 0.3)",
+    "length": 4,
+    "offset": 0.1
+  }
+]

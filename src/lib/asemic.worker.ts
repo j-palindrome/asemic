@@ -33,9 +33,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.live)) {
     Object.assign(parser.live, ev.data.live)
   }
-  if (!isUndefined(ev.data.play)) {
-    parser.scenes.play(ev.data.play)
-  }
   if (!isUndefined(ev.data.loadFiles)) {
     parser.data.loadFiles(ev.data.loadFiles)
   }

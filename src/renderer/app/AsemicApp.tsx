@@ -25,6 +25,8 @@ import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 import SceneSettingsPanel, {
   SceneSettings
 } from '../components/SceneParamsEditor'
+import { JsonFileLoader } from '../components/JsonFileLoader'
+import { ParsedJsonResult } from '../hooks/useJsonFileLoader'
 import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
@@ -97,6 +99,40 @@ function AsemicAppInner({
   }
   const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
+
+  // Handle JSON file loaded
+  const handleJsonFileLoaded = (result: ParsedJsonResult) => {
+    if (result.success && result.data) {
+      try {
+        // Convert loaded JSON to scenes format
+        let scenesData: SceneSettings[] = []
+
+        if (Array.isArray(result.data)) {
+          // If the JSON is already an array of scenes
+          scenesData = result.data as SceneSettings[]
+        } else if (
+          typeof result.data === 'object' &&
+          'scenes' in result.data &&
+          Array.isArray((result.data as any).scenes)
+        ) {
+          // If it's an object with a 'scenes' property
+          scenesData = (result.data as any).scenes as SceneSettings[]
+        } else if (typeof result.data === 'object') {
+          // If it's a single scene object
+          scenesData = [result.data as SceneSettings]
+        }
+
+        // Convert scenes to JSON string and update
+        if (scenesData.length > 0) {
+          const jsonString = JSON.stringify(scenesData, null, 2)
+          setScenesSource(jsonString)
+          save(jsonString, { reload: false })
+        }
+      } catch (error) {
+        console.error('Failed to process JSON file:', error)
+      }
+    }
+  }
 
   const useProgress = () => {
     const [progress, setProgress] = useState(0)
@@ -243,174 +279,162 @@ function AsemicAppInner({
   const animationFrameRef = useRef<number | null>(null)
   const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
 
-  const setup = () => {
-    // const client = useMemo(() => new Client('localhost', 57120), [])
-    const [isSetup, setIsSetup] = useState(false)
+  // const client = useMemo(() => new Client('localhost', 57120), [])
+  const [isSetup, setIsSetup] = useState(false)
 
-    useEffect(() => {
-      if (!asemic.current) {
-        asemic.current = new Asemic(data => {
-          if (!isUndefined(data.pauseAt)) {
-            if (pauseAtRef.current !== data.pauseAt) {
-              setPauseAt(data.pauseAt)
-            }
+  useEffect(() => {
+    if (!asemic.current) {
+      asemic.current = new Asemic(data => {
+        if (!isUndefined(data.pauseAt)) {
+          if (pauseAtRef.current !== data.pauseAt) {
+            setPauseAt(data.pauseAt)
           }
-          if (!isUndefined(data.eval)) {
-            for (let evalString of data.eval) {
-              const evalFunction = eval(`({_, sc}) => {
+        }
+        if (!isUndefined(data.eval)) {
+          for (let evalString of data.eval) {
+            const evalFunction = eval(`({_, sc}) => {
                 ${evalString}
               }`)
-              evalFunction({ _ })
-            }
+            evalFunction({ _ })
           }
-          if (!isUndefined(data.errors)) {
-            setErrors(data.errors)
-          }
-          if (!isUndefined(data.progress)) {
-            setProgress(data.progress)
-            // Remove Rust state sync
-          }
-          if (!isUndefined(data.scenes)) {
-            setScenes(data.scenes)
-          }
-        })
-      }
-    }, [asemic])
+        }
+        if (!isUndefined(data.errors)) {
+          setErrors(data.errors)
+        }
+        if (!isUndefined(data.progress)) {
+          setProgress(data.progress)
+          // Remove Rust state sync
+        }
+        if (!isUndefined(data.scenes)) {
+          setScenes(data.scenes)
+        }
+      })
+    }
+  }, [asemic])
 
-    useEffect(() => {
-      setIsSetup(true)
-    }, [])
+  useEffect(() => {
+    setIsSetup(true)
+  }, [])
 
-    // Animation loop - updates parser and OSC
-    const lastFrameTimeRef = useRef<number>(performance.now())
+  // Animation loop - updates parser and OSC
+  const lastFrameTimeRef = useRef<number>(performance.now())
 
-    useEffect(() => {
-      const animate = async () => {
-        try {
-          const now = performance.now()
-          const deltaTime = (now - lastFrameTimeRef.current) / 1000
-          lastFrameTimeRef.current = now
+  useEffect(() => {
+    const animate = () => {
+      try {
+        const now = performance.now()
+        const deltaTime = (now - lastFrameTimeRef.current) / 1000
+        lastFrameTimeRef.current = now
 
-          // Global time always increments
-          if (!pauseAtRef.current) {
-            globalTimeRef.current += deltaTime
-          }
-
-          // Update parser with current scene
-          const preProcess = {
-            replacements: {}
-          } as Parser['preProcessing']
-          const links = scenesSourceRef.current.match(/\[\[.*?\]\]/)
-          if (links) {
-            for (let link of links) {
-              const fileName = link.substring(2, link.length - 2)
-              preProcess.replacements[link] = (
-                await getRequire(fileName)
-              ).trim()
-            }
-          }
-
-          if (activeSceneRef.current < scenesArray.length) {
-            const currentSceneSettings = scenesArray[activeSceneRef.current]
-            const currentScene: Scene = {
-              code: currentSceneSettings.code || '',
-              length: currentSceneSettings.length,
-              offset: currentSceneSettings.offset,
-              pause: currentSceneSettings.pause,
-              params: currentSceneSettings.params,
-              scrub:
-                (scrubValuesRef.current[activeSceneRef.current] || 0) /
-                (currentSceneSettings.length || 0.1)
-            }
-
-            asemic.current?.postMessage({
-              scene: currentScene,
-              sceneIndex: activeSceneRef.current,
-              preProcess
-            })
-          }
-
-          // Evaluate OSC expressions if present
-          const sceneSettings = scenesArray[activeSceneRef.current]
-          if (sceneSettings?.osc && sceneSettings.osc.length > 0) {
-            const oscHost = sceneSettings.oscHost || '127.0.0.1'
-            const oscPort = sceneSettings.oscPort || 57120
-
-            // Get canvas dimensions
-            const boundingRect = canvas.current?.getBoundingClientRect()
-            const width =
-              (boundingRect?.width || 1080) * (devicePixelRatio || 2)
-            const height =
-              (boundingRect?.height || 1080) * (devicePixelRatio || 2)
-
-            // Build scene metadata array
-            const sceneMetadata = scenesArray.map((scene, idx) => ({
-              start: 0,
-              length: scene.length || 0.1,
-              offset: scene.offset || 0,
-              params: scene.params
-                ? Object.entries(scene.params).reduce((acc, [key, config]) => {
-                    acc[key] = config.value ?? config.min ?? 0
-                    return acc
-                  }, {} as Record<string, number>)
-                : {}
-            }))
-
-            // Process OSC messages sequentially to avoid overwhelming the parser
-            for (const oscMsg of sceneSettings.osc) {
-              try {
-                if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
-                  await invoke<number>('parser_eval_expression', {
-                    expr: oscMsg.value,
-                    oscAddress: oscMsg.name,
-                    oscHost: oscHost,
-                    oscPort: oscPort,
-                    width,
-                    height,
-                    currentScene: activeSceneRef.current,
-                    sceneMetadata
-                  })
-                } else if (typeof oscMsg.value === 'number') {
-                  await invoke<number>('parser_eval_expression', {
-                    expr: oscMsg.value.toString(),
-                    oscAddress: oscMsg.name,
-                    oscHost: oscHost,
-                    oscPort: oscPort,
-                    width,
-                    height,
-                    currentScene: activeSceneRef.current,
-                    sceneMetadata
-                  })
-                }
-              } catch (error) {
-                // Silent fail to prevent console spam
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Animation loop error:', error)
+        // Global time always increments
+        if (!pauseAtRef.current) {
+          globalTimeRef.current += deltaTime
         }
 
-        animationFrameRef.current = requestAnimationFrame(animate)
+        // Update parser with current scene
+        const preProcess = {
+          replacements: {}
+        } as Parser['preProcessing']
+
+        if (activeSceneRef.current < scenesArray.length) {
+          const currentSceneSettings = scenesArray[activeSceneRef.current]
+          const currentScene: Scene = {
+            code: currentSceneSettings.code || '',
+            length: currentSceneSettings.length,
+            offset: currentSceneSettings.offset,
+            pause: currentSceneSettings.pause,
+            params: currentSceneSettings.params,
+            scrub:
+              (scrubValuesRef.current[activeSceneRef.current] || 0) /
+              (currentSceneSettings.length || 0.1)
+          }
+
+          asemic.current?.postMessage({
+            scene: currentScene,
+            sceneIndex: activeSceneRef.current,
+            preProcess
+          })
+          // console.log('drawing scene', currentScene)
+        }
+
+        // Evaluate OSC expressions if present
+        const sceneSettings = scenesArray[activeSceneRef.current]
+        if (sceneSettings?.osc && sceneSettings.osc.length > 0) {
+          const oscHost = sceneSettings.oscHost || '127.0.0.1'
+          const oscPort = sceneSettings.oscPort || 57120
+
+          // Get canvas dimensions
+          const boundingRect = canvas.current?.getBoundingClientRect()
+          const width = (boundingRect?.width || 1080) * (devicePixelRatio || 2)
+          const height =
+            (boundingRect?.height || 1080) * (devicePixelRatio || 2)
+
+          // Build scene metadata array
+          const sceneMetadata = scenesArray.map((scene, idx) => ({
+            start: 0,
+            length: scene.length || 0.1,
+            offset: scene.offset || 0,
+            params: scene.params
+              ? Object.entries(scene.params).reduce((acc, [key, config]) => {
+                  acc[key] = config.value ?? config.min ?? 0
+                  return acc
+                }, {} as Record<string, number>)
+              : {}
+          }))
+
+          // Process OSC messages sequentially to avoid overwhelming the parser
+          for (const oscMsg of sceneSettings.osc) {
+            try {
+              if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
+                invoke<number>('parser_eval_expression', {
+                  expr: oscMsg.value,
+                  oscAddress: oscMsg.name,
+                  oscHost: oscHost,
+                  oscPort: oscPort,
+                  width,
+                  height,
+                  currentScene: activeSceneRef.current,
+                  sceneMetadata
+                })
+              } else if (typeof oscMsg.value === 'number') {
+                invoke<number>('parser_eval_expression', {
+                  expr: oscMsg.value.toString(),
+                  oscAddress: oscMsg.name,
+                  oscHost: oscHost,
+                  oscPort: oscPort,
+                  width,
+                  height,
+                  currentScene: activeSceneRef.current,
+                  sceneMetadata
+                })
+              }
+            } catch (error) {
+              // Silent fail to prevent console spam
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Animation loop error:', error)
       }
 
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+    if (isSetup) {
+      lastFrameTimeRef.current = performance.now()
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    return () => {
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
       }
-      if (isSetup) {
-        lastFrameTimeRef.current = performance.now()
-        animationFrameRef.current = requestAnimationFrame(animate)
-      }
-
-      return () => {
-        if (animationFrameRef.current !== null) {
-          cancelAnimationFrame(animationFrameRef.current)
-          animationFrameRef.current = null
-        }
-      }
-    }, [isSetup, getRequire, scenesArray])
-  }
-  setup()
+    }
+  }, [isSetup, scenesArray])
 
   const useKeys = () => {
     const [live, setLive] = useState({
@@ -838,6 +862,7 @@ function AsemicAppInner({
                 </span>
               </button>
             )}
+            <JsonFileLoader onFileLoaded={handleJsonFileLoaded} />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>

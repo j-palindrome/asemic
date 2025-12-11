@@ -16,7 +16,6 @@ import { DataMethods } from './methods/Data'
 import { DrawingMethods } from './methods/Drawing'
 import { ExpressionMethods } from './methods/Expressions'
 import { ParsingMethods } from './methods/Parsing'
-import { SceneMethods } from './methods/Scenes'
 import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
@@ -41,7 +40,6 @@ export interface Scene {
 }
 
 export class Parser {
-  rawSource = ''
   mode = 'normal' as 'normal' | 'blank'
   adding = 0
   debugged = new Map<string, { errors: string[] }>()
@@ -377,7 +375,6 @@ export class Parser {
   transformMethods: TransformMethods
   textMethods: TextMethods
   utilities: UtilityMethods
-  scenes: SceneMethods
   parsing: ParsingMethods
   data: DataMethods
 
@@ -395,9 +392,9 @@ export class Parser {
     this.transformMethods = new TransformMethods(this)
     this.textMethods = new TextMethods(this)
     this.utilities = new UtilityMethods(this)
-    this.scenes = new SceneMethods(this)
     this.parsing = new ParsingMethods(this)
     this.data = new DataMethods(this)
+    this.setup()
   }
 
   getDynamicValue(value: number | (() => number)) {
@@ -430,6 +427,9 @@ export class Parser {
     this.currentFont = 'default'
     this.progress.point = 0
     this.progress.curve = 0
+    this.progress.noiseIndex = 0
+    this.progress.letter = 0
+
     for (let i = 0; i < 3; i++) {
       this.progress.indexes[i] = 0
       this.progress.countNums[i] = 0
@@ -446,6 +446,7 @@ export class Parser {
 
     this.progress.scrub = scene.scrub || 0
     this.progress.scrubTime = scene.scrub * (scene.length || 0.1) || 0
+
     // Execute the scene's code
     try {
       this.textMethods.text(scene.code)
@@ -485,13 +486,12 @@ export class Parser {
     return this
   }
 
-  setup(source: string) {
+  setup() {
     this.progress.seeds = range(100).map(x => Math.random())
     this.fonts = {}
     this.textMethods.text(defaultFont)
 
     this.settings = defaultSettings()
-    this.rawSource = source
     for (let font in this.fonts) this.textMethods.resetFont(font)
 
     this.output.resetPresets = true

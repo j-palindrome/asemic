@@ -7,15 +7,11 @@ import {
   ChevronRight,
   Download,
   Ellipsis,
-  Info,
   LucideProps,
   Maximize2,
-  Pause,
-  Play,
   Plus,
   RefreshCw,
   Save,
-  Settings2,
   Undo,
   Upload
 } from 'lucide-react'
@@ -89,15 +85,6 @@ function AsemicAppInner({
   }
   const [errors, setErrors, errorsRef] = useErrors()
 
-  const usePauseAt = () => {
-    const [pauseAt, setPauseAt] = useState<Parser['pauseAt']>(false)
-    const pauseAtRef = useRef(pauseAt)
-    useEffect(() => {
-      pauseAtRef.current = pauseAt
-    }, [pauseAt])
-    return [pauseAt, setPauseAt, pauseAtRef] as const
-  }
-  const [pauseAt, setPauseAt, pauseAtRef] = usePauseAt()
   const asemic = useRef<Asemic>(null)
 
   // Handle JSON file loaded
@@ -285,11 +272,6 @@ function AsemicAppInner({
   useEffect(() => {
     if (!asemic.current) {
       asemic.current = new Asemic(data => {
-        if (!isUndefined(data.pauseAt)) {
-          if (pauseAtRef.current !== data.pauseAt) {
-            setPauseAt(data.pauseAt)
-          }
-        }
         if (!isUndefined(data.eval)) {
           for (let evalString of data.eval) {
             const evalFunction = eval(`({_, sc}) => {
@@ -327,9 +309,7 @@ function AsemicAppInner({
         lastFrameTimeRef.current = now
 
         // Global time always increments
-        if (!pauseAtRef.current) {
-          globalTimeRef.current += deltaTime
-        }
+        globalTimeRef.current += deltaTime
 
         // Update parser with current scene
         const preProcess = {
@@ -464,11 +444,6 @@ function AsemicAppInner({
           if (ev.key === ' ') {
             ev.preventDefault()
             ev.stopPropagation()
-            if (pauseAt) {
-              asemic.current?.postMessage({
-                play: true
-              } as AsemicData)
-            }
             return
           }
           // Remove End key handling that used totalLength
@@ -508,7 +483,6 @@ function AsemicAppInner({
   const [live, isLive, setIsLive] = useKeys()
 
   // Scene settings state
-  const [showSceneSettings, setShowSceneSettings] = useState(true) // Changed to true by default
   const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
     {}
   )
@@ -662,7 +636,6 @@ function AsemicAppInner({
   useEffect(() => {
     setPerform(settings.perform)
   }, [settings.perform])
-  const [help, setHelp] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
 
   const frame = useRef<HTMLDivElement>(null!)
@@ -766,26 +739,6 @@ function AsemicAppInner({
           className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100 pointer-events-none'
           onPointerDownCapture={checkLive}>
           <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
-            <button
-              onClick={() => {
-                if (pauseAtRef.current) {
-                  asemic.current!.postMessage({
-                    play: true
-                  } as AsemicData)
-                } else {
-                  asemic.current!.postMessage({
-                    play: { pauseAt: progress }
-                  } as AsemicData)
-                }
-              }}>
-              {pauseAt ? <Play {...lucideProps} /> : <Pause {...lucideProps} />}
-            </button>
-            <button onClick={() => setHelp(!help)}>
-              {<Info {...lucideProps} />}
-            </button>
-            <button onClick={() => setShowSceneSettings(!showSceneSettings)}>
-              <Settings2 {...lucideProps} />
-            </button>
             <div className='flex items-center gap-1'>
               <button
                 onClick={() => {
@@ -871,21 +824,19 @@ function AsemicAppInner({
           {!perform && (
             <>
               {/* Scene Settings Panel - Now contains the editor */}
-              {showSceneSettings && (
-                <div className='pointer-events-auto'>
-                  <SceneSettingsPanel
-                    activeScene={activeScene}
-                    settings={activeSceneSettings}
-                    onUpdate={newSettings => {
-                      setActiveSceneSettings(newSettings)
-                      updateSceneSettings(newSettings)
-                    }}
-                    onAddScene={addSceneAfterCurrent}
-                    onDeleteScene={deleteCurrentScene}
-                    onClose={() => setShowSceneSettings(false)}
-                  />
-                </div>
-              )}
+
+              <div className='pointer-events-auto'>
+                <SceneSettingsPanel
+                  activeScene={activeScene}
+                  settings={activeSceneSettings}
+                  onUpdate={newSettings => {
+                    setActiveSceneSettings(newSettings)
+                    updateSceneSettings(newSettings)
+                  }}
+                  onAddScene={addSceneAfterCurrent}
+                  onDeleteScene={deleteCurrentScene}
+                />
+              </div>
             </>
           )}
         </div>

@@ -31,7 +31,6 @@ interface SceneSettingsPanelProps {
   onUpdate: (settings: SceneSettings) => void
   onAddScene: () => void
   onDeleteScene: () => void
-  onClose: () => void
 }
 
 export default function SceneSettingsPanel({
@@ -39,8 +38,7 @@ export default function SceneSettingsPanel({
   settings,
   onUpdate,
   onAddScene,
-  onDeleteScene,
-  onClose
+  onDeleteScene
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')

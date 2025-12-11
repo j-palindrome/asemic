@@ -117,7 +117,7 @@ function AsemicAppInner({
     })
   }, [scenesArray])
 
-  // Separate runtime state for scrub values per scene (not persisted)
+  // Track scrub position per scene (local playback position within each scene)
   const [scrubValues, setScrubValues] = useState<number[]>([])
 
   // Initialize scrub values when scenes change
@@ -237,7 +237,6 @@ function AsemicAppInner({
 
   const animationFrameRef = useRef<number | null>(null)
   const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
-  const isScrollingRef = useRef(false)
 
   const setup = () => {
     // const client = useMemo(() => new Client('localhost', 57120), [])
@@ -268,28 +267,6 @@ function AsemicAppInner({
           }
           if (!isUndefined(data.scenes)) {
             setScenes(data.scenes)
-
-            // Update scrub values based on current progress and scene boundaries
-            const currentProgress = data.progress ?? progress
-            const scenes = data.scenes // Capture for type safety
-            setScrubValues(prev => {
-              const newValues = [...prev]
-              // Calculate scrub for each scene based on progress
-              for (let i = 0; i < scenes.length; i++) {
-                const sceneStart = scenes[i]
-                const sceneEnd =
-                  i < scenes.length - 1 ? scenes[i + 1] : Infinity
-
-                if (
-                  currentProgress >= sceneStart &&
-                  currentProgress < sceneEnd
-                ) {
-                  // Current active scene - update its scrub
-                  newValues[i] = currentProgress - sceneStart
-                }
-              }
-              return newValues
-            })
           }
           if (!isUndefined(data.sceneMetadata)) {
             // Enrich scene metadata with param values from scene settings
@@ -356,7 +333,7 @@ function AsemicAppInner({
           lastFrameTimeRef.current = now
 
           // Global time always increments
-          if (!pauseAtRef.current && !isScrollingRef.current) {
+          if (!pauseAtRef.current) {
             globalTimeRef.current += deltaTime
           }
 
@@ -733,38 +710,6 @@ function AsemicAppInner({
   }
 
   const editorRef = useRef<AsemicEditorRef | null>(null)
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-
-  const scrollTimeoutRef = useRef<number | null>(null)
-  const isDraggingRef = useRef(false)
-  const dragStartRef = useRef({ y: 0, scrollTop: 0 })
-
-  const handleMouseUp = () => {
-    isDraggingRef.current = false
-  }
-
-  useEffect(() => {
-    // Add global mouse up listener to catch mouse up outside the element
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [])
-
-  // Update scroll position based on scene scrub value
-  useEffect(() => {
-    if (isScrollingRef.current) return // Skip if user is scrolling
-
-    if (scrollContainerRef.current && activeSceneSettings.length) {
-      const scrubValue = scrubValues[activeScene] || 0
-      const scrollPercent = scrubValue / (activeSceneSettings.length || 1)
-      const scrollTop =
-        scrollPercent *
-        (scrollContainerRef.current.scrollHeight -
-          scrollContainerRef.current.clientHeight)
-      scrollContainerRef.current.scrollTop = scrollTop
-    }
-  }, [scrubValues, activeScene, activeSceneSettings.length])
 
   useEffect(() => {
     const onResize = () => {
@@ -841,19 +786,6 @@ function AsemicAppInner({
             <button onClick={() => setShowSceneSettings(!showSceneSettings)}>
               <Settings2 {...lucideProps} />
             </button>
-            {/* Scrub progress display */}
-            <div className='text-white text-xs opacity-50 px-2 font-mono'>
-              {(() => {
-                const currentScrub = scrubValues[activeScene] || 0
-                const length = activeSceneSettings.length || 0.1
-                const offset = activeSceneSettings.offset || 0
-                const effectiveLength = length - offset
-                return `${currentScrub.toFixed(2)}s / ${effectiveLength.toFixed(
-                  2
-                )}s`
-              })()}
-            </div>
-            {/* Scene counter display with navigation */}
             <div className='flex items-center gap-1'>
               <button
                 onClick={() => {
@@ -863,11 +795,6 @@ function AsemicAppInner({
                     const prevSceneStart = sceneStarts[prevScene] || 0
                     const offset = scenesArray[prevScene]?.offset || 0
                     const targetProgress = prevSceneStart + offset + 0.001
-
-                    // Force update by setting progress directly and updating scrub
-                    const newScrubValues = [...scrubValues]
-                    newScrubValues[prevScene] = offset + 0.001
-                    setScrubValues(newScrubValues)
                     setProgress(targetProgress)
                   }
                 }}
@@ -889,11 +816,6 @@ function AsemicAppInner({
                     const nextSceneStart = sceneStarts[nextScene] || 0
                     const offset = scenesArray[nextScene]?.offset || 0
                     const targetProgress = nextSceneStart + offset + 0.001
-
-                    // Force update by setting progress directly and updating scrub
-                    const newScrubValues = [...scrubValues]
-                    newScrubValues[nextScene] = offset + 0.001
-                    setScrubValues(newScrubValues)
                     setProgress(targetProgress)
                   }
                 }}
@@ -901,6 +823,34 @@ function AsemicAppInner({
                 className='disabled:opacity-30'>
                 <ChevronRight {...lucideProps} size={16} />
               </button>
+            </div>
+            {/* Scrub slider for current scene */}
+            <div className='flex items-center gap-2 px-2'>
+              <input
+                type='range'
+                min='0'
+                max={
+                  (scenesArray[activeScene]?.length || 0.1) -
+                  (scenesArray[activeScene]?.offset || 0)
+                }
+                step='0.01'
+                value={scrubValues[activeScene] || 0}
+                onChange={e => {
+                  const newScrub = parseFloat(e.target.value)
+                  setScrubValues(prev => {
+                    const newValues = [...prev]
+                    newValues[activeScene] = newScrub
+                    return newValues
+                  })
+                }}
+                className='w-32 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer'
+                style={{
+                  accentColor: 'white'
+                }}
+              />
+              <span className='text-white text-xs opacity-50 font-mono min-w-[60px]'>
+                {(scrubValues[activeScene] || 0).toFixed(2)}s
+              </span>
             </div>
             <div className='grow' />
             <button onClick={() => setPerform(!perform)}>

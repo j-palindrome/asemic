@@ -444,12 +444,8 @@ export class Parser {
       this.error(`Error at reset: ${(e as Error).message}`)
     }
 
-    // Set progress values to 0 for now
-    this.progress.scrub = 0
-    this.progress.scrubTime = 0
-    this.progress.progress = 0
-    this.progress.noiseIndex = 0
-
+    this.progress.scrub = scene.scrub || 0
+    this.progress.scrubTime = scene.scrub * (scene.length || 0.1) || 0
     // Execute the scene's code
     try {
       this.textMethods.text(scene.code)

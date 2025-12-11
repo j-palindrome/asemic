@@ -41,9 +41,6 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   }
   if (!isUndefined(ev.data.scene)) {
     currentScene = ev.data.scene
-    if (!isUndefined(ev.data.sceneIndex)) {
-      parser.progress.scene = ev.data.sceneIndex
-    }
     parser.draw(currentScene)
     renderer.render(parser.groups)
   }

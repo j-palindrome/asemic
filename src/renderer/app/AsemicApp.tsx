@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Save,
   Settings2,
+  Undo,
   Upload
 } from 'lucide-react'
 import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
@@ -119,6 +120,10 @@ function AsemicAppInner({
 
   // Track scrub position per scene (local playback position within each scene)
   const [scrubValues, setScrubValues] = useState<number[]>([])
+  const scrubValuesRef = useRef(scrubValues)
+  useEffect(() => {
+    scrubValuesRef.current = scrubValues
+  }, [scrubValues])
 
   // Initialize scrub values when scenes change
   useEffect(() => {
@@ -268,52 +273,6 @@ function AsemicAppInner({
           if (!isUndefined(data.scenes)) {
             setScenes(data.scenes)
           }
-          if (!isUndefined(data.sceneMetadata)) {
-            // Enrich scene metadata with param values from scene settings
-            const enrichedMetadata = data.sceneMetadata.map(
-              (metadata, index) => {
-                const trimmedSource = scenesSourceRef.current.trim()
-
-                // Handle JSON array format
-                if (trimmedSource.startsWith('[')) {
-                  try {
-                    const sceneObjects = JSON.parse(trimmedSource) as Array<{
-                      code: string
-                      params?: Record<
-                        string,
-                        {
-                          value?: number
-                          min?: number
-                          max?: number
-                          exponent?: number
-                        }
-                      >
-                      [key: string]: any
-                    }>
-
-                    if (index < sceneObjects.length) {
-                      const sceneSettings = sceneObjects[index]
-                      if (sceneSettings.params) {
-                        const params: Record<string, number> = {}
-                        for (const [key, config] of Object.entries(
-                          sceneSettings.params
-                        )) {
-                          params[key] = config.value ?? config.min ?? 0
-                        }
-                        return { ...metadata, params }
-                      }
-                    }
-                  } catch (e) {
-                    // Failed to parse JSON array
-                  }
-                }
-
-                return metadata
-              }
-            )
-
-            // Scene metadata is now passed directly to parser_eval_expression when needed
-          }
         })
       }
     }, [asemic])
@@ -359,7 +318,9 @@ function AsemicAppInner({
               offset: currentSceneSettings.offset,
               pause: currentSceneSettings.pause,
               params: currentSceneSettings.params,
-              scrub: scrubValues[activeSceneRef.current] || 0
+              scrub:
+                (scrubValuesRef.current[activeSceneRef.current] || 0) /
+                (currentSceneSettings.length || 0.1)
             }
 
             asemic.current?.postMessage({
@@ -527,6 +488,10 @@ function AsemicAppInner({
   const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
     {}
   )
+  const [deletedScene, setDeletedScene] = useState<{
+    scene: SceneSettings
+    index: number
+  } | null>(null)
 
   // Extract current scene code
   const currentSceneCode = useMemo(() => {
@@ -607,9 +572,27 @@ function AsemicAppInner({
       return
     }
     const newScenesArray = [...scenesArray]
+    const deletedSceneData = newScenesArray[activeScene]
     newScenesArray.splice(activeScene, 1)
     const newSource = JSON.stringify(newScenesArray, null, 2)
     setScenesSource(newSource)
+    // Store deleted scene for undo
+    setDeletedScene({
+      scene: deletedSceneData,
+      index: activeScene
+    })
+    // Clear undo after 10 seconds
+    setTimeout(() => setDeletedScene(null), 10000)
+  }
+
+  // Undo scene deletion
+  const undoDeleteScene = () => {
+    if (!deletedScene) return
+    const newScenesArray = [...scenesArray]
+    newScenesArray.splice(deletedScene.index, 0, deletedScene.scene)
+    const newSource = JSON.stringify(newScenesArray, null, 2)
+    setScenesSource(newSource)
+    setDeletedScene(null)
   }
 
   // Audio track loading and playback
@@ -853,6 +836,16 @@ function AsemicAppInner({
               </span>
             </div>
             <div className='grow' />
+            {deletedScene && (
+              <button
+                onClick={undoDeleteScene}
+                className='flex items-center gap-1 px-2 py-1 bg-white/10 rounded hover:bg-white/20 transition-colors'>
+                <Undo {...lucideProps} size={14} />
+                <span className='text-white text-xs opacity-70'>
+                  Undo Delete
+                </span>
+              </button>
+            )}
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>

@@ -1,0 +1,92 @@
+[
+  {
+    "title": "title",
+    "length": 5,
+    "code": "{default !}\na performance piece by Jay Reinier\n{w=>(px (~ .5 #)*10)}\n(group {count=300 vert=\"sin(output.position.y*100.)*pow(S,1.5)/5.,0\"})\n(align 0.5,.5*H 0.5 | {*1/20} \"WAVE COLLAPSE\")\n"
+  },
+  {
+    "title": "triangle",
+    "length": 5,
+    "code": "(group {curve=false mode=fill count=100})\n{speed=.1}\n(repeat 10 | {! w=px*5 *1,H a=.1} [0,0 {> +0,~speed*.1} 1,.5 {<} 0,1]\n{+1,0 *-1,1} [0,0 {> +0,~speed*.1} 1,.5 {<} 0,1])\n\nmy wife just died\nit was not, exactly, by chance\n\nshe got lost in the difference\nbetween real\nand artificial.\n\nthe face is...\n"
+  },
+  {
+    "title": "new",
+    "length": 5,
+    "code": "(choose S | (group {curve=false}) | (group {curve=false a=\"pow(triangle(P-T*(1+hash(C))-hash(C)),4)\"}))\n{speed=.1}\n(repeat 10 | {! w=px*5 *1,H a=(sah #T ~#)} [0,0 {> +0,~speed*.1} 1,.5 {<} 0,1]\n{+1,0 *-1,1} [0,0 {> +0,~speed*.1} 1,.5 {<} 0,1])\n\nbelow: a system of flows,\nquantum catastrophe.\n\nnothing is fixed:\ncollective coincidence,\n\naction at a distance. \ni made whole efforts \nfor superfluid.\n"
+  },
+  {
+    "title": "part I: possible computation",
+    "length": 5,
+    "code": "{*1,H}\n(group {curve=false count=200 a=\"pow(triangle(P-T*(1+hash(C))-hash(C)),4)\" vert=\"0,sin(output.position.x*20)*pow(S,4)*.3\"})\n(repeat S*40+2 \n| {w=px4 hash=#} [0,(> (bell i hash) .4 .6) +.5,0 1,(bell i hash)])\n\nit starts with two slits:\ntwo flows, choice point, magnify:\n& the possibilities interfere.\n\nin the paths, we trace\na set of waves...\narising from an imposition\nof all that is possible.\n"
+  },
+  {
+    "title": "multipaths",
+    "length": 5,
+    "code": "(group {count=8 a=\"pow(triangle(P-T-hash(C)),4)\"})\n{a=1}\n(remap 0,0.5*H 1,0.5*H)\n{speed=3 a=1}\n(repeat 100 \n| [0,0]+ (repeat 2 | {noise=~speed} [(sah ~speed-.5 noise)[+I+1/(N+1),*H]]+) [1,0])\n\n(? S-.5 | then | else)\n\nso instead of tracing one path,\nit's irreducible:\n"
+  },
+  {
+    "title": "one person inbetweenen",
+    "length": 5,
+    "code": "(group {count=8 a=\"pow(triangle(P-hash(C)),4)\"})\n{a=1}\n(remap 0,0.5*H 1,0.5*H)\n{speed=.1 a=1}\n(repeat 1000 \n| [0,0]+ (repeat 2 | {noise=~speed} [(sah ~speed-.5 noise)[+I+1/(N+1),*H]]+) [1,0])\n\n(? S-.5 | then | else)\n\na microcosm,\nwhere we know for sure\n\nhow fast or how far,\nbut never both.\n"
+  },
+  {
+    "title": "",
+    "length": 5,
+    "code": "so am I cursed to frozenness?\n\n(group {count=8 a=\"pow(triangle(P-hash(C)),4)\"})\n{force=>S-(C/30)%1 w=>#*force}\n(remap 0,0.5*H 1,0.5*H)\n{a=1}\n(repeat 100 \n| [0,0]+ (repeat 2 | {noise=~1} [#C-.5[+I+1/(N+1),*H]]+) [1,0])\n\n(? S-.5 | then | else)\n"
+  },
+  {
+    "title": "feynman",
+    "length": 5,
+    "code": "so an observer could paint this portrait\nof her...with a diagram:\n\nhere, two particles merge, emit one photon\nand reabsorb.\n\n(repeat S^2*30_1+1 |\n{! +i,0 *1/N,1}\n(group)\n(remap 0.5,H 0.5,H*2/3 -0.5)\n{xsplay=>(<> (bell (sah #T (~ 4 1+#,1.3))) 2 0) pos=1,xsplay,2,xsplay}\n[0,-1 pos[0,1]] [0,1 pos[0,1]]\n[pos[2,3] 3,1] [pos[2,3] 3,-1]\n\n(group {count=300 vert=\"sin(output.position.y*100)*.05,0\"\na=\"pow(triangle(P-T*3-hash(C)),4)+pow(triangle(P-T*3.2-hash(C)+.234),4)+pow(triangle(P-T*4.3-hash(C)+.546),4)\"})\n[pos[0,1] pos[2,3]])\n"
+  },
+  {
+    "title": "quantization",
+    "length": 5,
+    "code": "(repeat 5,(> S^1 10 300)_1 | {! +0,H*(i*.6+.2) >} | {< > *1/N1,.05 +I1,(sah ~4 (~ (> S 3 6),0))} [0,0 1,0])\n"
+  },
+  {
+    "title": "feed me",
+    "length": 5,
+    "code": "(group {count=100 a=\"pow(triangle(P+T*3-hash(C)),4)\"})\n{noise=(~ 1 .1,5 10,.2)+-.5}\n(repeat 100 | [0.5,H 0.5+noise,H/2 i,0])\n"
+  },
+  {
+    "title": "part II: black box",
+    "length": 5,
+    "code": "(group {curve=false count=100})\n{as=1,0 ws=1,.8}\n(repeat 2\n| {! +.5,H.5 @(sah (~ 3 #) ~2)*(> S px10 0.1) *.5 +-.5 w=>(px (sah (> ~ 30 100)*wsI (~ 1 #,2))) l=asI} [0,0 0,1 1,1 1,0]<)\n(group)\n{!}\n(align .5,.5*H .5,.5\n| {*1/30} (choose S | \"I.\" | \"II.\" | \"III.\" | \"IV.\" | \"a.\"))\n\nA: what do you seek?\nB: No more than you.\n   No less than you.\n"
+  },
+  {
+    "title": "seminate",
+    "length": 5,
+    "code": "{as=1,0 ws=1,.8}\n(repeat 10\n| {pos=.1*#+i} (repeat 2\n| {! +.5,H.5 @pos @(sah #T (~ 3 # #))*(> S px10 px20) *.5 w=>(sah (> ~ 30 31)*wsI ~)*px l=asI} [.14,0 S,0]<))\n(repeat 2\n| {! +.5,H.5 @(sah #T (~ 3 # #))*(> S px10 0.1) *.1 w=(sah 2/30*~px (~ 10 ~ ~)) l=asI} (circle 0 .5)<)\n"
+  },
+  {
+    "title": "angel",
+    "length": 5,
+    "code": "{! angle=>(~ .1+#)*2-1_.3*.1 w=>(> P 0 10)*px}\n{angel\n| a={@angle} [0,0 @#*.2,1] [0,0 1,0] {+1,0}\n| b={@angle} [0,0 @#*.2,1] [0,0 1,0] {+1,0}\n| c={< > @L +2,0}}\n{+.5,.5*H *.04 >}\n(linden 4 ccccccc {a=ab b=ab c=ca})\n"
+  },
+  {
+    "title": "explosion",
+    "length": 5,
+    "code": "(group a=\"pow(triangle(P-T*3-hash(C)),4)\")\n{+[1,H]*.5}\n(repeat 40\n| [{w=1*px} 0,0 {w=(~ 2 #)*.1*(> S .1 10)} @((# T*10_1+#)),1])\n"
+  },
+  {
+    "title": "going for broke",
+    "length": 5,
+    "code": "(repeat 2\n| {! *1,H +.5 @~#*(> i -1 1) +-.5} [0,0 1,1] [1,0 0,1])\n"
+  },
+  {
+    "title": "reconstitute",
+    "length": 5,
+    "code": "{default\n| EACH=>{+(~ # #)*.2,0}}\n{w=>(> P 1 4 1)*px >}\n(repeat 5\n| {< > +.5,.5*H noise=>(sah (~ .5 # #)*2-1 (~ 1 # #*10)) pos=noise,noise a=#T}\n[0,0 pos[0,1]*.2] {+.2*pos[0,1*H] *1/30 a=1}\n(align 0 .5 (choose i*.99 | \"its\" | \"not\" | \"me\" | \"chasing\" | \"you\")))\n"
+  },
+  {
+    "title": "territory map",
+    "length": 5,
+    "code": "(repeat 10\n| {! +.1/2,.1/2*H +i,0 >} (repeat 10 | {< > +0,i*H *(> # px10 px60)}\n(align 0 .5 (choose (sah # (~ 1 #,.2)) | \"you\" | \"i\" | \"me\"))))\n"
+  },
+  {
+    "title": "plants",
+    "length": 5,
+    "code": "(repeat (> S 0 100),10\n| {! +#,#*H @(<> # .1 0) *1/30 w=>P*2*px}\n| (ripple 5 ~P*.2*P,0 | [0,0 (<> i1 1+S^2 0),#*.2+-S*5]))\n"
+  }
+]

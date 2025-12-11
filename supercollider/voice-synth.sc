@@ -48,16 +48,21 @@ OSCdef(\sampleDelayTime).free;
 
 // Create new listener on default port (57120)
 OSCdef(\sampleDelayTime, { |msg, time, addr, recvPort|
-  var value = msg[1]; // Get the first argument from the OSC message
-  "Received OSC message: % from % on port %".format(msg, addr, recvPort).postln;
-
-  if(~voice.notNil, {
-    ~voice.set(\delayTime, value.clip(0.0, 2.0)); // Clip to valid range
-    "DelayTime set to: %".format(value).postln;
-  }, {
-    "Voice synth not running".postln;
-  });
-}, '/sc/sample');
+  switch(msg[0],
+    '/sc/sample', {
+      ~voice.set(\delayTime, msg[1].clip(0.0, 2.0));
+    },
+    '/sc/feedback', {
+      ~voice.set(\feedback, msg[1].clip(0.0, 0.99));
+    },
+    '/sc/mix', {
+      ~voice.set(\mix, msg[1].clip(0.0, 1.0));
+    },
+    '/sc/amp', {
+      ~voice.set(\amp, msg[1].clip(0.0, 2.0));
+    }
+  );
+});
 
 "OSC listener active on port % for /sc/sample".format(NetAddr.langPort).postln;
 )

@@ -131,11 +131,6 @@ export default function SceneSettingsPanel({
         <AsemicEditor
           ref={editorRef}
           defaultValue={settings.code || ''}
-          onChange={value => {
-            if (value !== undefined) {
-              onUpdate({ ...settings, code: value })
-            }
-          }}
           errors={[]}
           help={false}
           setHelp={() => {}}
@@ -143,17 +138,22 @@ export default function SceneSettingsPanel({
         {/* Text/Notes editor in EB Garamond */}
         <div className='mt-2'>
           <label className='text-xs text-white/50 mb-1 block'>Notes</label>
+          <button
+            onClick={() => {
+              const currentCode = textEditorRef.current?.getValue()
+              if (currentCode !== undefined) {
+                onUpdate({ ...settings, text: currentCode })
+              }
+            }}
+            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+            Update Code
+          </button>
           <div
             className='text-editor'
             style={{ fontFamily: 'EB Garamond, serif' }}>
             <AsemicEditor
               ref={textEditorRef}
               defaultValue={settings.text || ''}
-              onChange={value => {
-                if (value !== undefined) {
-                  onUpdate({ ...settings, text: value })
-                }
-              }}
               errors={[]}
               help={false}
               setHelp={() => {}}

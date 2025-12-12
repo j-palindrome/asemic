@@ -131,6 +131,12 @@ export const useJsonFileLoader = () => {
     selectAndLoadJsonFile,
     clearError,
     reset,
-    saveJsonFile
+    saveJsonFile,
+    setFileName: (fileName: string) => {
+      setState(prev => ({
+        ...prev,
+        fileName
+      }))
+    }
   }
 }

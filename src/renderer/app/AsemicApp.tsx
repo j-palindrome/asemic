@@ -816,7 +816,10 @@ function AsemicAppInner({
                 </span>
               </button>
             )}
-            <JsonFileLoader onFileLoaded={handleJsonFileLoaded} />
+            <JsonFileLoader
+              onFileLoaded={handleJsonFileLoaded}
+              sceneList={scenesArray}
+            />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>

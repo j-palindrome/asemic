@@ -58,7 +58,7 @@ const transparentTheme: Extension = EditorView.theme({
 
 interface Props {
   defaultValue: string
-  onChange: (value: string | undefined) => void
+  onChange?: (value: string | undefined) => void
   errors: string[]
   help: boolean
   setHelp: (help: boolean) => void
@@ -201,16 +201,6 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
     useEffect(() => {
       if (!editorDivRef.current) return
       if (viewRef.current) return
-      const enterKeymap = keymap.of([
-        {
-          key: 'Mod-Enter',
-          run: () => {
-            // console.log(viewRef.current?.state.doc.toString())
-            onChange(viewRef.current?.state.doc.toString())
-            return true
-          }
-        }
-      ])
 
       // Ensure 'parser' is a Lezer Parser instance, not a LanguageSupport
 
@@ -565,7 +555,6 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           transparentTheme,
           foldingOnIndent,
           Prec.lowest(oneDark),
-          Prec.highest(enterKeymap),
           Prec.highest(keymap.of(foldKeymap)),
           autocompletion({ override: [parserCompletionSource] }),
           EditorView.lineWrapping,

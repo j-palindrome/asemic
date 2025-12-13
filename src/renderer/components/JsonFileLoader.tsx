@@ -1,70 +1,92 @@
-import { Upload, X, Download } from 'lucide-react'
+import { X, Download, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
-import { useJsonFileLoader, ParsedJsonResult } from '../hooks/useJsonFileLoader'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { SceneSettings } from './SceneParamsEditor'
 
 interface JsonLoaderProps {
-  onFileLoaded?: (data: ParsedJsonResult) => void
-  className?: string
   sceneList: SceneSettings[]
+  setSceneList: (newList: SceneSettings[]) => void
 }
 
-export function JsonFileLoader({
-  onFileLoaded,
-  className = '',
-  sceneList
-}: JsonLoaderProps) {
-  const {
-    isLoading,
-    error,
-    fileName,
-    selectAndLoadJsonFile,
-    clearError,
-    reset,
-    saveJsonFile,
-    setFileName
-  } = useJsonFileLoader()
+export function JsonFileLoader({ sceneList, setSceneList }: JsonLoaderProps) {
+  const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
-    if (!fileName) {
-      let defaultFileName = fileName?.endsWith('.json') ? fileName : ''
-      if (!defaultFileName) {
-        defaultFileName = (await save({
-          defaultPath: defaultFileName,
-          filters: [{ name: 'JSON', extensions: ['json'] }],
-          title: 'Save JSON file'
-        })) as string
+    try {
+      setError(null)
+
+      const path = await save({
+        filters: [
+          {
+            name: 'JSON',
+            extensions: ['json']
+          }
+        ]
+      })
+
+      if (path) {
+        await writeTextFile(path, JSON.stringify(sceneList, null, 2))
       }
-
-      if (!defaultFileName) {
-        return
-      }
-
-      setFileName(defaultFileName)
-    }
-
-    const success = await saveJsonFile(fileName!, JSON.stringify(sceneList))
-  }
-
-  const handleLoad = async () => {
-    const result = await selectAndLoadJsonFile()
-    if (result?.success && onFileLoaded) {
-      onFileLoaded(result)
-      // Store the file path for saving later
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save file')
     }
   }
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setError(null)
+      const file = event.target.files?.[0]
+
+      if (!file) return
+
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+
+      let scenesData: SceneSettings[] = []
+
+      if (Array.isArray(parsed)) {
+        scenesData = parsed as SceneSettings[]
+      } else if (
+        typeof parsed === 'object' &&
+        'scenes' in parsed &&
+        Array.isArray((parsed as any).scenes)
+      ) {
+        scenesData = (parsed as any).scenes as SceneSettings[]
+      } else if (typeof parsed === 'object') {
+        scenesData = [parsed as SceneSettings]
+      }
+
+      if (scenesData.length > 0) {
+        setSceneList(scenesData)
+      } else {
+        setError('No valid scene data found in file')
+      }
+
+      // Reset file input
+      event.target.value = ''
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to parse JSON file')
+      event.target.value = ''
+    }
+  }
+
+  const clearError = () => setError(null)
 
   return (
-    <div className={`flex flex-col gap-3 ${className}`}>
+    <div className='flex flex-col gap-3'>
       <div className='flex gap-2'>
-        <button
-          onClick={handleLoad}
-          disabled={isLoading}
-          className='flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors'
-          title='Load JSON file'>
+        <label
+          title='Load JSON file'
+          className='flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors cursor-pointer'>
           <Upload size={16} />
-        </button>
+          <input
+            type='file'
+            accept='.json,.txt'
+            onChange={handleUpload}
+            className='hidden'
+          />
+        </label>
         <button
           onClick={handleSave}
           className='flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors'

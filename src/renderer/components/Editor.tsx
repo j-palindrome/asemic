@@ -1,52 +1,38 @@
-import React, {
-  useRef,
-  useImperativeHandle,
-  forwardRef,
-  useEffect
-} from 'react'
-import {
-  drawSelection,
-  EditorView,
-  Decoration,
-  ViewPlugin,
-  DecorationSet
-} from '@codemirror/view'
-import { EditorState, Prec, RangeSetBuilder } from '@codemirror/state'
-import { basicSetup } from 'codemirror'
-import { javascript } from '@codemirror/lang-javascript'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { keymap } from '@codemirror/view'
 import {
   autocompletion,
-  completeFromList,
   CompletionContext,
   snippet
 } from '@codemirror/autocomplete'
-import { Extension } from '@codemirror/state'
-import { Parser } from '@/lib'
 import {
   delimitedIndent,
+  foldAll,
+  foldKeymap,
+  foldService,
   LanguageSupport,
   LRLanguage,
   syntaxHighlighting,
   syntaxTree,
-  foldGutter,
-  foldKeymap,
-  foldService,
-  foldAll,
-  unfoldAll,
-  foldEffect,
-  unfoldEffect
+  unfoldAll
 } from '@codemirror/language'
+import { EditorState, Extension, Prec } from '@codemirror/state'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { drawSelection, EditorView, keymap } from '@codemirror/view'
+import { basicSetup } from 'codemirror'
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from 'react'
 // @ts-ignore
 import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
-import { styleTags, tags as t, tags } from '@lezer/highlight'
-import { foldNodeProp, foldInside, indentNodeProp } from '@codemirror/language'
-import { printTree } from './lezerPrettyPrint'
-import { HighlightStyle } from '@codemirror/language'
-import helpText from '@/lib/help.md?raw'
-import Markdown from 'react-markdown'
-import { SyntaxNode } from '@lezer/common'
+import {
+  foldInside,
+  foldNodeProp,
+  HighlightStyle,
+  indentNodeProp
+} from '@codemirror/language'
+import { styleTags, tags as t } from '@lezer/highlight'
 
 // Transparent background theme
 const transparentTheme: Extension = EditorView.theme({
@@ -60,8 +46,6 @@ interface Props {
   defaultValue: string
   onChange?: (value: string | undefined) => void
   errors: string[]
-  help: boolean
-  setHelp: (help: boolean) => void
   className?: string
 }
 
@@ -81,7 +65,7 @@ interface SerializedSyntaxNode {
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
-  ({ help, setHelp, defaultValue, onChange, errors, className }, ref) => {
+  ({ defaultValue, onChange, errors, className }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
     const [allFolded, setAllFolded] = React.useState(false)
@@ -620,11 +604,6 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
         {errors.length > 0 && (
           <div className='editor !text-red-400 w-1/3 whitespace-pre-wrap font-mono'>
             {errors.join('\n---\n')}
-          </div>
-        )}
-        {help && (
-          <div className='absolute top-0 left-0 w-full h-full bg-black/90 text-white p-4 text-sm overflow-auto z-50'>
-            <Markdown>{helpText}</Markdown>
           </div>
         )}
       </div>

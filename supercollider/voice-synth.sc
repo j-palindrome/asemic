@@ -44,25 +44,12 @@ SynthDef(\voicePassthrough, {
 // OSC listener for /sc/sample messages to control delayTime
 (
 // Free any existing OSC listener
-OSCdef(\sampleDelayTime).free;
+OSCdef.freeAll;
 
 // Create new listener on default port (57120)
-OSCdef(\sampleDelayTime, { |msg, time, addr, recvPort|
-  switch(msg[0],
-    '/sc/sample', {
-      ~voice.set(\delayTime, msg[1].clip(0.0, 2.0));
-    },
-    '/sc/feedback', {
-      ~voice.set(\feedback, msg[1].clip(0.0, 0.99));
-    },
-    '/sc/mix', {
-      ~voice.set(\mix, msg[1].clip(0.0, 1.0));
-    },
-    '/sc/amp', {
-      ~voice.set(\amp, msg[1].clip(0.0, 2.0));
-    }
-  );
-});
+OSCdef.new(\scSample, { |msg, time, addr, recvPort|
+   ~voice.set(\delayTime, msg[1].clip(0.0, 2.0));
+}, '/sc/sample');
 
 "OSC listener active on port % for /sc/sample".format(NetAddr.langPort).postln;
 )

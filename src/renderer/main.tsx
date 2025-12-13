@@ -40,7 +40,7 @@ function AsemicWrapper() {
     return ''
   }, [])
 
-  return <AsemicApp source={source} save={saveToFile} getRequire={getRequire} />
+  return <AsemicApp getRequire={getRequire} />
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

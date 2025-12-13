@@ -29,39 +29,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
 function AsemicAppInner({
-  source,
-  save,
   getRequire
 }: {
-  source: string
-  save: (source: string, { reload }: { reload: boolean }) => void
   getRequire: (file: string) => Promise<string>
 }) {
-  const [scenesSource, setScenesSource] = useState(source)
-
   // Parse scenes as JSON array
-  const scenesArray = useMemo(() => {
-    try {
-      const trimmedSource = scenesSource.trim()
-      if (trimmedSource.startsWith('[')) {
-        return JSON.parse(trimmedSource) as SceneSettings[]
-      }
-      // Fallback: treat as single scene with code property
-      return [{ code: trimmedSource }] as SceneSettings[]
-    } catch (e) {
-      // On parse error, return single empty scene
-      return [{}] as SceneSettings[]
-    }
-  }, [scenesSource])
-  useEffect(() => {
-    if (scenesSource !== source) {
-      save(scenesSource, { reload: false })
-    }
-  }, [scenesSource])
-  const scenesSourceRef = useRef(scenesSource)
-  useEffect(() => {
-    scenesSourceRef.current = scenesSource
-  }, [scenesSource])
+  const [scenesArray, setScenesArray] = useState<SceneSettings[]>([])
+
   const [settings, setSettings] = useState(Asemic.defaultSettings)
   const settingsRef = useRef(settings)
   useEffect(() => {
@@ -88,7 +62,7 @@ function AsemicAppInner({
   const asemic = useRef<Asemic>(null)
 
   // Handle JSON file loaded
-  const handleJsonFileLoaded = (result: ParsedJsonResult) => {
+  const handleJsonFileLoaded = result => {
     if (result.success && result.data) {
       try {
         // Convert loaded JSON to scenes format
@@ -109,11 +83,9 @@ function AsemicAppInner({
           scenesData = [result.data as SceneSettings]
         }
 
-        // Convert scenes to JSON string and update
+        // Update scenes array and save
         if (scenesData.length > 0) {
-          const jsonString = JSON.stringify(scenesData, null, 2)
-          setScenesSource(jsonString)
-          save(jsonString, { reload: false })
+          setScenesArray(scenesData)
         }
       } catch (error) {
         console.error('Failed to process JSON file:', error)
@@ -535,12 +507,6 @@ function AsemicAppInner({
           ...newScenesArray[activeScene],
           ...newSettings
         }
-        const newSource = JSON.stringify(newScenesArray, null, 2)
-        setScenesSource(newSource)
-        // Update editor with code if it changed
-        if (newSettings.code !== undefined) {
-          editorRef.current?.setValue(newSettings.code)
-        }
       }
     } catch (e) {
       // Failed to update scene settings
@@ -551,9 +517,13 @@ function AsemicAppInner({
   const addSceneAfterCurrent = () => {
     const newScenesArray = [...scenesArray]
     // Insert empty scene after current scene
-    newScenesArray.splice(activeScene + 1, 0, {})
-    const newSource = JSON.stringify(newScenesArray, null, 2)
-    setScenesSource(newSource)
+    newScenesArray.splice(activeScene + 1, 0, {
+      code: '',
+      length: 0.1,
+      offset: 0,
+      params: {}
+    } as SceneSettings)
+    setScenesArray(newScenesArray)
   }
 
   // Delete current scene
@@ -565,8 +535,8 @@ function AsemicAppInner({
     const newScenesArray = [...scenesArray]
     const deletedSceneData = newScenesArray[activeScene]
     newScenesArray.splice(activeScene, 1)
+    setScenesArray(newScenesArray)
     const newSource = JSON.stringify(newScenesArray, null, 2)
-    setScenesSource(newSource)
     // Store deleted scene for undo
     setDeletedScene({
       scene: deletedSceneData,
@@ -581,8 +551,8 @@ function AsemicAppInner({
     if (!deletedScene) return
     const newScenesArray = [...scenesArray]
     newScenesArray.splice(deletedScene.index, 0, deletedScene.scene)
+    setScenesArray(newScenesArray)
     const newSource = JSON.stringify(newScenesArray, null, 2)
-    setScenesSource(newSource)
     setDeletedScene(null)
   }
 
@@ -660,28 +630,6 @@ function AsemicAppInner({
     []
   )
 
-  const checkLive: MouseEventHandler<HTMLDivElement> = ev => {
-    if (
-      ev.target instanceof HTMLButtonElement ||
-      (ev.target as Element).closest('button')
-    ) {
-      return
-    }
-    if (isLive && editorRef.current) {
-      const rect = canvas.current.getBoundingClientRect()
-      if (!rect) return
-      const x = (ev.clientX - rect.left) / (rect.width || 1080)
-      const y = (ev.clientY - rect.top) / (rect.height || 1080)
-      const newPoint = `${x.toFixed(2).replace('.00', '')},${y
-        .toFixed(2)
-        .replace('.00', '')} `
-      editorRef.current.insertAtCursor(newPoint)
-      ev.stopPropagation()
-      ev.preventDefault()
-      setScenesSource(editorRef.current.getValue())
-    }
-  }
-
   const editorRef = useRef<AsemicEditorRef | null>(null)
 
   useEffect(() => {
@@ -735,9 +683,7 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
-        <div
-          className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100 pointer-events-none'
-          onPointerDownCapture={checkLive}>
+        <div className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100 pointer-events-none'>
           <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
             <div className='flex items-center gap-1'>
               <button
@@ -817,8 +763,8 @@ function AsemicAppInner({
               </button>
             )}
             <JsonFileLoader
-              onFileLoaded={handleJsonFileLoaded}
               sceneList={scenesArray}
+              setSceneList={setScenesArray}
             />
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
@@ -849,8 +795,6 @@ function AsemicAppInner({
 }
 
 export default function AsemicApp(props: {
-  source: string
-  save: (source: string, { reload }: { reload: boolean }) => void
   getRequire: (file: string) => Promise<string>
 }) {
   return <AsemicAppInner {...props} />

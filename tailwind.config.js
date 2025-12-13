@@ -6,7 +6,11 @@ export default {
     './src/standalone/**/*.{js,ts,jsx,tsx}'
   ],
   theme: {
-    extend: {}
+    extend: {
+      fontFamily: {
+        serif: ['Cormorant Infant', 'serif']
+      }
+    }
   },
   plugins: []
 }

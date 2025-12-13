@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
@@ -42,8 +42,10 @@ export default function SceneSettingsPanel({
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
+  const [codeExpanded, setCodeExpanded] = useState(true)
+  const [notesExpanded, setNotesExpanded] = useState(true)
   const editorRef = useRef<AsemicEditorRef | null>(null)
-  const textEditorRef = useRef<AsemicEditorRef | null>(null)
+  const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -63,6 +65,11 @@ export default function SceneSettingsPanel({
       setShowAddParam(false)
     }
   }
+
+  useEffect(() => {
+    if (!textEditorRef.current) return
+    textEditorRef.current.value = settings.text || ''
+  }, [settings.text])
 
   const handleDeleteParam = (key: string) => {
     const newParams = { ...settings.params }
@@ -110,55 +117,77 @@ export default function SceneSettingsPanel({
 
       {/* Settings Panel - Scrollable */}
       <div className='overflow-y-auto p-3 border-t border-white/20'>
-        {/* Editor Update Button */}
-        <div className='flex items-center gap-2 mb-2'>
-          <span className='text-white/70 text-sm font-semibold'>Code</span>
-          <button
-            onClick={() => {
-              const currentCode = editorRef.current?.getValue()
-              if (currentCode !== undefined) {
-                onUpdate({ ...settings, code: currentCode })
-              }
-            }}
-            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-            Update Code
-          </button>
-          <span className='text-white/50 text-[10px] ml-auto'>
-            Cmd+Enter to update
-          </span>
+        {/* Code Section */}
+        <div className='mb-3'>
+          <div className='flex items-center gap-2 mb-2'>
+            <button
+              onClick={() => setCodeExpanded(!codeExpanded)}
+              className='text-white/50 hover:text-white text-xs w-7'>
+              {codeExpanded ? '▼' : '▶'}
+            </button>
+            <span className='text-white/70 text-sm font-semibold'>Code</span>
+            {codeExpanded && (
+              <>
+                <button
+                  onClick={() => {
+                    const currentCode = editorRef.current?.getValue()
+                    if (currentCode !== undefined) {
+                      onUpdate({ ...settings, code: currentCode })
+                    }
+                  }}
+                  className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                  Update Code
+                </button>
+                <span className='text-white/50 text-[10px] ml-auto'>
+                  Cmd+Enter to update
+                </span>
+              </>
+            )}
+          </div>
+
+          {codeExpanded && (
+            <AsemicEditor
+              ref={editorRef}
+              defaultValue={settings.code || ''}
+              errors={[]}
+            />
+          )}
         </div>
 
-        <AsemicEditor
-          ref={editorRef}
-          defaultValue={settings.code || ''}
-          errors={[]}
-          help={false}
-          setHelp={() => {}}
-        />
-        {/* Text/Notes editor in EB Garamond */}
-        <div className='mt-2'>
-          <label className='text-xs text-white/50 mb-1 block'>Notes</label>
-          <button
-            onClick={() => {
-              const currentCode = textEditorRef.current?.getValue()
-              if (currentCode !== undefined) {
-                onUpdate({ ...settings, text: currentCode })
-              }
-            }}
-            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-            Update Code
-          </button>
-          <div
-            className='text-editor'
-            style={{ fontFamily: 'EB Garamond, serif' }}>
-            <AsemicEditor
-              ref={textEditorRef}
-              defaultValue={settings.text || ''}
-              errors={[]}
-              help={false}
-              setHelp={() => {}}
-            />
+        {/* Notes Section */}
+        <div className='mb-3'>
+          <div className='flex items-center gap-2 mb-2'>
+            <button
+              onClick={() => setNotesExpanded(!notesExpanded)}
+              className='text-white/50 hover:text-white text-xs w-7'>
+              {notesExpanded ? '▼' : '▶'}
+            </button>
+            <label className='text-xs text-white/50'>Notes</label>
+            {notesExpanded && (
+              <button
+                onClick={() => {
+                  const currentCode = textEditorRef.current?.value
+                  if (currentCode !== undefined) {
+                    onUpdate({ ...settings, text: currentCode })
+                  }
+                }}
+                className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                Update Code
+              </button>
+            )}
           </div>
+          {notesExpanded && (
+            <div
+              className='text-editor'
+              style={{ fontFamily: 'EB Garamond, serif' }}>
+              <textarea
+                ref={textEditorRef as any}
+                defaultValue={settings.text || ''}
+                className='w-full h-32 bg-transparent hover:backdrop-blur focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-none'
+                spellCheck='false'
+              />
+            </div>
+          )}
         </div>
 
         {/* Basic Settings */}

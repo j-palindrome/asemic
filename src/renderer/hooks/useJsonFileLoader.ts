@@ -1,5 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useState, useCallback } from 'react'
 
 export interface JsonFileData {
@@ -56,24 +57,31 @@ export const useJsonFileLoader = () => {
           return null
         }
 
-        // Load the file using Tauri command
-        const fileData = await invoke<JsonFileData>('load_json_file', {
-          filePath
-        })
+        const selectedPath = Array.isArray(filePath) ? filePath[0] : filePath
+        if (!selectedPath) {
+          setState({ isLoading: false })
+          return null
+        }
 
-        // Parse the JSON
-        const parsed = await invoke<ParsedJsonResult>('parse_json_file', {
-          jsonContent: fileData.content,
-          fileName: fileData.file_name
-        })
+        const fileContents = await readTextFile(selectedPath)
+        const parsed = JSON.parse(fileContents)
+        const fileName = selectedPath.split(/[\\/]/).pop() ?? 'untitled.json'
+        const preview = fileContents.slice(0, 200)
+
+        const parsedResult: ParsedJsonResult = {
+          success: true,
+          data: parsed,
+          file_name: fileName,
+          preview
+        }
 
         setState({
           isLoading: false,
-          fileName: fileData.file_name,
-          data: parsed
+          fileName,
+          data: parsedResult
         })
 
-        return parsed
+        return parsedResult
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         setState({
@@ -97,41 +105,11 @@ export const useJsonFileLoader = () => {
     })
   }, [])
 
-  const saveJsonFile = useCallback(
-    async (filePath: string, jsonContent: string): Promise<boolean> => {
-      try {
-        setState(prev => ({ ...prev, isLoading: true }))
-
-        await invoke<string>('save_json_file', {
-          filePath,
-          jsonContent
-        })
-
-        setState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: undefined
-        }))
-        return true
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        setState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: errorMessage
-        }))
-        return false
-      }
-    },
-    []
-  )
-
   return {
     ...state,
     selectAndLoadJsonFile,
     clearError,
     reset,
-    saveJsonFile,
     setFileName: (fileName: string) => {
       setState(prev => ({
         ...prev,

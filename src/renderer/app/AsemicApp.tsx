@@ -34,7 +34,14 @@ function AsemicAppInner({
   getRequire: (file: string) => Promise<string>
 }) {
   // Parse scenes as JSON array
-  const [scenesArray, setScenesArray] = useState<SceneSettings[]>([])
+  const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([])
+  const setScenesArray = (newArray: SceneSettings[]) => {
+    if (!isEqual(scenesArray, newArray)) {
+      // Update only if different
+      _setScenesArray(newArray)
+      localStorage.setItem('scenesArray', JSON.stringify(newArray))
+    }
+  }
 
   const [settings, setSettings] = useState(Asemic.defaultSettings)
   const settingsRef = useRef(settings)
@@ -60,38 +67,6 @@ function AsemicAppInner({
   const [errors, setErrors, errorsRef] = useErrors()
 
   const asemic = useRef<Asemic>(null)
-
-  // Handle JSON file loaded
-  const handleJsonFileLoaded = result => {
-    if (result.success && result.data) {
-      try {
-        // Convert loaded JSON to scenes format
-        let scenesData: SceneSettings[] = []
-
-        if (Array.isArray(result.data)) {
-          // If the JSON is already an array of scenes
-          scenesData = result.data as SceneSettings[]
-        } else if (
-          typeof result.data === 'object' &&
-          'scenes' in result.data &&
-          Array.isArray((result.data as any).scenes)
-        ) {
-          // If it's an object with a 'scenes' property
-          scenesData = (result.data as any).scenes as SceneSettings[]
-        } else if (typeof result.data === 'object') {
-          // If it's a single scene object
-          scenesData = [result.data as SceneSettings]
-        }
-
-        // Update scenes array and save
-        if (scenesData.length > 0) {
-          setScenesArray(scenesData)
-        }
-      } catch (error) {
-        console.error('Failed to process JSON file:', error)
-      }
-    }
-  }
 
   const useProgress = () => {
     const [progress, setProgress] = useState(0)
@@ -500,18 +475,30 @@ function AsemicAppInner({
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
-    try {
-      const newScenesArray = [...scenesArray]
-      if (activeScene < newScenesArray.length) {
-        newScenesArray[activeScene] = {
-          ...newScenesArray[activeScene],
-          ...newSettings
-        }
+    const newScenesArray = [...scenesArray]
+    console.log('updating scene:', newSettings)
+
+    if (activeScene < newScenesArray.length) {
+      newScenesArray[activeScene] = {
+        ...newScenesArray[activeScene],
+        ...newSettings
       }
-    } catch (e) {
-      // Failed to update scene settings
     }
+    setScenesArray(newScenesArray)
   }
+
+  useEffect(() => {
+    const stored = localStorage.getItem('scenesArray')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as SceneSettings[]
+        setScenesArray(parsed)
+        console.log('loading', parsed)
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  }, [])
 
   // Add new scene after current scene
   const addSceneAfterCurrent = () => {

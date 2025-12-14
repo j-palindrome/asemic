@@ -183,7 +183,7 @@ export default function SceneSettingsPanel({
               <textarea
                 ref={textEditorRef as any}
                 defaultValue={settings.text || ''}
-                className='w-full h-32 bg-transparent hover:backdrop-blur focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-none'
+                className='w-full h-[100px] bg-transparent hover:backdrop-blur focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y'
                 spellCheck='false'
               />
             </div>

@@ -593,7 +593,10 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
     }, [defaultValue])
 
     return (
-      <div className={`h-[300px] w-full relative ${className || ''}`}>
+      <div
+        className={`h-[100px] w-full relative ${
+          className || ''
+        } hover:backdrop-blur focus:backdrop-blur`}>
         <div
           className={`editor text-white ${
             errors.length > 0 ? 'w-2/3' : 'w-full'

@@ -495,7 +495,6 @@ export class Parser {
 
     this.output.resetPresets = true
     this.noiseTable = {}
-    console.log('reset parser')
 
     return this
   }

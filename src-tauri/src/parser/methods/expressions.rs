@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneMetadata {
-    pub start: f64,
-    pub length: f64,
-    pub offset: f64,
-    #[serde(default)]
+    scrub: f64,
     pub params: HashMap<String, f64>,
 }
 
@@ -32,9 +29,6 @@ pub struct SceneMetadata {
 pub struct ExpressionParser {
     // Cache for operator splits to improve performance
     operator_split_cache: HashMap<String, Vec<SplitResult>>,
-    // Parser state for constants
-    width: f64,
-    height: f64,
     // Remove scrub field - use from scene metadata only
     // Remove scene field - no global scene tracking
     // Local parsing state
@@ -50,7 +44,7 @@ pub struct ExpressionParser {
     // Noise table for stateful functions
     noise_table: HashMap<String, NoiseState>,
     // Scene metadata for scene-relative calculations
-    scene_metadata: Vec<SceneMetadata>,
+    scene_metadata: SceneMetadata,
     // Current scene index for param lookups
     current_scene: usize,
     // Cache size limit to prevent unbounded growth
@@ -74,8 +68,6 @@ impl ExpressionParser {
     pub fn new() -> Self {
         Self {
             operator_split_cache: HashMap::new(),
-            width: 1920.0,
-            height: 1080.0,
             curve: 0.0,
             letter: 0.0,
             point: 0.0,
@@ -84,34 +76,10 @@ impl ExpressionParser {
             count_nums: vec![0.0; 3],
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
-            scene_metadata: Vec::new(),
+            scene_metadata: SceneMetadata { scrub: 0.0, params: HashMap::new() },
             current_scene: 0,
             cache_max_size: 1000, // Limit cache to 1000 entries
         }
-    }
-
-    pub fn with_dimensions(width: f64, height: f64) -> Self {
-        Self {
-            operator_split_cache: HashMap::new(),
-            width,
-            height,
-            curve: 0.0,
-            letter: 0.0,
-            point: 0.0,
-            noise_index: 0,
-            indexes: vec![0.0; 3],
-            count_nums: vec![0.0; 3],
-            seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
-            noise_table: HashMap::new(),
-            scene_metadata: Vec::new(),
-            current_scene: 0,
-            cache_max_size: 1000, // Limit cache to 1000 entries
-        }
-    }
-
-    pub fn set_dimensions(&mut self, width: f64, height: f64) {
-        self.width = width;
-        self.height = height;
     }
 
     pub fn set_current_scene(&mut self, scene: usize) {
@@ -129,7 +97,7 @@ impl ExpressionParser {
         self.count_nums = count_nums;
     }
 
-    pub fn set_scene_metadata(&mut self, scene_metadata: Vec<SceneMetadata>) {
+    pub fn set_scene_metadata(&mut self, scene_metadata: SceneMetadata) {
         self.scene_metadata = scene_metadata;
         // Clear noise table when scene metadata changes to prevent memory leak
         // Noise states are scene-specific, so old entries become stale
@@ -138,11 +106,7 @@ impl ExpressionParser {
 
     /// Get a parameter value from the current scene's metadata
     pub fn get_param(&self, name: &str) -> Option<f64> {
-        if self.current_scene >= self.scene_metadata.len() {
-            return None;
-        }
-        
-        self.scene_metadata[self.current_scene].params.get(name).copied()
+        self.scene_metadata.params.get(name).copied()
     }
 
     /// Main expression evaluation functio
@@ -228,11 +192,7 @@ impl ExpressionParser {
             // Progress constants
             // Remove "S" constant - no global scrub
             "S" => {
-                // Scene-relative scrub from scene metadata
-                if self.current_scene >= self.scene_metadata.len() {
-                    return Ok(0.0);
-                }
-                let scene = &self.scene_metadata[self.current_scene];
+                let scene = &self.scene_metadata;
                 // Use scene's own scrub value if available
                 Ok(scene.params.get("scrub").copied().unwrap_or(0.0))
             }
@@ -298,25 +258,6 @@ impl ExpressionParser {
                     let multiplier = self.expr(args[0])?;
                     Ok(current_time * multiplier)
                 }
-            }
-            // Height-to-width ratio
-            "H" => {
-                let ratio = self.height / self.width;
-                if args.is_empty() {
-                    Ok(ratio)
-                } else {
-                    let multiplier = self.expr(args[0])?;
-                    Ok(ratio * multiplier)
-                }
-            }
-            // Pixels
-            "px" => {
-                let multiplier = if args.is_empty() {
-                    1.0
-                } else {
-                    self.expr(args[0])?
-                };
-                Ok((1.0 / self.width) * multiplier)
             }
             // Sin wave (0-1 normalized)
             "sin" => {
@@ -849,14 +790,10 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        let mut parser = ExpressionParser::with_dimensions(1920.0, 1080.0);
+        let mut parser = ExpressionParser::new();
         
         // Test time constant - just verify it returns a positive number
         assert!(parser.expr("T").unwrap() > 0.0);
-        
-        // Test height ratio
-        let h_ratio = 1080.0 / 1920.0;
-        assert!((parser.expr("H").unwrap() - h_ratio).abs() < 0.001);
         
         // Test sin
         assert!((parser.expr("sin 0.25").unwrap() - 1.0).abs() < 0.001);
@@ -943,21 +880,10 @@ mod tests {
         params2.insert("size".to_string(), 0.5);
         params2.insert("scrub".to_string(), 0.75);
         
-        let scenes = vec![
-            SceneMetadata {
-                start: 0.0,
-                length: 1.0,
-                offset: 0.0,
-                params: params1,
-            },
-            SceneMetadata {
-                start: 1.0,
-                length: 2.0,
-                offset: 0.5,
-                params: params2,
-            },
-        ];
-        parser.set_scene_metadata(scenes);
+        parser.set_scene_metadata(SceneMetadata {
+               scrub: 0.0,
+                params: params1
+            });
         
         // Test accessing params from scene 0
         parser.set_current_scene(0);

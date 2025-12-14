@@ -67,22 +67,14 @@ async fn parser_eval_expression(
     osc_address: String,
     osc_host: String,
     osc_port: u16,
-    width: f64,
-    height: f64,
-    current_scene: usize,
-    scene_metadata: Vec<SceneMetadata>,
+    scene_metadata: SceneMetadata,
 ) -> Result<f64, String> {
     // Create parser with dimensions
-    let mut parser = app_lib::parser::ExpressionParser::with_dimensions(
-        width,
-        height,
-    );
+    let mut parser = app_lib::parser::ExpressionParser::new();
     
     // Set scene metadata if available
-    if !scene_metadata.is_empty() {
-        parser.set_current_scene(current_scene);
-        parser.set_scene_metadata(scene_metadata);
-    }
+    parser.set_scene_metadata(scene_metadata);
+
     
     // Evaluate expression
     let result = parser.expr(&expr)?;

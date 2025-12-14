@@ -31,7 +31,7 @@ import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
-type ScrubState = {
+export type ScrubState = {
   scrub: number
   params: Record<string, number>
 }
@@ -315,25 +315,6 @@ function AsemicAppInner({
           const oscHost = sceneSettings.oscHost || '127.0.0.1'
           const oscPort = sceneSettings.oscPort || 57120
 
-          // Get canvas dimensions
-          const boundingRect = canvas.current?.getBoundingClientRect()
-          const width = (boundingRect?.width || 1080) * (devicePixelRatio || 2)
-          const height =
-            (boundingRect?.height || 1080) * (devicePixelRatio || 2)
-
-          // Build scene metadata array
-          const sceneMetadata = scenesArray.map((scene, idx) => ({
-            start: 0,
-            length: scene.length || 0.1,
-            offset: scene.offset || 0,
-            params: scene.params
-              ? Object.entries(scene.params).reduce((acc, [key, config]) => {
-                  acc[key] = config.value ?? config.min ?? 0
-                  return acc
-                }, {} as Record<string, number>)
-              : {}
-          }))
-
           // Process OSC messages sequentially to avoid overwhelming the parser
           for (const oscMsg of sceneSettings.osc) {
             invoke<number>('parser_eval_expression', {
@@ -341,10 +322,7 @@ function AsemicAppInner({
               oscAddress: oscMsg.name,
               oscHost: oscHost,
               oscPort: oscPort,
-              width,
-              height,
-              currentScene: activeSceneRef.current,
-              sceneMetadata
+              sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
             })
           }
         }
@@ -439,7 +417,7 @@ function AsemicAppInner({
 
   // Scene settings state
   const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
-    {}
+    { params: {} }
   )
   const [deletedScene, setDeletedScene] = useState<{
     scene: SceneSettings
@@ -462,10 +440,10 @@ function AsemicAppInner({
         }
         setActiveSceneSettings(sceneSettings)
       } else {
-        setActiveSceneSettings({})
+        setActiveSceneSettings({ params: {} })
       }
     } catch (e) {
-      setActiveSceneSettings({})
+      setActiveSceneSettings({ params: {} })
     }
     asemic.current?.postMessage({ reset: true })
   }, [scenesArray, activeScene])
@@ -759,6 +737,14 @@ function AsemicAppInner({
                   onUpdate={newSettings => {
                     setActiveSceneSettings(newSettings)
                     updateSceneSettings(newSettings)
+                  }}
+                  scrubSettings={scrubValues[activeScene]}
+                  onUpdateScrub={newScrubSettings => {
+                    setScrubValues(prev => {
+                      const newValues = [...prev]
+                      newValues[activeScene] = newScrubSettings
+                      return newValues
+                    })
                   }}
                   onAddScene={addSceneAfterCurrent}
                   onDeleteScene={deleteCurrentScene}

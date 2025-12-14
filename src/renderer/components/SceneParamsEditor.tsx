@@ -3,12 +3,12 @@ import { open } from '@tauri-apps/plugin-dialog'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
+import { ScrubState } from '../app/AsemicApp'
 
 type ParamConfig = {
   max: number
   min: number
   exponent: number
-  value: number
 }
 
 export interface GlobalSettings {
@@ -22,7 +22,7 @@ export interface SceneSettings {
   length?: number
   offset?: number
   pause?: number | false
-  params?: Record<string, ParamConfig>
+  params: Record<string, ParamConfig>
   osc?: Array<{ name: string; value: number | string; play: 'once' | 'always' }>
   oscHost?: string
   oscPort?: number
@@ -33,7 +33,9 @@ export interface SceneSettings {
 interface SceneSettingsPanelProps {
   activeScene: number
   settings: SceneSettings
+  scrubSettings: ScrubState
   onUpdate: (settings: SceneSettings) => void
+  onUpdateScrub: (settings: ScrubState) => void
   onAddScene: () => void
   onDeleteScene: () => void
 }
@@ -43,7 +45,9 @@ export default function SceneSettingsPanel({
   settings,
   onUpdate,
   onAddScene,
-  onDeleteScene
+  onDeleteScene,
+  onUpdateScrub,
+  scrubSettings
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -61,8 +65,7 @@ export default function SceneSettingsPanel({
           [newParamName.trim()]: {
             max: 1,
             min: 0,
-            exponent: 1,
-            value: 0.5
+            exponent: 1
           }
         }
       })
@@ -82,19 +85,12 @@ export default function SceneSettingsPanel({
     onUpdate({ ...settings, params: newParams })
   }
 
-  const handleUpdateParam = (
-    key: string,
-    field: keyof ParamConfig,
-    value: number
-  ) => {
-    onUpdate({
-      ...settings,
+  const handleUpdateParam = (key: string, value: number) => {
+    onUpdateScrub({
+      ...scrubSettings,
       params: {
-        ...settings.params,
-        [key]: {
-          ...settings.params![key],
-          [field]: value
-        }
+        ...scrubSettings.params,
+        [key]: value
       }
     })
   }
@@ -206,7 +202,7 @@ export default function SceneSettingsPanel({
               onChange={e =>
                 onUpdate({
                   ...settings,
-                  length: parseFloat(e.target.value) || 0
+                  length: parseFloat(e.target.value)
                 })
               }
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
@@ -221,7 +217,7 @@ export default function SceneSettingsPanel({
               onChange={e =>
                 onUpdate({
                   ...settings,
-                  offset: parseFloat(e.target.value) || 0
+                  offset: parseFloat(e.target.value)
                 })
               }
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
@@ -320,7 +316,7 @@ export default function SceneSettingsPanel({
                       Value
                     </label>
                     <span className='text-white/70 text-xs'>
-                      {paramConfig.value?.toFixed(3) ??
+                      {scrubSettings.params[key]?.toFixed(3) ??
                         paramConfig.min.toFixed(3)}
                     </span>
                   </div>
@@ -333,11 +329,16 @@ export default function SceneSettingsPanel({
                       step='0.01'
                       value={paramConfig.min}
                       onChange={e =>
-                        handleUpdateParam(
-                          key,
-                          'min',
-                          parseFloat(e.target.value) || 0
-                        )
+                        onUpdate({
+                          ...settings,
+                          params: {
+                            ...settings.params,
+                            [key]: {
+                              ...settings.params[key],
+                              min: parseFloat(e.target.value)
+                            }
+                          }
+                        })
                       }
                       className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                     />
@@ -351,11 +352,16 @@ export default function SceneSettingsPanel({
                       step='0.01'
                       value={paramConfig.max}
                       onChange={e =>
-                        handleUpdateParam(
-                          key,
-                          'max',
-                          parseFloat(e.target.value) || 1
-                        )
+                        onUpdate({
+                          ...settings,
+                          params: {
+                            ...settings.params,
+                            [key]: {
+                              ...settings.params[key],
+                              max: parseFloat(e.target.value)
+                            }
+                          }
+                        })
                       }
                       className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                     />
@@ -369,11 +375,16 @@ export default function SceneSettingsPanel({
                       step='0.1'
                       value={paramConfig.exponent}
                       onChange={e =>
-                        handleUpdateParam(
-                          key,
-                          'exponent',
-                          parseFloat(e.target.value) || 1
-                        )
+                        onUpdate({
+                          ...settings,
+                          params: {
+                            ...settings.params,
+                            [key]: {
+                              ...settings.params[key],
+                              exponent: parseFloat(e.target.value)
+                            }
+                          }
+                        })
                       }
                       className='w-14 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                     />
@@ -394,7 +405,7 @@ export default function SceneSettingsPanel({
                     max={paramConfig.max}
                     exponent={paramConfig.exponent}
                     values={{
-                      x: paramConfig.value ?? paramConfig.min,
+                      x: scrubSettings.params[key] ?? paramConfig.min,
                       y: 0
                     }}
                     sliderStyle={({ x }) => ({
@@ -409,7 +420,7 @@ export default function SceneSettingsPanel({
                       pointerEvents: 'none'
                     })}
                     onChange={({ x }) => {
-                      handleUpdateParam(key, 'value', x)
+                      handleUpdateParam(key, x)
                     }}
                   />
                 </div>

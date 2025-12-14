@@ -1,5 +1,6 @@
 // Simple voice passthrough SynthDef with infinite delay using DelayL
 s.reboot;
+s.options.memSize = 20000;
 (
 s.freeAll;
 SynthDef(\voicePassthrough, {
@@ -12,14 +13,14 @@ SynthDef(\voicePassthrough, {
   input = SoundIn.ar(inBus) ! 4;
 
   // Create local bus for feedback loop
-  delayBus = LocalIn.ar(1);
+  delayBus = LocalIn.ar(4);
 
   // Add input and feedback signal
   feedbackSignal = input + (delayBus * feedback);
 
   // Create delay using DelayL (linear interpolation)
   delayed = DelayL.ar(
-    feedbackSignal ! 4,
+    feedbackSignal,
     maxdelaytime: 2.0,    // Maximum possible delay time
     delaytime: [delayTime / 2, delayTime * 0.75, delayTime * 1.25, delayTime * 2]   // Actual delay time spread
   );
@@ -40,8 +41,10 @@ SynthDef(\voicePassthrough, {
 )
 (
 OSCdef.freeAll;
-OSCdef.new(\delay, { |msg| if (~voice.isRunning, {~voice.set(\delayTime, msg[1]);}); }, "/delay");
-OSCdef.new(\feedback, { |msg| if (~voice.isRunning, {~voice.set(\feedback, msg[1]);}); }, "/feedback");
+/*OSCdef.new(\delay, { |msg| if (~voice.isRunning, {~voice.set(\delayTime, msg[1]); "set delay %".format(msg[0]).postln; }); }, "/delay");
+OSCdef.new(\feedback, { |msg| if (~voice.isRunning, {~voice.set(\feedback, msg[1]); "set feedback %".format(msg[1]).postln; }); }, "/feedback");*/
+OSCdef.new(\delay, { |msg| ~voice.set(\delayTime, msg[1]); "set delay %".format(msg[0]).postln; }, "/delay");
+OSCdef.new(\feedback, { |msg| ~voice.set(\feedback, msg[1]); "set feedback %".format(msg[1]).postln; }, "/feedback");
 OSCdef.new(\toggleDelay, { |msg|
 	if (msg[1] == 0.0, { ~voice.free(); }, { if (~voice.isRunning == false, { ~voice = Synth(\voicePassthrough); }) });
 }, "/toggle/delay");

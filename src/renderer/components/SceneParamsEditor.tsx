@@ -489,20 +489,21 @@ export default function SceneSettingsPanel({
                   }}
                   className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
                 />
-                <div className='w-48 bg-white/10 rounded px-1 py-0.5'>
-                  <AsemicExpressionEditor
-                    value={osc.value.toString()}
-                    onChange={value => {
-                      const newOsc = [...(settings.osc || [])]
-                      // Store as string to preserve expressions, will be evaluated later
-                      newOsc[index] = {
-                        ...newOsc[index],
-                        value: value as any
-                      }
-                      onUpdate({ ...settings, osc: newOsc })
-                    }}
-                  />
-                </div>
+                <input
+                  type='text'
+                  placeholder='Expression or value'
+                  value={osc.value.toString()}
+                  onChange={e => {
+                    const newOsc = [...(settings.osc || [])]
+                    // Store as string to preserve expressions, will be evaluated later
+                    newOsc[index] = {
+                      ...newOsc[index],
+                      value: e.target.value as any
+                    }
+                    onUpdate({ ...settings, osc: newOsc })
+                  }}
+                  className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                />
                 <select
                   value={osc.play}
                   onChange={e => {

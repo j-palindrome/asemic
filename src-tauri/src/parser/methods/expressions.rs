@@ -478,6 +478,7 @@ impl ExpressionParser {
                 Err("table requires image data and is not fully implemented in Rust parser".to_string())
             }
             _ => {
+
                 // Check if it's a parameter name from scene metadata
                 if let Some(value) = self.get_param(func_name, 0) {
                     Ok(value)

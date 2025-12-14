@@ -74,10 +74,11 @@ async fn parser_eval_expression(
     
     // Set scene metadata if available
     parser.set_scene_metadata(scene_metadata);
-
+    
     
     // Evaluate expression
     let result = parser.expr(&expr)?;
+    println!("Evaluated expression '{}' to {:?}", expr, result);
     
     // Send OSC message
     parser.send_osc(&osc_address, result, &osc_host, osc_port)?;

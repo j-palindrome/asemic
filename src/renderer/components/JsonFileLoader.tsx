@@ -2,14 +2,21 @@ import { X, Download, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
-import { SceneSettings } from './SceneParamsEditor'
+import { GlobalSettings, SceneSettings } from './SceneParamsEditor'
 
 interface JsonLoaderProps {
   sceneList: SceneSettings[]
   setSceneList: (newList: SceneSettings[]) => void
+  globalSettings: GlobalSettings
+  setGlobalSettings: (newSettings: GlobalSettings) => void
 }
 
-export function JsonFileLoader({ sceneList, setSceneList }: JsonLoaderProps) {
+export function JsonFileLoader({
+  sceneList,
+  setSceneList,
+  globalSettings,
+  setGlobalSettings
+}: JsonLoaderProps) {
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
@@ -26,7 +33,17 @@ export function JsonFileLoader({ sceneList, setSceneList }: JsonLoaderProps) {
       })
 
       if (path) {
-        await writeTextFile(path, JSON.stringify(sceneList, null, 2))
+        await writeTextFile(
+          path,
+          JSON.stringify(
+            {
+              settings: globalSettings,
+              scenes: sceneList
+            },
+            null,
+            2
+          )
+        )
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save file')
@@ -43,25 +60,11 @@ export function JsonFileLoader({ sceneList, setSceneList }: JsonLoaderProps) {
       const text = await file.text()
       const parsed = JSON.parse(text)
 
-      let scenesData: SceneSettings[] = []
+      let scenesData: SceneSettings[] = parsed.scenes || []
+      const settingsData: GlobalSettings = parsed.settings || {}
 
-      if (Array.isArray(parsed)) {
-        scenesData = parsed as SceneSettings[]
-      } else if (
-        typeof parsed === 'object' &&
-        'scenes' in parsed &&
-        Array.isArray((parsed as any).scenes)
-      ) {
-        scenesData = (parsed as any).scenes as SceneSettings[]
-      } else if (typeof parsed === 'object') {
-        scenesData = [parsed as SceneSettings]
-      }
-
-      if (scenesData.length > 0) {
-        setSceneList(scenesData)
-      } else {
-        setError('No valid scene data found in file')
-      }
+      setSceneList(scenesData)
+      setGlobalSettings(settingsData)
 
       // Reset file input
       event.target.value = ''

@@ -1,7 +1,7 @@
 import Asemic from '@/lib/Asemic'
 import { Parser, Scene } from '@/lib/parser/Parser'
 import { AsemicData } from '@/lib/types'
-import _, { isEqual, isUndefined } from 'lodash'
+import _, { isEqual, isUndefined, set } from 'lodash'
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,14 +13,17 @@ import {
   RefreshCw,
   Save,
   Undo,
-  Upload
+  Upload,
+  Settings
 } from 'lucide-react'
 import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 import SceneSettingsPanel, {
+  GlobalSettings,
   SceneSettings
 } from '../components/SceneParamsEditor'
+import GlobalSettingsEditor from '../components/GlobalSettingsEditor'
 import { JsonFileLoader } from '../components/JsonFileLoader'
 import { ParsedJsonResult } from '../hooks/useJsonFileLoader'
 import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
@@ -35,11 +38,23 @@ function AsemicAppInner({
 }) {
   // Parse scenes as JSON array
   const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([])
+  const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>(
+    {} as GlobalSettings
+  )
+
   const setScenesArray = (newArray: SceneSettings[]) => {
     if (!isEqual(scenesArray, newArray)) {
       // Update only if different
       _setScenesArray(newArray)
       localStorage.setItem('scenesArray', JSON.stringify(newArray))
+    }
+  }
+
+  const setGlobalSettings = (newSettings: GlobalSettings) => {
+    if (!isEqual(globalSettings, newSettings)) {
+      // Update only if different
+      _setGlobalSettings(newSettings)
+      localStorage.setItem('globalSettings', JSON.stringify(newSettings))
     }
   }
 
@@ -488,11 +503,21 @@ function AsemicAppInner({
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem('scenesArray')
+    let stored = localStorage.getItem('scenesArray')
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as SceneSettings[]
         setScenesArray(parsed)
+        console.log('loading', parsed)
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    stored = localStorage.getItem('globalSettings')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as GlobalSettings
+        setGlobalSettings(parsed)
         console.log('loading', parsed)
       } catch (e) {
         // Ignore parse errors
@@ -523,7 +548,6 @@ function AsemicAppInner({
     const deletedSceneData = newScenesArray[activeScene]
     newScenesArray.splice(activeScene, 1)
     setScenesArray(newScenesArray)
-    const newSource = JSON.stringify(newScenesArray, null, 2)
     // Store deleted scene for undo
     setDeletedScene({
       scene: deletedSceneData,
@@ -543,57 +567,23 @@ function AsemicAppInner({
     setDeletedScene(null)
   }
 
-  // Audio track loading and playback
-  const [audioFiles, setAudioFiles] = useState<Map<string, HTMLAudioElement>>(
-    new Map()
-  )
-
-  const loadAudioFolder = async () => {
-    try {
-      const folderPath = await open({
-        multiple: false,
-        directory: true
-      })
-
-      if (!folderPath) {
-        // User cancelled
-        return
-      }
-
-      const entries = await readDir(folderPath as string)
-      const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac']
-      const newAudioFiles = new Map<string, HTMLAudioElement>()
-
-      for (const entry of entries) {
-        if (!entry.isFile) continue
-
-        const lowerName = entry.name.toLowerCase()
-        const hasAudioExt = audioExtensions.some(ext => lowerName.endsWith(ext))
-
-        if (hasAudioExt) {
-          const fullPath = `${folderPath}/${entry.name}`
-          const audio = new Audio(convertFileSrc(fullPath))
-
-          // Preload the audio
-          audio.preload = 'auto'
-
-          // Store with filename (without extension) as key
-          const nameWithoutExt = entry.name.replace(/\.[^/.]+$/, '')
-          newAudioFiles.set(nameWithoutExt, audio)
-        }
-      }
-
-      setAudioFiles(newAudioFiles)
-    } catch (error) {
-      // Failed to load audio folder
+  const [perform, _setPerform] = useState(settings.perform)
+  const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
+  const setPerform = (value: boolean) => {
+    if (!value && showGlobalSettings) {
+      _setShowGlobalSettings(false)
     }
+    _setPerform(value)
   }
-
-  const [perform, setPerform] = useState(settings.perform)
   useEffect(() => {
     setPerform(settings.perform)
   }, [settings.perform])
   const [showCanvas, setShowCanvas] = useState(true)
+
+  const setShowGlobalSettings = (value: boolean) => {
+    if (value && !perform) setPerform(true)
+    _setShowGlobalSettings(value)
+  }
 
   const frame = useRef<HTMLDivElement>(null!)
   const requestFullscreen = async () => {
@@ -752,15 +742,21 @@ function AsemicAppInner({
             <JsonFileLoader
               sceneList={scenesArray}
               setSceneList={setScenesArray}
+              globalSettings={globalSettings}
+              setGlobalSettings={setGlobalSettings}
             />
+            <button
+              onClick={() => setShowGlobalSettings(!showGlobalSettings)}
+              title='Global Settings'
+              className='p-1 hover:bg-white/10 rounded transition-colors'>
+              <Settings {...lucideProps} size={16} />
+            </button>
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>
           </div>
           {!perform && (
             <>
-              {/* Scene Settings Panel - Now contains the editor */}
-
               <div className='pointer-events-auto'>
                 <SceneSettingsPanel
                   activeScene={activeScene}
@@ -774,6 +770,15 @@ function AsemicAppInner({
                 />
               </div>
             </>
+          )}
+          {showGlobalSettings && (
+            <div className='pointer-events-auto'>
+              <GlobalSettingsEditor
+                settings={globalSettings}
+                onUpdate={setGlobalSettings}
+                onClose={() => setShowGlobalSettings(false)}
+              />
+            </div>
           )}
         </div>
       </div>

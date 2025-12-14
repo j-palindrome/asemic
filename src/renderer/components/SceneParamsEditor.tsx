@@ -11,6 +11,11 @@ type ParamConfig = {
   value: number
 }
 
+export interface GlobalSettings {
+  supercolliderHost?: string
+  supercolliderPort?: number
+}
+
 export interface SceneSettings {
   code?: string
   text?: string

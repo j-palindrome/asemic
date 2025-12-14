@@ -23,7 +23,7 @@ impl SuperCollider {
     pub fn connect(&mut self, host: &str) -> Result<(), String> {
         let server = Server::connect(host)
             .map_err(|e| format!("Failed to connect to SuperCollider server at {}: {}", host, e))?;
-        
+        println!("Connected to SuperCollider server at {}", host);
         self.server = Some(server);
         Ok(())
     }

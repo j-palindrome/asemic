@@ -42,19 +42,13 @@ SynthDef(\voicePassthrough, {
 ~voice = Synth(\voicePassthrough);
 )
 
-// OSC listener for /sc/sample messages to control delayTime
-(
-// Free any existing OSC listener
-OSCdef.freeAll;
+OSCDef(\delay, { |msg|
+    var sampleValue = msg[1];
+    "Received delay with sample value: %".format(sampleValue).postln;
+}, "/delay");
 
-// Create new listener on default port (57120)
-OSCdef.new(\scSample, { |msg, time, addr, recvPort|
-	"received".postln;
-   ~voice.set(\delayTime, msg[1].clip(0.0, 2.0));
-}, '/sc/sample');
-
-"OSC listener active on port % for /sc/sample".format(NetAddr.langPort).postln;
-)
+s.queryAllNodes;
+s.plotTree;
 
 OSCFunc.trace(true);
 OSCFunc.trace(false);

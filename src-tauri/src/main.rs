@@ -94,9 +94,9 @@ async fn parser_eval_expression(
 }
 
 #[tauri::command]
-async fn sc_connect(expr: String) -> Result<String, String> {
+async fn sc_connect(host: String) -> Result<String, String> {
     let mut sc = app_lib::supercollider::SC.lock().map_err(|e| format!("Failed to lock SuperCollider: {}", e))?;
-    sc.connect(&expr).map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
+    sc.connect(&host).map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
     Ok("Success".to_string())
 }
 

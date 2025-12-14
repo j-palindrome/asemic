@@ -23,7 +23,7 @@ export interface SceneSettings {
   offset?: number
   pause?: number | false
   params?: Record<string, ParamConfig>
-  osc?: Array<{ name: string; value: number | string }>
+  osc?: Array<{ name: string; value: number | string; play: 'once' | 'always' }>
   oscHost?: string
   oscPort?: number
   audioTrack?: string
@@ -201,12 +201,12 @@ export default function SceneSettingsPanel({
             <label className='text-white/70 block mb-1'>Length</label>
             <input
               type='number'
-              step='0.1'
+              step='0.01'
               value={settings.length ?? 0.1}
               onChange={e =>
                 onUpdate({
                   ...settings,
-                  length: parseFloat(e.target.value) || 0.1
+                  length: parseFloat(e.target.value) || 0
                 })
               }
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
@@ -452,7 +452,10 @@ export default function SceneSettingsPanel({
                 e.stopPropagation()
                 onUpdate({
                   ...settings,
-                  osc: [...(settings.osc || []), { name: '', value: 0 }]
+                  osc: [
+                    ...(settings.osc || []),
+                    { name: '', value: 0, play: 'always' }
+                  ]
                 })
               }}
               className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
@@ -475,14 +478,7 @@ export default function SceneSettingsPanel({
                 />
                 <div className='w-48 bg-white/10 rounded px-1 py-0.5'>
                   <AsemicExpressionEditor
-                    value={
-                      typeof osc.value === 'number'
-                        ? osc.value.toString()
-                        : osc.value.toString()
-                    }
-                    onEvaluate={result => {
-                      console.log(result)
-                    }}
+                    value={osc.value.toString()}
                     onChange={value => {
                       const newOsc = [...(settings.osc || [])]
                       // Store as string to preserve expressions, will be evaluated later
@@ -494,6 +490,20 @@ export default function SceneSettingsPanel({
                     }}
                   />
                 </div>
+                <select
+                  value={osc.play}
+                  onChange={e => {
+                    const newOsc = [...(settings.osc || [])]
+                    newOsc[index] = {
+                      ...newOsc[index],
+                      play: e.target.value as 'once' | 'always'
+                    }
+                    onUpdate({ ...settings, osc: newOsc })
+                  }}
+                  className='bg-white/10 text-white px-2 py-1 rounded text-xs'>
+                  <option value='always'>always</option>
+                  <option value='once'>once</option>
+                </select>
                 <button
                   onClick={() => {
                     const newOsc = [...(settings.osc || [])]

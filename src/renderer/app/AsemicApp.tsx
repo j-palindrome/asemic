@@ -31,6 +31,11 @@ import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
+type ScrubState = {
+  scrub: number
+  params: Record<string, number>
+}
+
 function AsemicAppInner({
   getRequire
 }: {
@@ -103,8 +108,8 @@ function AsemicAppInner({
     })
   }, [scenesArray])
 
-  // Track scrub position per scene (local playback position within each scene)
-  const [scrubValues, setScrubValues] = useState<number[]>([])
+  // Track scrub position and params per scene
+  const [scrubValues, setScrubValues] = useState<ScrubState[]>([])
   const scrubValuesRef = useRef(scrubValues)
   useEffect(() => {
     scrubValuesRef.current = scrubValues
@@ -113,7 +118,12 @@ function AsemicAppInner({
   // Initialize scrub values when scenes change
   useEffect(() => {
     setScrubValues(prev => {
-      const newValues = new Array(scenesArray.length).fill(0)
+      const newValues: ScrubState[] = new Array(scenesArray.length)
+        .fill(null)
+        .map(() => ({
+          scrub: 0,
+          params: {}
+        }))
       // Preserve existing scrub values if scenes didn't change length
       if (prev.length === newValues.length) {
         return prev
@@ -285,9 +295,9 @@ function AsemicAppInner({
             length: currentSceneSettings.length,
             offset: currentSceneSettings.offset,
             pause: currentSceneSettings.pause,
-            params: currentSceneSettings.params,
+            params: scrubValuesRef.current[activeSceneRef.current]!.params,
             scrub:
-              (scrubValuesRef.current[activeSceneRef.current] || 0) /
+              (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
               (currentSceneSettings.length || 0.1)
           }
 
@@ -326,33 +336,16 @@ function AsemicAppInner({
 
           // Process OSC messages sequentially to avoid overwhelming the parser
           for (const oscMsg of sceneSettings.osc) {
-            try {
-              if (typeof oscMsg.value === 'string' && oscMsg.value.trim()) {
-                invoke<number>('parser_eval_expression', {
-                  expr: oscMsg.value,
-                  oscAddress: oscMsg.name,
-                  oscHost: oscHost,
-                  oscPort: oscPort,
-                  width,
-                  height,
-                  currentScene: activeSceneRef.current,
-                  sceneMetadata
-                })
-              } else if (typeof oscMsg.value === 'number') {
-                invoke<number>('parser_eval_expression', {
-                  expr: oscMsg.value.toString(),
-                  oscAddress: oscMsg.name,
-                  oscHost: oscHost,
-                  oscPort: oscPort,
-                  width,
-                  height,
-                  currentScene: activeSceneRef.current,
-                  sceneMetadata
-                })
-              }
-            } catch (error) {
-              // Silent fail to prevent console spam
-            }
+            invoke<number>('parser_eval_expression', {
+              expr: oscMsg.value.toString(),
+              oscAddress: oscMsg.name,
+              oscHost: oscHost,
+              oscPort: oscPort,
+              width,
+              height,
+              currentScene: activeSceneRef.current,
+              sceneMetadata
+            })
           }
         }
       } catch (error) {
@@ -710,12 +703,14 @@ function AsemicAppInner({
                   (scenesArray[activeScene]?.offset || 0)
                 }
                 step='0.01'
-                value={scrubValues[activeScene] || 0}
+                value={scrubValues[activeScene]?.scrub || 0}
                 onChange={e => {
                   const newScrub = parseFloat(e.target.value)
                   setScrubValues(prev => {
                     const newValues = [...prev]
-                    newValues[activeScene] = newScrub
+                    if (newValues[activeScene]) {
+                      newValues[activeScene].scrub = newScrub
+                    }
                     return newValues
                   })
                 }}
@@ -725,7 +720,7 @@ function AsemicAppInner({
                 }}
               />
               <span className='text-white text-xs opacity-50 font-mono min-w-[60px]'>
-                {(scrubValues[activeScene] || 0).toFixed(2)}s
+                {(scrubValues[activeScene]?.scrub || 0).toFixed(2)}s
               </span>
             </div>
             <div className='grow' />

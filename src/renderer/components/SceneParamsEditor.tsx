@@ -313,14 +313,39 @@ export default function SceneSettingsPanel({
                       {key}
                     </div>
                   </div>
-                  <div className='min-w-[50px]'>
+                  <div>
                     <label className='text-white/50 text-xs block mb-1'>
-                      Value
+                      Dim
                     </label>
-                    <span className='text-white/70 text-xs'>
-                      {scrubSettings.params?.[key]?.[0]?.toFixed(3) ??
-                        paramConfig.min.toFixed(3)}
-                    </span>
+                    <input
+                      type='number'
+                      min='1'
+                      step='1'
+                      value={paramConfig.dimension}
+                      onChange={e => {
+                        const newDim = Math.max(1, parseInt(e.target.value))
+                        onUpdate({
+                          ...settings,
+                          params: {
+                            ...settings.params,
+                            [key]: {
+                              ...settings.params[key],
+                              dimension: newDim
+                            }
+                          }
+                        })
+                        // Adjust param values array if dimension changed
+                        const currentValues = scrubSettings.params[key] || []
+                        if (currentValues.length !== newDim) {
+                          const newValues = Array(newDim).fill(paramConfig.min)
+                          currentValues.forEach((v, i) => {
+                            if (i < newDim) newValues[i] = v
+                          })
+                          handleUpdateParam(key, newValues)
+                        }
+                      }}
+                      className='w-12 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                    />
                   </div>
                   <div>
                     <label className='text-white/50 text-xs block mb-1'>
@@ -398,33 +423,56 @@ export default function SceneSettingsPanel({
                   </button>
                 </div>
 
-                {/* Value Slider Row */}
-                <div className='relative h-8 bg-white/5 rounded'>
-                  <Slider
-                    className='w-full h-full'
-                    innerClassName=''
-                    min={paramConfig.min}
-                    max={paramConfig.max}
-                    exponent={paramConfig.exponent}
-                    values={{
-                      x: scrubSettings.params[key]?.[0] ?? paramConfig.min,
-                      y: 0
-                    }}
-                    sliderStyle={({ x }) => ({
-                      left: `${x * 100}%`,
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      backgroundColor: 'white',
-                      position: 'absolute',
-                      pointerEvents: 'none'
-                    })}
-                    onChange={({ x }) => {
-                      handleUpdateParam(key, [x])
-                    }}
-                  />
+                {/* Value Sliders Row */}
+                <div className='space-y-1'>
+                  {Array.from({ length: paramConfig.dimension }).map(
+                    (_, dimIndex) => (
+                      <div key={dimIndex} className='flex items-center gap-2'>
+                        <span className='text-white/50 text-xs w-6'>
+                          [{dimIndex}]
+                        </span>
+                        <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                          <Slider
+                            className='w-full h-full'
+                            innerClassName=''
+                            min={paramConfig.min}
+                            max={paramConfig.max}
+                            exponent={paramConfig.exponent}
+                            values={{
+                              x:
+                                scrubSettings.params[key]?.[dimIndex] ??
+                                paramConfig.min,
+                              y: 0
+                            }}
+                            sliderStyle={({ x }) => ({
+                              left: `${x * 100}%`,
+                              top: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              backgroundColor: 'white',
+                              position: 'absolute',
+                              pointerEvents: 'none'
+                            })}
+                            onChange={({ x }) => {
+                              const currentValues =
+                                scrubSettings.params[key] || []
+                              const newValues = [...currentValues]
+                              newValues[dimIndex] = x
+                              handleUpdateParam(key, newValues)
+                            }}
+                          />
+                        </div>
+                        <span className='text-white/70 text-xs w-12 text-right'>
+                          {(
+                            scrubSettings.params[key]?.[dimIndex] ??
+                            paramConfig.min
+                          ).toFixed(3)}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             ))}

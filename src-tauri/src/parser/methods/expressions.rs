@@ -1,7 +1,7 @@
+use rosc::{encoder, OscMessage, OscPacket, OscType};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::UdpSocket;
-use rosc::{OscMessage, OscPacket, OscType, encoder};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneMetadata {
@@ -11,9 +11,9 @@ pub struct SceneMetadata {
 
 /// A static expression parser for Asemic expressions.
 /// This is a port of the TypeScript expr() function without global state.
-/// 
+///
 /// Supported operators: &, |, ^, _, +, -, *, /, %, (, )
-/// 
+///
 /// Supported constants and functions:
 /// - Progress: S (global scrub), s (scene-relative 0-1), C (curve), L (letter), P (point)
 /// - Indexing: N (count), I (index), i (normalized index 0-1)
@@ -58,8 +58,16 @@ struct SplitResult {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 enum NoiseState {
-    SampleAndHold { value: f64, sampling: bool },
-    FmSynthesis { freq: f64, phase: f64, fm_curve: Vec<(f64, f64)>, freq_phases: Vec<f64> },
+    SampleAndHold {
+        value: f64,
+        sampling: bool,
+    },
+    FmSynthesis {
+        freq: f64,
+        phase: f64,
+        fm_curve: Vec<(f64, f64)>,
+        freq_phases: Vec<f64>,
+    },
 }
 
 impl ExpressionParser {
@@ -72,9 +80,14 @@ impl ExpressionParser {
             noise_index: 0,
             indexes: vec![0.0; 3],
             count_nums: vec![0.0; 3],
-            seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
+            seeds: (0..100)
+                .map(|i| ((i as f64 * 0.618033988749895) % 1.0))
+                .collect(),
             noise_table: HashMap::new(),
-            scene_metadata: SceneMetadata { scrub: 0.0, params: HashMap::new() },
+            scene_metadata: SceneMetadata {
+                scrub: 0.0,
+                params: HashMap::new(),
+            },
             cache_max_size: 1000, // Limit cache to 1000 entries
         }
     }
@@ -99,7 +112,12 @@ impl ExpressionParser {
 
     /// Get a parameter value from the current scene's metadata
     pub fn get_param(&self, name: &str, index: usize) -> Option<f64> {
-        return self.scene_metadata.params.get(name).and_then(|v| v.get(index)).copied()
+        return self
+            .scene_metadata
+            .params
+            .get(name)
+            .and_then(|v| v.get(index))
+            .copied();
     }
 
     /// Main expression evaluation functio
@@ -107,14 +125,15 @@ impl ExpressionParser {
     /// Also supports function calls with space-separated arguments
     pub fn expr(&mut self, expr: &str) -> Result<f64, String> {
         let expr = expr.trim();
-        
+
         if expr.is_empty() {
             return Err("Empty expression".to_string());
         }
 
         // Early number check before any processing
         if Self::is_number(expr) {
-            return expr.parse::<f64>()
+            return expr
+                .parse::<f64>()
                 .map_err(|_| format!("{} is not a valid number", expr));
         }
 
@@ -135,7 +154,8 @@ impl ExpressionParser {
             if self.operator_split_cache.len() >= self.cache_max_size {
                 self.operator_split_cache.clear();
             }
-            self.operator_split_cache.insert(expr.clone(), splits.clone());
+            self.operator_split_cache
+                .insert(expr.clone(), splits.clone());
             splits
         };
 
@@ -157,7 +177,8 @@ impl ExpressionParser {
 
         // Check if it's a number (including negative)
         if Self::is_number_or_negative(string_expr) {
-            return string_expr.parse::<f64>()
+            return string_expr
+                .parse::<f64>()
                 .map_err(|_| format!("{} is NaN", string_expr));
         }
 
@@ -300,20 +321,19 @@ impl ExpressionParser {
                 } else if fade < 0.0 {
                     fade = 0.0;
                 }
-                
-                let values: Result<Vec<f64>, String> = args[1..].iter()
-                    .map(|arg| self.expr(arg))
-                    .collect();
+
+                let values: Result<Vec<f64>, String> =
+                    args[1..].iter().map(|arg| self.expr(arg)).collect();
                 let values = values?;
-                
+
                 if values.len() < 2 {
                     return Err("> requires at least 2 values".to_string());
                 }
-                
+
                 let index = (values.len() - 1) as f64 * fade;
                 let i = index.floor() as usize;
                 let t = index.fract();
-                
+
                 Ok(values[i] * (1.0 - t) + values[i + 1] * t)
             }
             // Choose by index
@@ -332,7 +352,8 @@ impl ExpressionParser {
                 if args.is_empty() {
                     return Err("mix requires arguments".to_string());
                 }
-                let sum: Result<f64, String> = args.iter()
+                let sum: Result<f64, String> = args
+                    .iter()
                     .map(|arg| self.expr(arg))
                     .try_fold(0.0, |acc, res| res.map(|v| acc + v));
                 Ok(sum? / args.len() as f64)
@@ -405,14 +426,18 @@ impl ExpressionParser {
                 }
                 let key = format!("{}", self.noise_index);
                 self.noise_index += 1;
-                
+
                 let val1 = self.expr(args[0])?;
                 let val2 = self.expr(args[1])?;
-                
-                let state = self.noise_table.entry(key.clone()).or_insert(
-                    NoiseState::SampleAndHold { value: 0.0, sampling: false }
-                );
-                
+
+                let state =
+                    self.noise_table
+                        .entry(key.clone())
+                        .or_insert(NoiseState::SampleAndHold {
+                            value: 0.0,
+                            sampling: false,
+                        });
+
                 if let NoiseState::SampleAndHold { value, sampling } = state {
                     if val2 > 0.5 && !*sampling {
                         *sampling = true;
@@ -445,26 +470,29 @@ impl ExpressionParser {
                 Ok((if hash > 0.5 { 1.0 } else { -1.0 }) * x * 0.5 + 0.5)
             }
             // Tangent (requires curve data - not fully implementable without curve context)
-            "tangent" => {
-                Err("tangent requires curve data and is not fully implemented in Rust parser".to_string())
-            }
+            "tangent" => Err(
+                "tangent requires curve data and is not fully implemented in Rust parser"
+                    .to_string(),
+            ),
             // Peaks function
             "peaks" => {
                 if args.len() < 2 {
                     return Err("peaks requires at least 2 arguments".to_string());
                 }
                 let pos = self.expr(args[0])?;
-                
+
                 // Note: Full implementation requires point parsing.
                 // Simplified version assumes peaks are "x,y" format
                 for peak_str in &args[1..] {
                     let parts: Vec<&str> = peak_str.split(',').collect();
                     if parts.len() >= 2 {
-                        let peak_pos = parts[0].parse::<f64>()
+                        let peak_pos = parts[0]
+                            .parse::<f64>()
                             .map_err(|_| format!("Invalid peak position: {}", parts[0]))?;
-                        let peak_width = parts[1].parse::<f64>()
+                        let peak_width = parts[1]
+                            .parse::<f64>()
                             .map_err(|_| format!("Invalid peak width: {}", parts[1]))?;
-                        
+
                         let diff = (pos - peak_pos).abs();
                         if diff < peak_width {
                             return Ok(1.0 - diff / peak_width);
@@ -474,11 +502,10 @@ impl ExpressionParser {
                 Ok(0.0)
             }
             // Table lookup (requires image data - not implementable without external data)
-            "table" => {
-                Err("table requires image data and is not fully implemented in Rust parser".to_string())
-            }
+            "table" => Err(
+                "table requires image data and is not fully implemented in Rust parser".to_string(),
+            ),
             _ => {
-
                 // Check if it's a parameter name from scene metadata
                 if let Some(value) = self.get_param(func_name, 0) {
                     Ok(value)
@@ -524,17 +551,19 @@ impl ExpressionParser {
             // Handle negative sign merging
             if *op == '-' {
                 let is_at_start = *pos == 0;
-                let is_after_operator = idx > 0 && 
-                    operator_positions.get(idx - 1)
+                let is_after_operator = idx > 0
+                    && operator_positions
+                        .get(idx - 1)
                         .map(|(prev_pos, _)| prev_pos + 1 == *pos)
                         .unwrap_or(false);
 
                 if is_at_start || is_after_operator {
                     // Merge negative sign with the following text
-                    let end = operator_positions.get(idx + 1)
+                    let end = operator_positions
+                        .get(idx + 1)
                         .map(|(next_pos, _)| *next_pos)
                         .unwrap_or(expr.len());
-                    
+
                     if let Some(last) = result.last_mut() {
                         last.string.push_str(&expr[*pos..end]);
                     }
@@ -544,10 +573,11 @@ impl ExpressionParser {
 
             // Add text after this operator
             let start = pos + 1;
-            let end = operator_positions.get(idx + 1)
+            let end = operator_positions
+                .get(idx + 1)
                 .map(|(next_pos, _)| *next_pos)
                 .unwrap_or(expr.len());
-            
+
             result.push(SplitResult {
                 string: expr[start..end].to_string(),
                 operator_type: op.to_string(),
@@ -558,12 +588,17 @@ impl ExpressionParser {
     }
 
     /// Solve a split result by evaluating operators
-    fn solve_split_result(&mut self, mut split_result: Vec<SplitResult>, original_expr: &str) -> Result<f64, String> {
+    fn solve_split_result(
+        &mut self,
+        mut split_result: Vec<SplitResult>,
+        original_expr: &str,
+    ) -> Result<f64, String> {
         // Handle parentheses first
         let mut index = split_result.iter().rposition(|x| x.operator_type == "(");
-        
+
         while let Some(idx) = index {
-            let closing_index = split_result.iter()
+            let closing_index = split_result
+                .iter()
                 .position(|x| x.operator_type == ")")
                 .filter(|&i| i > idx);
 
@@ -572,10 +607,8 @@ impl ExpressionParser {
 
             // Solve the inner expression
             split_result[idx].operator_type = String::new();
-            let inner_result = self.solve_without_parens(
-                split_result[idx..closing_index].to_vec(),
-                original_expr
-            )?;
+            let inner_result = self
+                .solve_without_parens(split_result[idx..closing_index].to_vec(), original_expr)?;
 
             // Replace the parenthesized section with the result
             let before = if idx > 0 {
@@ -583,7 +616,7 @@ impl ExpressionParser {
             } else {
                 Vec::new()
             };
-            
+
             let middle = if idx > 0 {
                 vec![SplitResult {
                     string: format!("{:.4}", inner_result),
@@ -610,16 +643,21 @@ impl ExpressionParser {
     }
 
     /// Solve expression without parentheses
-    fn solve_without_parens(&mut self, split_result: Vec<SplitResult>, original_expr: &str) -> Result<f64, String> {
+    fn solve_without_parens(
+        &mut self,
+        split_result: Vec<SplitResult>,
+        original_expr: &str,
+    ) -> Result<f64, String> {
         // Check if this is a function call (has space operator)
         if split_result.iter().any(|x| x.operator_type == " ") {
             // Function call with space-separated arguments - reconstruct and eval
-            let full_expr: String = split_result.iter()
+            let full_expr: String = split_result
+                .iter()
                 .map(|x| format!("{}{}", x.operator_type, x.string))
                 .collect::<String>()
                 .trim()
                 .to_string();
-            
+
             return self.eval_constant(&full_expr);
         }
 
@@ -638,8 +676,20 @@ impl ExpressionParser {
             let right_val = self.fast_expr(&result.string)?;
 
             left_val = match result.operator_type.as_str() {
-                "&" => if left_val != 0.0 && right_val != 0.0 { 1.0 } else { 0.0 },
-                "|" => if left_val != 0.0 || right_val != 0.0 { 1.0 } else { 0.0 },
+                "&" => {
+                    if left_val != 0.0 && right_val != 0.0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                "|" => {
+                    if left_val != 0.0 || right_val != 0.0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
                 "^" => left_val.powf(right_val),
                 "_" => (left_val / right_val).floor() * right_val,
                 "+" => left_val + right_val,
@@ -672,32 +722,40 @@ impl ExpressionParser {
     }
 
     /// Send an OSC message with the evaluated expression result
-    pub fn send_osc(&self, address: &str, value: f64, host: &str, port: u16) -> Result<(), String> {
+    pub fn send_osc(
+        &self,
+        address: &str,
+        value: Vec<f64>,
+        host: &str,
+        port: u16,
+    ) -> Result<(), String> {
         let target_addr = format!("{}:{}", host, port);
-        
+
         // Bind to any available port on localhost
         let socket = UdpSocket::bind("0.0.0.0:0")
             .map_err(|e| format!("Failed to bind UDP socket: {}", e))?;
-        
+
         // Set timeout to prevent blocking indefinitely
-        socket.set_write_timeout(Some(std::time::Duration::from_secs(1)))
+        socket
+            .set_write_timeout(Some(std::time::Duration::from_secs(1)))
             .map_err(|e| format!("Failed to set socket timeout: {}", e))?;
-        
+
         // Create OSC message
         let msg = OscMessage {
             addr: address.to_string(),
-            args: vec![OscType::Float(value as f32)],
+            args: value.iter().map(|v| OscType::Float(*v as f32)).collect(),
         };
-        
+
         // Encode message to bytes
         let packet = OscPacket::Message(msg);
-        let msg_buf = encoder::encode(&packet)
-            .map_err(|e| format!("Failed to encode OSC message: {}", e))?;
-        
+        let msg_buf =
+            encoder::encode(&packet).map_err(|e| format!("Failed to encode OSC message: {}", e))?;
+
         // Send the message
-        socket.send_to(&msg_buf, &target_addr)
+        socket
+            .send_to(&msg_buf, &target_addr)
             .map_err(|e| format!("Failed to send OSC message to {}: {}", target_addr, e))?;
-        
+
         Ok(())
     }
 }
@@ -784,46 +842,46 @@ mod tests {
     #[test]
     fn test_constants() {
         let mut parser = ExpressionParser::new();
-        
+
         // Test time constant - just verify it returns a positive number
         assert!(parser.expr("T").unwrap() > 0.0);
-        
+
         // Test sin
         assert!((parser.expr("sin 0.25").unwrap() - 1.0).abs() < 0.001);
-        
+
         // Test abs
         assert_eq!(parser.expr("abs -5").unwrap(), 5.0);
-        
+
         // Test NOT
         assert_eq!(parser.expr("! 0").unwrap(), 1.0);
         assert_eq!(parser.expr("! 1").unwrap(), 0.0);
-        
+
         // Test ternary
         assert_eq!(parser.expr("? 1 5 10").unwrap(), 5.0);
         assert_eq!(parser.expr("? 0 5 10").unwrap(), 10.0);
     }
-    
+
     #[test]
     fn test_progress_constants() {
         let mut parser = ExpressionParser::new();
-        
+
         // Test local progress constants
         parser.set_local_progress(10.0, 5.0, 3.0);
         assert_eq!(parser.expr("C").unwrap(), 10.0);
         assert_eq!(parser.expr("L").unwrap(), 5.0);
         assert_eq!(parser.expr("P").unwrap(), 3.0);
-        
+
         // Test index constants
         parser.set_indexes(vec![0.0, 5.0, 10.0], vec![1.0, 10.0, 20.0]);
         assert_eq!(parser.expr("N").unwrap(), 1.0);
         assert_eq!(parser.expr("N 1").unwrap(), 10.0);
         assert_eq!(parser.expr("I").unwrap(), 0.0);
         assert_eq!(parser.expr("I 1").unwrap(), 5.0);
-        assert!((parser.expr("i 1").unwrap() - 5.0/9.0).abs() < 0.001);
-        
+        assert!((parser.expr("i 1").unwrap() - 5.0 / 9.0).abs() < 0.001);
+
         // Test negation
         assert_eq!(parser.expr("- 5").unwrap(), -5.0);
-        
+
         // Test bell
         assert!((parser.expr("bell 0.5 0.3").unwrap() - 0.25).abs() < 0.1);
     }
@@ -831,18 +889,18 @@ mod tests {
     #[test]
     fn test_functions() {
         let mut parser = ExpressionParser::new();
-        
+
         // Test mix
         assert_eq!(parser.expr("mix 1 2 3").unwrap(), 2.0);
-        
+
         // Test choose
         assert_eq!(parser.expr("choose 0 10 20 30").unwrap(), 10.0);
         assert_eq!(parser.expr("choose 1 10 20 30").unwrap(), 20.0);
-        
+
         // Test fib
         assert_eq!(parser.expr("fib 5").unwrap(), 5.0);
         assert_eq!(parser.expr("fib 6").unwrap(), 8.0);
-        
+
         // Test PHI
         assert!((parser.expr("PHI").unwrap() - 1.6180339887).abs() < 0.0001);
     }
@@ -850,7 +908,7 @@ mod tests {
     #[test]
     fn test_fade() {
         let mut parser = ExpressionParser::new();
-        
+
         // Test > (fade between values)
         assert_eq!(parser.expr("> 0 10 20").unwrap(), 10.0);
         assert!((parser.expr("> 1 10 20").unwrap() - 20.0).abs() < 0.01);
@@ -860,37 +918,37 @@ mod tests {
     #[test]
     fn test_scene_params() {
         let mut parser = ExpressionParser::new();
-        
+
         // Set up scene metadata with params
         let mut params1 = HashMap::new();
         params1.insert("speed".to_string(), 2.5);
         params1.insert("size".to_string(), 0.75);
         params1.insert("scrub".to_string(), 0.5);
-        
+
         let mut params2 = HashMap::new();
         params2.insert("speed".to_string(), 1.0);
         params2.insert("size".to_string(), 0.5);
         params2.insert("scrub".to_string(), 0.75);
-        
+
         // parser.set_scene_metadata(SceneMetadata {
         //        scrub: 0.0,
         //         params: Vec![params1, params2].into_iter().collect()
         //     });
-        
+
         // Test accessing params from scene 0
         assert_eq!(parser.expr("speed").unwrap(), 2.5);
         assert_eq!(parser.expr("size").unwrap(), 0.75);
         assert_eq!(parser.expr("s").unwrap(), 0.5);
-        
+
         // Test accessing params from scene 1
         assert_eq!(parser.expr("speed").unwrap(), 1.0);
         assert_eq!(parser.expr("size").unwrap(), 0.5);
         assert_eq!(parser.expr("s").unwrap(), 0.75);
-        
+
         // Test using params in expressions
         assert_eq!(parser.expr("speed*2").unwrap(), 5.0);
         assert_eq!(parser.expr("size+0.25").unwrap(), 1.0);
-        
+
         // Test unknown param
         assert!(parser.expr("unknown").is_err());
     }

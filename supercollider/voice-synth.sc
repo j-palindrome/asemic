@@ -5,7 +5,7 @@ s.options.memSize = 20000;
 s.freeAll;
 SynthDef(\voicePassthrough, {
   arg inBus = 1, outBus = 0, amp = 1.0, pan = 0, gate = 1,
-      delayTime = 0.5, feedback = 0.9, mix = 0.5;
+	 delayTime = #[0.25, 0.5, 0.75, 1], feedback = 0.9, mix = 0.5;
   var input, stereo, delayed, feedbackSignal, mixed;
   var delayBus;
 
@@ -22,8 +22,9 @@ SynthDef(\voicePassthrough, {
   delayed = DelayL.ar(
     feedbackSignal,
     maxdelaytime: 2.0,    // Maximum possible delay time
-    delaytime: [delayTime / 2, delayTime * 0.75, delayTime * 1.25, delayTime * 2]   // Actual delay time spread
+    delaytime: delayTime   // Actual delay time spread
   );
+	delayed.scope;
 
   // Write delayed signal back to local bus for feedback
   LocalOut.ar(delayed);
@@ -37,17 +38,17 @@ SynthDef(\voicePassthrough, {
 }).add;
 )
 (
-~voice = Synth(\voicePassthrough);
+~voice = Synth(\voicePassthrough, [delayTime: [0.25, 0.5, 0.75, 1]]);
 )
 (
 OSCdef.freeAll;
 /*OSCdef.new(\delay, { |msg| if (~voice.isRunning, {~voice.set(\delayTime, msg[1]); "set delay %".format(msg[0]).postln; }); }, "/delay");
 OSCdef.new(\feedback, { |msg| if (~voice.isRunning, {~voice.set(\feedback, msg[1]); "set feedback %".format(msg[1]).postln; }); }, "/feedback");*/
-OSCdef.new(\delay, { |msg| ~voice.set(\delayTime, msg[1]); "set delay %".format(msg[0]).postln; }, "/delay");
+OSCdef.new(\delay, { |msg| ~voice.set(\delayTime, [msg[1], msg[2], msg[3], msg[4]]); "set delay %".format([msg[1], msg[2], msg[3], msg[4]]).postln; }, "/delay");
 OSCdef.new(\feedback, { |msg| ~voice.set(\feedback, msg[1]); "set feedback %".format(msg[1]).postln; }, "/feedback");
-OSCdef.new(\toggleDelay, { |msg|
+/*OSCdef.new(\toggleDelay, { |msg|
 	if (msg[1] == 0.0, { ~voice.free(); }, { if (~voice.isRunning == false, { ~voice = Synth(\voicePassthrough); }) });
-}, "/toggle/delay");
+}, "/toggle/delay");*/
 )
 
 s.queryAllNodes;

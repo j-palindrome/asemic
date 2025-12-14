@@ -93,7 +93,7 @@ export default function Slider({
     setIsDragging(false)
     setTouchId(null)
 
-    const edgeThreshold = 0.05
+    const edgeThreshold = 0.01
     let { x, y } = place.current
 
     if (x < edgeThreshold) x = 0

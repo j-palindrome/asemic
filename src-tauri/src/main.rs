@@ -1,9 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::{Deserialize, Serialize};
 use app_lib::parser::SceneMetadata;
-
+use serde::{Deserialize, Serialize};
 
 // CodeMirror syntax tree node structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,28 +67,36 @@ async fn parser_eval_expression(
     osc_host: String,
     osc_port: u16,
     scene_metadata: SceneMetadata,
-) -> Result<f64, String> {
+) -> Result<Vec<f64>, String> {
     // Create parser with dimensions
     let mut parser = app_lib::parser::ExpressionParser::new();
-    
+
+    if let Some(param) = scene_metadata.params.get(&expr) {
+        parser.send_osc(&osc_address, param.to_vec(), &osc_host, osc_port)?;
+        println!("Evaluated expression '{}' to {:?}", expr, param);
+        return Ok(param.clone());
+    }
     // Set scene metadata if available
     parser.set_scene_metadata(scene_metadata);
-    
-    
+
     // Evaluate expression
     let result = parser.expr(&expr)?;
-    println!("Evaluated expression '{}' to {:?}", expr, result);
-    
+    // println!("Evaluated expression '{}' to {:?}", expr, result);
+
     // Send OSC message
-    parser.send_osc(&osc_address, result, &osc_host, osc_port)?;
-    
-    Ok(result)
+
+    parser.send_osc(&osc_address, vec![result], &osc_host, osc_port)?;
+
+    Ok(vec![result])
 }
 
 #[tauri::command]
 async fn sc_connect(host: String) -> Result<String, String> {
-    let mut sc = app_lib::supercollider::SC.lock().map_err(|e| format!("Failed to lock SuperCollider: {}", e))?;
-    sc.connect(&host).map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
+    let mut sc = app_lib::supercollider::SC
+        .lock()
+        .map_err(|e| format!("Failed to lock SuperCollider: {}", e))?;
+    sc.connect(&host)
+        .map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
     Ok("Success".to_string())
 }
 
@@ -106,10 +113,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![
-            parser_eval_expression,
-            sc_connect
-        ])
+        .invoke_handler(tauri::generate_handler![parser_eval_expression, sc_connect])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

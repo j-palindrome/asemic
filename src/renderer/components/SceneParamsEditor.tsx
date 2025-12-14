@@ -316,7 +316,7 @@ export default function SceneSettingsPanel({
                       Value
                     </label>
                     <span className='text-white/70 text-xs'>
-                      {scrubSettings.params[key]?.toFixed(3) ??
+                      {scrubSettings.params?.[key]?.toFixed(3) ??
                         paramConfig.min.toFixed(3)}
                     </span>
                   </div>

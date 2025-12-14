@@ -34,6 +34,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 export type ScrubState = {
   scrub: number
   params: Record<string, number>
+  sent: Record<string, boolean>
 }
 
 function AsemicAppInner({
@@ -109,7 +110,9 @@ function AsemicAppInner({
   }, [scenesArray])
 
   // Track scrub position and params per scene
-  const [scrubValues, setScrubValues] = useState<ScrubState[]>([])
+  const [scrubValues, setScrubValues] = useState<ScrubState[]>([
+    { params: {}, scrub: 0, sent: {} }
+  ])
   const scrubValuesRef = useRef(scrubValues)
   useEffect(() => {
     scrubValuesRef.current = scrubValues
@@ -122,7 +125,8 @@ function AsemicAppInner({
         .fill(null)
         .map(() => ({
           scrub: 0,
-          params: {}
+          params: {},
+          sent: {}
         }))
       // Preserve existing scrub values if scenes didn't change length
       if (prev.length === newValues.length) {
@@ -274,6 +278,12 @@ function AsemicAppInner({
   const lastFrameTimeRef = useRef<number>(performance.now())
 
   useEffect(() => {
+    const newScrubs = [...scrubValues]
+    newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
+    setScrubValues(newScrubs)
+  }, [activeScene])
+
+  useEffect(() => {
     const animate = () => {
       try {
         const now = performance.now()
@@ -317,6 +327,12 @@ function AsemicAppInner({
 
           // Process OSC messages sequentially to avoid overwhelming the parser
           for (const oscMsg of sceneSettings.osc) {
+            if (
+              oscMsg.play === 'once' &&
+              scrubValuesRef.current[activeSceneRef.current]!.sent[oscMsg.name]
+            ) {
+              continue
+            }
             invoke<number>('parser_eval_expression', {
               expr: oscMsg.value.toString(),
               oscAddress: oscMsg.name,
@@ -324,6 +340,26 @@ function AsemicAppInner({
               oscPort: oscPort,
               sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
             })
+            if (oscMsg.play === 'once') {
+              console.log('setting sent', oscMsg.name)
+              // immediate update, also save in state
+              scrubValuesRef.current[activeSceneRef.current]!.sent[
+                oscMsg.name
+              ] = true
+              setScrubValues(prev => {
+                const newValues = [...prev]
+                if (newValues[activeSceneRef.current]) {
+                  newValues[activeSceneRef.current] = {
+                    ...newValues[activeSceneRef.current],
+                    sent: {
+                      ...newValues[activeSceneRef.current].sent,
+                      [oscMsg.name]: true
+                    }
+                  }
+                }
+                return newValues
+              })
+            }
           }
         }
       } catch (error) {

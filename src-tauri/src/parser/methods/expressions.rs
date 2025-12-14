@@ -45,8 +45,6 @@ pub struct ExpressionParser {
     noise_table: HashMap<String, NoiseState>,
     // Scene metadata for scene-relative calculations
     scene_metadata: SceneMetadata,
-    // Current scene index for param lookups
-    current_scene: usize,
     // Cache size limit to prevent unbounded growth
     cache_max_size: usize,
 }
@@ -77,13 +75,8 @@ impl ExpressionParser {
             seeds: (0..100).map(|i| ((i as f64 * 0.618033988749895) % 1.0)).collect(),
             noise_table: HashMap::new(),
             scene_metadata: SceneMetadata { scrub: 0.0, params: HashMap::new() },
-            current_scene: 0,
             cache_max_size: 1000, // Limit cache to 1000 entries
         }
-    }
-
-    pub fn set_current_scene(&mut self, scene: usize) {
-        self.current_scene = scene;
     }
 
     pub fn set_local_progress(&mut self, curve: f64, letter: f64, point: f64) {
@@ -411,7 +404,7 @@ impl ExpressionParser {
                 if args.len() < 2 {
                     return Err("sah requires 2 arguments".to_string());
                 }
-                let key = format!("{}:{}", self.current_scene, self.noise_index);
+                let key = format!("{}", self.noise_index);
                 self.noise_index += 1;
                 
                 let val1 = self.expr(args[0])?;
@@ -490,7 +483,7 @@ impl ExpressionParser {
                 if let Some(value) = self.get_param(func_name) {
                     Ok(value)
                 } else {
-                    Err(format!("Unknown function or constant: {}", func_name))
+                    Ok(0.0)
                 }
             }
         }
@@ -816,7 +809,6 @@ mod tests {
         
         // Test local progress constants
         parser.set_local_progress(10.0, 5.0, 3.0);
-        parser.set_current_scene(0);
         assert_eq!(parser.expr("C").unwrap(), 10.0);
         assert_eq!(parser.expr("L").unwrap(), 5.0);
         assert_eq!(parser.expr("P").unwrap(), 3.0);

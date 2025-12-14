@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use app_lib::parser::SceneMetadata;
 
+
 // CodeMirror syntax tree node structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SyntaxNode {
@@ -92,6 +93,12 @@ async fn parser_eval_expression(
     Ok(result)
 }
 
+#[tauri::command]
+async fn sc_connect(expr: String) -> Result<String, String> {
+    let mut sc = app_lib::supercollider::SC.lock().map_err(|e| format!("Failed to lock SuperCollider: {}", e))?;
+    sc.connect(&expr).map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
+    Ok("Success".to_string())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ParsedJsonResult {
@@ -108,6 +115,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             parser_eval_expression,
+            sc_connect
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

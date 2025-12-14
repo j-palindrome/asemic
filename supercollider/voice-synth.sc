@@ -1,8 +1,9 @@
 // Simple voice passthrough SynthDef with infinite delay using DelayL
+s.reboot;
 (
 s.freeAll;
 SynthDef(\voicePassthrough, {
-  arg inBus = 0, outBus = 0, amp = 1.0, pan = 0, gate = 1,
+  arg inBus = 1, outBus = 0, amp = 1.0, pan = 0, gate = 1,
       delayTime = 0.5, feedback = 0.9, mix = 0.5;
   var input, stereo, delayed, feedbackSignal, mixed;
   var delayBus;
@@ -48,6 +49,7 @@ OSCdef.freeAll;
 
 // Create new listener on default port (57120)
 OSCdef.new(\scSample, { |msg, time, addr, recvPort|
+	"received".postln;
    ~voice.set(\delayTime, msg[1].clip(0.0, 2.0));
 }, '/sc/sample');
 

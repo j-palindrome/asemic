@@ -80,14 +80,17 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "log",
- "rosc",
+ "once_cell",
+ "rosc 0.10.1",
  "serde",
  "serde_json",
+ "sorceress",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-log",
+ "tokio",
 ]
 
 [[package]]
@@ -3124,6 +3127,15 @@ dependencies = [
 
 [[package]]
 name = "rosc"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4705e1f4b2b1dc25f5a07b6cf82315a8d114a244700434b9fd5d62070e5cbd4f"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
+name = "rosc"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2e63d9e6b0d090be1485cf159b1e04c3973d2d3e1614963544ea2ff47a4a981"
@@ -3550,6 +3562,19 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "sorceress"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "113dd9c334eff29d94b80485d1b64a927e62c0f4fb443b160a615e19d67ea591"
+dependencies = [
+ "log",
+ "rosc 0.4.3",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

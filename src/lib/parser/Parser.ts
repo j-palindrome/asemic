@@ -30,7 +30,7 @@ export interface Scene {
   length?: number
   offset?: number
   pause?: number | false
-  params?: Record<string, number>
+  params?: Record<string, number[]>
   // Runtime-only properties (not persisted):
   // scrub?: number - Current playback position within scene (calculated from global progress)
   [key: string]: any
@@ -443,7 +443,8 @@ export class Parser {
     this.progress.scrub = scene.scrub || 0
     this.progress.scrubTime = scene.scrub * (scene.length || 0.1) || 0
     for (let param in scene.params) {
-      ;(this.constants as any)[param] = () => scene.params![param]
+      this.constants[param] = (index: string) =>
+        scene.params![param][Math.floor(this.expressions.expr(index)) || 0]
     }
 
     // Execute the scene's code

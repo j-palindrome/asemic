@@ -31,9 +31,9 @@ import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
-export type ScrubState = {
+export type ScrubSettings = {
   scrub: number
-  params: Record<string, number>
+  params: Record<string, number[]>
   sent: Record<string, boolean>
 }
 
@@ -110,7 +110,7 @@ function AsemicAppInner({
   }, [scenesArray])
 
   // Track scrub position and params per scene
-  const [scrubValues, setScrubValues] = useState<ScrubState[]>([
+  const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
     { params: {}, scrub: 0, sent: {} }
   ])
   const scrubValuesRef = useRef(scrubValues)
@@ -121,7 +121,7 @@ function AsemicAppInner({
   // Initialize scrub values when scenes change
   useEffect(() => {
     setScrubValues(prev => {
-      const newValues: ScrubState[] = new Array(scenesArray.length)
+      const newValues: ScrubSettings[] = new Array(scenesArray.length)
         .fill(null)
         .map(() => ({
           scrub: 0,

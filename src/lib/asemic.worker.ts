@@ -24,6 +24,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!offscreenCanvas) return
 
   if (!isUndefined(ev.data.reset) && ev.data.reset) {
+    console.log('setup parser')
     parser.setup()
   }
   if (!isUndefined(ev.data.preProcess) && renderer) {

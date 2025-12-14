@@ -3,12 +3,13 @@ import { open } from '@tauri-apps/plugin-dialog'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
-import { ScrubState } from '../app/AsemicApp'
+import { ScrubSettings } from '../app/AsemicApp'
 
 type ParamConfig = {
   max: number
   min: number
   exponent: number
+  dimension: number
 }
 
 export interface GlobalSettings {
@@ -33,9 +34,9 @@ export interface SceneSettings {
 interface SceneSettingsPanelProps {
   activeScene: number
   settings: SceneSettings
-  scrubSettings: ScrubState
+  scrubSettings: ScrubSettings
   onUpdate: (settings: SceneSettings) => void
-  onUpdateScrub: (settings: ScrubState) => void
+  onUpdateScrub: (settings: ScrubSettings) => void
   onAddScene: () => void
   onDeleteScene: () => void
 }
@@ -65,7 +66,8 @@ export default function SceneSettingsPanel({
           [newParamName.trim()]: {
             max: 1,
             min: 0,
-            exponent: 1
+            exponent: 1,
+            dimension: 1
           }
         }
       })
@@ -85,7 +87,7 @@ export default function SceneSettingsPanel({
     onUpdate({ ...settings, params: newParams })
   }
 
-  const handleUpdateParam = (key: string, value: number) => {
+  const handleUpdateParam = (key: string, value: number[]) => {
     onUpdateScrub({
       ...scrubSettings,
       params: {
@@ -316,7 +318,7 @@ export default function SceneSettingsPanel({
                       Value
                     </label>
                     <span className='text-white/70 text-xs'>
-                      {scrubSettings.params?.[key]?.toFixed(3) ??
+                      {scrubSettings.params?.[key]?.[0]?.toFixed(3) ??
                         paramConfig.min.toFixed(3)}
                     </span>
                   </div>
@@ -405,7 +407,7 @@ export default function SceneSettingsPanel({
                     max={paramConfig.max}
                     exponent={paramConfig.exponent}
                     values={{
-                      x: scrubSettings.params[key] ?? paramConfig.min,
+                      x: scrubSettings.params[key]?.[0] ?? paramConfig.min,
                       y: 0
                     }}
                     sliderStyle={({ x }) => ({
@@ -420,7 +422,7 @@ export default function SceneSettingsPanel({
                       pointerEvents: 'none'
                     })}
                     onChange={({ x }) => {
-                      handleUpdateParam(key, x)
+                      handleUpdateParam(key, [x])
                     }}
                   />
                 </div>

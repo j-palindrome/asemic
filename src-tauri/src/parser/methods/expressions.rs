@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneMetadata {
     scrub: f64,
-    pub params: HashMap<String, f64>,
+    pub params: HashMap<String, Vec<f64>>,
 }
 
 /// A static expression parser for Asemic expressions.
@@ -98,8 +98,8 @@ impl ExpressionParser {
     }
 
     /// Get a parameter value from the current scene's metadata
-    pub fn get_param(&self, name: &str) -> Option<f64> {
-        self.scene_metadata.params.get(name).copied()
+    pub fn get_param(&self, name: &str, index: usize) -> Option<f64> {
+        return self.scene_metadata.params.get(name).and_then(|v| v.get(index)).copied()
     }
 
     /// Main expression evaluation functio
@@ -185,9 +185,8 @@ impl ExpressionParser {
             // Progress constants
             // Remove "S" constant - no global scrub
             "S" => {
-                let scene = &self.scene_metadata;
-                // Use scene's own scrub value if available
-                Ok(scene.params.get("scrub").copied().unwrap_or(0.0))
+                // Return the scene's scrub value
+                Ok(self.scene_metadata.scrub)
             }
             "C" => Ok(self.curve),
             "L" => Ok(self.letter),
@@ -480,7 +479,7 @@ impl ExpressionParser {
             }
             _ => {
                 // Check if it's a parameter name from scene metadata
-                if let Some(value) = self.get_param(func_name) {
+                if let Some(value) = self.get_param(func_name, 0) {
                     Ok(value)
                 } else {
                     Ok(0.0)
@@ -872,25 +871,22 @@ mod tests {
         params2.insert("size".to_string(), 0.5);
         params2.insert("scrub".to_string(), 0.75);
         
-        parser.set_scene_metadata(SceneMetadata {
-               scrub: 0.0,
-                params: params1
-            });
+        // parser.set_scene_metadata(SceneMetadata {
+        //        scrub: 0.0,
+        //         params: Vec![params1, params2].into_iter().collect()
+        //     });
         
         // Test accessing params from scene 0
-        parser.set_current_scene(0);
         assert_eq!(parser.expr("speed").unwrap(), 2.5);
         assert_eq!(parser.expr("size").unwrap(), 0.75);
         assert_eq!(parser.expr("s").unwrap(), 0.5);
         
         // Test accessing params from scene 1
-        parser.set_current_scene(1);
         assert_eq!(parser.expr("speed").unwrap(), 1.0);
         assert_eq!(parser.expr("size").unwrap(), 0.5);
         assert_eq!(parser.expr("s").unwrap(), 0.75);
         
         // Test using params in expressions
-        parser.set_current_scene(0);
         assert_eq!(parser.expr("speed*2").unwrap(), 5.0);
         assert_eq!(parser.expr("size+0.25").unwrap(), 1.0);
         

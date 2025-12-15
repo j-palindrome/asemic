@@ -73,7 +73,6 @@ async fn parser_eval_expression(
 
     if let Some(param) = scene_metadata.params.get(&expr) {
         parser.send_osc(&osc_address, param.to_vec(), &osc_host, osc_port)?;
-        println!("Evaluated expression '{}' to {:?}", expr, param);
         return Ok(param.clone());
     }
     // Set scene metadata if available

@@ -1,4 +1,4 @@
-import { GlobalSettings } from './SceneParamsEditor'
+import { GlobalSettings } from './SceneSettingsPanel'
 import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { RotateCw } from 'lucide-react'

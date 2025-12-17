@@ -2,7 +2,7 @@ import { X, Download, Upload } from 'lucide-react'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
-import { GlobalSettings, SceneSettings } from './SceneParamsEditor'
+import { GlobalSettings, SceneSettings } from './SceneSettingsPanel'
 
 interface JsonLoaderProps {
   sceneList: SceneSettings[]

@@ -5,7 +5,7 @@ import { split } from 'lodash'
 import invariant from 'tiny-invariant'
 import { AsemicFont } from '@/lib/AsemicFont'
 import { parserObject } from '../core/utilities'
-import { SceneSettings } from '@/renderer/components/SceneParamsEditor'
+import { SceneSettings } from '@/renderer/components/SceneSettingsPanel'
 
 export class TextMethods {
   parser: Parser

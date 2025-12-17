@@ -1,6 +1,6 @@
 // Simple voice passthrough SynthDef with infinite delay using DelayL
 s.reboot;
-s.options.memSize = 20000;
+s.options.memSize = 2.pow(20);
 s.freeAll;
 s.quit;
 (
@@ -73,14 +73,20 @@ SynthDef(\passthrough, {
 
 (
 OSCdef.freeAll;
-OSCdef.new(\delay, { |msg| ~delaysSynth.set(\delayTime, msg[1..4]); }, "/delay");
-OSCdef.new(\feedback, { |msg| ~delaysSynth.set(\feedback, msg[1]); }, "/feedback");
-OSCdef.new(\delayMix, { |msg| ~delaysSynth.set(\mix, msg[1]); }, "/delay/mix");
+
+// Passthroguh
 OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\amp, msg[1]); }, "/passthrough/level");
+
+// Effects
 OSCdef.new(\effectsLevel, { |msg| ~masterSynth.set(\effectsLevel, msg[1]); }, "/effects/level");
+
+// Delay
+OSCdef.new(\feedback, { |msg| ~delaysSynth.set(\feedback, msg[1]); }, "/delay/feedback");
+OSCdef.new(\delay, { |msg| ~delaysSynth.set(\delayTime, msg[1..4]); }, "/delay/time");
+OSCdef.new(\delayMix, { |msg| ~delaysSynth.set(\mix, msg[1]); }, "/delay/level");
 OSCdef.new(\toggleDelay, { |msg|
 	if (msg[1] == 0.0, { ~delaysSynth.free(); }, { if (~delaysSynth.isRunning == false, { ~delaysSynth = Synth(\delays, [\inBus, ~effectsBus.index, \outBus, ~effectsBus.index], ~effectsGroup); }) });
-}, "/toggle/delay");
+}, "/delay/toggle");
 )
 ~inputSynth.free;
 ~passthroughSynth.free;

@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { open } from '@tauri-apps/plugin-dialog'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
@@ -34,8 +33,6 @@ export interface SceneSettings {
     oscHost?: string
     oscPort?: number
   }>
-  audioTrack?: string
-  time?: number
 }
 
 interface SceneSettingsPanelProps {
@@ -822,57 +819,6 @@ export default function SceneSettingsPanel({
           {(!settings.oscGroups || settings.oscGroups.length === 0) && (
             <p className='text-white/40 text-xs italic mt-2'>
               No OSC groups defined
-            </p>
-          )}
-        </div>
-
-        {/* Audio Track Section */}
-        <div className='mt-3 border-t border-white/10 pt-3'>
-          <div className='flex items-center gap-2 mb-2'>
-            <label className='text-white/70 text-sm font-semibold'>
-              Audio Track
-            </label>
-            <button
-              onClick={async e => {
-                e.preventDefault()
-                e.stopPropagation()
-                try {
-                  const filePath = await open({
-                    multiple: false,
-                    directory: false,
-                    filters: [
-                      {
-                        name: 'Audio files',
-                        extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']
-                      }
-                    ]
-                  })
-
-                  if (filePath) {
-                    onUpdate({ ...settings, audioTrack: filePath as string })
-                  }
-                } catch (error) {
-                  // Ignore audio file selection errors
-                }
-              }}
-              className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-              Select File
-            </button>
-            {settings.audioTrack && (
-              <button
-                onClick={() => onUpdate({ ...settings, audioTrack: undefined })}
-                className='text-white/50 hover:text-red-400 text-xs'>
-                ✕
-              </button>
-            )}
-          </div>
-          {settings.audioTrack ? (
-            <div className='text-white/70 text-xs break-all'>
-              {settings.audioTrack.split('/').pop()}
-            </div>
-          ) : (
-            <p className='text-white/40 text-xs italic'>
-              No audio track selected
             </p>
           )}
         </div>

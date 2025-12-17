@@ -1,6 +1,6 @@
 SynthDef(\delays, {
   arg inBus = 1, outBus = 0, amp = 1.0, pan = 0, gate = 1,
-	 delayTime = #[0.25, 0.5, 0.75, 1], feedback = 0.9, mix = 0.5;
+	 delayTime = #[0.25, 0.5, 0.75, 1], feedback = 0.9, level = 0;
   var input, stereo, delayed, feedbackSignal, mixed;
   var delayBus;
 
@@ -23,15 +23,13 @@ SynthDef(\delays, {
   // Write delayed signal back to local bus for feedback
   LocalOut.ar(delayed);
 
-  // Mix dry and delayed signals
-  mixed = ((input) * (1 - mix)) + (delayed * mix);
   // Pan to stereo
-  stereo = Pan2.ar(Mix.ar(mixed) / 4, pan);
+  stereo = Mix.ar(delayed) * level ! 2;
   // Output the voice with amplitude control
   Out.ar(outBus, stereo * amp);
 }).add;
 
 OSCdef.new(\delayFeedback, { |msg| ~delaysSynth.set(\feedback, msg[1]); }, "/delay/feedback");
 OSCdef.new(\delayTime, { |msg| ~delaysSynth.set(\delayTime, msg[1..4]); }, "/delay/time");
-OSCdef.new(\delayMix, { |msg| ~delaysSynth.set(\mix, msg[1]); }, "/delay/level");
+OSCdef.new(\delayMix, { |msg| ~delaysSynth.set(\level, msg[1]); }, "/delay/level");
 

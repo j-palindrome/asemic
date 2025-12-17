@@ -140,87 +140,6 @@ function AsemicAppInner({
     })
   }, [scenesArray.length])
 
-  // Audio playback using Web Audio API
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
-  const currentAudioTrackRef = useRef<string | null>(null)
-  const [audioBuffers, setAudioBuffers] = useState<Map<string, AudioBuffer>>(
-    new Map()
-  )
-
-  // Initialize Web Audio context
-  useEffect(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext()
-    }
-    return () => {
-      if (audioSourceRef.current) {
-        audioSourceRef.current.stop()
-      }
-    }
-  }, [])
-
-  // Load audio file and convert to AudioBuffer
-  const loadAudioTrack = async (filePath: string) => {
-    try {
-      if (!audioContextRef.current) return
-
-      const response = await fetch(convertFileSrc(filePath))
-      const arrayBuffer = await response.arrayBuffer()
-      const audioBuffer = await audioContextRef.current.decodeAudioData(
-        arrayBuffer
-      )
-
-      setAudioBuffers(prev => {
-        const next = new Map(prev)
-        next.set(filePath, audioBuffer)
-        return next
-      })
-
-      return audioBuffer
-    } catch (error) {
-      return null
-    }
-  }
-
-  // Play audio track with looping
-  const playAudioTrack = async (filePath: string) => {
-    if (!audioContextRef.current) return
-
-    // Stop current audio if playing
-    if (audioSourceRef.current) {
-      audioSourceRef.current.stop()
-      audioSourceRef.current = null
-    }
-
-    // Get or load audio buffer
-    let audioBuffer: AudioBuffer | undefined = audioBuffers.get(filePath)
-    if (!audioBuffer) {
-      const loadedBuffer = await loadAudioTrack(filePath)
-      if (!loadedBuffer) return
-      audioBuffer = loadedBuffer
-    }
-
-    // Create and start audio source
-    const source = audioContextRef.current.createBufferSource()
-    source.buffer = audioBuffer
-    source.loop = true
-    source.connect(audioContextRef.current.destination)
-    source.start(0)
-
-    audioSourceRef.current = source
-    currentAudioTrackRef.current = filePath
-  }
-
-  // Stop audio playback
-  const stopAudioTrack = () => {
-    if (audioSourceRef.current) {
-      audioSourceRef.current.stop()
-      audioSourceRef.current = null
-      currentAudioTrackRef.current = null
-    }
-  }
-
   // Calculate active scene based on current progress
   const activeScene = useMemo(() => {
     if (sceneStarts.length === 0) return 0
@@ -404,17 +323,6 @@ function AsemicAppInner({
     setActiveSceneSettings(sceneSettings ?? { params: {} })
     asemic.current?.postMessage({ reset: true })
   }, [scenesArray, activeScene])
-
-  // Play/stop audio based on active scene
-  useEffect(() => {
-    const audioTrack = activeSceneSettings.audioTrack
-
-    if (audioTrack && audioTrack !== currentAudioTrackRef.current) {
-      playAudioTrack(audioTrack)
-    } else if (!audioTrack && currentAudioTrackRef.current) {
-      stopAudioTrack()
-    }
-  }, [activeSceneSettings.audioTrack, activeScene])
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {

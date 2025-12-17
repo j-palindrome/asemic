@@ -449,7 +449,6 @@ function AsemicAppInner({
     }, [live, isLive])
     return [live, isLive, setIsLive] as const
   }
-  const [live, isLive, setIsLive] = useKeys()
 
   // Scene settings state
   const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
@@ -462,25 +461,8 @@ function AsemicAppInner({
 
   // Extract settings from active scene
   useEffect(() => {
-    try {
-      if (activeScene < scenesArray.length) {
-        const sceneSettings = scenesArray[activeScene]
-        // Normalize params to ensure they have value field
-        if (sceneSettings.params) {
-          for (const [key, param] of Object.entries(sceneSettings.params)) {
-            const p = param as any
-            if (p.value === undefined) {
-              p.value = p.min ?? 0
-            }
-          }
-        }
-        setActiveSceneSettings(sceneSettings)
-      } else {
-        setActiveSceneSettings({ params: {} })
-      }
-    } catch (e) {
-      setActiveSceneSettings({ params: {} })
-    }
+    const sceneSettings = scenesArray[activeScene]
+    setActiveSceneSettings(sceneSettings ?? { params: {} })
     asemic.current?.postMessage({ reset: true })
   }, [scenesArray, activeScene])
 
@@ -498,8 +480,6 @@ function AsemicAppInner({
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
     const newScenesArray = [...scenesArray]
-    console.log('updating scene:', newSettings)
-
     if (activeScene < newScenesArray.length) {
       newScenesArray[activeScene] = {
         ...newScenesArray[activeScene],
@@ -667,7 +647,7 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
-        <div className='fixed top-1 left-1 h-full w-[calc(100%-60px)] flex-col flex !z-100 pointer-events-none'>
+        <div className='fixed top-1 left-1 h-full w-full flex-col flex !z-100 pointer-events-none'>
           <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
             <div className='flex items-center gap-1'>
               <button

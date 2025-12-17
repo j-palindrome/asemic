@@ -10,6 +10,7 @@ type ParamConfig = {
   min: number
   exponent: number
   dimension: number
+  default: number[]
 }
 
 export interface GlobalSettings {
@@ -67,7 +68,8 @@ export default function SceneSettingsPanel({
             max: 1,
             min: 0,
             exponent: 1,
-            dimension: 1
+            dimension: 1,
+            default: [1]
           }
         }
       })
@@ -298,7 +300,7 @@ export default function SceneSettingsPanel({
             </div>
           )}
 
-          <div className='space-y-3 max-h-64 overflow-y-auto pr-1'>
+          <div className='space-y-3 pr-1'>
             {Object.entries(settings.params || {}).map(([key, paramConfig]) => (
               <div
                 key={key}
@@ -417,6 +419,26 @@ export default function SceneSettingsPanel({
                     />
                   </div>
                   <button
+                    onClick={() => {
+                      const currentValues = scrubSettings.params[key] || []
+                      console.log(currentValues)
+
+                      onUpdate({
+                        ...settings,
+                        params: {
+                          ...settings.params,
+                          [key]: {
+                            ...settings.params[key],
+                            default: currentValues
+                          }
+                        }
+                      })
+                    }}
+                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                    title='Save current slider values as defaults'>
+                    Save Defaults
+                  </button>
+                  <button
                     onClick={() => handleDeleteParam(key)}
                     className='text-white/50 hover:text-red-400 text-xs pb-1'>
                     ✕
@@ -441,6 +463,7 @@ export default function SceneSettingsPanel({
                             values={{
                               x:
                                 scrubSettings.params[key]?.[dimIndex] ??
+                                paramConfig.default[dimIndex] ??
                                 paramConfig.min,
                               y: 0
                             }}
@@ -467,6 +490,7 @@ export default function SceneSettingsPanel({
                         <span className='text-white/70 text-xs w-12 text-right'>
                           {(
                             scrubSettings.params[key]?.[dimIndex] ??
+                            paramConfig.default[dimIndex] ??
                             paramConfig.min
                           ).toFixed(3)}
                         </span>

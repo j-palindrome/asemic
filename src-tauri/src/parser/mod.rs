@@ -7,20 +7,17 @@
 
 pub mod methods {
     pub mod asemic_pt;
+    pub mod drawing;
+    pub mod expression_eval;
     pub mod expressions;
     pub mod tests;
     pub mod transforms;
-    // pub mod osc;
-    // pub mod parsing;
-    // pub mod scenes;
-    // pub mod text;
-    // pub mod transforms;
-    // pub mod utilities;
 }
 
 // pub mod types;
 
 // Re-export the expression parser for easy access
+pub use methods::expression_eval::ExpressionEval;
 pub use methods::expressions::ExpressionParser;
 pub use methods::expressions::SceneMetadata;
 

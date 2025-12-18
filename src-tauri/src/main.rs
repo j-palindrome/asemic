@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app_lib::parser::SceneMetadata;
+use app_lib::parser::{ExpressionEval, SceneMetadata};
 use serde::{Deserialize, Serialize};
 
 // CodeMirror syntax tree node structure
@@ -89,16 +89,6 @@ async fn parser_eval_expression(
     Ok(vec![result])
 }
 
-#[tauri::command]
-async fn sc_connect(host: String) -> Result<String, String> {
-    let mut sc = app_lib::supercollider::SC
-        .lock()
-        .map_err(|e| format!("Failed to lock SuperCollider: {}", e))?;
-    sc.connect(&host)
-        .map_err(|e| format!("Failed to connect to SuperCollider: {}", e))?;
-    Ok("Success".to_string())
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ParsedJsonResult {
     pub success: bool,
@@ -112,7 +102,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![parser_eval_expression, sc_connect])
+        .invoke_handler(tauri::generate_handler![parser_eval_expression])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

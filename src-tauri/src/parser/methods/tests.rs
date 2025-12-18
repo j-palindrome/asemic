@@ -1,8 +1,8 @@
 #[cfg(test)]
 pub mod tests {
     use crate::parser::methods::{
-        expressions::ExpressionParser,
-        transforms::{BasicPt, Transform},
+        asemic_pt::BasicPt, drawing::DrawingMixin, expression_eval::ExpressionEval,
+        expressions::ExpressionParser, transforms::Transform,
     };
 
     #[test]
@@ -431,5 +431,164 @@ pub mod tests {
 
         assert_eq!(solved.w, 20.0);
         assert_eq!(solved.h, 40.0);
+    }
+
+    #[test]
+    fn test_line_single_point() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["0,0"]).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].x, 0.0);
+        assert_eq!(result[0].y, 0.0);
+    }
+
+    #[test]
+    fn test_line_multiple_points() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["0,0", "10,10", "20,0"]).unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].x, 0.0);
+        assert_eq!(result[0].y, 0.0);
+        assert_eq!(result[1].x, 10.0);
+        assert_eq!(result[1].y, 10.0);
+        assert_eq!(result[2].x, 20.0);
+        assert_eq!(result[2].y, 0.0);
+    }
+
+    #[test]
+    fn test_line_negative_coordinates() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["-5,-10", "5,10"]).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].x, -5.0);
+        assert_eq!(result[0].y, -10.0);
+        assert_eq!(result[1].x, 5.0);
+        assert_eq!(result[1].y, 10.0);
+    }
+
+    #[test]
+    fn test_line_float_coordinates() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["1.5,2.5", "3.7,4.2"]).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].x, 1.5);
+        assert_eq!(result[0].y, 2.5);
+        assert_eq!(result[1].x, 3.7);
+        assert_eq!(result[1].y, 4.2);
+    }
+
+    #[test]
+    fn test_line_polar_notation() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["@0,10", "@0.25,10"]).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].x, 10.0);
+        assert!((result[0].y).abs() < 0.1);
+        assert!((result[1].x).abs() < 0.1);
+        assert!((result[1].y - 10.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_line_empty_points() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&[]).unwrap();
+
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_line_asemic_pt_properties() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["5,10"]);
+        assert!(result.is_ok(), "Failed to parse line with point 5,10");
+        let result = result.unwrap();
+
+        assert_eq!(result[0].x, 5.0);
+        assert_eq!(result[0].y, 10.0);
+        assert_eq!(result[0].w, 0.0);
+        assert_eq!(result[0].h, 1.0);
+        assert_eq!(result[0].s, 1.0);
+        assert_eq!(result[0].l, 1.0);
+    }
+
+    #[test]
+    fn test_line_invalid_point_format() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["invalid"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_line_mixed_valid_invalid() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["0,0", "invalid", "10,10"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_line_large_coordinate_values() {
+        let mut parser = ExpressionParser::new();
+        let result = parser
+            .line(&["1000000,2000000", "-1000000,-2000000"])
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].x, 1000000.0);
+        assert_eq!(result[0].y, 2000000.0);
+        assert_eq!(result[1].x, -1000000.0);
+        assert_eq!(result[1].y, -2000000.0);
+    }
+
+    #[test]
+    fn test_line_zero_length() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["5,5", "5,5"]).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].x, 5.0);
+        assert_eq!(result[0].y, 5.0);
+        assert_eq!(result[1].x, 5.0);
+        assert_eq!(result[1].y, 5.0);
+    }
+
+    #[test]
+    fn test_line_horizontal() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["0,5", "10,5", "20,5"]).unwrap();
+
+        assert_eq!(result.len(), 3);
+        for pt in result.iter() {
+            assert_eq!(pt.y, 5.0);
+        }
+    }
+
+    #[test]
+    fn test_line_vertical() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["5,0", "5,10", "5,20"]).unwrap();
+
+        assert_eq!(result.len(), 3);
+        for pt in result.iter() {
+            assert_eq!(pt.x, 5.0);
+        }
+    }
+
+    #[test]
+    fn test_line_diagonal() {
+        let mut parser = ExpressionParser::new();
+        let result = parser.line(&["0,0", "5,5", "10,10"]).unwrap();
+
+        assert_eq!(result.len(), 3);
+        for (i, pt) in result.iter().enumerate() {
+            assert_eq!(pt.x, pt.y);
+            assert_eq!(pt.x, (i * 5) as f64);
+        }
     }
 }

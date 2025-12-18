@@ -1,5 +1,4 @@
 pub mod parser;
-pub mod supercollider;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

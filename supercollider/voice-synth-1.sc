@@ -29,7 +29,7 @@ SynthDef(\passthrough, {
 	input = In.ar(inBus, 2);
 	Out.ar(outBus, input * level);
 }).add;
-OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\amp, msg[1]); }, "/passthrough/level");
+OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, "/passthrough/level");
 
 "./synths/*".resolveRelative.loadPaths;
 )

@@ -199,6 +199,19 @@ function AsemicAppInner({
   useEffect(() => {
     const newScrubs = [...scrubValues]
     newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
+    if (newScrubs[activeScene] && scenesArray[activeScene]?.params) {
+      const sceneParams = scenesArray[activeScene].params
+      const currentParams = newScrubs[activeScene].params || {}
+
+      // Initialize any undefined params with their default values
+      for (const [key, config] of Object.entries(sceneParams)) {
+        if (currentParams[key] === undefined) {
+          currentParams[key] = config.default ?? config.min
+        }
+      }
+
+      newScrubs[activeScene].params = currentParams
+    }
     setScrubValues(newScrubs)
   }, [activeScene])
 

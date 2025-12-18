@@ -39,9 +39,9 @@ SynthDef(\delayDistortion, {
 		delayed[i] = 3.collect({ |j| "delayed % * matrix %, %, % + ".format(j, i, j, matrix[i,j]).postln; delayed[j] * matrix[i, j] }).sum / 3;
 	});*/
 
-OSCdef.new(\delayDistortionTimes, { |msg, time, addr, recvPort|
+OSCdef.new(\delayDistortionRate, { |msg, time, addr, recvPort|
 	~delayDistortion.set(\delayTimes, msg[1..3]);
-}, "/delaydistortion/times");
+}, "/delaydistortion/rate");
 OSCdef.new(\delayDistortionMix, { |msg, time, addr, recvPort|
 	~delayDistortion.set(\mix, msg[1]);
 }, "/delaydistortion/mix");

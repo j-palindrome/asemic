@@ -24,3 +24,13 @@ SynthDef(\glitcher, {
 	);
 	Out.ar(outBus, sig * level);
 }).add;
+
+OSCdef(\glitcherRate, {
+	|msg|
+	Synth(\glitcher).set(\rate, msg[1]);
+}, '/glitcher/rate');
+
+OSCdef(\glitcherLevel, {
+	|msg|
+	Synth(\glitcher).set(\level, msg[1]);
+}, '/glitcher/level');

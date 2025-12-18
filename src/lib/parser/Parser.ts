@@ -23,7 +23,6 @@ import { bezier } from './core/utilities'
 import { AsemicFont } from '../AsemicFont'
 
 export { AsemicGroup }
-const PHI = 1.6180339887
 
 export interface Scene {
   code: string

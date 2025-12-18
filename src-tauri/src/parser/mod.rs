@@ -6,9 +6,10 @@
 // }
 
 pub mod methods {
-    // pub mod data;
-    // pub mod drawing;
+    pub mod asemic_pt;
     pub mod expressions;
+    pub mod tests;
+    pub mod transforms;
     // pub mod osc;
     // pub mod parsing;
     // pub mod scenes;

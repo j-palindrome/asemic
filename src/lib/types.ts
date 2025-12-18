@@ -36,11 +36,3 @@ export type Transform = {
   l: number | (() => number)
   a: number | (() => number)
 }
-export type FlatTransform = {
-  scale: BasicPt
-  rotation: number
-  translation: BasicPt
-  width: number
-  length?: number
-  offset?: number
-}

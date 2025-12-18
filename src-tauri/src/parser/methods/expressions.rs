@@ -1,3 +1,5 @@
+use crate::parser::methods::asemic_pt::AsemicPt;
+use crate::parser::methods::asemic_pt::BasicPt;
 use rosc::{encoder, OscMessage, OscPacket, OscType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -71,6 +73,91 @@ enum NoiseState {
 }
 
 impl ExpressionParser {
+    pub fn eval_point(this_point: &str, basic: bool, default_y: f64) -> Result<BasicPt, String> {
+        // Handle BasicPt input
+        if basic {
+            if let Ok(x) = this_point.parse::<f64>() {
+                return Ok(BasicPt::new(x, default_y));
+            }
+        }
+
+        let mut point = this_point.to_string();
+
+        // Handle reverse transform '<'
+        if point == "<" {
+            return Ok(BasicPt::new(0.0, 0.0));
+        }
+
+        // Handle point constants '(name arg1 arg2...)'
+        if point.starts_with('(') && point.ends_with(')') {
+            let sliced = &point[1..point.len() - 1];
+            // Parse point constant - would call parser.pointConstants[tokens[0]]
+            // For now, return error as this requires context
+            return Err(format!("Point constants not implemented: {}", sliced));
+        }
+
+        // Handle polar notation '@theta,radius'
+        if point.starts_with('@') {
+            let parts: Vec<&str> = point[1..].split(',').collect();
+            if parts.len() >= 2 {
+                let theta = parts[0]
+                    .parse::<f64>()
+                    .map_err(|_| format!("Invalid theta: {}", parts[0]))?;
+                let radius = parts[1]
+                    .parse::<f64>()
+                    .map_err(|_| format!("Invalid radius: {}", parts[1]))?;
+
+                let mut pt = BasicPt::new(radius, 0.0);
+                pt.rotate(theta, None);
+                return Ok(pt);
+            }
+        }
+
+        // Handle array notation 'base[idx1,idx2,...]'
+        if point.contains('[') {
+            let start = point.find('[').unwrap() + 1;
+            let end = point.find(']').unwrap();
+            let base = &point[..start - 1];
+            let indices = &point[start..end];
+
+            let indices_list: Vec<&str> = indices.split(',').collect();
+            for idx in indices_list {
+                let expanded = format!("{}{}", base, idx);
+                return Self::eval_point(&expanded, basic, default_y);
+            }
+        }
+
+        // Parse comma-separated coordinates
+        let parts: Vec<&str> = point.split(',').collect();
+
+        match parts.len() {
+            1 => {
+                let coord = parts[0]
+                    .parse::<f64>()
+                    .map_err(|_| format!("Invalid coordinate: {}", parts[0]))?;
+                Ok(BasicPt::new(coord, default_y.max(coord)))
+            }
+            _ => {
+                let coords: Result<Vec<f64>, String> = parts
+                    .iter()
+                    .map(|p| {
+                        p.parse::<f64>()
+                            .map_err(|_| format!("Invalid coordinate: {}", p))
+                    })
+                    .collect();
+
+                let coords = coords?;
+                match coords.len() {
+                    2 => Ok(BasicPt::new(coords[0], coords[1])),
+                    _ => Err(format!(
+                        "Invalid point format: {} coordinates",
+                        coords.len()
+                    )),
+                }
+            }
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             operator_split_cache: HashMap::new(),
@@ -120,9 +207,11 @@ impl ExpressionParser {
             .copied();
     }
 
-    /// Main expression evaluation functio
+    /// Main expression evaluation function
     /// Evaluates mathematical expressions with operators: &, |, ^, _, +, -, *, /, %, (, )
     /// Also supports function calls with space-separated arguments
+    /// 
+    /// Can be called by Transform.solve() or other types that need expression evaluation.
     pub fn expr(&mut self, expr: &str) -> Result<f64, String> {
         let expr = expr.trim();
 
@@ -763,193 +852,5 @@ impl ExpressionParser {
 impl Default for ExpressionParser {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_simple_numbers() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("42").unwrap(), 42.0);
-        assert_eq!(parser.expr("3.14").unwrap(), 3.14);
-        assert_eq!(parser.expr("-5").unwrap(), -5.0);
-    }
-
-    #[test]
-    fn test_basic_arithmetic() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("2+3").unwrap(), 5.0);
-        assert_eq!(parser.expr("10-4").unwrap(), 6.0);
-        assert_eq!(parser.expr("6*7").unwrap(), 42.0);
-        assert_eq!(parser.expr("15/3").unwrap(), 5.0);
-        assert_eq!(parser.expr("17%5").unwrap(), 2.0);
-    }
-
-    #[test]
-    fn test_operator_precedence() {
-        let mut parser = ExpressionParser::new();
-        // Note: This parser evaluates left-to-right without precedence rules
-        assert_eq!(parser.expr("2+3*4").unwrap(), 20.0); // (2+3)*4 in left-to-right
-    }
-
-    #[test]
-    fn test_parentheses() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("(2+3)*4").unwrap(), 20.0);
-        assert_eq!(parser.expr("2*(3+4)").unwrap(), 14.0);
-    }
-
-    #[test]
-    fn test_power_operator() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("2^3").unwrap(), 8.0);
-        assert_eq!(parser.expr("5^2").unwrap(), 25.0);
-    }
-
-    #[test]
-    fn test_logical_operators() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("1&1").unwrap(), 1.0);
-        assert_eq!(parser.expr("1&0").unwrap(), 0.0);
-        assert_eq!(parser.expr("0|1").unwrap(), 1.0);
-        assert_eq!(parser.expr("0|0").unwrap(), 0.0);
-    }
-
-    #[test]
-    fn test_negative_numbers() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("5+-3").unwrap(), 2.0);
-        assert_eq!(parser.expr("-5+3").unwrap(), -2.0);
-    }
-
-    #[test]
-    fn test_empty_expression() {
-        let mut parser = ExpressionParser::new();
-        assert!(parser.expr("").is_err());
-        assert!(parser.expr("   ").is_err());
-    }
-
-    #[test]
-    fn test_nested_parentheses() {
-        let mut parser = ExpressionParser::new();
-        assert_eq!(parser.expr("((2+3)*4)").unwrap(), 20.0);
-        assert_eq!(parser.expr("(2+(3*4))").unwrap(), 14.0);
-    }
-
-    #[test]
-    fn test_constants() {
-        let mut parser = ExpressionParser::new();
-
-        // Test time constant - just verify it returns a positive number
-        assert!(parser.expr("T").unwrap() > 0.0);
-
-        // Test sin
-        assert!((parser.expr("sin 0.25").unwrap() - 1.0).abs() < 0.001);
-
-        // Test abs
-        assert_eq!(parser.expr("abs -5").unwrap(), 5.0);
-
-        // Test NOT
-        assert_eq!(parser.expr("! 0").unwrap(), 1.0);
-        assert_eq!(parser.expr("! 1").unwrap(), 0.0);
-
-        // Test ternary
-        assert_eq!(parser.expr("? 1 5 10").unwrap(), 5.0);
-        assert_eq!(parser.expr("? 0 5 10").unwrap(), 10.0);
-    }
-
-    #[test]
-    fn test_progress_constants() {
-        let mut parser = ExpressionParser::new();
-
-        // Test local progress constants
-        parser.set_local_progress(10.0, 5.0, 3.0);
-        assert_eq!(parser.expr("C").unwrap(), 10.0);
-        assert_eq!(parser.expr("L").unwrap(), 5.0);
-        assert_eq!(parser.expr("P").unwrap(), 3.0);
-
-        // Test index constants
-        parser.set_indexes(vec![0.0, 5.0, 10.0], vec![1.0, 10.0, 20.0]);
-        assert_eq!(parser.expr("N").unwrap(), 1.0);
-        assert_eq!(parser.expr("N 1").unwrap(), 10.0);
-        assert_eq!(parser.expr("I").unwrap(), 0.0);
-        assert_eq!(parser.expr("I 1").unwrap(), 5.0);
-        assert!((parser.expr("i 1").unwrap() - 5.0 / 9.0).abs() < 0.001);
-
-        // Test negation
-        assert_eq!(parser.expr("- 5").unwrap(), -5.0);
-
-        // Test bell
-        assert!((parser.expr("bell 0.5 0.3").unwrap() - 0.25).abs() < 0.1);
-    }
-
-    #[test]
-    fn test_functions() {
-        let mut parser = ExpressionParser::new();
-
-        // Test mix
-        assert_eq!(parser.expr("mix 1 2 3").unwrap(), 2.0);
-
-        // Test choose
-        assert_eq!(parser.expr("choose 0 10 20 30").unwrap(), 10.0);
-        assert_eq!(parser.expr("choose 1 10 20 30").unwrap(), 20.0);
-
-        // Test fib
-        assert_eq!(parser.expr("fib 5").unwrap(), 5.0);
-        assert_eq!(parser.expr("fib 6").unwrap(), 8.0);
-
-        // Test PHI
-        assert!((parser.expr("PHI").unwrap() - 1.6180339887).abs() < 0.0001);
-    }
-
-    #[test]
-    fn test_fade() {
-        let mut parser = ExpressionParser::new();
-
-        // Test > (fade between values)
-        assert_eq!(parser.expr("> 0 10 20").unwrap(), 10.0);
-        assert!((parser.expr("> 1 10 20").unwrap() - 20.0).abs() < 0.01);
-        assert!((parser.expr("> 0.5 10 20").unwrap() - 15.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_scene_params() {
-        let mut parser = ExpressionParser::new();
-
-        // Set up scene metadata with params
-        let mut params1 = HashMap::new();
-        params1.insert("speed".to_string(), 2.5);
-        params1.insert("size".to_string(), 0.75);
-        params1.insert("scrub".to_string(), 0.5);
-
-        let mut params2 = HashMap::new();
-        params2.insert("speed".to_string(), 1.0);
-        params2.insert("size".to_string(), 0.5);
-        params2.insert("scrub".to_string(), 0.75);
-
-        // parser.set_scene_metadata(SceneMetadata {
-        //        scrub: 0.0,
-        //         params: Vec![params1, params2].into_iter().collect()
-        //     });
-
-        // Test accessing params from scene 0
-        assert_eq!(parser.expr("speed").unwrap(), 2.5);
-        assert_eq!(parser.expr("size").unwrap(), 0.75);
-        assert_eq!(parser.expr("s").unwrap(), 0.5);
-
-        // Test accessing params from scene 1
-        assert_eq!(parser.expr("speed").unwrap(), 1.0);
-        assert_eq!(parser.expr("size").unwrap(), 0.5);
-        assert_eq!(parser.expr("s").unwrap(), 0.75);
-
-        // Test using params in expressions
-        assert_eq!(parser.expr("speed*2").unwrap(), 5.0);
-        assert_eq!(parser.expr("size+0.25").unwrap(), 1.0);
-
-        // Test unknown param
-        assert!(parser.expr("unknown").is_err());
     }
 }

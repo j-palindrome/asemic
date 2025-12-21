@@ -11,13 +11,13 @@ SynthDef(\granular, {
 	
 	sig = TGrains.ar(
 		numChannels: 2,
-		trigger: Dust.ar(rate),
+		trigger: Impulse.ar(rate),
 		bufnum: bufnum,
-		rate: LFNoise0.kr(rate, 2, 1),
-		centerPos: Line.kr(0, BufDur.ir(bufnum), BufDur.ir(bufnum)),
-		dur: (1 / rate) * LFNoise0.kr(rate, 1, 0.5),
-		pan: LFNoise0.kr(rate),
-		amp: LFNoise1.kr(rate/10),
+		rate: LFNoise0.ar(rate, 2, 1),
+		centerPos: Line.ar(0, BufDur.ir(bufnum), BufDur.ir(bufnum)),
+		dur: (1 / rate) * LFNoise0.ar(rate, 1, 0.5),
+		pan: LFNoise0.ar(rate),
+		amp: LFNoise1.ar(rate/10),
 		interp: 2
 	);
 	Out.ar(outBus, sig * level);

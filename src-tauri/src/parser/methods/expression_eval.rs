@@ -4,6 +4,9 @@ pub trait ExpressionEval {
     /// Main expression evaluation function
     fn expr(&mut self, expr: &str) -> Result<f64, String>;
 
+    /// Evaluate a list of expressions separated by commas
+    fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String>;
+
     /// Fast expression evaluation for single terms
     fn fast_expr(&mut self, string_expr: &str) -> Result<f64, String>;
 
@@ -35,6 +38,10 @@ pub trait ExpressionEval {
 }
 
 impl ExpressionEval for ExpressionParser {
+    fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String> {
+        exprs.split(',').map(|expr| self.expr(expr)).collect()
+    }
+
     fn expr(&mut self, expr: &str) -> Result<f64, String> {
         let expr = expr.trim();
 
@@ -280,6 +287,7 @@ impl ExpressionEval for ExpressionParser {
                 };
                 let seed_offset = self.seeds.get((self.curve as usize) % 100).unwrap_or(&0.0);
                 let hash = (seed * (43758.5453123 + seed_offset)) % 1.0;
+                self.curve += 1.0;
                 Ok(hash)
             }
             "<>" => {

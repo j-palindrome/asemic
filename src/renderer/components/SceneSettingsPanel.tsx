@@ -3,6 +3,7 @@ import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
 import { ScrubSettings } from '../app/AsemicApp'
+import { sortBy, uniq } from 'lodash'
 
 type ParamConfig = {
   max: number
@@ -43,6 +44,7 @@ interface SceneSettingsPanelProps {
   onUpdateScrub: (settings: ScrubSettings) => void
   onAddScene: () => void
   onDeleteScene: () => void
+  sceneList: Array<SceneSettings>
 }
 
 export default function SceneSettingsPanel({
@@ -52,7 +54,8 @@ export default function SceneSettingsPanel({
   onAddScene,
   onDeleteScene,
   onUpdateScrub,
-  scrubSettings
+  scrubSettings,
+  sceneList
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -66,11 +69,15 @@ export default function SceneSettingsPanel({
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
+      const existingParam = sceneList
+        .flatMap(scene => Object.entries(scene.params || {}))
+        .find(([key]) => key === newParamName.trim())?.[1]
+
       onUpdate({
         ...settings,
         params: {
           ...settings.params,
-          [newParamName.trim()]: {
+          [newParamName.trim()]: existingParam || {
             max: 1,
             min: 0,
             exponent: 1,
@@ -319,9 +326,21 @@ export default function SceneSettingsPanel({
                       setShowAddParam(false)
                     }
                   }}
+                  list='param-names'
                   autoFocus
                   className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
                 />
+                <datalist id='param-names'>
+                  {uniq(
+                    sceneList.flatMap(scene => Object.keys(scene.params || {}))
+                  )
+                    .sort()
+                    .map(name => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                </datalist>
                 <button
                   onClick={handleAddParam}
                   className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
@@ -738,6 +757,18 @@ export default function SceneSettingsPanel({
                   <button
                     onClick={() => {
                       const newGroups = [...(settings.oscGroups || [])]
+                      newGroups[groupIndex].osc = (
+                        newGroups[groupIndex].osc || []
+                      ).sort((a, b) => a.name.localeCompare(b.name))
+                      onUpdate({ ...settings, oscGroups: newGroups })
+                    }}
+                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                    title='Sort messages by name'>
+                    Sort
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newGroups = [...(settings.oscGroups || [])]
                       newGroups.splice(groupIndex, 1)
                       onUpdate({ ...settings, oscGroups: newGroups })
                     }}
@@ -762,8 +793,27 @@ export default function SceneSettingsPanel({
                           }
                           onUpdate({ ...settings, oscGroups: newGroups })
                         }}
+                        list={`osc-paths-${groupIndex}-${msgIndex}`}
                         className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
                       />
+                      <datalist id={`osc-paths-${groupIndex}-${msgIndex}`}>
+                        {[
+                          ...new Set(
+                            sceneList.flatMap(
+                              scene =>
+                                scene.oscGroups?.flatMap(
+                                  g => g.osc?.map(oscMsg => oscMsg.name) || []
+                                ) || []
+                            )
+                          )
+                        ]
+                          .sort()
+                          .map(x => (
+                            <option key={x} value={x}>
+                              {x}
+                            </option>
+                          ))}
+                      </datalist>
                       <input
                         type='text'
                         placeholder='Expression or value'

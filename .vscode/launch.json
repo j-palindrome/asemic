@@ -2,19 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Both",
-      "type": "node",
+      "type": "lldb",
       "request": "launch",
-      "cwd": "${workspaceRoot}",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
-      "serverReadyAction": {
-        "pattern": "localhost:([0-9]+)",
-        "uriFormat": "http://localhost:%s",
-        "action": "debugWithChrome"
-      }
+      "name": "Tauri Development Debug",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./src-tauri/Cargo.toml",
+          "--no-default-features"
+        ]
+      },
+      // task for the `beforeDevCommand` if used, must be configured in `.vscode/tasks.json`
+      "preLaunchTask": "ui:dev"
     }
   ]
 }

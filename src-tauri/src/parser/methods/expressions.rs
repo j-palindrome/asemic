@@ -171,7 +171,7 @@ impl ExpressionParser {
             indexes: vec![0.0; 3],
             count_nums: vec![0.0; 3],
             seeds: (0..100)
-                .map(|i| ((i as f64 * 0.618033988749895) % 1.0))
+                .map(|i| (((i as f64 + 1.0) * 0.618033988749895) % 1.0))
                 .collect(),
             noise_table: HashMap::new(),
             scene_metadata: SceneMetadata {

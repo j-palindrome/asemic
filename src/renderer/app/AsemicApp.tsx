@@ -30,6 +30,7 @@ import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import ParamEditors from '../components/ParamEditors'
 
 export type ScrubSettings = {
   scrub: number
@@ -275,6 +276,8 @@ function AsemicAppInner({
                 oscHost: oscHost,
                 oscPort: oscPort,
                 sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
+              }).then(result => {
+                // console.log('OSC expression result:', result)
               })
               if (oscMsg.play === 'once') {
                 // immediate update, also save in state
@@ -525,9 +528,21 @@ function AsemicAppInner({
                 className='disabled:opacity-30'>
                 <ChevronLeft {...lucideProps} size={16} />
               </button>
-              <div className='text-white text-xs opacity-50 px-1 font-mono'>
-                Scene {activeScene + 1} / {scenesArray.length}
-              </div>
+              <select
+                value={activeScene}
+                onChange={e => {
+                  const sceneIndex = parseInt(e.target.value, 10)
+                  const sceneStart = sceneStarts[sceneIndex] || 0
+                  const offset = scenesArray[sceneIndex]?.offset || 0
+                  setProgress(sceneStart + offset + 0.001)
+                }}
+                className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 font-mono cursor-pointer hover:bg-white/20'>
+                {scenesArray.map((_, idx) => (
+                  <option key={idx} value={idx}>
+                    {idx + 1}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={() => {
                   const nextScene = Math.min(
@@ -608,6 +623,7 @@ function AsemicAppInner({
             <>
               <div className='pointer-events-auto'>
                 <SceneSettingsPanel
+                  sceneList={scenesArray}
                   activeScene={activeScene}
                   settings={activeSceneSettings}
                   onUpdate={newSettings => {
@@ -624,6 +640,25 @@ function AsemicAppInner({
                   }}
                   onAddScene={addSceneAfterCurrent}
                   onDeleteScene={deleteCurrentScene}
+                />
+              </div>
+            </>
+          )}
+          {perform && scenesArray[activeScene]?.text && (
+            <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
+              <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mx-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
+                {scenesArray[activeScene]?.text || ''}
+              </div>
+            </div>
+          )}
+          {perform && (
+            <>
+              <div className='pointer-events-auto w-full px-4 pb-4 absolute top-[60px] left-0'>
+                <ParamEditors
+                  scenesArray={scenesArray}
+                  activeScene={activeScene}
+                  scrubSettings={scrubValues[activeScene]}
+                  setScrubValues={setScrubValues}
                 />
               </div>
             </>

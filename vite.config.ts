@@ -32,6 +32,9 @@ export default defineConfig({
           host,
           port: 1421
         }
-      : undefined
+      : undefined,
+    watch: {
+      ignored: ['**/supercollider/**']
+    }
   }
 })

@@ -75,8 +75,15 @@ async fn parser_eval_expression(
         parser.send_osc(&osc_address, param.to_vec(), &osc_host, osc_port)?;
         return Ok(param.clone());
     }
+
     // Set scene metadata if available
     parser.set_scene_metadata(scene_metadata);
+
+    if expr.contains(",") {
+        let results = parser.expr_list(&expr)?;
+        parser.send_osc(&osc_address, results.clone(), &osc_host, osc_port)?;
+        return Ok(results);
+    }
 
     // Evaluate expression
     let result = parser.expr(&expr)?;

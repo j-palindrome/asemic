@@ -2,7 +2,8 @@
 s.reboot;
 s.options.memSize = 2.pow(20);
 s.freeAll;
-s.quit;
+
+s.reboot;
 (
 s.freeAll;
 OSCdef.freeAll;
@@ -38,15 +39,16 @@ OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, 
 ~inputGroup = Group.new(s, \addToHead);
 ~effectsGroup = Group.new(s, \addToTail);
 ~inputSynth = Synth(\input, [\inBus, 0, \effectsOutBus, ~effectsBus, \amp, 1.0], ~inputGroup);
-~passthroughSynth = Synth(\passthrough, [\inBus, ~effectsBus.index, \outBus, 0, \amp, 1.0], ~effectsGroup);
+~passthroughSynth = Synth(\passthrough, [\inBus, ~effectsBus.index, \outBus, 0, \level, 1], ~effectsGroup);
 ~delaysSynth = Synth(\delays, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~granularSynth = Synth(\granular, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
-~glitcher = Synth(\glitcher, [\outBus, 0, \level, 0], ~effectsGroup);
+// ~glitcher = Synth(\glitcher, [\outBus, 0, \level, 0], ~effectsGroup);
+OSCdef.new(\allLevel, {|msg| ~effectsGroup.set(\level, msg[1])}, "/all/level");
 )
 (
-~delayDistortion.set(\level, 0.0, \mix, 1, \delayTimes, 3.collect({ 1/(50.rand + 10) }));
+~delayDistortion.set(\level, 1.0, \mix, 1, \delayTimes, 3.collect({ 1/(800.rand + 10) }));
 ~passthroughSynth.set(\level, 0);
 ~bitcrush.set(\level, 0);
 ~granularSynth.set(\level, 0, \rate, 10);

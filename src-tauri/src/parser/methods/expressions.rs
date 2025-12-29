@@ -225,7 +225,13 @@ impl ExpressionParser {
         host: &str,
         port: u16,
     ) -> Result<(), String> {
-        let target_addr = format!("{}:{}", host, port);
+        let resolved_host = if host == "localhost" {
+            "127.0.0.1"
+        } else {
+            host
+        };
+
+        let target_addr = format!("{}:{}", resolved_host, port);
 
         // Bind to any available port on localhost
         let socket = UdpSocket::bind("0.0.0.0:0")
@@ -239,7 +245,7 @@ impl ExpressionParser {
         // Create OSC message
         let msg = OscMessage {
             addr: address.to_string(),
-            args: value.iter().map(|v| OscType::Float(*v as f32)).collect(),
+            args: value.iter().map(|&v| OscType::Float(v as f32)).collect(),
         };
 
         // Encode message to bytes

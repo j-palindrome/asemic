@@ -11,11 +11,15 @@ type ParamConfig = {
   exponent: number
   dimension: number
   default: number[]
+  oscPath?: string
 }
+
+type SceneParamConfig = Omit<ParamConfig, 'dimension'>
 
 export interface GlobalSettings {
   supercolliderHost?: string
   supercolliderPort?: number
+  params: Record<string, ParamConfig>
 }
 
 export interface SceneSettings {
@@ -25,6 +29,7 @@ export interface SceneSettings {
   offset?: number
   pause?: number | false
   params: Record<string, ParamConfig>
+  globalParams?: Record<string, SceneParamConfig>
   oscGroups?: Array<{
     osc?: Array<{
       name: string
@@ -45,6 +50,8 @@ interface SceneSettingsPanelProps {
   onAddScene: () => void
   onDeleteScene: () => void
   sceneList: Array<SceneSettings>
+  globalSettings: GlobalSettings
+  setGlobalSettings: (settings: GlobalSettings) => void
 }
 
 export default function SceneSettingsPanel({
@@ -55,7 +62,9 @@ export default function SceneSettingsPanel({
   onDeleteScene,
   onUpdateScrub,
   scrubSettings,
-  sceneList
+  sceneList,
+  globalSettings,
+  setGlobalSettings
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -66,6 +75,11 @@ export default function SceneSettingsPanel({
   const [editAllMode, setEditAllMode] = useState<Set<string>>(new Set())
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (!textEditorRef.current) return
+    textEditorRef.current.value = settings.text || ''
+  }, [settings.text])
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -90,11 +104,6 @@ export default function SceneSettingsPanel({
       setShowAddParam(false)
     }
   }
-
-  useEffect(() => {
-    if (!textEditorRef.current) return
-    textEditorRef.current.value = settings.text || ''
-  }, [settings.text])
 
   const handleDeleteParam = (key: string) => {
     const newParams = { ...settings.params }
@@ -249,12 +258,13 @@ export default function SceneSettingsPanel({
               type='number'
               step='0.01'
               value={settings.length ?? 0.1}
-              onChange={e =>
+              onChange={e => {
+                if (document.activeElement !== e.target) return
                 onUpdate({
                   ...settings,
                   length: parseFloat(e.target.value)
                 })
-              }
+              }}
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
             />
           </div>
@@ -265,6 +275,7 @@ export default function SceneSettingsPanel({
               step='0.1'
               value={settings.offset ?? 0}
               onChange={e =>
+                document.activeElement !== e.target &&
                 onUpdate({
                   ...settings,
                   offset: parseFloat(e.target.value)
@@ -281,16 +292,135 @@ export default function SceneSettingsPanel({
               value={settings.pause === false ? -1 : settings.pause ?? 0}
               onChange={e => {
                 const val = parseFloat(e.target.value)
-                onUpdate({
-                  ...settings,
-                  pause: (val < 0 ? false : val) as number | false
-                })
+                document.activeElement !== e.target &&
+                  onUpdate({
+                    ...settings,
+                    pause: (val < 0 ? false : val) as number | false
+                  })
               }}
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
             />
             <span className='text-white/50 text-[10px]'>(-1 for false)</span>
           </div>
         </div>
+
+        {/* Global Params Section */}
+        {Object.keys(globalSettings.params).length > 0 && (
+          <div className='mt-3 border-t border-white/10 pt-3'>
+            <label className='text-white/70 text-sm font-semibold block mb-2'>
+              Global Params
+            </label>
+            <div className='space-y-2'>
+              {Object.entries(globalSettings.params)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([paramId, paramConfig]) => (
+                  <div
+                    key={paramId}
+                    className='bg-white/5 p-2 rounded border border-white/10'>
+                    <div className='flex items-center gap-2 mb-2'>
+                      <span className='text-white/70 text-xs font-medium flex-1'>
+                        {paramId}
+                      </span>
+                      {(() => {
+                        const currentValues =
+                          scrubSettings.params[paramId] ||
+                          sceneList[activeScene].globalParams?.[paramId]
+                            ?.default
+                        const defaultValues = paramConfig.default || []
+                        const isDifferent =
+                          !currentValues ||
+                          JSON.stringify(currentValues) !==
+                            JSON.stringify(defaultValues)
+
+                        return isDifferent ? (
+                          <button
+                            onClick={() => {
+                              onUpdate({
+                                ...settings,
+                                globalParams: {
+                                  ...settings.globalParams,
+                                  [paramId]: {
+                                    ...settings.globalParams?.[paramId],
+                                    default: currentValues
+                                  }
+                                } as any
+                              })
+                            }}
+                            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                            title='Save current slider values as defaults'>
+                            Save Defaults
+                          </button>
+                        ) : null
+                      })()}
+                    </div>
+
+                    <div className='space-y-1'>
+                      {Array.from({ length: paramConfig.dimension }).map(
+                        (_, dimIndex) => (
+                          <div
+                            key={dimIndex}
+                            className='flex items-center gap-2'>
+                            <span className='text-white/50 text-xs w-6'>
+                              [{dimIndex}]
+                            </span>
+                            <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                              <Slider
+                                className='w-full h-full'
+                                innerClassName=''
+                                min={paramConfig.min}
+                                max={paramConfig.max}
+                                exponent={paramConfig.exponent}
+                                values={{
+                                  x:
+                                    scrubSettings.params[paramId]?.[dimIndex] ??
+                                    (paramConfig.default ??
+                                      globalSettings.params[paramId].default)?.[
+                                      dimIndex
+                                    ],
+                                  y: 0
+                                }}
+                                sliderStyle={({ x }) => ({
+                                  left: `${x * 100}%`,
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  width: '12px',
+                                  height: '12px',
+                                  borderRadius: '50%',
+                                  backgroundColor: 'white',
+                                  position: 'absolute',
+                                  pointerEvents: 'none'
+                                })}
+                                onChange={({ x }) => {
+                                  const currentValues =
+                                    scrubSettings.params[paramId] || []
+                                  const newValues = [...currentValues]
+                                  newValues[dimIndex] = x
+                                  onUpdateScrub({
+                                    ...scrubSettings,
+                                    params: {
+                                      ...scrubSettings.params,
+                                      [paramId]: newValues
+                                    }
+                                  })
+                                }}
+                              />
+                            </div>
+                            <span className='text-white/70 text-xs w-12 text-right'>
+                              {(
+                                scrubSettings.params[paramId]?.[dimIndex] ??
+                                paramConfig.default?.[dimIndex] ??
+                                paramConfig.min
+                              ).toFixed(3)}
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Params Section */}
         <div className='mt-3 border-t border-white/10 pt-3'>
@@ -384,16 +514,17 @@ export default function SceneSettingsPanel({
                       value={paramConfig.dimension}
                       onChange={e => {
                         const newDim = Math.max(1, parseInt(e.target.value))
-                        onUpdate({
-                          ...settings,
-                          params: {
-                            ...settings.params,
-                            [key]: {
-                              ...settings.params[key],
-                              dimension: newDim
+                        document.activeElement !== e.target &&
+                          onUpdate({
+                            ...settings,
+                            params: {
+                              ...settings.params,
+                              [key]: {
+                                ...settings.params[key],
+                                dimension: newDim
+                              }
                             }
-                          }
-                        })
+                          })
                         // Adjust param values array if dimension changed
                         const currentValues = scrubSettings.params[key] || []
                         if (currentValues.length !== newDim) {
@@ -416,6 +547,7 @@ export default function SceneSettingsPanel({
                       step='0.01'
                       value={paramConfig.min}
                       onChange={e =>
+                        document.activeElement !== e.target &&
                         onUpdate({
                           ...settings,
                           params: {
@@ -462,6 +594,7 @@ export default function SceneSettingsPanel({
                       step='0.1'
                       value={paramConfig.exponent}
                       onChange={e =>
+                        document.activeElement !== e.target &&
                         onUpdate({
                           ...settings,
                           params: {
@@ -479,8 +612,6 @@ export default function SceneSettingsPanel({
                   <button
                     onClick={() => {
                       const currentValues = scrubSettings.params[key] || []
-                      console.log(currentValues)
-
                       onUpdate({
                         ...settings,
                         params: {
@@ -719,7 +850,8 @@ export default function SceneSettingsPanel({
                         ...newGroups[groupIndex],
                         oscHost: e.target.value
                       }
-                      onUpdate({ ...settings, oscGroups: newGroups })
+                      document.activeElement !== e.target &&
+                        onUpdate({ ...settings, oscGroups: newGroups })
                     }}
                     className='w-24 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
                   />
@@ -791,7 +923,8 @@ export default function SceneSettingsPanel({
                             ...newGroups[groupIndex].osc![msgIndex],
                             name: e.target.value
                           }
-                          onUpdate({ ...settings, oscGroups: newGroups })
+                          document.activeElement !== e.target &&
+                            onUpdate({ ...settings, oscGroups: newGroups })
                         }}
                         list={`osc-paths-${groupIndex}-${msgIndex}`}
                         className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'

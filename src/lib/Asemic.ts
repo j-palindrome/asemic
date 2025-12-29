@@ -43,6 +43,7 @@ export default class Asemic {
       if (evt.data.ready) {
         this.ready = true
         for (const data of this.messageQueue) {
+          console.log('posting queued message')
           this.postMessage(data)
         }
         this.messageQueue = []

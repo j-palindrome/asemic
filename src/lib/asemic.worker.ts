@@ -1,6 +1,6 @@
 import { flatMap, isUndefined, max } from 'lodash'
 import WebGPURenderer from './renderers/visual/WebGPURenderer'
-import type { AsemicData, FlatTransform } from './types'
+import type { AsemicData } from './types'
 import { Parser, Scene } from './parser/Parser'
 import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 // import { generators, generators as realOsc } from 'hydra-ts'
@@ -24,7 +24,7 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!offscreenCanvas) return
 
   if (!isUndefined(ev.data.reset) && ev.data.reset) {
-    console.log('setup parser')
+    console.log('setup parser', ev.data)
     parser.setup()
   }
   if (!isUndefined(ev.data.preProcess) && renderer) {

@@ -6,7 +6,8 @@
       "script": "dev",
       "problemMatcher": [],
       "label": "ui:dev",
-      "detail": "vite"
+      "detail": "vite",
+      "isBackground": true
     }
   ]
 }

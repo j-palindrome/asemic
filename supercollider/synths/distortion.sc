@@ -1,13 +1,13 @@
 
-(
-~delayDistortion.free;
-OSCdef(\delayDistortionRate).free;
-OSCdef(\delayDistortionLevel).free;
-OSCdef(\delayDistortionMix).free;
-);
-~delayDistortion = Synth(\delayDistortion, [\inBus, 2, \outBus, 0, \level, 1]);
+// (
 // ~delayDistortion.free;
-~delayDistortion.set(\level, 1, \delayTimes, 3.collect({ 1/(30.rand + 10); }), \inBus, 2, \outBus, 0);
+// OSCdef(\delayDistortionRate).free;
+// OSCdef(\delayDistortionLevel).free;
+// OSCdef(\delayDistortionMix).free;
+// );
+// ~delayDistortion = Synth(\delayDistortion, [\inBus, 2, \outBus, 0, \level, 1]);
+// ~delayDistortion.free;
+// ~delayDistortion.set(\level, 1, \delayTimes, 3.collect({ 1/(30.rand + 10); }), \inBus, 2, \outBus, 0);
 (
 
 SynthDef(\delayDistortion, {

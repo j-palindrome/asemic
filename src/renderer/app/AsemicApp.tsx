@@ -1,7 +1,7 @@
 import Asemic from '@/lib/Asemic'
 import { Parser, Scene } from '@/lib/parser/Parser'
 import { AsemicData } from '@/lib/types'
-import _, { isEqual, isUndefined, set } from 'lodash'
+import _, { isEqual, isUndefined, last, set } from 'lodash'
 import {
   ChevronLeft,
   ChevronRight,
@@ -31,11 +31,12 @@ import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import ParamEditors from '../components/ParamEditors'
+import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
   scrub: number
   params: Record<string, number[]>
-  sent: Record<string, boolean>
+  sent: Record<string, number[]>
 }
 
 function AsemicAppInner({
@@ -45,24 +46,21 @@ function AsemicAppInner({
 }) {
   // Parse scenes as JSON array
   const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([])
-  const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>(
-    {} as GlobalSettings
-  )
+  const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
+    params: {}
+  } as GlobalSettings)
 
   const setScenesArray = (newArray: SceneSettings[]) => {
     // Update only if different
     _setScenesArray(newArray)
-    console.log('new settings')
 
     localStorage.setItem('scenesArray', JSON.stringify(newArray))
   }
 
   const setGlobalSettings = (newSettings: GlobalSettings) => {
-    if (!isEqual(globalSettings, newSettings)) {
-      // Update only if different
-      _setGlobalSettings(newSettings)
-      localStorage.setItem('globalSettings', JSON.stringify(newSettings))
-    }
+    // Update only if different
+    _setGlobalSettings(newSettings)
+    localStorage.setItem('globalSettings', JSON.stringify(newSettings))
   }
 
   const [settings, setSettings] = useState(Asemic.defaultSettings)
@@ -198,20 +196,43 @@ function AsemicAppInner({
   const lastFrameTimeRef = useRef<number>(performance.now())
 
   useEffect(() => {
-    const newScrubs = [...scrubValues]
+    const newScrubs = [...scrubValuesRef.current]
     newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
-    if (newScrubs[activeScene] && scenesArray[activeScene]?.params) {
-      const sceneParams = scenesArray[activeScene].params
+
+    if (newScrubs[activeScene] && scenesArray[activeScene]) {
+      const sceneParams = scenesArray[activeScene].params || {}
       const currentParams = newScrubs[activeScene].params || {}
 
       // Initialize any undefined params with their default values
       for (const [key, config] of Object.entries(sceneParams)) {
-        if (currentParams[key] === undefined) {
-          currentParams[key] = config.default ?? config.min
+        currentParams[key] = config.default
+      }
+      // Also initialize global params if present
+      for (const [key, config] of Object.entries(globalSettings.params)) {
+        // global settings force their saved defaults
+        if (scenesArray[activeScene].globalParams?.[key]) {
+          currentParams[key] =
+            scenesArray[activeScene].globalParams?.[key].default
+        } else if (
+          scenesArray.findLastIndex(
+            (scene, i) => i < activeScene && scene.globalParams?.[key]
+          ) !== -1
+        ) {
+          // find last scene that had this param defined
+          const lastSceneIdx = scenesArray.findLastIndex(
+            (scene, i) => i < activeScene && scene.globalParams?.[key]
+          )
+
+          currentParams[key] =
+            scenesArray[lastSceneIdx].globalParams?.[key].default ??
+            config.default
+        } else {
+          currentParams[key] = config.default
         }
       }
 
       newScrubs[activeScene].params = currentParams
+      newScrubs[activeScene].sent = {}
     }
     setScrubValues(newScrubs)
   }, [activeScene])
@@ -254,51 +275,59 @@ function AsemicAppInner({
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
-        if (sceneSettings?.oscGroups && sceneSettings.oscGroups.length > 0) {
-          // Process each OSC group
-          for (const group of sceneSettings.oscGroups) {
-            const oscHost = group.oscHost || 'localhost'
-            const oscPort = group.oscPort || 57120
 
-            // Process OSC messages in group sequentially
-            for (const oscMsg of group.osc || []) {
-              if (
-                oscMsg.play === 'once' &&
-                scrubValuesRef.current[activeSceneRef.current]!.sent[
-                  oscMsg.name
-                ]
-              ) {
-                continue
-              }
-              invoke<number>('parser_eval_expression', {
-                expr: oscMsg.value.toString(),
-                oscAddress: oscMsg.name,
-                oscHost: oscHost,
-                oscPort: oscPort,
-                sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
-              }).then(result => {
-                // console.log('OSC expression result:', result)
-              })
-              if (oscMsg.play === 'once') {
-                // immediate update, also save in state
-                scrubValuesRef.current[activeSceneRef.current]!.sent[
-                  oscMsg.name
-                ] = true
-                setScrubValues(prev => {
-                  const newValues = [...prev]
-                  if (newValues[activeSceneRef.current]) {
-                    newValues[activeSceneRef.current] = {
-                      ...newValues[activeSceneRef.current],
-                      sent: {
-                        ...newValues[activeSceneRef.current].sent,
-                        [oscMsg.name]: true
-                      }
-                    }
-                  }
-                  return newValues
-                })
-              }
+        for (const [paramName, paramValue] of Object.entries(
+          sceneSettings.globalParams || {}
+        )) {
+          if (!globalSettings.params[paramName]?.oscPath) continue
+
+          // Skip if value hasn't changed from last sent value
+          const lastSentValue =
+            scrubValuesRef.current[activeSceneRef.current]!.sent[paramName]
+          const value =
+            scrubValuesRef.current[activeSceneRef.current]!.params[paramName]
+          if (isEqual(lastSentValue, value)) {
+            continue
+          }
+          console.log('sending', paramName, value)
+
+          invoke<number>('parser_eval_expression', {
+            expr: value.join(','),
+            oscAddress: globalSettings.params[paramName].oscPath,
+            oscHost: 'localhost',
+            oscPort: 57120,
+            sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
+          }).then(result => {})
+
+          scrubValuesRef.current[activeSceneRef.current]!.sent[paramName] = [
+            ...value
+          ]
+        }
+        for (const group of sceneSettings.oscGroups || []) {
+          const oscHost = group.oscHost || 'localhost'
+          const oscPort = group.oscPort || 57120
+
+          // Process OSC messages in group sequentially
+          for (const oscMsg of group.osc || []) {
+            // Skip if once flag is set and value exists
+            if (
+              oscMsg.play === 'once' &&
+              scrubValuesRef.current[activeSceneRef.current]!.sent[oscMsg.name]
+            ) {
+              continue
             }
+
+            invoke<number>('parser_eval_expression', {
+              expr: oscMsg.value.toString(),
+              oscAddress: oscMsg.name,
+              oscHost: oscHost,
+              oscPort: oscPort,
+              sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
+            }).then(result => {
+              scrubValuesRef.current[activeSceneRef.current]!.sent[
+                oscMsg.name
+              ] = [result]
+            })
           }
         }
       } catch (error) {
@@ -333,12 +362,17 @@ function AsemicAppInner({
     index: number
   } | null>(null)
 
+  const lastActiveSceneRef = useRef<number>(-1)
   // Extract settings from active scene
   useEffect(() => {
+    if (lastActiveSceneRef.current === activeScene) return
     const sceneSettings = scenesArray[activeScene]
     setActiveSceneSettings(sceneSettings ?? { params: {} })
+    console.log('resetting parser')
+
     asemic.current?.postMessage({ reset: true })
-  }, [scenesArray, activeScene])
+    lastActiveSceneRef.current = activeScene
+  }, [activeScene])
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
@@ -456,8 +490,6 @@ function AsemicAppInner({
       } as LucideProps),
     []
   )
-
-  const editorRef = useRef<AsemicEditorRef | null>(null)
 
   useEffect(() => {
     const onResize = () => {
@@ -640,6 +672,8 @@ function AsemicAppInner({
                   }}
                   onAddScene={addSceneAfterCurrent}
                   onDeleteScene={deleteCurrentScene}
+                  globalSettings={globalSettings}
+                  setGlobalSettings={setGlobalSettings}
                 />
               </div>
             </>
@@ -669,6 +703,8 @@ function AsemicAppInner({
                 settings={globalSettings}
                 onUpdate={setGlobalSettings}
                 onClose={() => setShowGlobalSettings(false)}
+                sceneList={scenesArray}
+                setSceneList={setScenesArray}
               />
             </div>
           )}

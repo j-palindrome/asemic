@@ -349,7 +349,8 @@ export class TextMethods {
             if (font.characters['EACH']) {
               ;(font.characters['EACH'] as any)()
             }
-            if (font.dynamicCharacters['EACH']) {
+            if (font.dynamicCharacters['EACH'] && thisChar !== 'NEWLINE') {
+              this.parser.transformMethods.to('>')
               ;(font.dynamicCharacters['EACH'] as any)()
             }
             let start = i
@@ -368,6 +369,9 @@ export class TextMethods {
             }
             if (font.characters[thisChar]) {
               ;(font.characters[thisChar] as any)()
+            }
+            if (font.dynamicCharacters['EACH'] && thisChar !== 'NEWLINE') {
+              this.parser.transformMethods.to('<')
             }
           }
           if (i >= tokenLength) {

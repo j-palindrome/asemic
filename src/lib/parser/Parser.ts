@@ -69,7 +69,7 @@ export class Parser {
   }
 
   pointConstants: Record<string, (...args: string[]) => BasicPt> = {
-    '<': (thisN, pointN) => {
+    '<': (pointN, thisN) => {
       const groupIndex = this.groups.length - 1
       let lastCurve: AsemicPt[]
       if (thisN === undefined) {

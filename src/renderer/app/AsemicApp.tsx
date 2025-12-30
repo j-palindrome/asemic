@@ -45,12 +45,42 @@ function AsemicAppInner({
   getRequire: (file: string) => Promise<string>
 }) {
   // Parse scenes as JSON array
-  const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([])
+  const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([
+    {
+      code: '',
+      length: 0.1,
+      offset: 0,
+      params: {}
+    }
+  ])
   const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
     params: {}
   } as GlobalSettings)
 
+  const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
+    { params: {}, scrub: 0, sent: {} }
+  ])
+  const scrubValuesRef = useRef(scrubValues)
+  useEffect(() => {
+    scrubValuesRef.current = scrubValues
+  }, [scrubValues])
   const setScenesArray = (newArray: SceneSettings[]) => {
+    if (newArray.length !== scrubValues.length) {
+      const newValues: ScrubSettings[] = new Array(newArray.length)
+        .fill(null)
+        .map(() => ({
+          scrub: 0,
+          params: {},
+          sent: {}
+        }))
+      // Copy over what we can
+      for (let i = 0; i < Math.min(scrubValues.length, newValues.length); i++) {
+        newValues[i] = scrubValues[i]
+      }
+
+      setScrubValues(newValues)
+    }
+
     // Update only if different
     _setScenesArray(newArray)
 
@@ -109,35 +139,6 @@ function AsemicAppInner({
   }, [scenesArray])
 
   // Track scrub position and params per scene
-  const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
-    { params: {}, scrub: 0, sent: {} }
-  ])
-  const scrubValuesRef = useRef(scrubValues)
-  useEffect(() => {
-    scrubValuesRef.current = scrubValues
-  }, [scrubValues])
-
-  // Initialize scrub values when scenes change
-  useEffect(() => {
-    setScrubValues(prev => {
-      const newValues: ScrubSettings[] = new Array(scenesArray.length)
-        .fill(null)
-        .map(() => ({
-          scrub: 0,
-          params: {},
-          sent: {}
-        }))
-      // Preserve existing scrub values if scenes didn't change length
-      if (prev.length === newValues.length) {
-        return prev
-      }
-      // Copy over what we can
-      for (let i = 0; i < Math.min(prev.length, newValues.length); i++) {
-        newValues[i] = prev[i]
-      }
-      return newValues
-    })
-  }, [scenesArray.length])
 
   // Calculate active scene based on current progress
   const activeScene = useMemo(() => {
@@ -198,44 +199,54 @@ function AsemicAppInner({
   useEffect(() => {
     const newScrubs = [...scrubValuesRef.current]
     newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
+    while (!newScrubs[activeScene]) {
+      newScrubs.push({ scrub: 0, params: {}, sent: {} })
+    }
+    if (!scenesArray[activeScene]) {
+      const newArray = [...scenesArray]
+      while (!newArray[activeScene]) {
+        newArray.push({ code: '', length: 0.1, offset: 0, params: {} })
+      }
+      setScenesArray(newArray)
+      return
+    }
 
-    if (newScrubs[activeScene] && scenesArray[activeScene]) {
-      const sceneParams = scenesArray[activeScene].params || {}
-      const currentParams = newScrubs[activeScene].params || {}
+    const sceneParams = scenesArray[activeScene].params || {}
+    const currentParams = newScrubs[activeScene].params || {}
 
-      // Initialize any undefined params with their default values
-      for (const [key, config] of Object.entries(sceneParams)) {
+    // Initialize any undefined params with their default values
+    for (const [key, config] of Object.entries(sceneParams)) {
+      currentParams[key] = config.default
+    }
+    // Also initialize global params if present
+    for (const [key, config] of Object.entries(globalSettings.params)) {
+      // global settings force their saved defaults
+      if (scenesArray[activeScene].globalParams?.[key]) {
+        currentParams[key] =
+          scenesArray[activeScene].globalParams?.[key].default
+      } else if (
+        scenesArray.findLastIndex(
+          (scene, i) => i < activeScene && scene.globalParams?.[key]
+        ) !== -1
+      ) {
+        // find last scene that had this param defined
+        const lastSceneIdx = scenesArray.findLastIndex(
+          (scene, i) => i < activeScene && scene.globalParams?.[key]
+        )
+
+        currentParams[key] =
+          scenesArray[lastSceneIdx].globalParams?.[key].default ??
+          config.default
+      } else {
         currentParams[key] = config.default
       }
-      // Also initialize global params if present
-      for (const [key, config] of Object.entries(globalSettings.params)) {
-        // global settings force their saved defaults
-        if (scenesArray[activeScene].globalParams?.[key]) {
-          currentParams[key] =
-            scenesArray[activeScene].globalParams?.[key].default
-        } else if (
-          scenesArray.findLastIndex(
-            (scene, i) => i < activeScene && scene.globalParams?.[key]
-          ) !== -1
-        ) {
-          // find last scene that had this param defined
-          const lastSceneIdx = scenesArray.findLastIndex(
-            (scene, i) => i < activeScene && scene.globalParams?.[key]
-          )
-
-          currentParams[key] =
-            scenesArray[lastSceneIdx].globalParams?.[key].default ??
-            config.default
-        } else {
-          currentParams[key] = config.default
-        }
-      }
-
-      newScrubs[activeScene].params = currentParams
-      newScrubs[activeScene].sent = {}
     }
+
+    newScrubs[activeScene].params = currentParams
+    newScrubs[activeScene].sent = {}
+
     setScrubValues(newScrubs)
-  }, [activeScene])
+  }, [activeScene, scenesArray.length])
 
   useEffect(() => {
     const animate = () => {
@@ -353,29 +364,18 @@ function AsemicAppInner({
     }
   }, [isSetup, scenesArray])
 
-  // Scene settings state
-  const [activeSceneSettings, setActiveSceneSettings] = useState<SceneSettings>(
-    { params: {} }
-  )
   const [deletedScene, setDeletedScene] = useState<{
     scene: SceneSettings
     index: number
   } | null>(null)
 
-  const lastActiveSceneRef = useRef<number>(-1)
   // Extract settings from active scene
   useEffect(() => {
-    if (lastActiveSceneRef.current === activeScene) return
-    const sceneSettings = scenesArray[activeScene]
-    setActiveSceneSettings(sceneSettings ?? { params: {} })
-    console.log('resetting parser')
-
     asemic.current?.postMessage({ reset: true })
-    lastActiveSceneRef.current = activeScene
   }, [activeScene])
 
   // Update scene settings in source
-  const updateSceneSettings = (newSettings: typeof activeSceneSettings) => {
+  const updateSceneSettings = (newSettings: SceneSettings) => {
     const newScenesArray = [...scenesArray]
     if (activeScene < newScenesArray.length) {
       newScenesArray[activeScene] = {
@@ -657,9 +657,7 @@ function AsemicAppInner({
                 <SceneSettingsPanel
                   sceneList={scenesArray}
                   activeScene={activeScene}
-                  settings={activeSceneSettings}
                   onUpdate={newSettings => {
-                    setActiveSceneSettings(newSettings)
                     updateSceneSettings(newSettings)
                   }}
                   scrubSettings={scrubValues[activeScene]}
@@ -674,6 +672,7 @@ function AsemicAppInner({
                   onDeleteScene={deleteCurrentScene}
                   globalSettings={globalSettings}
                   setGlobalSettings={setGlobalSettings}
+                  errors={errors}
                 />
               </div>
             </>

@@ -3,7 +3,7 @@ import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
 import { ScrubSettings } from '../app/AsemicApp'
-import { sortBy, uniq } from 'lodash'
+import { isEqual, uniq } from 'lodash'
 
 type ParamConfig = {
   max: number
@@ -43,7 +43,6 @@ export interface SceneSettings {
 
 interface SceneSettingsPanelProps {
   activeScene: number
-  settings: SceneSettings
   scrubSettings: ScrubSettings
   onUpdate: (settings: SceneSettings) => void
   onUpdateScrub: (settings: ScrubSettings) => void
@@ -52,11 +51,11 @@ interface SceneSettingsPanelProps {
   sceneList: Array<SceneSettings>
   globalSettings: GlobalSettings
   setGlobalSettings: (settings: GlobalSettings) => void
+  errors?: string[]
 }
 
 export default function SceneSettingsPanel({
   activeScene,
-  settings,
   onUpdate,
   onAddScene,
   onDeleteScene,
@@ -64,7 +63,7 @@ export default function SceneSettingsPanel({
   scrubSettings,
   sceneList,
   globalSettings,
-  setGlobalSettings
+  errors
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -78,8 +77,8 @@ export default function SceneSettingsPanel({
 
   useEffect(() => {
     if (!textEditorRef.current) return
-    textEditorRef.current.value = settings.text || ''
-  }, [settings.text])
+    textEditorRef.current.value = sceneList[activeScene]?.text || ''
+  }, [sceneList, activeScene])
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -88,9 +87,9 @@ export default function SceneSettingsPanel({
         .find(([key]) => key === newParamName.trim())?.[1]
 
       onUpdate({
-        ...settings,
+        ...sceneList[activeScene],
         params: {
-          ...settings.params,
+          ...sceneList[activeScene].params,
           [newParamName.trim()]: existingParam || {
             max: 1,
             min: 0,
@@ -106,9 +105,9 @@ export default function SceneSettingsPanel({
   }
 
   const handleDeleteParam = (key: string) => {
-    const newParams = { ...settings.params }
+    const newParams = { ...sceneList[activeScene].params }
     delete newParams[key]
-    onUpdate({ ...settings, params: newParams })
+    onUpdate({ ...sceneList[activeScene], params: newParams })
   }
 
   const handleRenameParam = (oldKey: string) => {
@@ -119,16 +118,15 @@ export default function SceneSettingsPanel({
     }
 
     const newKey = renameValue.trim()
-    const newParams = { ...settings.params }
+    const newParams = { ...sceneList[activeScene].params }
     newParams[newKey] = newParams[oldKey]
     delete newParams[oldKey]
 
-    // Update scrub settings with renamed param
     const newScrubParams = { ...scrubSettings.params }
     newScrubParams[newKey] = newScrubParams[oldKey]
     delete newScrubParams[oldKey]
 
-    onUpdate({ ...settings, params: newParams })
+    onUpdate({ ...sceneList[activeScene], params: newParams })
     onUpdateScrub({ ...scrubSettings, params: newScrubParams })
     setRenamingParam(null)
     setRenameValue('')
@@ -152,6 +150,10 @@ export default function SceneSettingsPanel({
       newSet.add(key)
     }
     setEditAllMode(newSet)
+  }
+
+  if (!scrubSettings || !sceneList[activeScene]) {
+    return null
   }
 
   return (
@@ -192,7 +194,7 @@ export default function SceneSettingsPanel({
                   onClick={() => {
                     const currentCode = editorRef.current?.getValue()
                     if (currentCode !== undefined) {
-                      onUpdate({ ...settings, code: currentCode })
+                      onUpdate({ ...sceneList[activeScene], code: currentCode })
                     }
                   }}
                   className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
@@ -208,9 +210,23 @@ export default function SceneSettingsPanel({
           {codeExpanded && (
             <AsemicEditor
               ref={editorRef}
-              defaultValue={settings.code || ''}
-              errors={[]}
+              defaultValue={sceneList[activeScene].code || ''}
+              errors={errors || []}
             />
+          )}
+
+          {/* Error Display */}
+          {codeExpanded && errors && errors.length > 0 && (
+            <div className='mt-2 p-2 bg-red-900/30 border border-red-500/50 rounded'>
+              <div className='text-red-400 text-xs space-y-1'>
+                {errors.map((error, idx) => (
+                  <div key={idx} className='flex items-start gap-2'>
+                    <span className='text-red-500 mt-0.5'>•</span>
+                    <span className='break-words'>{error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -228,7 +244,7 @@ export default function SceneSettingsPanel({
                 onClick={() => {
                   const currentCode = textEditorRef.current?.value
                   if (currentCode !== undefined) {
-                    onUpdate({ ...settings, text: currentCode })
+                    onUpdate({ ...sceneList[activeScene], text: currentCode })
                   }
                 }}
                 className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
@@ -242,7 +258,7 @@ export default function SceneSettingsPanel({
               style={{ fontFamily: 'EB Garamond, serif' }}>
               <textarea
                 ref={textEditorRef as any}
-                defaultValue={settings.text || ''}
+                defaultValue={sceneList[activeScene].text || ''}
                 className='w-full h-[100px] bg-transparent hover:backdrop-blur focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y'
                 spellCheck='false'
               />
@@ -257,11 +273,11 @@ export default function SceneSettingsPanel({
             <input
               type='number'
               step='0.01'
-              value={settings.length ?? 0.1}
+              value={sceneList[activeScene].length ?? 0.1}
               onChange={e => {
                 if (document.activeElement !== e.target) return
                 onUpdate({
-                  ...settings,
+                  ...sceneList[activeScene],
                   length: parseFloat(e.target.value)
                 })
               }}
@@ -273,11 +289,11 @@ export default function SceneSettingsPanel({
             <input
               type='number'
               step='0.1'
-              value={settings.offset ?? 0}
+              value={sceneList[activeScene].offset ?? 0}
               onChange={e =>
                 document.activeElement !== e.target &&
                 onUpdate({
-                  ...settings,
+                  ...sceneList[activeScene],
                   offset: parseFloat(e.target.value)
                 })
               }
@@ -289,12 +305,16 @@ export default function SceneSettingsPanel({
             <input
               type='number'
               step='0.1'
-              value={settings.pause === false ? -1 : settings.pause ?? 0}
+              value={
+                sceneList[activeScene].pause === false
+                  ? -1
+                  : sceneList[activeScene].pause ?? 0
+              }
               onChange={e => {
                 const val = parseFloat(e.target.value)
                 document.activeElement !== e.target &&
                   onUpdate({
-                    ...settings,
+                    ...sceneList[activeScene],
                     pause: (val < 0 ? false : val) as number | false
                   })
               }}
@@ -316,40 +336,62 @@ export default function SceneSettingsPanel({
                 .map(([paramId, paramConfig]) => (
                   <div
                     key={paramId}
-                    className='bg-white/5 p-2 rounded border border-white/10'>
+                    className='bg-white/5 p-2 rounded border border-white/10 hover:backdrop-blur-sm relative'>
                     <div className='flex items-center gap-2 mb-2'>
                       <span className='text-white/70 text-xs font-medium flex-1'>
                         {paramId}
                       </span>
                       {(() => {
-                        const currentValues =
-                          scrubSettings.params[paramId] ||
+                        const currentValues = scrubSettings.params[paramId]
+                        const defaultValues =
                           sceneList[activeScene].globalParams?.[paramId]
-                            ?.default
-                        const defaultValues = paramConfig.default || []
+                            ?.default ?? paramConfig.default
                         const isDifferent =
-                          !currentValues ||
-                          JSON.stringify(currentValues) !==
-                            JSON.stringify(defaultValues)
+                          currentValues &&
+                          currentValues.some((x, i) => x !== defaultValues[i])
 
                         return isDifferent ? (
-                          <button
-                            onClick={() => {
-                              onUpdate({
-                                ...settings,
-                                globalParams: {
-                                  ...settings.globalParams,
-                                  [paramId]: {
-                                    ...settings.globalParams?.[paramId],
-                                    default: currentValues
+                          <>
+                            <button
+                              onClick={() => {
+                                onUpdate({
+                                  ...sceneList[activeScene],
+                                  globalParams: {
+                                    ...sceneList[activeScene].globalParams,
+                                    [paramId]: {
+                                      ...sceneList[activeScene].globalParams?.[
+                                        paramId
+                                      ],
+                                      default: currentValues
+                                    }
+                                  } as any
+                                })
+                              }}
+                              className='text-white/50 hover:text-white text-xs px-2 bg-white/10 rounded'
+                              title='Save current slider values as defaults'>
+                              {sceneList[activeScene].globalParams?.[paramId]
+                                ?.default
+                                ? 'Save'
+                                : 'Set'}
+                            </button>
+                            {sceneList[activeScene].globalParams?.[paramId] && (
+                              <button
+                                onClick={() => {
+                                  const newParams = {
+                                    ...sceneList[activeScene].globalParams
                                   }
-                                } as any
-                              })
-                            }}
-                            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                            title='Save current slider values as defaults'>
-                            Save Defaults
-                          </button>
+                                  delete newParams[paramId]
+                                  onUpdate({
+                                    ...sceneList[activeScene],
+                                    globalParams: newParams
+                                  })
+                                }}
+                                className='text-white/50 hover:text-red-400 text-xs px-2 bg-white/10 rounded'
+                                title='Unset defaults'>
+                                Unset
+                              </button>
+                            )}
+                          </>
                         ) : null
                       })()}
                     </div>
@@ -373,10 +415,8 @@ export default function SceneSettingsPanel({
                                 values={{
                                   x:
                                     scrubSettings.params[paramId]?.[dimIndex] ??
-                                    (paramConfig.default ??
-                                      globalSettings.params[paramId].default)?.[
-                                      dimIndex
-                                    ],
+                                    paramConfig.default?.[dimIndex] ??
+                                    paramConfig.min,
                                   y: 0
                                 }}
                                 sliderStyle={({ x }) => ({
@@ -489,316 +529,326 @@ export default function SceneSettingsPanel({
           )}
 
           <div className='space-y-3 pr-1'>
-            {Object.entries(settings.params || {}).map(([key, paramConfig]) => (
-              <div
-                key={key}
-                className='bg-white/5 p-2 rounded border border-white/10'>
-                {/* Title and Controls Row */}
-                <div className='flex items-end gap-2 mb-2'>
-                  <div className='flex-1 min-w-[80px]'>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Name
-                    </label>
-                    <div className='text-white/90 text-sm font-medium'>
-                      {key}
+            {Object.entries(sceneList[activeScene].params || {}).map(
+              ([key, paramConfig]) => (
+                <div
+                  key={key}
+                  className='bg-white/5 p-2 rounded border border-white/10'>
+                  {/* Title and Controls Row */}
+                  <div className='flex items-end gap-2 mb-2'>
+                    <div className='flex-1 min-w-[80px]'>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Name
+                      </label>
+                      <div className='text-white/90 text-sm font-medium'>
+                        {key}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Dim
-                    </label>
-                    <input
-                      type='number'
-                      min='1'
-                      step='1'
-                      value={paramConfig.dimension}
-                      onChange={e => {
-                        const newDim = Math.max(1, parseInt(e.target.value))
-                        document.activeElement !== e.target &&
+                    <div>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Dim
+                      </label>
+                      <input
+                        type='number'
+                        min='1'
+                        step='1'
+                        value={paramConfig.dimension}
+                        onChange={e => {
+                          const newDim = Math.max(1, parseInt(e.target.value))
+                          document.activeElement !== e.target &&
+                            onUpdate({
+                              ...sceneList[activeScene],
+                              params: {
+                                ...sceneList[activeScene].params,
+                                [key]: {
+                                  ...sceneList[activeScene].params[key],
+                                  dimension: newDim
+                                }
+                              }
+                            })
+                          const currentValues = scrubSettings.params[key] || []
+                          if (currentValues.length !== newDim) {
+                            const newValues = Array(newDim).fill(
+                              paramConfig.min
+                            )
+                            currentValues.forEach((v, i) => {
+                              if (i < newDim) newValues[i] = v
+                            })
+                            handleUpdateParam(key, newValues)
+                          }
+                        }}
+                        className='w-12 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Min
+                      </label>
+                      <input
+                        type='number'
+                        step='0.01'
+                        value={paramConfig.min}
+                        onChange={e =>
+                          document.activeElement !== e.target &&
                           onUpdate({
-                            ...settings,
+                            ...sceneList[activeScene],
                             params: {
-                              ...settings.params,
+                              ...sceneList[activeScene].params,
                               [key]: {
-                                ...settings.params[key],
-                                dimension: newDim
+                                ...sceneList[activeScene].params[key],
+                                min: parseFloat(e.target.value)
                               }
                             }
                           })
-                        // Adjust param values array if dimension changed
-                        const currentValues = scrubSettings.params[key] || []
-                        if (currentValues.length !== newDim) {
-                          const newValues = Array(newDim).fill(paramConfig.min)
-                          currentValues.forEach((v, i) => {
-                            if (i < newDim) newValues[i] = v
-                          })
-                          handleUpdateParam(key, newValues)
                         }
-                      }}
-                      className='w-12 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
-                    />
-                  </div>
-                  <div>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Min
-                    </label>
-                    <input
-                      type='number'
-                      step='0.01'
-                      value={paramConfig.min}
-                      onChange={e =>
-                        document.activeElement !== e.target &&
-                        onUpdate({
-                          ...settings,
-                          params: {
-                            ...settings.params,
-                            [key]: {
-                              ...settings.params[key],
-                              min: parseFloat(e.target.value)
-                            }
-                          }
-                        })
-                      }
-                      className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
-                    />
-                  </div>
-                  <div>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Max
-                    </label>
-                    <input
-                      type='number'
-                      step='0.01'
-                      value={paramConfig.max}
-                      onChange={e =>
-                        onUpdate({
-                          ...settings,
-                          params: {
-                            ...settings.params,
-                            [key]: {
-                              ...settings.params[key],
-                              max: parseFloat(e.target.value)
-                            }
-                          }
-                        })
-                      }
-                      className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
-                    />
-                  </div>
-                  <div>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Exp
-                    </label>
-                    <input
-                      type='number'
-                      step='0.1'
-                      value={paramConfig.exponent}
-                      onChange={e =>
-                        document.activeElement !== e.target &&
-                        onUpdate({
-                          ...settings,
-                          params: {
-                            ...settings.params,
-                            [key]: {
-                              ...settings.params[key],
-                              exponent: parseFloat(e.target.value)
-                            }
-                          }
-                        })
-                      }
-                      className='w-14 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      const currentValues = scrubSettings.params[key] || []
-                      onUpdate({
-                        ...settings,
-                        params: {
-                          ...settings.params,
-                          [key]: {
-                            ...settings.params[key],
-                            default: currentValues
-                          }
-                        }
-                      })
-                    }}
-                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                    title='Save current slider values as defaults'>
-                    Save Defaults
-                  </button>
-                  <button
-                    onClick={() => toggleEditAllMode(key)}
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      editAllMode.has(key)
-                        ? 'text-white bg-blue-500'
-                        : 'text-white/50 hover:text-white bg-white/10'
-                    }`}
-                    title='Edit all dimensions with one slider'>
-                    Edit All
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRenamingParam(key)
-                      setRenameValue(key)
-                    }}
-                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                    title='Rename parameter'>
-                    Rename
-                  </button>
-                  <button
-                    onClick={() => handleDeleteParam(key)}
-                    className='text-white/50 hover:text-red-400 text-xs pb-1'>
-                    ✕
-                  </button>
-                </div>
-
-                {/* Rename Param Dialog */}
-                {renamingParam === key && (
-                  <div className='mb-2 p-2 bg-white/10 rounded border border-white/30'>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-white/70 text-xs'>Rename to:</span>
+                        className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Max
+                      </label>
                       <input
-                        type='text'
-                        placeholder='New parameter name'
-                        value={renameValue}
-                        onChange={e => setRenameValue(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            handleRenameParam(key)
-                          } else if (e.key === 'Escape') {
+                        type='number'
+                        step='0.01'
+                        value={paramConfig.max}
+                        onChange={e =>
+                          onUpdate({
+                            ...sceneList[activeScene],
+                            params: {
+                              ...sceneList[activeScene].params,
+                              [key]: {
+                                ...sceneList[activeScene].params[key],
+                                max: parseFloat(e.target.value)
+                              }
+                            }
+                          })
+                        }
+                        className='w-16 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Exp
+                      </label>
+                      <input
+                        type='number'
+                        step='0.1'
+                        value={paramConfig.exponent}
+                        onChange={e =>
+                          document.activeElement !== e.target &&
+                          onUpdate({
+                            ...sceneList[activeScene],
+                            params: {
+                              ...sceneList[activeScene].params,
+                              [key]: {
+                                ...sceneList[activeScene].params[key],
+                                exponent: parseFloat(e.target.value)
+                              }
+                            }
+                          })
+                        }
+                        className='w-14 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const currentValues = scrubSettings.params[key] || []
+                        onUpdate({
+                          ...sceneList[activeScene],
+                          params: {
+                            ...sceneList[activeScene].params,
+                            [key]: {
+                              ...sceneList[activeScene].params[key],
+                              default: currentValues
+                            }
+                          }
+                        })
+                      }}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Save current slider values as defaults'>
+                      Save Defaults
+                    </button>
+                    <button
+                      onClick={() => toggleEditAllMode(key)}
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        editAllMode.has(key)
+                          ? 'text-white bg-blue-500'
+                          : 'text-white/50 hover:text-white bg-white/10'
+                      }`}
+                      title='Edit all dimensions with one slider'>
+                      Edit All
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRenamingParam(key)
+                        setRenameValue(key)
+                      }}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Rename parameter'>
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => handleDeleteParam(key)}
+                      className='text-white/50 hover:text-red-400 text-xs pb-1'>
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Rename Param Dialog */}
+                  {renamingParam === key && (
+                    <div className='mb-2 p-2 bg-white/10 rounded border border-white/30'>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          Rename to:
+                        </span>
+                        <input
+                          type='text'
+                          placeholder='New parameter name'
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              handleRenameParam(key)
+                            } else if (e.key === 'Escape') {
+                              setRenamingParam(null)
+                              setRenameValue('')
+                            }
+                          }}
+                          autoFocus
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                        <button
+                          onClick={() => handleRenameParam(key)}
+                          className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => {
                             setRenamingParam(null)
                             setRenameValue('')
-                          }
-                        }}
-                        autoFocus
-                        className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
-                      />
-                      <button
-                        onClick={() => handleRenameParam(key)}
-                        className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
-                        Rename
-                      </button>
-                      <button
-                        onClick={() => {
-                          setRenamingParam(null)
-                          setRenameValue('')
-                        }}
-                        className='text-white/50 hover:text-white text-xs'>
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Edit All Mode - Single Slider */}
-                {editAllMode.has(key) && (
-                  <div className='mb-2 p-2 bg-white/10 rounded border border-white/20'>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-white/70 text-xs'>All Values:</span>
-                      <div className='relative flex-1 h-6 bg-white/5 rounded'>
-                        <Slider
-                          className='w-full h-full'
-                          innerClassName=''
-                          min={paramConfig.min}
-                          max={paramConfig.max}
-                          exponent={paramConfig.exponent}
-                          values={{
-                            x:
-                              scrubSettings.params[key]?.[0] ??
-                              paramConfig.default[0] ??
-                              paramConfig.min,
-                            y: 0
                           }}
-                          sliderStyle={({ x }) => ({
-                            left: `${x * 100}%`,
-                            top: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: 'white',
-                            position: 'absolute',
-                            pointerEvents: 'none'
-                          })}
-                          onChange={({ x }) => {
-                            const newValues = Array(paramConfig.dimension).fill(
-                              x
-                            )
-                            handleUpdateParam(key, newValues)
-                          }}
-                        />
+                          className='text-white/50 hover:text-white text-xs'>
+                          ✕
+                        </button>
                       </div>
-                      <span className='text-white/70 text-xs w-12 text-right'>
-                        {(
-                          scrubSettings.params[key]?.[0] ??
-                          paramConfig.default[0] ??
-                          paramConfig.min
-                        ).toFixed(3)}
-                      </span>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Value Sliders Row */}
-                {!editAllMode.has(key) && (
-                  <div className='space-y-1'>
-                    {Array.from({ length: paramConfig.dimension }).map(
-                      (_, dimIndex) => (
-                        <div key={dimIndex} className='flex items-center gap-2'>
-                          <span className='text-white/50 text-xs w-6'>
-                            [{dimIndex}]
-                          </span>
-                          <div className='relative flex-1 h-6 bg-white/5 rounded'>
-                            <Slider
-                              className='w-full h-full'
-                              innerClassName=''
-                              min={paramConfig.min}
-                              max={paramConfig.max}
-                              exponent={paramConfig.exponent}
-                              values={{
-                                x:
-                                  scrubSettings.params[key]?.[dimIndex] ??
-                                  paramConfig.default[dimIndex] ??
-                                  paramConfig.min,
-                                y: 0
-                              }}
-                              sliderStyle={({ x }) => ({
-                                left: `${x * 100}%`,
-                                top: '50%',
-                                transform: 'translate(-50%, -50%)',
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                backgroundColor: 'white',
-                                position: 'absolute',
-                                pointerEvents: 'none'
-                              })}
-                              onChange={({ x }) => {
-                                const currentValues =
-                                  scrubSettings.params[key] || []
-                                const newValues = [...currentValues]
-                                newValues[dimIndex] = x
-                                handleUpdateParam(key, newValues)
-                              }}
-                            />
-                          </div>
-                          <span className='text-white/70 text-xs w-12 text-right'>
-                            {(
-                              scrubSettings.params[key]?.[dimIndex] ??
-                              paramConfig.default[dimIndex] ??
-                              paramConfig.min
-                            ).toFixed(3)}
-                          </span>
+                  {/* Edit All Mode - Single Slider */}
+                  {editAllMode.has(key) && (
+                    <div className='mb-2 p-2 bg-white/10 rounded border border-white/20'>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          All Values:
+                        </span>
+                        <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                          <Slider
+                            className='w-full h-full'
+                            innerClassName=''
+                            min={paramConfig.min}
+                            max={paramConfig.max}
+                            exponent={paramConfig.exponent}
+                            values={{
+                              x:
+                                scrubSettings.params[key]?.[0] ??
+                                paramConfig.default[0] ??
+                                paramConfig.min,
+                              y: 0
+                            }}
+                            sliderStyle={({ x }) => ({
+                              left: `${x * 100}%`,
+                              top: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              backgroundColor: 'white',
+                              position: 'absolute',
+                              pointerEvents: 'none'
+                            })}
+                            onChange={({ x }) => {
+                              const newValues = Array(
+                                paramConfig.dimension
+                              ).fill(x)
+                              handleUpdateParam(key, newValues)
+                            }}
+                          />
                         </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+                        <span className='text-white/70 text-xs w-12 text-right'>
+                          {(
+                            scrubSettings.params[key]?.[0] ??
+                            paramConfig.default[0] ??
+                            paramConfig.min
+                          ).toFixed(3)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Value Sliders Row */}
+                  {!editAllMode.has(key) && (
+                    <div className='space-y-1'>
+                      {Array.from({ length: paramConfig.dimension }).map(
+                        (_, dimIndex) => (
+                          <div
+                            key={dimIndex}
+                            className='flex items-center gap-2'>
+                            <span className='text-white/50 text-xs w-6'>
+                              [{dimIndex}]
+                            </span>
+                            <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                              <Slider
+                                className='w-full h-full'
+                                innerClassName=''
+                                min={paramConfig.min}
+                                max={paramConfig.max}
+                                exponent={paramConfig.exponent}
+                                values={{
+                                  x:
+                                    scrubSettings.params[key]?.[dimIndex] ??
+                                    paramConfig.default[dimIndex] ??
+                                    paramConfig.min,
+                                  y: 0
+                                }}
+                                sliderStyle={({ x }) => ({
+                                  left: `${x * 100}%`,
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  width: '12px',
+                                  height: '12px',
+                                  borderRadius: '50%',
+                                  backgroundColor: 'white',
+                                  position: 'absolute',
+                                  pointerEvents: 'none'
+                                })}
+                                onChange={({ x }) => {
+                                  const currentValues =
+                                    scrubSettings.params[key] || []
+                                  const newValues = [...currentValues]
+                                  newValues[dimIndex] = x
+                                  handleUpdateParam(key, newValues)
+                                }}
+                              />
+                            </div>
+                            <span className='text-white/70 text-xs w-12 text-right'>
+                              {(
+                                scrubSettings.params[key]?.[dimIndex] ??
+                                paramConfig.default[dimIndex] ??
+                                paramConfig.min
+                              ).toFixed(3)}
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            )}
           </div>
-          {(!settings.params || Object.keys(settings.params).length === 0) && (
+          {(!sceneList[activeScene].params ||
+            Object.keys(sceneList[activeScene].params).length === 0) && (
             <p className='text-white/40 text-xs italic'>No params defined</p>
           )}
         </div>
@@ -814,9 +864,9 @@ export default function SceneSettingsPanel({
                 e.preventDefault()
                 e.stopPropagation()
                 onUpdate({
-                  ...settings,
+                  ...sceneList[activeScene],
                   oscGroups: [
-                    ...(settings.oscGroups || []),
+                    ...(sceneList[activeScene].oscGroups || []),
                     {
                       oscHost: 'localhost',
                       oscPort: 57120,
@@ -831,175 +881,223 @@ export default function SceneSettingsPanel({
           </div>
 
           <div className='space-y-3'>
-            {(settings.oscGroups || []).map((group, groupIndex) => (
-              <div
-                key={groupIndex}
-                className='bg-white/5 p-2 rounded border border-white/10'>
-                {/* Group Header */}
-                <div className='flex items-center gap-2 mb-2'>
-                  <span className='text-white/70 text-xs font-semibold'>
-                    Group {groupIndex + 1}
-                  </span>
-                  <input
-                    type='text'
-                    placeholder='Host (localhost)'
-                    value={group.oscHost || 'localhost'}
-                    onChange={e => {
-                      const newGroups = [...(settings.oscGroups || [])]
-                      newGroups[groupIndex] = {
-                        ...newGroups[groupIndex],
-                        oscHost: e.target.value
-                      }
-                      document.activeElement !== e.target &&
-                        onUpdate({ ...settings, oscGroups: newGroups })
-                    }}
-                    className='w-24 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
-                  />
-                  <input
-                    type='number'
-                    placeholder='Port'
-                    value={group.oscPort || 57120}
-                    onChange={e => {
-                      const newGroups = [...(settings.oscGroups || [])]
-                      newGroups[groupIndex] = {
-                        ...newGroups[groupIndex],
-                        oscPort: parseInt(e.target.value) || 57120
-                      }
-                      onUpdate({ ...settings, oscGroups: newGroups })
-                    }}
-                    className='w-16 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
-                  />
-                  <button
-                    onClick={e => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      const newGroups = [...(settings.oscGroups || [])]
-                      newGroups[groupIndex] = {
-                        ...newGroups[groupIndex],
-                        osc: [
-                          ...(newGroups[groupIndex].osc || []),
-                          { name: '', value: 0, play: 'always' }
+            {(sceneList[activeScene].oscGroups || []).map(
+              (group, groupIndex) => (
+                <div
+                  key={groupIndex}
+                  className='bg-white/5 p-2 rounded border border-white/10'>
+                  {/* Group Header */}
+                  <div className='flex items-center gap-2 mb-2'>
+                    <span className='text-white/70 text-xs font-semibold'>
+                      Group {groupIndex + 1}
+                    </span>
+                    <input
+                      type='text'
+                      placeholder='Host (localhost)'
+                      value={group.oscHost || 'localhost'}
+                      onChange={e => {
+                        const newGroups = [
+                          ...(sceneList[activeScene].oscGroups || [])
                         ]
-                      }
-                      onUpdate({ ...settings, oscGroups: newGroups })
-                    }}
-                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-                    + Add Message
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newGroups = [...(settings.oscGroups || [])]
-                      newGroups[groupIndex].osc = (
-                        newGroups[groupIndex].osc || []
-                      ).sort((a, b) => a.name.localeCompare(b.name))
-                      onUpdate({ ...settings, oscGroups: newGroups })
-                    }}
-                    className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                    title='Sort messages by name'>
-                    Sort
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newGroups = [...(settings.oscGroups || [])]
-                      newGroups.splice(groupIndex, 1)
-                      onUpdate({ ...settings, oscGroups: newGroups })
-                    }}
-                    className='text-white/50 hover:text-red-400 text-xs ml-auto'>
-                    ✕
-                  </button>
-                </div>
+                        newGroups[groupIndex] = {
+                          ...newGroups[groupIndex],
+                          oscHost: e.target.value
+                        }
+                        document.activeElement !== e.target &&
+                          onUpdate({
+                            ...sceneList[activeScene],
+                            oscGroups: newGroups
+                          })
+                      }}
+                      className='w-24 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
+                    />
+                    <input
+                      type='number'
+                      placeholder='Port'
+                      value={group.oscPort || 57120}
+                      onChange={e => {
+                        const newGroups = [
+                          ...(sceneList[activeScene].oscGroups || [])
+                        ]
+                        newGroups[groupIndex] = {
+                          ...newGroups[groupIndex],
+                          oscPort: parseInt(e.target.value) || 57120
+                        }
+                        onUpdate({
+                          ...sceneList[activeScene],
+                          oscGroups: newGroups
+                        })
+                      }}
+                      className='w-16 bg-white/10 text-white px-2 py-0.5 rounded text-xs'
+                    />
+                    <button
+                      onClick={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const newGroups = [
+                          ...(sceneList[activeScene].oscGroups || [])
+                        ]
+                        newGroups[groupIndex] = {
+                          ...newGroups[groupIndex],
+                          osc: [
+                            ...(newGroups[groupIndex].osc || []),
+                            { name: '', value: 0, play: 'always' }
+                          ]
+                        }
+                        onUpdate({
+                          ...sceneList[activeScene],
+                          oscGroups: newGroups
+                        })
+                      }}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                      + Add Message
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newGroups = [
+                          ...(sceneList[activeScene].oscGroups || [])
+                        ]
+                        newGroups[groupIndex].osc = (
+                          newGroups[groupIndex].osc || []
+                        ).sort((a, b) => a.name.localeCompare(b.name))
+                        onUpdate({
+                          ...sceneList[activeScene],
+                          oscGroups: newGroups
+                        })
+                      }}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Sort messages by name'>
+                      Sort
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newGroups = [
+                          ...(sceneList[activeScene].oscGroups || [])
+                        ]
+                        newGroups.splice(groupIndex, 1)
+                        onUpdate({
+                          ...sceneList[activeScene],
+                          oscGroups: newGroups
+                        })
+                      }}
+                      className='text-white/50 hover:text-red-400 text-xs ml-auto'>
+                      ✕
+                    </button>
+                  </div>
 
-                {/* Messages in Group */}
-                <div className='space-y-1 ml-2'>
-                  {(group.osc || []).map((osc, msgIndex) => (
-                    <div key={msgIndex} className='flex items-center gap-2'>
-                      <input
-                        type='text'
-                        placeholder='OSC path'
-                        value={osc.name}
-                        onChange={e => {
-                          const newGroups = [...(settings.oscGroups || [])]
-                          newGroups[groupIndex].osc![msgIndex] = {
-                            ...newGroups[groupIndex].osc![msgIndex],
-                            name: e.target.value
-                          }
-                          document.activeElement !== e.target &&
-                            onUpdate({ ...settings, oscGroups: newGroups })
-                        }}
-                        list={`osc-paths-${groupIndex}-${msgIndex}`}
-                        className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
-                      />
-                      <datalist id={`osc-paths-${groupIndex}-${msgIndex}`}>
-                        {[
-                          ...new Set(
-                            sceneList.flatMap(
-                              scene =>
-                                scene.oscGroups?.flatMap(
-                                  g => g.osc?.map(oscMsg => oscMsg.name) || []
-                                ) || []
+                  {/* Messages in Group */}
+                  <div className='space-y-1 ml-2'>
+                    {(group.osc || []).map((osc, msgIndex) => (
+                      <div key={msgIndex} className='flex items-center gap-2'>
+                        <input
+                          type='text'
+                          placeholder='OSC path'
+                          value={osc.name}
+                          onChange={e => {
+                            const newGroups = [
+                              ...(sceneList[activeScene].oscGroups || [])
+                            ]
+                            newGroups[groupIndex].osc![msgIndex] = {
+                              ...newGroups[groupIndex].osc![msgIndex],
+                              name: e.target.value
+                            }
+                            document.activeElement !== e.target &&
+                              onUpdate({
+                                ...sceneList[activeScene],
+                                oscGroups: newGroups
+                              })
+                          }}
+                          list={`osc-paths-${groupIndex}-${msgIndex}`}
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                        />
+                        <datalist id={`osc-paths-${groupIndex}-${msgIndex}`}>
+                          {[
+                            ...new Set(
+                              sceneList.flatMap(
+                                scene =>
+                                  scene.oscGroups?.flatMap(
+                                    g => g.osc?.map(oscMsg => oscMsg.name) || []
+                                  ) || []
+                              )
                             )
-                          )
-                        ]
-                          .sort()
-                          .map(x => (
-                            <option key={x} value={x}>
-                              {x}
-                            </option>
-                          ))}
-                      </datalist>
-                      <input
-                        type='text'
-                        placeholder='Expression or value'
-                        value={osc.value.toString()}
-                        onChange={e => {
-                          const newGroups = [...(settings.oscGroups || [])]
-                          newGroups[groupIndex].osc![msgIndex] = {
-                            ...newGroups[groupIndex].osc![msgIndex],
-                            value: e.target.value as any
-                          }
-                          onUpdate({ ...settings, oscGroups: newGroups })
-                        }}
-                        className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
-                      />
-                      <select
-                        value={osc.play}
-                        onChange={e => {
-                          const newGroups = [...(settings.oscGroups || [])]
-                          newGroups[groupIndex].osc![msgIndex] = {
-                            ...newGroups[groupIndex].osc![msgIndex],
-                            play: e.target.value as 'once' | 'always'
-                          }
-                          onUpdate({ ...settings, oscGroups: newGroups })
-                        }}
-                        className='bg-white/10 text-white px-2 py-1 rounded text-xs'>
-                        <option value='always'>always</option>
-                        <option value='once'>once</option>
-                      </select>
-                      <button
-                        onClick={() => {
-                          const newGroups = [...(settings.oscGroups || [])]
-                          newGroups[groupIndex].osc!.splice(msgIndex, 1)
-                          onUpdate({ ...settings, oscGroups: newGroups })
-                        }}
-                        className='text-white/50 hover:text-red-400 text-xs'>
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                  {(!group.osc || group.osc.length === 0) && (
-                    <p className='text-white/40 text-xs italic'>
-                      No messages in this group
-                    </p>
-                  )}
+                          ]
+                            .sort()
+                            .map(x => (
+                              <option key={x} value={x}>
+                                {x}
+                              </option>
+                            ))}
+                        </datalist>
+                        <input
+                          type='text'
+                          placeholder='Expression or value'
+                          value={osc.value.toString()}
+                          onChange={e => {
+                            const newGroups = [
+                              ...(sceneList[activeScene].oscGroups || [])
+                            ]
+                            newGroups[groupIndex].osc![msgIndex] = {
+                              ...newGroups[groupIndex].osc![msgIndex],
+                              value: e.target.value as any
+                            }
+                            onUpdate({
+                              ...sceneList[activeScene],
+                              oscGroups: newGroups
+                            })
+                          }}
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                        />
+                        <select
+                          value={osc.play}
+                          onChange={e => {
+                            const newGroups = [
+                              ...(sceneList[activeScene].oscGroups || [])
+                            ]
+                            newGroups[groupIndex].osc![msgIndex] = {
+                              ...newGroups[groupIndex].osc![msgIndex],
+                              play: e.target.value as 'once' | 'always'
+                            }
+                            onUpdate({
+                              ...sceneList[activeScene],
+                              oscGroups: newGroups
+                            })
+                          }}
+                          className='bg-white/10 text-white px-2 py-1 rounded text-xs'>
+                          <option value='always'>always</option>
+                          <option value='once'>once</option>
+                        </select>
+                        <button
+                          onClick={() => {
+                            const newGroups = [
+                              ...(sceneList[activeScene].oscGroups || [])
+                            ]
+                            newGroups[groupIndex].osc!.splice(msgIndex, 1)
+                            onUpdate({
+                              ...sceneList[activeScene],
+                              oscGroups: newGroups
+                            })
+                          }}
+                          className='text-white/50 hover:text-red-400 text-xs'>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {(!group.osc || group.osc.length === 0) && (
+                      <p className='text-white/40 text-xs italic'>
+                        No messages in this group
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
 
           <div className='text-white/50 text-[10px] mt-2'>
             Values support Asemic expressions (e.g., T, I, ~, etc.)
           </div>
-          {(!settings.oscGroups || settings.oscGroups.length === 0) && (
+          {(!sceneList[activeScene].oscGroups ||
+            sceneList[activeScene].oscGroups.length === 0) && (
             <p className='text-white/40 text-xs italic mt-2'>
               No OSC groups defined
             </p>

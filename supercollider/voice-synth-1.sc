@@ -47,18 +47,6 @@ OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, 
 ~glitcher = Synth(\glitcher, [\outBus, 0, \level, 0], ~effectsGroup);
 OSCdef.new(\allLevel, {|msg| ~effectsGroup.set(\level, msg[1])}, "/all/level");
 )
-(
-~delayDistortion.set(\level, 1.0, \mix, 1, \delayTimes, 3.collect({ 1/(800.rand + 10) }));
-~passthroughSynth.set(\level, 0);
-~bitcrush.set(\level, 0);
-~granularSynth.set(\level, 0, \rate, 10);
-~glitcher.set(\level, 0, \rate, 1);
-)
-~inputSynth.free;
-~passthroughSynth.free;
-~delaysSynth.free;
-s.queryAllNodes;
-s.plotTree;
 
 OSCFunc.trace(true);
 OSCFunc.trace(false);

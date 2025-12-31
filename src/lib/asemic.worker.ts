@@ -44,5 +44,10 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     currentScene = ev.data.scene
     parser.draw(currentScene)
     renderer.render(parser.groups)
+    if (parser.output.errors.length > 0) {
+      self.postMessage({
+        errors: parser.output.errors
+      })
+    }
   }
 }

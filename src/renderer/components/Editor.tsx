@@ -45,7 +45,6 @@ const transparentTheme: Extension = EditorView.theme({
 interface Props {
   defaultValue: string
   onChange?: (value: string | undefined) => void
-  errors: string[]
   className?: string
 }
 
@@ -65,7 +64,7 @@ interface SerializedSyntaxNode {
 }
 
 const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
-  ({ defaultValue, onChange, errors, className }, ref) => {
+  ({ defaultValue, onChange, className }, ref) => {
     const editorDivRef = useRef<HTMLDivElement | null>(null)
     const viewRef = useRef<EditorView | null>(null)
     const [allFolded, setAllFolded] = React.useState(false)
@@ -598,17 +597,10 @@ const AsemicEditor = forwardRef<AsemicEditorRef, Props>(
           className || ''
         } hover:backdrop-blur focus:backdrop-blur`}>
         <div
-          className={`editor text-white ${
-            errors.length > 0 ? 'w-2/3' : 'w-full'
-          }`}
+          className={`editor text-white ${'w-full'}`}
           style={{ height: '100%' }}>
           <div ref={editorDivRef} style={{ height: '100%' }} />
         </div>
-        {errors.length > 0 && (
-          <div className='editor !text-red-400 w-1/3 whitespace-pre-wrap font-mono'>
-            {errors.join('\n---\n')}
-          </div>
-        )}
       </div>
     )
   }

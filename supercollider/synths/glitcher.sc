@@ -12,8 +12,6 @@ SynthDef(\glitcher, {
 	var rand, sig, bufnum = ~recordBuf,
 	generator = Dust.ar(rate).round;
 
-	RecordBuf.ar(In.ar(2), ~recordBuf, Line.ar(0, BufDur.ir(~recordBuf) * SampleRate.ir, BufDur.ir(~recordBuf)));
-
 	sig = GrainBuf.ar(
 		numChannels: 2,
 		trigger: generator,

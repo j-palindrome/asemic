@@ -7,15 +7,15 @@ SynthDef(\granular, {
 	level = 1
 	|
 
-	var input, sig, bufnum = ~recordBuf;
-	
+	var input, sig, bufnum = ~recordBuf, trigger = Dust.ar(rate);
+
 	sig = TGrains.ar(
 		numChannels: 2,
-		trigger: Impulse.ar(rate),
+		trigger: trigger,
 		bufnum: bufnum,
-		rate: LFNoise0.ar(rate, 2, 1),
-		centerPos: Line.ar(0, BufDur.ir(bufnum), BufDur.ir(bufnum)),
-		dur: (1 / rate) * LFNoise0.ar(rate, 1, 0.5),
+		rate: TRand.ar(0.5, 2, trigger),
+		centerPos: Phasor.ar(Impulse.ar(1 / BufDur.ir(bufnum)), 1 / SampleRate.ir, 0, BufDur.ir(bufnum)),
+		dur: (1 / rate),
 		pan: LFNoise0.ar(rate),
 		amp: LFNoise1.ar(rate/10),
 		interp: 2

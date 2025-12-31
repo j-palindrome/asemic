@@ -493,7 +493,6 @@ export class Parser {
     this.settings = defaultSettings()
     for (let font in this.fonts) this.textMethods.resetFont(font)
 
-    this.output.resetPresets = true
     this.noiseTable = {}
 
     return this

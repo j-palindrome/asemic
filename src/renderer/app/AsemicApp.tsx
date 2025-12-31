@@ -16,7 +16,14 @@ import {
   Upload,
   Settings
 } from 'lucide-react'
-import { MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  act,
+  MouseEventHandler,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import invariant from 'tiny-invariant'
 import AsemicEditor, { AsemicEditorRef } from '../components/Editor'
 import SceneSettingsPanel, {
@@ -158,6 +165,10 @@ function AsemicAppInner({
     activeSceneRef.current = activeScene
   }, [activeScene])
 
+  useEffect(() => {
+    setErrors([])
+  }, [activeScene, scenesArray[activeScene]?.code])
+
   const animationFrameRef = useRef<number | null>(null)
   const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
 
@@ -167,14 +178,6 @@ function AsemicAppInner({
   useEffect(() => {
     if (!asemic.current) {
       asemic.current = new Asemic(data => {
-        if (!isUndefined(data.eval)) {
-          for (let evalString of data.eval) {
-            const evalFunction = eval(`({_, sc}) => {
-                ${evalString}
-              }`)
-            evalFunction({ _ })
-          }
-        }
         if (!isUndefined(data.errors)) {
           setErrors(data.errors)
         }
@@ -197,7 +200,7 @@ function AsemicAppInner({
   const lastFrameTimeRef = useRef<number>(performance.now())
 
   useEffect(() => {
-    const newScrubs = [...scrubValuesRef.current]
+    const newScrubs = [...scrubValues]
     newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
     while (!newScrubs[activeScene]) {
       newScrubs.push({ scrub: 0, params: {}, sent: {} })
@@ -248,6 +251,8 @@ function AsemicAppInner({
     setScrubValues(newScrubs)
   }, [activeScene, scenesArray.length])
 
+  const sentValuesRef = useRef<{}>({})
+
   useEffect(() => {
     const animate = () => {
       try {
@@ -288,19 +293,17 @@ function AsemicAppInner({
         const sceneSettings = scenesArray[activeSceneRef.current]
 
         for (const [paramName, paramValue] of Object.entries(
-          sceneSettings.globalParams || {}
+          globalSettings.params || {}
         )) {
-          if (!globalSettings.params[paramName]?.oscPath) continue
+          if (!paramValue?.oscPath) continue
 
           // Skip if value hasn't changed from last sent value
-          const lastSentValue =
-            scrubValuesRef.current[activeSceneRef.current]!.sent[paramName]
+          const lastSentValue = sentValuesRef.current[paramName]
           const value =
             scrubValuesRef.current[activeSceneRef.current]!.params[paramName]
           if (isEqual(lastSentValue, value)) {
             continue
           }
-          console.log('sending', paramName, value)
 
           invoke<number>('parser_eval_expression', {
             expr: value.join(','),
@@ -310,9 +313,7 @@ function AsemicAppInner({
             sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
           }).then(result => {})
 
-          scrubValuesRef.current[activeSceneRef.current]!.sent[paramName] = [
-            ...value
-          ]
+          sentValuesRef.current[paramName] = [...value]
         }
         for (const group of sceneSettings.oscGroups || []) {
           const oscHost = group.oscHost || 'localhost'
@@ -321,10 +322,7 @@ function AsemicAppInner({
           // Process OSC messages in group sequentially
           for (const oscMsg of group.osc || []) {
             // Skip if once flag is set and value exists
-            if (
-              oscMsg.play === 'once' &&
-              scrubValuesRef.current[activeSceneRef.current]!.sent[oscMsg.name]
-            ) {
+            if (oscMsg.play === 'once' && sentValuesRef.current[oscMsg.name]) {
               continue
             }
 
@@ -335,9 +333,7 @@ function AsemicAppInner({
               oscPort: oscPort,
               sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
             }).then(result => {
-              scrubValuesRef.current[activeSceneRef.current]!.sent[
-                oscMsg.name
-              ] = [result]
+              sentValuesRef.current[oscMsg.name] = [result]
             })
           }
         }

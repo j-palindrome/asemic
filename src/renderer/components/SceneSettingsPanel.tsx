@@ -211,7 +211,6 @@ export default function SceneSettingsPanel({
             <AsemicEditor
               ref={editorRef}
               defaultValue={sceneList[activeScene].code || ''}
-              errors={errors || []}
             />
           )}
 
@@ -327,85 +326,132 @@ export default function SceneSettingsPanel({
         {/* Global Params Section */}
         {Object.keys(globalSettings.params).length > 0 && (
           <div className='mt-3 border-t border-white/10 pt-3'>
-            <label className='text-white/70 text-sm font-semibold block mb-2'>
-              Global Params
-            </label>
-            <div className='space-y-2'>
+            <div className='flex items-center gap-2 mb-2'>
+              <label className='text-white/70 text-sm font-semibold'>
+                Global Params
+              </label>
+              <button
+                onClick={() => {
+                  const newGlobalParams = {
+                    ...sceneList[activeScene].globalParams
+                  }
+
+                  Object.keys(globalSettings.params).forEach(paramId => {
+                    const currentValues = scrubSettings.params[paramId]
+                    const existingDefaults =
+                      sceneList[activeScene].globalParams?.[paramId]?.default ??
+                      sceneList.findLast(
+                        (x, id) =>
+                          id < activeScene && x.globalParams?.[paramId]?.default
+                      )?.globalParams?.[paramId]?.default ??
+                      globalSettings.params[paramId].default
+                    const hasChanged = !isEqual(currentValues, existingDefaults)
+
+                    if (hasChanged && currentValues) {
+                      newGlobalParams[paramId] = {
+                        ...newGlobalParams[paramId],
+                        default: currentValues
+                      }
+                    }
+                  })
+                  onUpdate({
+                    ...sceneList[activeScene],
+                    globalParams: newGlobalParams
+                  })
+                }}
+                className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                title='Save all current slider values as defaults'>
+                Save All
+              </button>
+            </div>
+            <div className='flex gap-3 overflow-x-auto pb-2 pr-2'>
               {Object.entries(globalSettings.params)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([paramId, paramConfig]) => (
                   <div
                     key={paramId}
-                    className='bg-white/5 p-2 rounded border border-white/10 hover:backdrop-blur-sm relative'>
-                    <div className='flex items-center gap-2 mb-2'>
-                      <span className='text-white/70 text-xs font-medium flex-1'>
+                    className='select-none bg-white/5 p-2 rounded border border-white/10 hover:backdrop-blur-sm relative flex-shrink-0'>
+                    <div className='flex flex-col items-center gap-2 mb-2'>
+                      <span className='text-white/70 text-xs font-medium'>
                         {paramId}
                       </span>
-                      {(() => {
-                        const currentValues = scrubSettings.params[paramId]
-                        const defaultValues =
-                          sceneList[activeScene].globalParams?.[paramId]
-                            ?.default ?? paramConfig.default
-                        const isDifferent =
-                          currentValues &&
-                          currentValues.some((x, i) => x !== defaultValues[i])
+                      <div className='w-full flex'>
+                        {(() => {
+                          const currentValues = scrubSettings.params[paramId]
 
-                        return isDifferent ? (
-                          <>
-                            <button
-                              onClick={() => {
-                                onUpdate({
-                                  ...sceneList[activeScene],
-                                  globalParams: {
-                                    ...sceneList[activeScene].globalParams,
-                                    [paramId]: {
-                                      ...sceneList[activeScene].globalParams?.[
-                                        paramId
-                                      ],
-                                      default: currentValues
-                                    }
-                                  } as any
-                                })
-                              }}
-                              className='text-white/50 hover:text-white text-xs px-2 bg-white/10 rounded'
-                              title='Save current slider values as defaults'>
-                              {sceneList[activeScene].globalParams?.[paramId]
-                                ?.default
-                                ? 'Save'
-                                : 'Set'}
-                            </button>
-                            {sceneList[activeScene].globalParams?.[paramId] && (
+                          const defaultValues =
+                            sceneList[activeScene].globalParams?.[paramId]
+                              ?.default ??
+                            sceneList.findLast(
+                              (x, id) =>
+                                id < activeScene &&
+                                !!x.globalParams?.[paramId]?.default
+                            )?.globalParams?.[paramId]?.default ??
+                            globalSettings.params[paramId].default
+                          const isDifferent =
+                            currentValues &&
+                            currentValues.some((x, i) => {
+                              if (x !== defaultValues[i]) {
+                                return true
+                              }
+                            })
+
+                          return isDifferent ? (
+                            <>
                               <button
                                 onClick={() => {
-                                  const newParams = {
-                                    ...sceneList[activeScene].globalParams
-                                  }
-                                  delete newParams[paramId]
                                   onUpdate({
                                     ...sceneList[activeScene],
-                                    globalParams: newParams
+                                    globalParams: {
+                                      ...sceneList[activeScene].globalParams,
+                                      [paramId]: {
+                                        ...sceneList[activeScene]
+                                          .globalParams?.[paramId],
+                                        default: currentValues
+                                      }
+                                    } as any
                                   })
                                 }}
-                                className='text-white/50 hover:text-red-400 text-xs px-2 bg-white/10 rounded'
-                                title='Unset defaults'>
-                                Unset
+                                className='text-white/50 hover:text-white text-xs px-2 bg-white/10 rounded w-full text-center'
+                                title='Save current slider values as defaults'>
+                                {sceneList[activeScene].globalParams?.[paramId]
+                                  ?.default
+                                  ? 'Save'
+                                  : 'Set'}
                               </button>
-                            )}
-                          </>
-                        ) : null
-                      })()}
+                            </>
+                          ) : null
+                        })()}
+                        {sceneList[activeScene].globalParams?.[paramId] && (
+                          <button
+                            onClick={() => {
+                              const newParams = {
+                                ...sceneList[activeScene].globalParams
+                              }
+                              delete newParams[paramId]
+                              onUpdate({
+                                ...sceneList[activeScene],
+                                globalParams: newParams
+                              })
+                            }}
+                            className='text-white/50 hover:text-red-400 text-xs px-2 bg-white/10 rounded w-full text-center'
+                            title='Unset defaults'>
+                            Unset
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className='space-y-1'>
+                    <div className='flex items-center justify-center gap-2'>
                       {Array.from({ length: paramConfig.dimension }).map(
                         (_, dimIndex) => (
                           <div
                             key={dimIndex}
-                            className='flex items-center gap-2'>
-                            <span className='text-white/50 text-xs w-6'>
+                            className='flex flex-col items-center gap-1'>
+                            <span className='text-white/50 text-xs'>
                               [{dimIndex}]
                             </span>
-                            <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                            <div className='relative w-6 h-32 bg-white/5 rounded'>
                               <Slider
                                 className='w-full h-full'
                                 innerClassName=''
@@ -413,15 +459,18 @@ export default function SceneSettingsPanel({
                                 max={paramConfig.max}
                                 exponent={paramConfig.exponent}
                                 values={{
-                                  x:
+                                  x: 0,
+                                  y:
                                     scrubSettings.params[paramId]?.[dimIndex] ??
+                                    sceneList[activeScene].globalParams?.[
+                                      paramId
+                                    ]?.default?.[dimIndex] ??
                                     paramConfig.default?.[dimIndex] ??
-                                    paramConfig.min,
-                                  y: 0
+                                    paramConfig.min
                                 }}
-                                sliderStyle={({ x }) => ({
-                                  left: `${x * 100}%`,
-                                  top: '50%',
+                                sliderStyle={({ y }) => ({
+                                  left: '50%',
+                                  top: `${(1 - y) * 100}%`,
                                   transform: 'translate(-50%, -50%)',
                                   width: '12px',
                                   height: '12px',
@@ -430,11 +479,11 @@ export default function SceneSettingsPanel({
                                   position: 'absolute',
                                   pointerEvents: 'none'
                                 })}
-                                onChange={({ x }) => {
+                                onChange={({ y }) => {
                                   const currentValues =
                                     scrubSettings.params[paramId] || []
                                   const newValues = [...currentValues]
-                                  newValues[dimIndex] = x
+                                  newValues[dimIndex] = y
                                   onUpdateScrub({
                                     ...scrubSettings,
                                     params: {
@@ -445,7 +494,7 @@ export default function SceneSettingsPanel({
                                 }}
                               />
                             </div>
-                            <span className='text-white/70 text-xs w-12 text-right'>
+                            <span className='text-white/70 text-xs'>
                               {(
                                 scrubSettings.params[paramId]?.[dimIndex] ??
                                 paramConfig.default?.[dimIndex] ??

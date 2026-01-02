@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import AsemicExpressionEditor from './AsemicExpressionEditor'
 import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
-import { ScrubSettings } from '../app/AsemicApp'
+import { lucideProps, ScrubSettings } from '../app/AsemicApp'
 import { isEqual, uniq } from 'lodash'
+import { Delete, Eye, EyeClosed, Save } from 'lucide-react'
+import { l } from 'node_modules/react-router/dist/development/index-react-server-client-DRhjXpk2.mjs'
 
 type ParamConfig = {
   max: number
@@ -14,7 +16,9 @@ type ParamConfig = {
   oscPath?: string
 }
 
-type SceneParamConfig = Omit<ParamConfig, 'dimension'>
+type SceneParamConfig = Omit<ParamConfig, 'dimension'> & {
+  show?: boolean
+}
 
 export interface GlobalSettings {
   supercolliderHost?: string
@@ -372,10 +376,12 @@ export default function SceneSettingsPanel({
                     key={paramId}
                     className='select-none bg-white/5 p-2 rounded border border-white/10 hover:backdrop-blur-sm relative flex-shrink-0'>
                     <div className='flex flex-col items-center gap-2 mb-2'>
-                      <span className='text-white/70 text-xs font-medium'>
-                        {paramId}
-                      </span>
-                      <div className='w-full flex'>
+                      <div className='flex items-center justify-between'>
+                        <span className='text-white/70 text-xs font-medium'>
+                          {paramId}
+                        </span>{' '}
+                      </div>
+                      <div className='w-full flex h-8 my-1'>
                         {(() => {
                           const currentValues = scrubSettings.params[paramId]
 
@@ -412,31 +418,65 @@ export default function SceneSettingsPanel({
                                     } as any
                                   })
                                 }}
-                                className='text-white/50 hover:text-white text-xs px-2 bg-white/10 rounded w-full text-center'
+                                className='text-white/50 hover:text-white text-xs px-2 bg-white/10 rounded flex-none text-center'
                                 title='Save current slider values as defaults'>
-                                {sceneList[activeScene].globalParams?.[paramId]
-                                  ?.default
-                                  ? 'Save'
-                                  : 'Set'}
+                                <Save {...lucideProps} />
                               </button>
                             </>
                           ) : null
                         })()}
                         {sceneList[activeScene].globalParams?.[paramId] && (
+                          <>
+                            <button
+                              onClick={() => {
+                                const newParams = {
+                                  ...sceneList[activeScene].globalParams
+                                }
+                                delete newParams[paramId]
+                                onUpdate({
+                                  ...sceneList[activeScene],
+                                  globalParams: newParams
+                                })
+                              }}
+                              className='text-white/50 hover:text-red-400 text-xs px-2 bg-white/10 rounded flex-none text-center'
+                              title='Unset defaults'>
+                              <Delete {...lucideProps} />
+                            </button>
+                          </>
+                        )}
+                        {sceneList[activeScene].globalParams?.[paramId] && (
                           <button
                             onClick={() => {
-                              const newParams = {
-                                ...sceneList[activeScene].globalParams
-                              }
-                              delete newParams[paramId]
                               onUpdate({
                                 ...sceneList[activeScene],
-                                globalParams: newParams
+                                globalParams: {
+                                  ...sceneList[activeScene].globalParams,
+                                  [paramId]: {
+                                    ...sceneList[activeScene].globalParams?.[
+                                      paramId
+                                    ],
+                                    show: sceneList[activeScene].globalParams?.[
+                                      paramId
+                                    ]?.show
+                                      ? false
+                                      : true
+                                  } as any
+                                }
                               })
                             }}
-                            className='text-white/50 hover:text-red-400 text-xs px-2 bg-white/10 rounded w-full text-center'
-                            title='Unset defaults'>
-                            Unset
+                            className={`text-xs px-2 bg-white/10 rounded text-center flex-none ${
+                              sceneList[activeScene].globalParams?.[paramId]
+                                ?.show
+                                ? 'text-white'
+                                : 'text-white/50 hover:text-white'
+                            }`}
+                            title='Toggle visibility'>
+                            {sceneList[activeScene].globalParams?.[paramId]
+                              ?.show ? (
+                              <EyeClosed {...lucideProps} />
+                            ) : (
+                              <Eye {...lucideProps} />
+                            )}
                           </button>
                         )}
                       </div>
@@ -447,11 +487,8 @@ export default function SceneSettingsPanel({
                         (_, dimIndex) => (
                           <div
                             key={dimIndex}
-                            className='flex flex-col items-center gap-1'>
-                            <span className='text-white/50 text-xs'>
-                              [{dimIndex}]
-                            </span>
-                            <div className='relative w-6 h-32 bg-white/5 rounded'>
+                            className='flex flex-col items-center gap-1 w-6 flex-none'>
+                            <div className='relative h-32 w-full bg-white/5 rounded'>
                               <Slider
                                 className='w-full h-full'
                                 innerClassName=''
@@ -499,7 +536,7 @@ export default function SceneSettingsPanel({
                                 scrubSettings.params[paramId]?.[dimIndex] ??
                                 paramConfig.default?.[dimIndex] ??
                                 paramConfig.min
-                              ).toFixed(3)}
+                              ).toFixed(2)}
                             </span>
                           </div>
                         )

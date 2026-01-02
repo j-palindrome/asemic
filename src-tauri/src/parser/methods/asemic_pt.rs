@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 
 /// Represents a 2D point with fast mutable operations
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BasicPt {
     pub x: f64,
     pub y: f64,
@@ -102,7 +103,7 @@ impl BasicPt {
 }
 
 /// Extended point with additional drawing properties (width, height, scale, line width, alpha)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct AsemicPt {
     pub x: f64,
     pub y: f64,
@@ -192,9 +193,7 @@ impl AsemicPt {
         normalized / (PI * 2.0)
     }
 
-    pub fn transform() {
-        
-    }
+    pub fn transform() {}
 }
 
 #[cfg(test)]

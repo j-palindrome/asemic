@@ -46,6 +46,13 @@ export type ScrubSettings = {
   sent: Record<string, number[]>
 }
 
+export const lucideProps = {
+  color: 'white',
+  opacity: 0.5,
+  height: 18,
+  width: 18
+} as LucideProps
+
 function AsemicAppInner({
   getRequire
 }: {
@@ -254,6 +261,10 @@ function AsemicAppInner({
   const sentValuesRef = useRef<{}>({})
 
   useEffect(() => {
+    sentValuesRef.current = {}
+  }, [activeScene])
+
+  useEffect(() => {
     const animate = () => {
       try {
         const now = performance.now()
@@ -291,6 +302,11 @@ function AsemicAppInner({
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
+        invoke('parse_asemic_source', {
+          source: sceneSettings.code || ''
+        }).then((curves: any) => {
+          console.log(curves.groups[0].points[0])
+        })
 
         for (const [paramName, paramValue] of Object.entries(
           globalSettings.params || {}
@@ -341,7 +357,7 @@ function AsemicAppInner({
         console.error('Animation loop error:', error)
       }
 
-      animationFrameRef.current = requestAnimationFrame(animate)
+      // animationFrameRef.current = requestAnimationFrame(animate)
     }
 
     if (animationFrameRef.current !== null) {
@@ -358,7 +374,7 @@ function AsemicAppInner({
         animationFrameRef.current = null
       }
     }
-  }, [isSetup, scenesArray])
+  }, [isSetup, scenesArray, activeScene])
 
   const [deletedScene, setDeletedScene] = useState<{
     scene: SceneSettings
@@ -475,17 +491,6 @@ function AsemicAppInner({
       requestFullscreen()
     }
   }, [settings.perform])
-
-  const lucideProps = useMemo(
-    () =>
-      ({
-        color: 'white',
-        opacity: 0.5,
-        height: 18,
-        width: 18
-      } as LucideProps),
-    []
-  )
 
   useEffect(() => {
     const onResize = () => {
@@ -688,6 +693,8 @@ function AsemicAppInner({
                   activeScene={activeScene}
                   scrubSettings={scrubValues[activeScene]}
                   setScrubValues={setScrubValues}
+                  globalSettings={globalSettings}
+                  setGlobalSettings={setGlobalSettings}
                 />
               </div>
             </>

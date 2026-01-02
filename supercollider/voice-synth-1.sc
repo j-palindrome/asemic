@@ -44,7 +44,6 @@ OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, 
 ~granularSynth = Synth(\granular, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
-~glitcher = Synth(\glitcher, [\outBus, 0, \level, 0], ~effectsGroup);
 OSCdef.new(\allLevel, {|msg| ~effectsGroup.set(\level, msg[1])}, "/all/level");
 )
 

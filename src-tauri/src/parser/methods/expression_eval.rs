@@ -13,6 +13,9 @@ pub trait ExpressionEval {
     /// Evaluate built-in constants and functions
     fn eval_constant(&mut self, expr: &str) -> Result<f64, String>;
 
+    /// Evaluate an expression that returns a point (x, y coordinates)
+    fn expr_point(&mut self, expr: &str) -> Result<(f64, f64), String>;
+
     /// Split expression by operators while respecting precedence
     fn split_by_operators(&self, expr: &str) -> Result<Vec<SplitResult>, String>;
 
@@ -38,6 +41,11 @@ pub trait ExpressionEval {
 }
 
 impl ExpressionEval for ExpressionParser {
+    fn expr_point(&mut self, expr: &str) -> Result<(f64, f64), String> {
+        let values = self.expr_list(expr)?;
+        Ok((values[0], values.get(1).copied().unwrap_or(values[0])))
+    }
+
     fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String> {
         exprs.split(',').map(|expr| self.expr(expr)).collect()
     }

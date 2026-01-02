@@ -1,0 +1,301 @@
+use std::collections::HashMap;
+
+/// Configuration options for tokenization
+#[derive(Clone, Debug)]
+pub struct TokenizeOptions {
+    /// Separate by commas (for point notation)
+    pub separate_points: bool,
+    /// Separate by underscores (for fragments)
+    pub separate_fragments: bool,
+    /// Separate by semicolons (for objects)
+    pub separate_object: bool,
+    /// Stop tokenization at first match outside brackets
+    pub stop_at_0: bool,
+    /// Custom regex pattern for separation (not used in basic impl)
+    pub use_default_regex: bool,
+}
+
+impl Default for TokenizeOptions {
+    fn default() -> Self {
+        Self {
+            separate_points: false,
+            separate_fragments: false,
+            separate_object: false,
+            stop_at_0: false,
+            use_default_regex: true,
+        }
+    }
+}
+
+/// A tokenizer for parsing Asemic expressions
+pub struct Tokenizer {
+    tokenize_cache: HashMap<String, Vec<String>>,
+}
+
+impl Tokenizer {
+    /// Create a new tokenizer instance
+    pub fn new() -> Self {
+        Self {
+            tokenize_cache: HashMap::new(),
+        }
+    }
+
+    /// Check if a character matches the separation pattern
+    fn should_separate(c: char, options: &TokenizeOptions) -> bool {
+        match c {
+            ',' if options.separate_points => true,
+            '_' if options.separate_fragments => true,
+            ';' if options.separate_object => true,
+            ' ' | '\t' | '\n' | '\r' if options.use_default_regex => true,
+            _ => false,
+        }
+    }
+
+    /// Tokenize a source string or number with caching
+    pub fn tokenize(&mut self, source: &str, options: Option<TokenizeOptions>) -> Vec<String> {
+        let options = options.unwrap_or_default();
+
+        // Generate cache key
+        let cache_key = format!(
+            "{}:{}:{}:{}:{}",
+            source,
+            options.separate_points,
+            options.separate_fragments,
+            options.separate_object,
+            options.stop_at_0
+        );
+
+        // Check cache
+        if let Some(cached) = self.tokenize_cache.get(&cache_key) {
+            return cached.clone();
+        }
+
+        // Perform tokenization
+        let tokens = self.tokenize_internal(source, &options);
+
+        // Cache the result
+        self.tokenize_cache.insert(cache_key, tokens.clone());
+
+        tokens
+    }
+
+    /// Internal tokenization logic
+    fn tokenize_internal(&self, source: &str, options: &TokenizeOptions) -> Vec<String> {
+        let mut tokens: Vec<String> = Vec::new();
+        let mut current = String::new();
+        let mut in_brackets = 0;
+        let mut in_parentheses = 0;
+        let mut in_braces = 0;
+        let mut callback = false;
+        let mut is_escaped = false;
+
+        let chars: Vec<char> = source.chars().collect();
+        let len = chars.len();
+
+        let mut i = 0;
+        while i < len {
+            let c = chars[i];
+
+            if is_escaped {
+                is_escaped = false;
+                current.push(c);
+                i += 1;
+                continue;
+            }
+
+            match c {
+                '|' => {
+                    if in_brackets == 0 && in_parentheses == 0 && in_braces == 0 {
+                        if !current.is_empty() {
+                            tokens.push(current.clone());
+                            current.clear();
+                        }
+                        callback = true;
+                        i += 1;
+                        continue;
+                    }
+                    current.push(c);
+                }
+                '[' => {
+                    in_brackets += 1;
+                    current.push(c);
+                }
+                ']' => {
+                    in_brackets -= 1;
+                    current.push(c);
+                }
+                '(' => {
+                    in_parentheses += 1;
+                    current.push(c);
+                }
+                ')' => {
+                    in_parentheses -= 1;
+                    current.push(c);
+                }
+                '{' => {
+                    in_braces += 1;
+                    current.push(c);
+                }
+                '}' => {
+                    in_braces -= 1;
+                    current.push(c);
+                }
+                '\\' => {
+                    is_escaped = true;
+                    current.push(c);
+                }
+                '"' | '/'
+                    if current.is_empty()
+                        && in_brackets == 0
+                        && in_parentheses == 0
+                        && in_braces == 0 =>
+                {
+                    // Handle quoted strings and regex patterns
+                    current.push(c);
+                    let quote_char = c;
+                    i += 1;
+
+                    while i < len {
+                        let ch = chars[i];
+                        current.push(ch);
+
+                        if ch == '\\' && i + 1 < len {
+                            i += 1;
+                            current.push(chars[i]);
+                        }
+
+                        if ch == quote_char {
+                            break;
+                        }
+
+                        i += 1;
+                    }
+                }
+                _ => {
+                    let has_total_brackets =
+                        in_braces + in_parentheses + in_brackets > 0 || callback;
+
+                    if options.stop_at_0 && i > 0 && !has_total_brackets {
+                        if !current.is_empty() {
+                            tokens.push(current);
+                        }
+                        tokens.push(source[i..].to_string());
+                        return tokens;
+                    }
+
+                    if !has_total_brackets && Self::should_separate(c, options) {
+                        if !current.is_empty() {
+                            tokens.push(current.clone());
+                            current.clear();
+                        }
+                    } else {
+                        current.push(c);
+                    }
+                }
+            }
+
+            i += 1;
+        }
+
+        if !current.is_empty() {
+            tokens.push(current);
+        }
+
+        tokens
+    }
+
+    /// Clear all caches
+    pub fn clear_caches(&mut self) {
+        self.tokenize_cache.clear();
+    }
+
+    /// Get cache statistics
+    pub fn get_cache_stats(&self) -> CacheStats {
+        CacheStats {
+            tokenize_cache_size: self.tokenize_cache.len(),
+        }
+    }
+}
+
+/// Statistics about tokenizer caches
+#[derive(Debug, Clone)]
+pub struct CacheStats {
+    pub tokenize_cache_size: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_tokenization() {
+        let mut tokenizer = Tokenizer::new();
+        let result = tokenizer.tokenize("hello world test", None);
+        assert_eq!(result, vec!["hello", "world", "test"]);
+    }
+
+    #[test]
+    fn test_tokenize_with_brackets() {
+        let mut tokenizer = Tokenizer::new();
+        let result = tokenizer.tokenize("func[a b] c d", None);
+        assert_eq!(result, vec!["func[a", "b]", "c", "d"]);
+    }
+
+    #[test]
+    fn test_tokenize_points() {
+        let mut tokenizer = Tokenizer::new();
+        let mut opts = TokenizeOptions::default();
+        opts.separate_points = true;
+        let result = tokenizer.tokenize("1,2,3", Some(opts));
+        assert_eq!(result, vec!["1", "2", "3"]);
+    }
+
+    #[test]
+    fn test_tokenize_fragments() {
+        let mut tokenizer = Tokenizer::new();
+        let mut opts = TokenizeOptions::default();
+        opts.separate_fragments = true;
+        let result = tokenizer.tokenize("frag1_frag2_frag3", Some(opts));
+        assert_eq!(result, vec!["frag1", "frag2", "frag3"]);
+    }
+
+    #[test]
+    fn test_quoted_strings() {
+        let mut tokenizer = Tokenizer::new();
+        let result = tokenizer.tokenize(r#""hello world" test"#, None);
+        assert_eq!(result, vec![r#""hello world""#, "test"]);
+    }
+
+    #[test]
+    fn test_escaped_characters() {
+        let mut tokenizer = Tokenizer::new();
+        let result = tokenizer.tokenize(r"hello\ world test", None);
+        assert_eq!(result, vec![r"hello\ world", "test"]);
+    }
+
+    #[test]
+    fn test_cache() {
+        let mut tokenizer = Tokenizer::new();
+        let source = "hello world test";
+
+        // First call
+        let result1 = tokenizer.tokenize(source, None);
+        let stats1 = tokenizer.get_cache_stats();
+
+        // Second call (should use cache)
+        let result2 = tokenizer.tokenize(source, None);
+        let stats2 = tokenizer.get_cache_stats();
+
+        assert_eq!(result1, result2);
+        assert_eq!(stats1.tokenize_cache_size, stats2.tokenize_cache_size);
+    }
+
+    #[test]
+    fn test_stop_at_zero() {
+        let mut tokenizer = Tokenizer::new();
+        let mut opts = TokenizeOptions::default();
+        opts.stop_at_0 = true;
+        let result = tokenizer.tokenize("first second third", Some(opts));
+        assert_eq!(result, vec!["first", "second third"]);
+    }
+}

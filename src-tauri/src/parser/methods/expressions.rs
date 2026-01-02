@@ -1,6 +1,5 @@
 use crate::parser::methods::asemic_pt::AsemicPt;
 use crate::parser::methods::asemic_pt::BasicPt;
-use crate::parser::methods::drawing::DrawingMixin;
 pub use crate::parser::methods::expression_eval::ExpressionEval;
 use crate::parser::methods::transforms::Transform;
 use rosc::{encoder, OscMessage, OscPacket, OscType};

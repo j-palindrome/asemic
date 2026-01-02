@@ -46,7 +46,7 @@ SynthDef(\delayDistortion, {
 	LocalOut.ar((delayed.tanh) * mix + (input ! 3));
 
 	// Output mix
-	Out.ar(outBus, Mix.ar(delayed) * level ! 2);
+	Out.ar(outBus, Clip.ar(Mix.ar(delayed), 0, 1) * level ! 2);
 }).add;
 );
 

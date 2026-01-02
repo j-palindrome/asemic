@@ -155,16 +155,18 @@ fn parse_or_default(s: &str, default: f64) -> f64 {
 }
 
 pub trait Transforms {
-    fn push_transform(&mut self, transform: Transform);
+    fn push_transform(&mut self);
     fn pop_transform(&mut self) -> Option<Transform>;
     fn peek_transform(&self) -> Option<&Transform>;
+    fn modify_transform<F>(&mut self, f: F) -> Result<(), String>
+    where
+        F: FnOnce(&mut Transform);
 }
 
 impl Transforms for ExpressionParser {
-    fn push_transform(&mut self, transform: Transform) {
-        if !self.transforms.iter().any(|t| std::ptr::eq(t, &transform)) {
-            self.transforms.push(transform);
-        }
+    fn push_transform(&mut self) {
+        self.transforms
+            .push(self.peek_transform().cloned().unwrap_or_default());
     }
 
     fn pop_transform(&mut self) -> Option<Transform> {
@@ -173,5 +175,15 @@ impl Transforms for ExpressionParser {
 
     fn peek_transform(&self) -> Option<&Transform> {
         self.transforms.last()
+    }
+
+    fn modify_transform<F>(&mut self, f: F) -> Result<(), String>
+    where
+        F: FnOnce(&mut Transform),
+    {
+        self.transforms
+            .last_mut()
+            .ok_or("modify_transform: No transform in stack".to_string())
+            .map(|transform| f(transform))
     }
 }

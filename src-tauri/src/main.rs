@@ -1,7 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app_lib::parser::{ExpressionEval, SceneMetadata};
+use app_lib::parser::{
+    parsing::text::TextMethods, ExpressionEval, ParseSourceResult, SceneMetadata, TextParser,
+};
 use serde::{Deserialize, Serialize};
 
 // CodeMirror syntax tree node structure
@@ -96,6 +98,20 @@ async fn parser_eval_expression(
     Ok(vec![result])
 }
 
+// Tauri command for parsing and evaluating Asemic source code
+#[tauri::command]
+async fn parse_asemic_source(source: String) -> Result<ParseSourceResult, String> {
+    let mut parser = TextParser::new();
+
+    // Parse the source code
+    parser.text(&source)?;
+
+    Ok(ParseSourceResult {
+        groups: parser.groups.clone(),
+        errors: parser.errors.clone(),
+    })
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ParsedJsonResult {
     pub success: bool,
@@ -109,7 +125,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![parser_eval_expression])
+        .invoke_handler(tauri::generate_handler![
+            parser_eval_expression,
+            parse_asemic_source
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

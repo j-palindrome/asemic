@@ -1,30 +1,51 @@
 import { useState } from 'react'
 import Slider from './Slider'
+import { GlobalSettings } from './SceneSettingsPanel'
 
 interface ParamEditorsProps {
-  scenesArray: Array<{ params?: Record<string, any> }>
+  scenesArray: Array<{
+    params?: Record<string, any>
+    globalParams?: Record<string, any>
+  }>
   activeScene: number
   scrubSettings: { params?: Record<string, number[]> }
   setScrubValues: (updater: (prev: any) => any) => void
+  globalSettings: GlobalSettings
+  setGlobalSettings?: (settings: GlobalSettings) => void
 }
 
 export default function ParamEditors({
   scenesArray,
   activeScene,
   scrubSettings,
-  setScrubValues
+  setScrubValues,
+  globalSettings,
+  setGlobalSettings
 }: ParamEditorsProps) {
   const [activeParamKey, setActiveParamKey] = useState<string | null>(null)
 
   const activeSceneSettings = scenesArray[activeScene]
+
+  // Collect visible global params (where show is true)
+  const visibleGlobalParams = Object.entries(
+    activeSceneSettings?.globalParams || {}
+  )
+    .filter(([, config]) => config?.show === true)
+    .map(([key]) => key)
+
+  const allParamKeys = [
+    ...Object.keys(activeSceneSettings?.params || {}),
+    ...visibleGlobalParams
+  ]
+
   const activeParamConfig = activeParamKey
-    ? activeSceneSettings?.params?.[activeParamKey]
+    ? activeSceneSettings?.params?.[activeParamKey] || {
+        ...globalSettings.params[activeParamKey],
+        ...activeSceneSettings?.globalParams?.[activeParamKey]
+      }
     : null
 
-  if (
-    !activeSceneSettings?.params ||
-    Object.keys(activeSceneSettings.params).length === 0
-  ) {
+  if (allParamKeys.length === 0) {
     return <></>
   }
 
@@ -32,24 +53,34 @@ export default function ParamEditors({
     <div className='space-y-3'>
       {/* Param Selector */}
       <div className='flex gap-2 overflow-x-auto pb-2'>
-        {Object.entries(activeSceneSettings.params).map(([paramKey]) => (
-          <button
-            key={paramKey}
-            onClick={() => setActiveParamKey(paramKey)}
-            className={`px-3 py-1 rounded text-xs font-mono whitespace-nowrap transition-colors ${
-              activeParamKey === paramKey
-                ? '!bg-white/50 !text-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}>
-            {paramKey}
-          </button>
-        ))}
+        {allParamKeys.map(paramKey => {
+          const isGlobal = visibleGlobalParams.includes(paramKey)
+          return (
+            <button
+              key={paramKey}
+              onClick={() =>
+                setActiveParamKey(activeParamKey === paramKey ? null : paramKey)
+              }
+              className={`px-3 py-1 rounded text-xs font-mono whitespace-nowrap transition-colors ${
+                activeParamKey === paramKey
+                  ? '!bg-white/50 !text-black'
+                  : isGlobal
+                  ? 'bg-white/10 text-white/70 hover:bg-white/20 italic'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+              title={isGlobal ? 'Global Parameter' : 'Scene Parameter'}>
+              {paramKey}
+            </button>
+          )
+        })}
       </div>
 
       {/* Param Editor */}
       {activeParamKey && activeParamConfig && (
         <div className='rounded-lg p-3'>
-          {Array.from({ length: activeParamConfig.dimension }).map((_, i) => {
+          {Array.from({
+            length: activeParamConfig.dimension
+          }).map((_, i) => {
             const currentValue =
               scrubSettings.params?.[activeParamKey]?.[i] ??
               activeParamConfig.default?.[i] ??

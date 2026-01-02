@@ -102,6 +102,9 @@ async fn parser_eval_expression(
 #[tauri::command]
 async fn parse_asemic_source(source: String) -> Result<ParseSourceResult, String> {
     let mut parser = TextParser::new();
+    
+    // Load the default font
+    parser.load_default_font()?;
 
     // Parse the source code
     parser.text(&source)?;

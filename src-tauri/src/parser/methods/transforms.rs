@@ -157,7 +157,7 @@ fn parse_or_default(s: &str, default: f64) -> f64 {
 pub trait Transforms {
     fn push_transform(&mut self);
     fn pop_transform(&mut self) -> Option<Transform>;
-    fn peek_transform(&self) -> Option<&Transform>;
+    fn peek_transform(&mut self) -> Option<&mut Transform>;
     fn modify_transform<F>(&mut self, f: F) -> Result<(), String>
     where
         F: FnOnce(&mut Transform);
@@ -165,16 +165,16 @@ pub trait Transforms {
 
 impl Transforms for ExpressionParser {
     fn push_transform(&mut self) {
-        self.transforms
-            .push(self.peek_transform().cloned().unwrap_or_default());
+        let transform = self.peek_transform().cloned().unwrap_or_default();
+        self.transforms.push(transform);
     }
 
     fn pop_transform(&mut self) -> Option<Transform> {
         self.transforms.pop()
     }
 
-    fn peek_transform(&self) -> Option<&Transform> {
-        self.transforms.last()
+    fn peek_transform(&mut self) -> Option<&mut Transform> {
+        self.transforms.last_mut()
     }
 
     fn modify_transform<F>(&mut self, f: F) -> Result<(), String>

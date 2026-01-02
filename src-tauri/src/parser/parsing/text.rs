@@ -1,7 +1,7 @@
 use super::drawing::DrawingMixin;
 use crate::parser::{
     methods::{asemic_pt::BasicPt, transforms::Transforms},
-    ExpressionEval, TextParser,
+    ExpressionEval, TextParser, TokenizeOptions,
 };
 
 pub trait TextMethods {
@@ -10,57 +10,13 @@ pub trait TextMethods {
 
 impl TextMethods for TextParser {
     fn text(&mut self, token: &str) -> Result<(), String> {
-        fn tokenize(input: &str) -> Vec<String> {
-            let mut tokens = Vec::new();
-            let mut current_group = String::new();
-            let mut in_group = false;
-
-            for word in input.split_whitespace() {
-                if word.contains('|') {
-                    // Toggle group mode
-                    in_group = !in_group;
-
-                    // Handle cases like "word|" or "|word"
-                    let parts: Vec<&str> = word.split('|').collect();
-                    for (i, part) in parts.iter().enumerate() {
-                        if !part.is_empty() {
-                            if in_group {
-                                current_group.push_str(part);
-                            } else {
-                                if !current_group.is_empty() {
-                                    tokens.push(current_group.clone());
-                                    current_group.clear();
-                                }
-                                tokens.push(part.to_string());
-                            }
-                        }
-
-                        // Add space between non-empty parts within a group
-                        if i < parts.len() - 1 && in_group && !part.is_empty() {
-                            current_group.push(' ');
-                        }
-                    }
-                } else {
-                    if in_group {
-                        if !current_group.is_empty() {
-                            current_group.push(' ');
-                        }
-                        current_group.push_str(word);
-                    } else {
-                        tokens.push(word.to_string());
-                    }
-                }
-            }
-
-            // Push any remaining grouped content
-            if !current_group.is_empty() {
-                tokens.push(current_group);
-            }
-
-            tokens
-        }
         fn parse_function_call(parser: &mut TextParser, func_call: &str) -> Result<(), String> {
-            let parts = tokenize(func_call);
+            let parts = parser.tokenizer.tokenize(
+                func_call,
+                Some(TokenizeOptions {
+                    ..Default::default()
+                }),
+            );
             println!("Function call parts: {:?}", parts);
             if parts.is_empty() {
                 return Ok(());
@@ -91,8 +47,24 @@ impl TextMethods for TextParser {
         }
 
         fn parse_transform(content: &str, parser: &mut TextParser) -> Result<(), String> {
+            // Check if this is a font definition: {fontname ...}
+            // Font names are lowercase words followed by whitespace
+            if let Some(space_index) = content.find(|c: char| c.is_whitespace()) {
+                let potential_font_name = &content[..space_index];
+                // Check if it's a valid font name (all lowercase letters)
+                if !potential_font_name.is_empty()
+                    && potential_font_name.chars().all(|c| c.is_ascii_lowercase())
+                {
+                    // This looks like a font definition
+                    let font_content = content[space_index..].trim();
+                    parser.parse_font(potential_font_name, font_content)?;
+                    return Ok(());
+                }
+            }
+
             // Tokenize by whitespace
-            let tokens: Vec<&str> = content.split_whitespace().collect();
+            let tokenized = parser.tokenizer.tokenize_points(content);
+            let tokens: Vec<&str> = tokenized.iter().map(|x| x.as_str()).collect();
 
             for token in tokens {
                 // Handle special character prefixes
@@ -217,9 +189,192 @@ impl TextMethods for TextParser {
             Ok(())
         }
 
-        fn process_string(_content: &str, _add_mode: bool) -> Result<(), String> {
+        fn process_string(
+            content: &str,
+            add_mode: bool,
+            parser: &mut TextParser,
+        ) -> Result<(), String> {
             // Process string content with font characters
-            // TODO: Implement string processing with font characters
+            let font_name = parser.current_font.clone();
+
+            // Get the font - if it doesn't exist, create an empty one
+            if !parser.fonts.contains_key(&font_name) {
+                return Err(format!("Font '{}' not found", font_name));
+            }
+
+            // Call START character if not in add mode
+            if !add_mode {
+                let start_handlers: Vec<String> = {
+                    if let Some(font) = parser.fonts.get(&font_name) {
+                        let mut handlers = Vec::new();
+                        if font.has_character("START", false) {
+                            if let Some(handler) = font.get_character("START", false) {
+                                handlers.push(handler.to_string());
+                            }
+                        }
+                        if font.has_character("START", true) {
+                            if let Some(handler) = font.get_character("START", true) {
+                                handlers.push(handler.to_string());
+                            }
+                        }
+                        handlers
+                    } else {
+                        Vec::new()
+                    }
+                };
+                for handler in start_handlers {
+                    parser.text(&handler)?;
+                }
+            }
+
+            let content_len = content.len();
+            let chars: Vec<char> = content.chars().collect();
+            let mut i = 0;
+
+            while i < content_len {
+                let mut this_char = chars[i].to_string();
+
+                // Handle inline expressions in strings: (expr)
+                if chars[i] == '(' && (i == 0 || chars[i - 1] != '\\') {
+                    let expr_start = i + 1;
+                    let expr_end = chars[i..]
+                        .iter()
+                        .position(|&c| c == ')')
+                        .ok_or("text: Missing ) in expression")?;
+                    this_char = chars[expr_start..(i + expr_end)].iter().collect();
+                    i += expr_end + 1;
+                }
+                // Handle nested transforms: {content}
+                else if chars[i] == '{' && (i == 0 || chars[i - 1] != '\\') {
+                    let start = i;
+                    let mut brackets = 1;
+                    i += 1;
+                    while i < content_len && brackets > 0 {
+                        if chars[i] == '{' {
+                            brackets += 1;
+                        } else if chars[i] == '}' {
+                            brackets -= 1;
+                        }
+                        i += 1;
+                    }
+                    let nested_content: String = chars[(start + 1)..(i - 1)].iter().collect();
+                    parse_transform(&nested_content, parser)?;
+                    continue;
+                } else {
+                    this_char = chars[i].to_string();
+                    i += 1;
+                }
+
+                // Map special characters
+                let special_chars: std::collections::HashMap<char, &str> = [
+                    ('[', "BOPEN"),
+                    (']', "BCLOSE"),
+                    ('(', "POPEN"),
+                    (')', "PCLOSE"),
+                    ('{', "COPEN"),
+                    ('}', "CCLOSE"),
+                    ('"', "QUOTE"),
+                    (',', "COMMA"),
+                    (' ', "SPACE"),
+                    ('\n', "NEWLINE"),
+                    ('=', "EQUAL"),
+                ]
+                .iter()
+                .cloned()
+                .collect();
+
+                if let Some(&mapped) = special_chars.get(&this_char.chars().next().unwrap_or('\0'))
+                {
+                    this_char = mapped.to_string();
+                }
+
+                // Handle multi-word characters (dynamic characters with arguments)
+                if this_char.contains(' ') {
+                    let parts: Vec<&str> = this_char.split(' ').collect();
+                    if !parts.is_empty() {
+                        let func = parts[0];
+                        let words: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+
+                        let handler_opt = {
+                            if let Some(font) = parser.fonts.get(&font_name) {
+                                if font.has_character(func, true) {
+                                    font.get_character(func, true).map(|s| s.to_string())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(handler) = handler_opt {
+                            parser.text(&handler)?;
+                        }
+                    }
+                } else {
+                    // Call EACH character if it exists
+                    let handlers: Vec<String> = {
+                        if let Some(font) = parser.fonts.get(&font_name) {
+                            let mut handlers = Vec::new();
+                            if font.has_character("EACH", false) {
+                                if let Some(handler) = font.get_character("EACH", false) {
+                                    handlers.push(handler.to_string());
+                                }
+                            }
+
+                            // Call dynamic EACH if exists and not NEWLINE
+                            if this_char != "NEWLINE" && font.has_character("EACH", true) {
+                                if let Some(handler) = font.get_character("EACH", true) {
+                                    handlers.push(handler.to_string());
+                                }
+                            }
+
+                            // Handle character lookup and execution
+                            if font.has_character(&this_char, true) {
+                                if let Some(handler) = font.get_character(&this_char, true) {
+                                    handlers.push(handler.to_string());
+                                }
+                            } else if font.has_character(&this_char, false) {
+                                if let Some(handler) = font.get_character(&this_char, false) {
+                                    handlers.push(handler.to_string());
+                                }
+                            }
+                            handlers
+                        } else {
+                            Vec::new()
+                        }
+                    };
+                    for handler in handlers {
+                        parser.text(&handler)?;
+                    }
+                }
+            }
+
+            // Call END character if not in add mode
+            if !add_mode {
+                let end_handlers: Vec<String> = {
+                    if let Some(font) = parser.fonts.get(&font_name) {
+                        let mut handlers = Vec::new();
+                        if font.has_character("END", false) {
+                            if let Some(handler) = font.get_character("END", false) {
+                                handlers.push(handler.to_string());
+                            }
+                        }
+                        if font.has_character("END", true) {
+                            if let Some(handler) = font.get_character("END", true) {
+                                handlers.push(handler.to_string());
+                            }
+                        }
+                        handlers
+                    } else {
+                        Vec::new()
+                    }
+                };
+                for handler in end_handlers {
+                    parser.text(&handler)?;
+                }
+            }
+
             Ok(())
         }
 
@@ -311,16 +466,7 @@ impl TextMethods for TextParser {
                 let end = i;
                 let content: String = chars[(start + 1)..end].iter().collect();
 
-                let tokens: Vec<&str> = content.split_whitespace().collect();
-
-                if tokens.is_empty() {
-                    return Ok(());
-                }
-
-                let line = self.line(&tokens)?;
-                line.iter().for_each(|pt| {
-                    self.add_point(*pt);
-                });
+                self.line(&content, false)?;
 
                 // Handle operators after bracket
                 i += 1;
@@ -364,6 +510,7 @@ impl TextMethods for TextParser {
 
                 let end = i;
                 let content: String = chars[(start + 1)..end].iter().collect();
+
                 parse_transform(&content, self)?;
 
                 i += 1;
@@ -420,7 +567,7 @@ impl TextMethods for TextParser {
                     return Err("text: Missing closing \" in string".to_string());
                 }
 
-                process_string(&string_content, add_mode)?;
+                process_string(&string_content, add_mode, self)?;
                 i += 1;
                 continue;
             }

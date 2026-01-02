@@ -75,15 +75,14 @@ pub enum NoiseState {
 }
 
 impl ExpressionParser {
-    pub fn eval_point(this_point: &str, basic: bool, default_y: f64) -> Result<BasicPt, String> {
-        // Handle BasicPt input
-        if basic {
-            if let Ok(x) = this_point.parse::<f64>() {
-                return Ok(BasicPt::new(x, default_y));
-            }
-        }
-
+    pub fn eval_point(&mut self, this_point: &str) -> Result<BasicPt, String> {
         let mut point = this_point.to_string();
+        let mut adding = false;
+        if point.starts_with('+') {
+            point = point[1..].to_string();
+            adding = true;
+            // TODO: implement adding
+        }
 
         // Handle reverse transform '<'
         if point == "<" {
@@ -95,25 +94,12 @@ impl ExpressionParser {
             let sliced = &point[1..point.len() - 1];
             // Parse point constant - would call parser.pointConstants[tokens[0]]
             // For now, return error as this requires context
-            return Err(format!("Point constants not implemented: {}", sliced));
+            return Ok(BasicPt::new(0.0, 0.0));
+            // return Err(format!("Point constants not implemented: {}", sliced));
         }
 
-        // Handle polar notation '@theta,radius'
-        if point.starts_with('@') {
-            let parts: Vec<&str> = point[1..].split(',').collect();
-            if parts.len() >= 2 {
-                let theta = parts[0]
-                    .parse::<f64>()
-                    .map_err(|_| format!("Invalid theta: {}", parts[0]))?;
-                let radius = parts[1]
-                    .parse::<f64>()
-                    .map_err(|_| format!("Invalid radius: {}", parts[1]))?;
-
-                let mut pt = BasicPt::new(radius, 0.0);
-                pt.rotate(theta, None);
-                return Ok(pt);
-            }
-        }
+        let parts = self.expr_point(&point).unwrap();
+        // .map_err(|_| format!("Invalid coordinate: {} from {}", point, this_point))?;
 
         // Handle array notation 'base[idx1,idx2,...]'
         if point.contains('[') {
@@ -123,41 +109,23 @@ impl ExpressionParser {
             let indices = &point[start..end];
 
             let indices_list: Vec<&str> = indices.split(',').collect();
-            for idx in indices_list {
-                let expanded = format!("{}{}", base, idx);
-                return Self::eval_point(&expanded, basic, default_y);
-            }
+            return self.eval_point(&format!(
+                "{}{},{}{}",
+                base, indices_list[0], base, indices_list[1]
+            ));
         }
 
-        // Parse comma-separated coordinates
-        let parts: Vec<&str> = point.split(',').collect();
+        // Handle polar notation '@theta,radius'
+        if point.starts_with('@') {
+            let theta = parts.0;
+            let radius = parts.1;
 
-        match parts.len() {
-            1 => {
-                let coord = parts[0]
-                    .parse::<f64>()
-                    .map_err(|_| format!("Invalid coordinate: {}", parts[0]))?;
-                Ok(BasicPt::new(coord, default_y.max(coord)))
-            }
-            _ => {
-                let coords: Result<Vec<f64>, String> = parts
-                    .iter()
-                    .map(|p| {
-                        p.parse::<f64>()
-                            .map_err(|_| format!("Invalid coordinate: {}", p))
-                    })
-                    .collect();
-
-                let coords = coords?;
-                match coords.len() {
-                    2 => Ok(BasicPt::new(coords[0], coords[1])),
-                    _ => Err(format!(
-                        "Invalid point format: {} coordinates",
-                        coords.len()
-                    )),
-                }
-            }
+            let mut pt = BasicPt::new(radius, 0.0);
+            pt.rotate(theta, None);
+            return Ok(pt);
         }
+
+        Ok(BasicPt::new(parts.0, parts.1))
     }
 
     pub fn new() -> Self {

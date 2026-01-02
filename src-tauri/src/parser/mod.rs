@@ -9,7 +9,6 @@ pub mod methods {
     pub mod asemic_pt;
     pub mod expression_eval;
     pub mod expressions;
-    pub mod tests;
     pub mod transforms;
 }
 
@@ -19,6 +18,10 @@ pub mod parsing {
     pub mod text_parser;
     pub mod tokenizer;
     pub mod utilities;
+}
+
+pub mod fonts {
+    pub mod fonts;
 }
 
 // pub mod types;

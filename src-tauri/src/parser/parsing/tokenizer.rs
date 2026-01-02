@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde_json::to_string;
+
 /// Configuration options for tokenization
 #[derive(Clone, Debug)]
 pub struct TokenizeOptions {
@@ -49,6 +51,72 @@ impl Tokenizer {
             ' ' | '\t' | '\n' | '\r' if options.use_default_regex => true,
             _ => false,
         }
+    }
+    /// Tokenize a string of points separated by commas
+    pub fn tokenize_points(&mut self, source: &str) -> Vec<String> {
+        let mut tokens: Vec<String> = Vec::new();
+        let mut current = String::new();
+        let mut in_parentheses = 0;
+        let mut in_braces = 0;
+        let mut is_escaped = false;
+
+        let chars: Vec<char> = source.chars().collect();
+        let len = chars.len();
+
+        let mut i = 0;
+        while i < len {
+            let c = chars[i];
+
+            if is_escaped {
+                is_escaped = false;
+                current.push(c);
+                i += 1;
+                continue;
+            }
+
+            let mut end = false;
+            match c {
+                '(' => {
+                    in_parentheses += 1;
+                    current.push(c);
+                }
+                ')' => {
+                    in_parentheses -= 1;
+                    current.push(c);
+                }
+                '{' => {
+                    in_braces += 1;
+                    current.push(c);
+                }
+                '}' => {
+                    in_braces -= 1;
+                    current.push(c);
+                }
+                '\\' => {
+                    is_escaped = true;
+                    current.push(c);
+                }
+                ' ' | '\t' | '\n' | '\r' if in_parentheses == 0 && in_braces == 0 => {
+                    // Split on whitespace when not inside parens or braces
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                    end = true;
+                }
+                _ => {
+                    current.push(c);
+                }
+            }
+
+            i += 1;
+        }
+
+        if !current.is_empty() {
+            tokens.push(current.clone());
+        }
+
+        tokens
     }
 
     /// Tokenize a source string or number with caching

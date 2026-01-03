@@ -3,6 +3,7 @@ import WebGPURenderer from './renderers/visual/WebGPURenderer'
 import type { AsemicData } from './types'
 import { Parser, Scene } from './parser/Parser'
 import { compileWithContext, noise, osc, shape } from './hydra-compiler'
+import { invoke } from '@tauri-apps/api/core'
 // import { generators, generators as realOsc } from 'hydra-ts'
 
 let parser: Parser = new Parser()
@@ -40,8 +41,12 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.loadFiles)) {
     parser.data.loadFiles(ev.data.loadFiles)
   }
+  if (!isUndefined(ev.data.groups)) {
+    renderer.render(ev.data.groups)
+  }
   if (!isUndefined(ev.data.scene)) {
     currentScene = ev.data.scene
+
     parser.draw(currentScene)
     renderer.render(parser.groups)
     if (parser.output.errors.length > 0) {

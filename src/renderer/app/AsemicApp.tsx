@@ -292,11 +292,11 @@ function AsemicAppInner({
               (currentSceneSettings.length || 0.1)
           }
 
-          asemic.current?.postMessage({
-            scene: currentScene,
-            sceneIndex: activeSceneRef.current,
-            preProcess
-          })
+          // asemic.current?.postMessage({
+          //   scene: currentScene,
+          //   sceneIndex: activeSceneRef.current,
+          //   preProcess
+          // })
           // console.log('drawing scene', currentScene)
         }
 
@@ -305,7 +305,8 @@ function AsemicAppInner({
         invoke('parse_asemic_source', {
           source: sceneSettings.code || ''
         }).then((curves: any) => {
-          console.log(curves.groups[0].points[0])
+          console.log(curves)
+          asemic.current?.postMessage({ groups: curves.groups as any })
         })
 
         for (const [paramName, paramValue] of Object.entries(

@@ -157,18 +157,20 @@ impl DrawingMixin for TextParser {
         // Create new group with the parsed settings
         let new_group = crate::parser::parsing::text_parser::Group {
             points: vec![Vec::new()],
-            mode,
-            texture: None,
-            a: None,
-            synth: None,
-            xy: None,
-            wh: None,
-            vert,
-            curve: curve_str,
-            count: count as i32,
-            correction,
-            close: Some(close),
-            blend: None,
+            settings: crate::parser::parsing::text_parser::GroupSettings {
+                mode,
+                texture: None,
+                a: None,
+                synth: None,
+                xy: None,
+                wh: None,
+                vert,
+                curve: curve_str,
+                count: count as i32,
+                correction,
+                close: Some(close),
+                blend: None,
+            },
         };
 
         self.groups.push(new_group);

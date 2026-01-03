@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Group {
-    pub points: Vec<Vec<AsemicPt>>,
+pub struct GroupSettings {
     pub mode: String, // 'line' | 'fill' | 'blank'
     pub texture: Option<String>,
     pub a: Option<String>,
@@ -20,6 +19,12 @@ pub struct Group {
     pub correction: f64,
     pub close: Option<bool>,
     pub blend: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Group {
+    pub points: Vec<Vec<AsemicPt>>,
+    pub settings: GroupSettings,
 }
 
 /// Master parser for Asemic code
@@ -119,18 +124,20 @@ impl TextParser {
             new_points.push(Vec::new());
             self.groups.push(Group {
                 points: new_points,
-                mode: "line".to_string(),
-                texture: None,
-                a: None,
-                synth: None,
-                xy: None,
-                wh: None,
-                vert: "0,0".to_string(),
-                curve: "true".to_string(),
-                count: 100,
-                correction: 0.0,
-                close: Some(false),
-                blend: None,
+                settings: GroupSettings {
+                    mode: "line".to_string(),
+                    texture: None,
+                    a: None,
+                    synth: None,
+                    xy: None,
+                    wh: None,
+                    vert: "0,0".to_string(),
+                    curve: "true".to_string(),
+                    count: 100,
+                    correction: 0.0,
+                    close: Some(false),
+                    blend: None,
+                },
             });
         }
 

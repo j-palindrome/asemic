@@ -86,8 +86,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sorceress",
+ "string-replace-all",
  "tauri",
  "tauri-build",
+ "tauri-plugin-devtools",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-log",
@@ -3617,6 +3619,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "string-replace-all"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b12025ac754369ba77abd5ac18822294caaa36cdbdfd8832cacc4f904b5ff23c"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "string_cache"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3906,6 +3917,12 @@ dependencies = [
  "toml 0.9.8",
  "walkdir",
 ]
+
+[[package]]
+name = "tauri-plugin-devtools"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c58ec703485e22cae0beb6d53c389f755260593cb59c4a096e84ff54f1b6bb9e"
 
 [[package]]
 name = "tauri-plugin-dialog"

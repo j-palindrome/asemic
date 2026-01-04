@@ -265,7 +265,7 @@ function AsemicAppInner({
   }, [activeScene])
 
   useEffect(() => {
-    const animate = () => {
+    const animate = async () => {
       try {
         const now = performance.now()
         const deltaTime = (now - lastFrameTimeRef.current) / 1000
@@ -292,23 +292,22 @@ function AsemicAppInner({
               (currentSceneSettings.length || 0.1)
           }
 
-          // asemic.current?.postMessage({
-          //   scene: currentScene,
-          //   sceneIndex: activeSceneRef.current,
-          //   preProcess
-          // })
+          asemic.current?.postMessage({
+            // scene: currentScene,
+            // sceneIndex: activeSceneRef.current,
+            // preProcess
+          })
           // console.log('drawing scene', currentScene)
         }
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
-        invoke('parse_asemic_source', {
+        const curves: any = await invoke('parse_asemic_source', {
           source: sceneSettings.code || ''
-        }).then((curves: any) => {
-          console.log(curves)
-          asemic.current?.postMessage({ groups: curves.groups as any })
         })
 
+        console.log(curves)
+        asemic.current?.postMessage({ groups: curves.groups as any })
         for (const [paramName, paramValue] of Object.entries(
           globalSettings.params || {}
         )) {
@@ -322,13 +321,13 @@ function AsemicAppInner({
             continue
           }
 
-          invoke<number>('parser_eval_expression', {
+          await invoke<number>('parser_eval_expression', {
             expr: value.join(','),
             oscAddress: globalSettings.params[paramName].oscPath,
             oscHost: 'localhost',
             oscPort: 57120,
             sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
-          }).then(result => {})
+          })
 
           sentValuesRef.current[paramName] = [...value]
         }
@@ -343,15 +342,14 @@ function AsemicAppInner({
               continue
             }
 
-            invoke<number>('parser_eval_expression', {
+            const result = await invoke<number>('parser_eval_expression', {
               expr: oscMsg.value.toString(),
               oscAddress: oscMsg.name,
               oscHost: oscHost,
               oscPort: oscPort,
               sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
-            }).then(result => {
-              sentValuesRef.current[oscMsg.name] = [result]
             })
+            sentValuesRef.current[oscMsg.name] = [result]
           }
         }
       } catch (error) {

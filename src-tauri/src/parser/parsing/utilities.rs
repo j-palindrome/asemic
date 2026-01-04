@@ -4,8 +4,7 @@ use crate::parser::parsing::text_parser::Group;
 use crate::parser::{ExpressionEval, TextParser};
 
 pub trait Utilities {
-    fn align(&mut self, coords: String, align_type: String, callback: String)
-        -> Result<(), String>;
+    fn align(&mut self, coords: &str, align_type: &str, callback: &str) -> Result<(), String>;
     fn get_bounds(group: &Group, from_curve: usize) -> [f64; 4];
 }
 
@@ -17,12 +16,7 @@ impl Utilities for TextParser {
     /// * `coords` - Center coordinates as a string (e.g., "100,200")
     /// * `align_type` - Alignment type as a string
     /// * `callback` - Function or expression to draw content to be aligned
-    fn align(
-        &mut self,
-        coords: String,
-        align_type: String,
-        callback: String,
-    ) -> Result<(), String> {
+    fn align(&mut self, coords: &str, align_type: &str, callback: &str) -> Result<(), String> {
         // Parse center coordinates
         let (center_x, center_y) = self.expression_parser.expr_point(&coords)?;
 

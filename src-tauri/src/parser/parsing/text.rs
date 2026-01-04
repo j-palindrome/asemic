@@ -1,6 +1,10 @@
+use regex::Regex;
+use string_replace_all::string_replace_all;
+
 use super::drawing::DrawingMixin;
 use crate::parser::{
     methods::{asemic_pt::BasicPt, transforms::Transforms},
+    parsing::utilities::Utilities,
     ExpressionEval, TextParser, TokenizeOptions,
 };
 
@@ -17,7 +21,6 @@ impl TextMethods for TextParser {
                     ..Default::default()
                 }),
             );
-            println!("Function call parts: {:?}", parts);
             if parts.is_empty() {
                 return Ok(());
             }
@@ -27,10 +30,6 @@ impl TextMethods for TextParser {
 
             // Map of supported functions
             match func_name {
-                "c3" => parser.c3(&args)?,
-                "c4" => parser.c4(&args)?,
-                "c5" => parser.c5(&args)?,
-                "c6" => parser.c6(&args)?,
                 "circle" => parser.circle(&args)?,
                 "group" => parser.group(&args)?,
                 "repeat" => {
@@ -40,6 +39,7 @@ impl TextMethods for TextParser {
 
                     parser.repeat(args[0], args[1])?
                 }
+                "align" => parser.align(args[0], args[1], args[2])?,
                 _ => return Err(format!("text: Unknown function: {}", func_name)),
             }
 
@@ -106,12 +106,13 @@ impl TextMethods for TextParser {
                 // Handle translation: +[x y] or +value
                 if token.starts_with('+') && !token.starts_with("+!") && !token.starts_with("+=>") {
                     let value_str = &token[1..];
-                    if let Ok(val) = parser.expression_parser.expr_list(&value_str) {
-                        parser.expression_parser.modify_transform(|t| {
-                            t.translate =
-                                BasicPt::new(val[0], val.get(1).cloned().unwrap_or(val[0]));
-                        })?;
-                    }
+                    let mut val = parser.expression_parser.eval_point(&value_str)?;
+                    val.scale(parser.expression_parser.peek_transform().scale, None);
+                    val.rotate(parser.expression_parser.peek_transform().rotation, None);
+                    parser.expression_parser.modify_transform(|t| {
+                        t.translate.add(val);
+                    })?;
+
                     continue;
                 }
 
@@ -316,7 +317,7 @@ impl TextMethods for TextParser {
                     let handlers: Vec<String> = {
                         if let Some(font) = parser.fonts.get(&font_name) {
                             let mut handlers = Vec::new();
-                            if font.has_character("EACH", false) {
+                            if this_char != "NEWLINE" && font.has_character("EACH", false) {
                                 if let Some(handler) = font.get_character("EACH", false) {
                                     handlers.push(handler.to_string());
                                 }
@@ -378,11 +379,12 @@ impl TextMethods for TextParser {
             Ok(())
         }
 
-        let token_without_comments = token.replace(r"//.*", "");
+        let regex = Regex::new("//.*").unwrap();
+        let token = string_replace_all(token, &regex, "");
+
         let token_length = token.len();
         let chars: Vec<char> = token.chars().collect();
         let mut i = 0;
-        println!("Processing token: {}", token);
 
         while i < token_length {
             let char = chars[i];
@@ -466,7 +468,19 @@ impl TextMethods for TextParser {
                 let end = i;
                 let content: String = chars[(start + 1)..end].iter().collect();
 
-                self.line(&content, false)?;
+                // Process each point - check if it's a transform or a point
+                let points: Vec<String> = self.tokenizer.tokenize_points(&content.as_str());
+                for point in points {
+                    if point.starts_with('{') && point.ends_with('}') {
+                        // Parse as transform
+                        let transform_content = &point[1..point.len() - 1];
+                        parse_transform(transform_content, self)?;
+                    } else {
+                        // Add as point
+                        let mut pt = self.parse_point(&mut point.as_str())?;
+                        self.add_point(pt);
+                    }
+                }
 
                 // Handle operators after bracket
                 i += 1;

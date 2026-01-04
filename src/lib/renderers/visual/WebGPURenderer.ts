@@ -77,9 +77,18 @@ export default class WebGPURenderer {
 
     for (let group of groups) {
       for (let curve of group.points) {
-        if (curve.length === 0) return
+        if (curve.length === 0) continue
         if (curve.length < 3) {
-          curve.splice(1, 0, curve[0].clone(true).lerp(curve[1], 0.5))
+          const lerp = (c0: any, c1: any, t: number) => {
+            let newKey = {} as any
+            for (let key in c0) {
+              if (!c1[key]) {
+                newKey[key] = c0[key]
+              } else newKey[key] = c0[key] * (1 - t) + c1[key] * t
+            }
+            return newKey
+          }
+          curve.splice(1, 0, lerp(curve[0], curve[1], 0.5))
         }
       }
     }

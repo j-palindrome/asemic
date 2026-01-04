@@ -42,9 +42,9 @@ impl Transform {
             rotate: None,
             w: "1.0".to_string(),
             h: "1.0".to_string(),
-            s: "1.0".to_string(),
+            s: "0.0".to_string(),
             l: "1.0".to_string(),
-            a: "0.0".to_string(),
+            a: "1.0".to_string(),
         }
     }
 
@@ -157,7 +157,7 @@ fn parse_or_default(s: &str, default: f64) -> f64 {
 pub trait Transforms {
     fn push_transform(&mut self);
     fn pop_transform(&mut self) -> Option<Transform>;
-    fn peek_transform(&mut self) -> Option<&mut Transform>;
+    fn peek_transform(&mut self) -> Transform;
     fn modify_transform<F>(&mut self, f: F) -> Result<(), String>
     where
         F: FnOnce(&mut Transform);
@@ -165,16 +165,20 @@ pub trait Transforms {
 
 impl Transforms for ExpressionParser {
     fn push_transform(&mut self) {
-        let transform = self.peek_transform().cloned().unwrap_or_default();
+        let transform = self.peek_transform();
         self.transforms.push(transform);
     }
 
     fn pop_transform(&mut self) -> Option<Transform> {
-        self.transforms.pop()
+        let pop = self.transforms.pop();
+        if self.transforms.is_empty() {
+            self.transforms.push(Transform::new());
+        }
+        pop
     }
 
-    fn peek_transform(&mut self) -> Option<&mut Transform> {
-        self.transforms.last_mut()
+    fn peek_transform(&mut self) -> Transform {
+        self.transforms.last_mut().cloned().unwrap_or_default()
     }
 
     fn modify_transform<F>(&mut self, f: F) -> Result<(), String>

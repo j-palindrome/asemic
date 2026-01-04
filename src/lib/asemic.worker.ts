@@ -42,6 +42,8 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
     parser.data.loadFiles(ev.data.loadFiles)
   }
   if (!isUndefined(ev.data.groups)) {
+    console.log('rendering')
+
     renderer.render(ev.data.groups)
   }
   if (!isUndefined(ev.data.scene)) {

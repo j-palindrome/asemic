@@ -7,35 +7,11 @@ use crate::parser::TextParser;
 /// Drawing mixin trait for ExpressionParser
 /// Provides methods to draw geometric primitives using expressions
 pub trait DrawingMixin {
-    /// Draw a line from start point to end point
-    ///
-    /// # Arguments
-    /// * `points` - Array of point expressions (e.g., ["0,0", "100,100", "50,50"])
-    ///   Supports formats: "x,y", "@theta,radius", or numeric expressions
-    ///
-    /// # Returns
-    /// A vector of `AsemicPt` representing the line vertices
-    ///
-    /// # Example
-    /// ```ignore
-    /// parser.line(&["0,0", "100,100"])?;
-    /// ```
-    fn line(&mut self, points: &str, end: bool) -> Result<(), String>;
+    /// Parse a single point expression
+    fn parse_point(&mut self, point: &mut &str) -> Result<AsemicPt, String>;
 
-    /// Draw a 3-point curve (quadratic Bezier-like)
-    /// Points: start, control, end
-    fn c3(&mut self, args: &[&str]) -> Result<(), String>;
-
-    /// Draw a 4-point curve
-    /// Points: start, control1, control2, end with wave distortion
-    fn c4(&mut self, args: &[&str]) -> Result<(), String>;
-    /// Draw a 5-point curve
-    /// Points: start, control1, control2, control3, end with symmetric wave
-    fn c5(&mut self, args: &[&str]) -> Result<(), String>;
-
-    /// Draw a 6-point curve
-    /// Points: start, control1, control2, control3, control4, end with rectangular wave
-    fn c6(&mut self, args: &[&str]) -> Result<(), String>;
+    /// Perform Bezier interpolation between multiple points
+    fn bezier_interpolate(&self, points: &[BasicPt], t: f64) -> Result<BasicPt, String>;
 
     /// Draw a circle at a given center with specified width and height
     ///
@@ -62,43 +38,286 @@ pub trait DrawingMixin {
     /// * `i` - Normalized progress (0.0 to 1.0)
     fn repeat(&mut self, count: &str, callback: &str) -> Result<(), String>;
 
-    /// Protected helper: Parse and process curve points
-    fn parse_curve(&mut self, args: &[&str], points: &str) -> Result<(), String>;
+    /// Peek at a point in a curve
+    ///
+    /// # Arguments
+    /// * `point_index` - Index from the end (0 = last point, 1 = second to last, etc.)
+    /// * `curve_index` - Index of the curve to peek from. None uses current curve, Some(idx) where idx > 0 gets the previous curve (idx - 1).
+    ///                  Negative indices are supported (e.g., -1 = last group)
+    fn peek_last_point(
+        &self,
+        point_index: i32,
+        curve_index: Option<i32>,
+    ) -> Result<AsemicPt, String>;
 }
 
 impl DrawingMixin for TextParser {
-    fn line(&mut self, points: &str, end: bool) -> Result<(), String> {
-        let tokens: Vec<String> = self.tokenizer.tokenize_points(points);
-        for point in tokens {
-            let mut pt = self.expression_parser.eval_point(point.as_str())?;
+    /// Perform quadratic/cubic Bezier interpolation between multiple points
+    fn bezier_interpolate(&self, points: &[BasicPt], t: f64) -> Result<BasicPt, String> {
+        if points.is_empty() {
+            return Err("No points provided for Bezier interpolation".to_string());
+        }
+        if points.len() == 1 {
+            return Ok(points[0].clone());
+        }
 
-            if let Some(transform) = self.expression_parser.transforms.last() {
-                let transform_clone = transform.clone();
-                let transformed_pt =
-                    transform_clone.apply_transform(&mut pt, false, &mut self.expression_parser)?;
-                self.add_point(transformed_pt);
+        // Simple De Casteljau algorithm for Bezier curves
+        let mut current = points.to_vec();
+        while current.len() > 1 {
+            let mut next = Vec::new();
+            for i in 0..current.len() - 1 {
+                let mut pt = current[i].clone();
+                pt.lerp(current[i + 1], t);
+                next.push(pt);
             }
+            current = next;
         }
-        if end {
-            self.end_curve(false)?;
+
+        Ok(current[0].clone())
+    }
+
+    fn peek_last_point(
+        &self,
+        point_index: i32,
+        curve_index: Option<i32>,
+    ) -> Result<AsemicPt, String> {
+        // Determine which curve to use
+        let curve_to_peek = match curve_index {
+            None => {
+                if self.current_curve.is_empty() {
+                    if let Some(last_group) = self.groups.last() {
+                        if let Some(last_curve) = last_group.points.last() {
+                            last_curve.clone()
+                        } else {
+                            return Err("No curves in last group".to_string());
+                        }
+                    } else {
+                        return Err("No curves available".to_string());
+                    }
+                } else {
+                    self.current_curve.clone()
+                }
+            }
+            Some(idx) => {
+                // Get the previous curve at the specified index
+                let actual_curve_idx = if idx < 0 {
+                    (self.groups.len() as i32 + idx) as usize
+                } else {
+                    idx as usize
+                };
+
+                if actual_curve_idx >= self.groups.len() {
+                    return Err(format!("No curve at index {}", actual_curve_idx));
+                }
+
+                // Get the previous curve (actual_curve_idx - 1)
+
+                if let Some(prev_group) = self.groups.get(actual_curve_idx - 1) {
+                    if let Some(prev_curve_pts) = prev_group.points.last() {
+                        prev_curve_pts.clone()
+                    } else {
+                        return Err("Previous group has no curves".to_string());
+                    }
+                } else {
+                    return Err("No previous group available".to_string());
+                }
+            }
+        };
+
+        let len = curve_to_peek.len() as i32;
+
+        if point_index < 0 {
+            let idx = len as isize + point_index as isize;
+            if idx >= 0 {
+                return Ok(curve_to_peek[idx as usize].clone());
+            }
+        } else if point_index < len {
+            let idx = len - 1 - point_index;
+            return Ok(curve_to_peek[idx as usize].clone());
         }
-        Ok(())
+        panic!("Index out of bounds in peek_last_point");
+        Err("Index out of bounds".to_string())
     }
 
-    fn c3(&mut self, args: &[&str]) -> Result<(), String> {
-        self.parse_curve(args, "0,0 .5,$H 1,0")
-    }
+    fn parse_point(&mut self, point: &mut &str) -> Result<AsemicPt, String> {
+        let mut adding = false;
+        if point.starts_with('+') {
+            *point = &point[1..];
+            adding = true;
+        }
 
-    fn c4(&mut self, args: &[&str]) -> Result<(), String> {
-        self.parse_curve(args, "0,0 -$W,$H 1+$W,$H 1,0")
-    }
+        // Handle point constants '(name arg1 arg2...)'
+        if point.starts_with('(') && point.ends_with(')') {
+            let sliced = &point[1..point.len() - 1];
+            let tokens: Vec<&str> = sliced.split_whitespace().collect();
 
-    fn c5(&mut self, args: &[&str]) -> Result<(), String> {
-        self.parse_curve(args, "0,0 -$W,0.5*$H .5,$H $H+$W,.5*$H 1,0")
-    }
+            if tokens.is_empty() {
+                return Err("Empty point constant".to_string());
+            }
 
-    fn c6(&mut self, args: &[&str]) -> Result<(), String> {
-        self.parse_curve(args, "0,0 -$W,0 -$W,$H 1+$W,$H 1+$W,0 1,0")
+            let result: AsemicPt = match tokens[0] {
+                // '>': Bezier interpolation between points at progress
+                // Usage: (> progress point1 point2 [point3 ...])
+                ">" => {
+                    if tokens.len() < 3 {
+                        return Err("'>' requires at least progress and 2 points".to_string());
+                    }
+
+                    let progress = self.expression_parser.expr(tokens[1])?;
+                    let mut fade = progress;
+                    if fade >= 1.0 {
+                        fade = 0.999;
+                    } else if fade < 0.0 {
+                        fade = 0.0;
+                    }
+
+                    // Evaluate all point arguments
+                    let mut pts: Vec<BasicPt> = Vec::new();
+                    for pt_expr in &tokens[2..] {
+                        let pt = self.expression_parser.eval_point(pt_expr)?;
+                        pts.push(pt);
+                    }
+
+                    let mut result = if pts.len() == 2 {
+                        let mut res = pts[0].clone();
+                        res.lerp(pts[1], fade);
+                        res
+                    } else {
+                        // Quadratic/cubic Bezier for 3+ points
+                        self.bezier_interpolate(&pts, fade)?
+                    };
+
+                    let transform_clone = self
+                        .expression_parser
+                        .transforms
+                        .last()
+                        .ok_or("No transform found")?
+                        .clone();
+
+                    transform_clone.apply_transform(
+                        &mut result,
+                        false,
+                        &mut self.expression_parser,
+                    )?
+                }
+                // '<': Reverse transform of a point from a curve
+                // Usage: (< pointN [curveN])
+                "<" => {
+                    if tokens.len() < 2 {
+                        return Err("'<' requires at least pointN".to_string());
+                    }
+
+                    let progress = self.expression_parser.expr(tokens[1])?;
+
+                    // Determine which curve to use
+                    let curve_idx = if tokens.len() > 2 {
+                        Some(self.expression_parser.expr(tokens[2])? as i32)
+                    } else {
+                        None
+                    };
+
+                    // Get the curve via peek_last_point to fetch the previous curve if needed
+                    let last_curve = if curve_idx == None {
+                        if (self.current_curve.is_empty()) {
+                            if let Some(last_group) = self.groups.last() {
+                                if let Some(last_curve) = last_group.points.last() {
+                                    last_curve.clone()
+                                } else {
+                                    return Err("No curves in last group".to_string());
+                                }
+                            } else {
+                                return Err("No curves available".to_string());
+                            }
+                        } else {
+                            self.current_curve.clone()
+                        }
+                    } else {
+                        if let Some(prev_group) = self.groups.get(self.groups.len() - 1) {
+                            if let Some(prev_curve_pts) =
+                                prev_group.points.get(if curve_idx.unwrap() < 0 {
+                                    (prev_group.points.len() as i32 + curve_idx.unwrap()) as usize
+                                } else {
+                                    curve_idx.unwrap() as usize
+                                })
+                            {
+                                prev_curve_pts.clone()
+                            } else {
+                                return Err("Previous group has no curves".to_string());
+                            }
+                        } else {
+                            return Err("No previous group available".to_string());
+                        }
+                    };
+
+                    // Interpolate point on curve
+                    if last_curve.len() < 2 {
+                        return Err("Curve has insufficient points for interpolation".to_string());
+                    }
+
+                    let mut fade = progress;
+                    if fade >= 1.0 {
+                        fade = 0.999;
+                    } else if fade < 0.0 {
+                        fade = 0.0;
+                    }
+
+                    let index = (last_curve.len() as f64 - 1.0) * fade;
+                    let floor_idx = index.floor() as usize;
+                    let local_t = index.fract();
+
+                    if floor_idx >= last_curve.len() - 1 {
+                        return Err("Index out of bounds in curve interpolation".to_string());
+                    }
+
+                    let mut result = last_curve[floor_idx].clone().basic_pt();
+                    result.lerp(last_curve[floor_idx + 1].clone().basic_pt(), local_t);
+
+                    // Reverse transform: undo the current transform
+                    let transform_clone = self
+                        .expression_parser
+                        .transforms
+                        .last()
+                        .ok_or("No transform found")?
+                        .clone()
+                        .solve(&mut self.expression_parser)
+                        .unwrap();
+
+                    AsemicPt::new(
+                        result.x,
+                        result.y,
+                        transform_clone.w,
+                        transform_clone.h,
+                        transform_clone.s,
+                        transform_clone.l,
+                        transform_clone.a,
+                    )
+                }
+                _ => return Err(format!("Unknown point constant: {}", tokens[0])),
+            };
+
+            // Convert BasicPt to AsemicPt with transform metadata
+
+            return Ok(result);
+        }
+
+        let mut pt = self.expression_parser.eval_point(point)?;
+
+        let transform_clone = self
+            .expression_parser
+            .transforms
+            .last()
+            .ok_or("No transform found")?
+            .clone();
+        let mut transformed_pt =
+            transform_clone.apply_transform(&mut pt, false, &mut self.expression_parser)?;
+        if adding {
+            let last_pt = self.peek_last_point(-1, None)?;
+            transformed_pt.x -= transform_clone.translate.x;
+            transformed_pt.y -= transform_clone.translate.y;
+            transformed_pt.x += last_pt.x;
+            transformed_pt.y += last_pt.y;
+        }
+        Ok(transformed_pt)
     }
 
     fn circle(&mut self, args: &[&str]) -> Result<(), String> {
@@ -106,16 +325,36 @@ impl DrawingMixin for TextParser {
             return Err("circle requires at least center expression".to_string());
         }
 
-        let center_str = args[0];
+        let mut center_str = args[0];
         let wh_str = args.get(1).copied().unwrap_or("1");
 
         // Apply transform: > +center *wh
         // Then draw circle as polygon
         // For now, simplified implementation:
         // A circle is drawn as a polygon approximation
-        let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1 -1,0";
+        self.expression_parser.push_transform();
 
-        self.parse_curve(&[center_str, wh_str, "0"], circle_points)
+        let center_pt = self.parse_point(&mut center_str)?;
+        let _tr = self.expression_parser.peek_transform();
+        let wh_pt = self.expression_parser.eval_point(&mut wh_str.to_string())?;
+
+        self.expression_parser.modify_transform(|x| {
+            x.translate = BasicPt {
+                x: center_pt.x,
+                y: center_pt.y,
+            };
+            x.scale.scale(wh_pt, None);
+        })?;
+
+        let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1 -1,0";
+        let points: Vec<String> = self.tokenizer.tokenize_points(&circle_points);
+        for point in points {
+            let mut pt = self.parse_point(&mut point.as_str())?;
+            self.add_point(pt);
+        }
+        self.end_curve(false)?;
+        self.expression_parser.pop_transform();
+        Ok(())
     }
 
     fn group(&mut self, args: &[&str]) -> Result<(), String> {
@@ -136,7 +375,7 @@ impl DrawingMixin for TextParser {
 
                 match key {
                     "mode" => mode = value.to_string(),
-                    "vert" => vert = value.to_string(),
+                    "vert" => vert = value.to_string().replace("\"", ""),
                     "curve" => curve_str = value.to_string(),
                     "count" => {
                         if let Ok(n) = value.parse::<usize>() {
@@ -211,35 +450,6 @@ impl DrawingMixin for TextParser {
         // Restore the iteration state
         self.expression_parser.indexes = saved_indexes;
         self.expression_parser.count_nums = saved_count_nums;
-
-        Ok(())
-    }
-
-    fn parse_curve(&mut self, points: &[&str], template: &str) -> Result<(), String> {
-        // Step 1: Push transform to '>' (shift to relative coordinates)
-        // The '>' transform represents a reference frame shift
-
-        self.expression_parser.push_transform();
-        let should_end_curve = if points.len() >= 5 {
-            !points[4].contains('+')
-        } else {
-            true
-        };
-
-        let points: Vec<BasicPt> = points
-            .iter()
-            .take(3) // Limit to first 3 points
-            .map(|x| self.expression_parser.eval_point(x))
-            .collect::<Result<Vec<_>, _>>()?;
-        assert!(points.len() >= 3, "points must contain at least 3 elements");
-
-        let parsed_points = template
-            .replace("$W", &format!("{}", points[2].x))
-            .replace("$H", &format!("{}", points[2].y));
-        self.line(&parsed_points, should_end_curve)?;
-
-        // Step 7: Pop remap and relative transforms to restore absolute coordinates
-        self.expression_parser.pop_transform(); // Pop remap
 
         Ok(())
     }

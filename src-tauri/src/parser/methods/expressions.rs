@@ -77,28 +77,7 @@ pub enum NoiseState {
 impl ExpressionParser {
     pub fn eval_point(&mut self, this_point: &str) -> Result<BasicPt, String> {
         let mut point = this_point.to_string();
-        let mut adding = false;
-        if point.starts_with('+') {
-            point = point[1..].to_string();
-            adding = true;
-            // TODO: implement adding
-        }
 
-        // Handle reverse transform '<'
-        if point == "<" {
-            return Ok(BasicPt::new(0.0, 0.0));
-        }
-
-        // Handle point constants '(name arg1 arg2...)'
-        if point.starts_with('(') && point.ends_with(')') {
-            let sliced = &point[1..point.len() - 1];
-            // Parse point constant - would call parser.pointConstants[tokens[0]]
-            // For now, return error as this requires context
-            return Ok(BasicPt::new(0.0, 0.0));
-            // return Err(format!("Point constants not implemented: {}", sliced));
-        }
-
-        let parts = self.expr_point(&point).unwrap();
         // .map_err(|_| format!("Invalid coordinate: {} from {}", point, this_point))?;
 
         // Handle array notation 'base[idx1,idx2,...]'
@@ -117,6 +96,7 @@ impl ExpressionParser {
 
         // Handle polar notation '@theta,radius'
         if point.starts_with('@') {
+            let parts = self.expr_point(&point[1..]).unwrap();
             let theta = parts.0;
             let radius = parts.1;
 
@@ -125,6 +105,12 @@ impl ExpressionParser {
             return Ok(pt);
         }
 
+        let parts = self.expr_point(&point).map_err(|e| {
+            format!(
+                "eval_point: Failed to evaluate point expression '{}': {}",
+                this_point, e
+            )
+        })?;
         Ok(BasicPt::new(parts.0, parts.1))
     }
 

@@ -45,9 +45,6 @@ pub struct TextParser {
     /// Error messages accumulated during parsing
     pub errors: Vec<String>,
 
-    /// Last point parsed (for reference in point expressions)
-    pub last_point: Option<AsemicPt>,
-
     /// Font definitions for character rendering
     pub fonts: HashMap<String, AsemicFont>,
 
@@ -73,7 +70,6 @@ impl TextParser {
             current_curve: Vec::new(),
             adding: 0.0,
             errors: Vec::new(),
-            last_point: None,
             fonts: HashMap::new(),
             current_font: "default".to_string(),
             tokenizer: Tokenizer::new(),
@@ -98,8 +94,6 @@ impl TextParser {
 
         self.current_curve.clear();
         self.adding = 0.0;
-
-        self.last_point = None;
     }
 
     /// Finalize current curve and add to groups
@@ -108,8 +102,7 @@ impl TextParser {
     /// * `close` - Whether to close the curve by connecting last point to first
     pub fn end_curve(&mut self, close: bool) -> Result<(), String> {
         if self.current_curve.len() < 2 {
-            // return Err("Cannot end a curve with less than 2 points".to_string());
-            panic!("Cannot end a curve with less than 2 points");
+            return Err("Cannot end a curve with less than 2 points".to_string());
         }
 
         if close && !self.current_curve.is_empty() {
@@ -121,7 +114,6 @@ impl TextParser {
         // Add curve to groups (default to single group)
         if self.groups.is_empty() {
             let mut new_points = Vec::new();
-            new_points.push(Vec::new());
             self.groups.push(Group {
                 points: new_points,
                 settings: GroupSettings {
@@ -142,17 +134,10 @@ impl TextParser {
         }
 
         if let Some(group) = self.groups.last_mut() {
-            if group.points.is_empty() {
-                return Err("No curves in the last group".to_string());
-            }
+            group.points.push(self.current_curve.clone());
+            self.current_curve.clear();
 
-            if let Some(last_curve) = group.points.last_mut() {
-                last_curve.extend(self.current_curve.drain(..));
-                if let Some(point) = last_curve.last() {
-                    self.last_point = Some(*point);
-                }
-                return Ok(());
-            }
+            return Ok(());
         }
 
         self.adding = 0.0;
@@ -163,7 +148,6 @@ impl TextParser {
     /// Add a point to the current curve
     pub fn add_point(&mut self, point: AsemicPt) {
         self.current_curve.push(point);
-        self.last_point = Some(point);
     }
 
     /// Parse a font definition from text content

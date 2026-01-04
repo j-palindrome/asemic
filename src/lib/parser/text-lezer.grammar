@@ -4,7 +4,6 @@ Region {
   SquareRegion
 | ParenRegion
 | StringRegion
-| RegExRegion
 | CurlyRegion
 | LineCommentContent
 | Heading
@@ -54,16 +53,9 @@ StringRegion {
   "\"" (StringContent | CurlyRegion)* "\""
 }
 
-RegExRegion {
-  "/" RegExContent* "/"
-}
-
 
 @tokens {
 
-RegExContent {
-  ![/]
-}
 StringContent {
   ![\"\{]
 }

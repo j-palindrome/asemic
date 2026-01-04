@@ -1,7 +1,8 @@
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
 import { Parser } from '../Parser'
 
-export class AsemicGroup extends Array<AsemicPt[]> {
+export class AsemicGroup {
+  points: Array<AsemicPt[]> = []
   settings: {
     mode: 'line' | 'fill' | 'blank'
     texture?: string
@@ -29,12 +30,11 @@ export class AsemicGroup extends Array<AsemicPt[]> {
   parser: Parser
 
   constructor(parser: Parser, settings: Partial<AsemicGroup['settings']> = {}) {
-    super()
     this.settings = { ...this.settings, ...settings }
     this.parser = parser
   }
 
   addCurve(curve: AsemicPt[]) {
-    this.push(curve)
+    this.points.push(curve)
   }
 }

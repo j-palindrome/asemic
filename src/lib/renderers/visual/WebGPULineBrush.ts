@@ -66,7 +66,7 @@ export default class WebGPULineBrush extends WebGPUBrush {
     // if (this.settings.close) debugger
     // Define indices to form two triangles
     const indices = new Uint32Array(
-      range(curves.length).flatMap(i => {
+      range(curves.points.length).flatMap(i => {
         const map = range(this.settings.count - 1).flatMap(x => [
           i * (this.settings.count * 2) + x * 2,
           i * (this.settings.count * 2) + x * 2 + 1,

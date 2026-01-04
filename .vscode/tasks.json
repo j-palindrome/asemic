@@ -1,13 +1,17 @@
 {
-  "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "dev",
-      "problemMatcher": [],
       "label": "ui:dev",
-      "detail": "vite",
-      "isBackground": true
+      "type": "shell",
+      "isBackground": true,
+      "command": "bun",
+      "args": ["dev"]
+    },
+    {
+      "label": "ui:build",
+      "type": "shell",
+      "command": "bun",
+      "args": ["build"]
     }
   ]
 }

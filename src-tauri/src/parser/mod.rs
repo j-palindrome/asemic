@@ -16,6 +16,7 @@ pub mod parsing {
     pub mod drawing;
     pub mod text;
     pub mod text_parser;
+    pub mod text_tests;
     pub mod tokenizer;
     pub mod utilities;
 }

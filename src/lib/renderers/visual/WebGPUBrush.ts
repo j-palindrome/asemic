@@ -122,17 +122,22 @@ export default abstract class WebGPUBrush {
   }
 
   protected reload(curves: AsemicGroup) {
+    // const vertices = new Float32Array(
+    //   curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
+    // )
     const vertices = new Float32Array(
-      curves.flatMap(x => x.flatMap(x => [x.x, x.y]))
+      curves.points.flatMap(x => x.flatMap(x => [x.x, x.y]))
     )
 
     this.device.queue.writeBuffer(this.vertex.buffer, 0, vertices)
 
-    const widths = new Float32Array(curves.flatMap(x => x.flatMap(x => x.w)))
+    const widths = new Float32Array(
+      curves.points.flatMap(x => x.flatMap(x => x.w))
+    )
     this.device.queue.writeBuffer(this.widths.buffer, 0, widths)
 
     const colors = new Float32Array(
-      curves.flatMap(x => x.flatMap(x => [x.h, x.s, x.l, x.a]))
+      curves.points.flatMap(x => x.flatMap(x => [x.h, x.s, x.l, x.a]))
     )
 
     this.device.queue.writeBuffer(this.colors.buffer, 0, colors)
@@ -166,7 +171,8 @@ export default abstract class WebGPUBrush {
 
   load(group: AsemicGroup) {
     const vertexBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 2),
+      size:
+        Float32Array.BYTES_PER_ELEMENT * sumBy(group.points, x => x.length * 2),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'vertex'
@@ -174,14 +180,16 @@ export default abstract class WebGPUBrush {
 
     // Create an index buffer
     const widthsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 2),
+      size:
+        Float32Array.BYTES_PER_ELEMENT * sumBy(group.points, x => x.length * 2),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'widths'
     })
 
     const colorsBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * sumBy(group, x => x.length * 4),
+      size:
+        Float32Array.BYTES_PER_ELEMENT * sumBy(group.points, x => x.length * 4),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'colors'
@@ -202,13 +210,13 @@ export default abstract class WebGPUBrush {
     indexBuffer.unmap()
 
     // Define curve start indices
-    const curveStarts = new Uint32Array(group.length + 1)
+    const curveStarts = new Uint32Array(group.points.length + 1)
     let total = 0
-    for (let i = 0; i < group.length; i++) {
+    for (let i = 0; i < group.points.length; i++) {
       curveStarts[i] = total
-      total += group[i].length
+      total += group.points[i].length
     }
-    curveStarts[group.length] = total
+    curveStarts[group.points.length] = total
 
     // Create a buffer for curve starts
     const curveStartsBuffer = this.device.createBuffer({
@@ -407,7 +415,7 @@ export default abstract class WebGPUBrush {
     }
     this.colors = {
       buffer: colorsBuffer,
-      size: sumBy(group, x => x.length * 4)
+      size: sumBy(group.points, x => x.length * 4)
     }
 
     this.index = { buffer: indexBuffer, size: indices.length }
@@ -417,7 +425,7 @@ export default abstract class WebGPUBrush {
     this.scrub = { buffer: scrubBuffer, size: 1 }
     this.widths = {
       buffer: widthsBuffer,
-      size: sumBy(group, x => x.length * 2)
+      size: sumBy(group.points, x => x.length * 2)
     }
     this.curveStarts = {
       buffer: curveStartsBuffer,
@@ -426,14 +434,18 @@ export default abstract class WebGPUBrush {
     }
     this.vertex = {
       buffer: vertexBuffer,
-      size: sumBy(group, x => x.length * 2)
+      size: sumBy(group.points, x => x.length * 2)
     }
   }
 
   render(curves: AsemicGroup, renderPass: GPURenderPassEncoder) {
-    if (curves.length === 0 || (curves.length < 2 && curves[0].length < 2)) {
+    if (
+      curves.points.length === 0 ||
+      (curves.points.length < 2 && curves.points[0].length < 2)
+    ) {
       return
     }
+    // debugger
 
     if (!this.vertex) {
       this.load(curves)
@@ -444,17 +456,17 @@ export default abstract class WebGPUBrush {
     ) {
       this.shaderModule = this.loadShader({ includeTexture: true })
       this.load(curves)
-    } else if (this.curveStarts.size !== curves.length + 1) {
+    } else if (this.curveStarts.size !== curves.points.length + 1) {
       this.load(curves)
     } else {
       let total = 0
-      for (let i = 0; i < curves.length + 1; i++) {
+      for (let i = 0; i < curves.points.length + 1; i++) {
         if (this.curveStarts.array[i] !== total) {
           this.load(curves)
           break
         }
-        if (!curves[i]) break
-        total += curves[i].length
+        if (!curves.points[i]) break
+        total += curves.points[i].length
       }
     }
     this.reload(curves)
@@ -468,7 +480,8 @@ export default abstract class WebGPUBrush {
     this.device.queue.writeBuffer(
       this.scrub.buffer,
       0,
-      new Float32Array([curves.parser.progress.scrub || 0])
+      new Float32Array([0])
+      // new Float32Array([curves.parser.progress.scrub || 0])
     )
 
     // These operations could all be done once during init

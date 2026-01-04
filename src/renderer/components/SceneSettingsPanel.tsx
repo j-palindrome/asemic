@@ -4,7 +4,7 @@ import Slider from './Slider'
 import AsemicEditor, { AsemicEditorRef } from './Editor'
 import { lucideProps, ScrubSettings } from '../app/AsemicApp'
 import { isEqual, uniq } from 'lodash'
-import { Delete, Eye, EyeClosed, Save } from 'lucide-react'
+import { Delete, Eye, EyeClosed, Save, Maximize2 } from 'lucide-react'
 import { l } from 'node_modules/react-router/dist/development/index-react-server-client-DRhjXpk2.mjs'
 
 type ParamConfig = {
@@ -76,6 +76,7 @@ export default function SceneSettingsPanel({
   const [renamingParam, setRenamingParam] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editAllMode, setEditAllMode] = useState<Set<string>>(new Set())
+  const [fullScreenCode, setFullScreenCode] = useState(false)
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -161,7 +162,8 @@ export default function SceneSettingsPanel({
   }
 
   return (
-    <div className='absolute bottom-0 left-0 right-0 border-t border-white/20 z-50 flex flex-col h-[calc(100vh-60px)]'>
+    <div
+      className={`absolute border-t border-white/20 z-50 flex flex-col bottom-0 left-0 right-0 h-[calc(100vh-60px)]`}>
       {/* Header */}
       <div className='flex items-center gap-2 p-3 border-b border-white/20'>
         <span className='text-white text-sm font-semibold'>
@@ -198,11 +200,20 @@ export default function SceneSettingsPanel({
                   onClick={() => {
                     const currentCode = editorRef.current?.getValue()
                     if (currentCode !== undefined) {
-                      onUpdate({ ...sceneList[activeScene], code: currentCode })
+                      onUpdate({
+                        ...sceneList[activeScene],
+                        code: currentCode
+                      })
                     }
                   }}
                   className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
                   Update Code
+                </button>
+                <button
+                  onClick={() => setFullScreenCode(!fullScreenCode)}
+                  className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                  title={fullScreenCode ? 'Collapse' : 'Expand'}>
+                  <Maximize2 {...lucideProps} />
                 </button>
                 <span className='text-white/50 text-[10px] ml-auto'>
                   Cmd+Enter to update
@@ -215,6 +226,7 @@ export default function SceneSettingsPanel({
             <AsemicEditor
               ref={editorRef}
               defaultValue={sceneList[activeScene].code || ''}
+              className={fullScreenCode ? 'h-full' : 'h-[100px]'}
             />
           )}
 

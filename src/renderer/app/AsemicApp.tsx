@@ -176,9 +176,6 @@ function AsemicAppInner({
     setErrors([])
   }, [activeScene, scenesArray[activeScene]?.code])
 
-  const animationFrameRef = useRef<number | null>(null)
-  const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
-
   // const client = useMemo(() => new Client('localhost', 57120), [])
   const [isSetup, setIsSetup] = useState(false)
 
@@ -202,9 +199,6 @@ function AsemicAppInner({
   useEffect(() => {
     setIsSetup(true)
   }, [])
-
-  // Animation loop - updates parser and OSC
-  const lastFrameTimeRef = useRef<number>(performance.now())
 
   useEffect(() => {
     const newScrubs = [...scrubValues]
@@ -265,19 +259,13 @@ function AsemicAppInner({
   }, [activeScene])
 
   useEffect(() => {
-    const animate = async () => {
+    let animationFrame: number | null = null
+    let sceneReady = true
+    const animate = () => {
+      animationFrame = requestAnimationFrame(animate)
       try {
-        const now = performance.now()
-        const deltaTime = (now - lastFrameTimeRef.current) / 1000
-        lastFrameTimeRef.current = now
-
-        // Global time always increments
-        globalTimeRef.current += deltaTime
-
-        // Update parser with current scene
-        const preProcess = {
-          replacements: {}
-        } as Parser['preProcessing']
+        if (!sceneReady) return
+        sceneReady = false
 
         const boundingRect = canvas.current.getBoundingClientRect()
         devicePixelRatio = 2
@@ -304,16 +292,17 @@ function AsemicAppInner({
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
-        const curves: any = await invoke('parse_asemic_source', {
+        const curves: any = invoke('parse_asemic_source', {
           source: sceneSettings.code || '',
           scene: currentScene
+        }).then(curves => {
+          asemic.current?.postMessage({
+            groups: curves.groups as any,
+            scene: currentScene
+          })
+          sceneReady = true
         })
 
-        console.log(curves)
-        asemic.current?.postMessage({
-          groups: curves.groups as any,
-          scene: currentScene
-        })
         for (const [paramName, paramValue] of Object.entries(
           globalSettings.params || {}
         )) {
@@ -327,15 +316,15 @@ function AsemicAppInner({
             continue
           }
 
-          await invoke<number>('parser_eval_expression', {
+          invoke<number>('parser_eval_expression', {
             expr: value.join(','),
             oscAddress: globalSettings.params[paramName].oscPath,
             oscHost: 'localhost',
             oscPort: 57120,
             sceneMetadata: currentScene
+          }).then(result => {
+            sentValuesRef.current[paramName] = [...value]
           })
-
-          sentValuesRef.current[paramName] = [...value]
         }
         for (const group of sceneSettings.oscGroups || []) {
           const oscHost = group.oscHost || 'localhost'
@@ -348,14 +337,13 @@ function AsemicAppInner({
               continue
             }
 
-            const result = await invoke<number>('parser_eval_expression', {
+            const result = invoke<number>('parser_eval_expression', {
               expr: oscMsg.value.toString(),
               oscAddress: oscMsg.name,
               oscHost: oscHost,
               oscPort: oscPort,
               sceneMetadata: currentScene
-            })
-            sentValuesRef.current[oscMsg.name] = [result]
+            }).then(result => (sentValuesRef.current[oscMsg.name] = [result]))
           }
         }
       } catch (error) {
@@ -364,19 +352,13 @@ function AsemicAppInner({
 
       // animationFrameRef.current = requestAnimationFrame(animate)
     }
-
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current)
-    }
     if (isSetup) {
-      lastFrameTimeRef.current = performance.now()
-      animationFrameRef.current = requestAnimationFrame(animate)
+      animationFrame = requestAnimationFrame(animate)
     }
 
     return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame)
       }
     }
   }, [isSetup, scenesArray, activeScene])

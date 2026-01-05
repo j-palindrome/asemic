@@ -1,5 +1,6 @@
-import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
+
+type BasicPt = { x: number; y: number }
 export type AsemicData = {
   source?: string
   preProcess?: Partial<any>

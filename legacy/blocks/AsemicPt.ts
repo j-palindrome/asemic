@@ -1,6 +1,6 @@
 import { Color, Group, GroupLike, Pt, PtIterable, PtLike } from 'pts'
 import type { Parser } from '../parser/Parser'
-import { parseFromFunction } from '../utils'
+import { parseFromFunction } from '../../src/lib/utils'
 
 type BasicPtLike = BasicPt | [number, number]
 export class BasicPt extends Float32Array {

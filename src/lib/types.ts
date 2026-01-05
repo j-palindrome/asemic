@@ -1,5 +1,4 @@
 import { Color, Pt } from 'pts'
-import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
 
 export type AsemicData = {
@@ -20,6 +19,11 @@ export type AsemicData = {
   presets?: InputSchema['presets']
   files?: Record<string, string>
   loadFiles?: Record<string, ImageData[]>
+}
+
+export type BasicPt = {
+  x: number
+  y: number
 }
 
 export type Transform = {

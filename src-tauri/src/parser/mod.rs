@@ -36,7 +36,6 @@ pub use parsing::tokenizer::{CacheStats, TokenizeOptions, Tokenizer};
 
 use serde::{Deserialize, Serialize};
 
-use crate::parser::methods::asemic_pt::AsemicPt;
 use crate::parser::parsing::text_parser::Group;
 // use std::collections::HashMap;
 

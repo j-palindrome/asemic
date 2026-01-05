@@ -128,36 +128,13 @@ impl ExpressionEval for ExpressionParser {
     }
 
     fn eval_constant(&mut self, expr: &str) -> Result<f64, String> {
-        // List of all known function names
-        let functions = vec![
-            "PHI", "choose", "tangent", "peaks", "sah", "bell", "sin", "abs", "fib", "<>", "~",
-            "-", "?", ">", "!", "S", "C", "L", "P", "N", "I", "i", "T", "#", "H", "px", "table",
-        ];
-
-        // Find the longest matching function name at the start of expr
-        let mut longest_match: Option<&str> = None;
-        for func in functions.iter() {
-            if expr.starts_with(func) {
-                if longest_match.is_none() || func.len() > longest_match.unwrap().len() {
-                    longest_match = Some(func);
-                }
-            }
+        let parts: Vec<&str> = expr.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err("Empty expression".to_string());
         }
 
-        let (func_name, remaining) = match longest_match {
-            Some(name) => (name, &expr[name.len()..].trim_start()),
-            None => {
-                if let Some(value) = self.get_param(expr, 0) {
-                    return Ok(value);
-                } else if let Some(value) = self.get_constant(expr) {
-                    return Ok(value);
-                } else {
-                    return Err(format!("Unknown constant or function: {}", expr));
-                }
-            }
-        };
-
-        let args: Vec<&str> = remaining.split_whitespace().collect();
+        let func_name = parts[0];
+        let args = &parts[1..];
 
         match func_name {
             "S" => Ok(self.scene_metadata.scrub),
@@ -448,10 +425,8 @@ impl ExpressionEval for ExpressionParser {
             _ => {
                 if let Some(value) = self.get_param(func_name, 0) {
                     Ok(value)
-                } else if let Some(value) = self.get_constant(func_name) {
-                    Ok(value)
                 } else {
-                    Err(format!("Unknown constant or function: {}", func_name))
+                    Ok(0.0)
                 }
             }
         }

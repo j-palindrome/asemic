@@ -1,4 +1,4 @@
-import { AsemicGroup } from '@/lib/types/Scene'
+import { AsemicGroup } from '@/lib/parser/Parser'
 import { range } from 'lodash'
 import WebGPUBrush from './WebGPUBrush'
 

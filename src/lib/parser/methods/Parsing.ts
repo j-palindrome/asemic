@@ -1,6 +1,6 @@
 import invariant from 'tiny-invariant'
 import { AsemicPt, BasicPt } from '../../blocks/AsemicPt'
-import { splitString } from '../../../src/lib/settings'
+import { splitString } from '../../settings'
 import { AsemicGroup } from '../core/AsemicGroup'
 import { Parser } from '../Parser'
 import { parserObject } from '../core/utilities'

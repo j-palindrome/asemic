@@ -1,4 +1,4 @@
-import { splitString } from '../../../src/lib/settings'
+import { splitString } from '../../settings'
 import { expand } from 'regex-to-strings'
 import { Parser } from '../Parser'
 import { split } from 'lodash'

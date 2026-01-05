@@ -1,5 +1,5 @@
 import { BasicPt } from '../../blocks/AsemicPt'
-import { Transform } from '../../../src/lib/types'
+import { Transform } from '../../types'
 
 export function cloneTransform(transform: Transform): Transform {
   const newTransform = {} as Transform

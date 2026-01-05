@@ -1,5 +1,5 @@
 import { last } from 'lodash'
-import { Parser, Transform } from '../../../src/lib/types'
+import { Parser, Transform } from '../../types'
 import { cloneTransform } from '../core/Transform'
 import { BasicPt } from '@/lib/blocks/AsemicPt'
 

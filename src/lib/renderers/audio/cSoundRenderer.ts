@@ -1,6 +1,6 @@
 import { Csound } from '@csound/browser'
 import AsemicAudio from '../AsemicAudio'
-import { AsemicPt } from '../../../../legacy/blocks/AsemicPt'
+import { AsemicPt } from '../../blocks/AsemicPt'
 
 export default class CSoundRenderer<
   T extends Record<string, any>

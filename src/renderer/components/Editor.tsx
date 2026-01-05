@@ -25,7 +25,7 @@ import React, {
   useRef
 } from 'react'
 // @ts-ignore
-import { parser } from '@/lib/lang/text-lezer.grammar' // <-- You must compile your grammar to JS
+import { parser } from '@/lib/parser/text-lezer.grammar' // <-- You must compile your grammar to JS
 import {
   foldInside,
   foldNodeProp,

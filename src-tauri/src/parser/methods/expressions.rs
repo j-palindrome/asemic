@@ -2,7 +2,6 @@ use crate::parser::methods::asemic_pt::AsemicPt;
 use crate::parser::methods::asemic_pt::BasicPt;
 pub use crate::parser::methods::expression_eval::ExpressionEval;
 use crate::parser::methods::transforms::Transform;
-use crate::parser::methods::transforms::Transforms;
 use rosc::{encoder, OscMessage, OscPacket, OscType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -167,15 +166,6 @@ impl ExpressionParser {
             .get(name)
             .and_then(|v| v.get(index))
             .copied();
-    }
-    pub fn get_constant(&mut self, name: &str) -> Option<f64> {
-        let transform = self.peek_transform();
-        if let Some(value_str) = transform.constants.get(name) {
-            if let Ok(value) = self.expr(value_str) {
-                return Some(value);
-            }
-        }
-        None
     }
 
     /// Main expression evaluation function

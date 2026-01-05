@@ -3,7 +3,7 @@ import { isUndefined } from 'lodash'
 // Note: Vite automatically appends ?worker to .ts files in workers
 // @ts-ignore
 import AsemicWorker from './asemic.worker.ts?worker'
-import { Parser, Scene } from '../../legacy/parser/Parser'
+import { Parser, Scene } from './parser/Parser'
 import { AsemicData } from './types'
 
 export default class Asemic {

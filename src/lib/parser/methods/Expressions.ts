@@ -1,6 +1,6 @@
 import { clamp, last } from 'lodash'
 import invariant from 'tiny-invariant'
-import { Parser } from '../../../src/lib/types'
+import { Parser } from '../../types'
 import { lerp } from '@/lib/utils'
 import { BasicPt } from '@/lib/blocks/AsemicPt'
 

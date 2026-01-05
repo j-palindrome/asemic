@@ -1,5 +1,5 @@
 import Asemic from '@/lib/Asemic'
-import { Scene } from '@/lib/types/Scene'
+import { Parser, Scene } from '@/lib/types/Scene'
 import { AsemicData } from '@/lib/types'
 import _, { isEqual, isUndefined, last, set } from 'lodash'
 import {
@@ -106,6 +106,12 @@ function AsemicAppInner({
     _setGlobalSettings(newSettings)
     localStorage.setItem('globalSettings', JSON.stringify(newSettings))
   }
+
+  const [settings, setSettings] = useState(Asemic.defaultSettings)
+  const settingsRef = useRef(settings)
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
 
   const canvas = useRef<HTMLCanvasElement>(null!)
 
@@ -444,7 +450,7 @@ function AsemicAppInner({
     setDeletedScene(null)
   }
 
-  const [perform, _setPerform] = useState(false)
+  const [perform, _setPerform] = useState(settings.perform)
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
@@ -452,7 +458,9 @@ function AsemicAppInner({
     }
     _setPerform(value)
   }
-
+  useEffect(() => {
+    setPerform(settings.perform)
+  }, [settings.perform])
   const [showCanvas, setShowCanvas] = useState(true)
 
   const setShowGlobalSettings = (value: boolean) => {
@@ -465,17 +473,57 @@ function AsemicAppInner({
     frame.current.style.setProperty('height', '100vh', 'important')
     await frame.current?.requestFullscreen()
   }
+  useEffect(() => {
+    if (settings.perform) {
+      requestFullscreen()
+    }
+  }, [settings.perform])
+
+  useEffect(() => {
+    const onResize = () => {
+      const boundingRect = canvas.current.getBoundingClientRect()
+      devicePixelRatio = 2
+
+      // canvas.current.width = boundingRect.width * devicePixelRatio
+      // canvas.current.height = boundingRect.height * devicePixelRatio
+
+      const width = (boundingRect.width || 1080) * devicePixelRatio
+      const height = (boundingRect.height || 1080) * devicePixelRatio
+
+      asemic.current!.postMessage({
+        preProcess: {
+          width,
+          height
+        }
+      })
+    }
+    if (asemic.current) {
+      asemic.current.setup(canvas.current)
+      const resizeObserver = new ResizeObserver(onResize)
+      resizeObserver.observe(canvas.current)
+
+      window.addEventListener('resize', onResize)
+      onResize()
+      return () => {
+        resizeObserver.disconnect()
+        window.removeEventListener('resize', onResize)
+      }
+    }
+  }, [showCanvas, asemic])
 
   return (
     <div className='asemic-container relative group'>
       <div
-        className={`relative w-full bg-black overflow-auto ${'h-screen'} fullscreen:max-h-screen`}
+        className={`relative w-full bg-black overflow-auto ${
+          settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
+        } fullscreen:max-h-screen`}
         ref={frame}>
         <canvas
           style={{
             width: '100%',
-            height: '100%',
-            aspectRatio: undefined,
+            height: settings.h === 'window' ? '100%' : undefined,
+            aspectRatio:
+              settings.h === 'window' ? undefined : `1 / ${settings.h}`,
             display: showCanvas ? 'block' : 'none'
           }}
           ref={canvas}

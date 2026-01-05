@@ -3,9 +3,11 @@ import { isUndefined } from 'lodash'
 // Note: Vite automatically appends ?worker to .ts files in workers
 // @ts-ignore
 import AsemicWorker from './asemic.worker.ts?worker'
+import { Parser, Scene } from '../../legacy/parser/Parser'
 import { AsemicData } from './types'
 
 export default class Asemic {
+  static defaultSettings = Parser.defaultSettings
   worker: Worker
   offscreenCanvas: OffscreenCanvas
   ready = false
@@ -33,11 +35,11 @@ export default class Asemic {
     }
   }
 
-  constructor(onmessage?: (data: any) => void) {
+  constructor(onmessage?: (data: Partial<Parser['output']>) => void) {
     // Create worker using Vite's worker import
     this.worker = new AsemicWorker({ name: 'asemic' })
 
-    this.worker.onmessage = (evt: { data: any }) => {
+    this.worker.onmessage = (evt: { data: Partial<Parser['output']> }) => {
       if (evt.data.ready) {
         this.ready = true
         for (const data of this.messageQueue) {

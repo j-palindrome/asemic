@@ -80,7 +80,7 @@ export class Parser {
         const exprN = this.expressions.expr(thisN)
         lastCurve =
           this.groups[groupIndex][
-            exprN < 0 ? this.groups[groupIndex].points.length + exprN : exprN
+            exprN < 0 ? this.groups[groupIndex].length + exprN : exprN
           ]
         if (!lastCurve) throw new Error(`No curve at ${thisN} - ${exprN}`)
       }

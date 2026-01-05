@@ -21,6 +21,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["_archive", "node_modules", "dist", "legacy"]
+  "include": ["src", "legacy/parser", "legacy/blocks"],
+  "exclude": ["_archive", "node_modules", "dist"]
 }

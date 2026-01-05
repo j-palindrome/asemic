@@ -2,7 +2,7 @@ import { isEqual, range, sumBy } from 'lodash'
 import invariant from 'tiny-invariant'
 import { compileWithContext, src } from '../../hydra-compiler'
 import { Glsl } from '../../hydra-compiler/src/glsl/Glsl'
-import { Scene } from '@/lib/types/Scene'
+import { AsemicGroup, Scene } from '../../../../legacy/parser/Parser'
 import WebGPUBrush from './WebGPUBrush'
 import PostProcessQuad from './PostProcessQuad'
 import WebGPULineBrush from './WebGPULineBrush'
@@ -57,7 +57,7 @@ export default class WebGPURenderer {
     )
   }
 
-  protected generateBrush(group: any) {
+  protected generateBrush(group: AsemicGroup) {
     let brush: WebGPUBrush
     switch (group.settings.mode) {
       case 'line':
@@ -69,7 +69,7 @@ export default class WebGPURenderer {
       case 'blank':
         return
     }
-    return brush!
+    return brush
   }
 
   render(groups: any, scene: Scene): void {

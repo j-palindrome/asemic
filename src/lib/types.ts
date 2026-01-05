@@ -1,8 +1,8 @@
 import { Color, Pt } from 'pts'
-import { Parser, Scene } from './parser/Parser'
-import { BasicPt } from './blocks/AsemicPt'
+import { Parser, Scene } from '../../legacy/parser/Parser'
+import { BasicPt } from '../../legacy/blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
-export type { Parser } from './parser/Parser'
+export type { Parser } from '../../legacy/parser/Parser'
 
 export type AsemicData = {
   preProcess?: Partial<Parser['preProcessing']>

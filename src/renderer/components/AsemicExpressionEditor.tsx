@@ -21,7 +21,7 @@ import {
   syntaxTree
 } from '@codemirror/language'
 // @ts-ignore
-import { parser } from '@/lib/parser/text-lezer.grammar'
+import { parser } from '@/lib/lang/text-lezer.grammar'
 import { styleTags, tags as t } from '@lezer/highlight'
 import { HighlightStyle } from '@codemirror/language'
 

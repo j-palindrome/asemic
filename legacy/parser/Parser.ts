@@ -1,9 +1,9 @@
 import { range, sum, sumBy } from 'lodash'
 import { AsemicPt, BasicPt } from '../blocks/AsemicPt'
-import { InputSchema } from '../../renderer/inputSchema'
-import { defaultSettings, splitString } from '../settings'
-import { AsemicData, Transform } from '../types'
-import { defaultPreProcess, lerp, parseFromFunction } from '../utils'
+import { InputSchema } from '../../src/renderer/inputSchema'
+import { defaultSettings, splitString } from '../../src/lib/settings'
+import { AsemicData, Transform } from '../../src/lib/types'
+import { defaultPreProcess, lerp, parseFromFunction } from '../../src/lib/utils'
 import defaultFont from '@/lib/defaultFont.asemic?raw'
 const ONE_FRAME = 1 / 60
 
@@ -20,7 +20,7 @@ import { TextMethods } from './methods/Text'
 import { TransformMethods } from './methods/Transforms'
 import { UtilityMethods } from './methods/Utilities'
 import { bezier } from './core/utilities'
-import { AsemicFont } from '../AsemicFont'
+import { AsemicFont } from '../../src/lib/AsemicFont'
 
 export { AsemicGroup }
 

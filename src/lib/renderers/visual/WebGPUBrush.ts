@@ -1,4 +1,4 @@
-import { AsemicGroup, Scene } from '@/lib/parser/Parser'
+import { AsemicGroup, Scene } from '@/lib/types/Scene'
 import wgslRequires from './wgsl/wgslRequires.wgsl?raw'
 import { sumBy } from 'lodash'
 import calcPosition from './wgsl/calcPosition'

@@ -1,5 +1,5 @@
 import Asemic from '@/lib/Asemic'
-import { Parser, Scene } from '@/lib/parser/Parser'
+import { Parser, Scene } from '@/lib/types/Scene'
 import { AsemicData } from '@/lib/types'
 import _, { isEqual, isUndefined, last, set } from 'lodash'
 import {

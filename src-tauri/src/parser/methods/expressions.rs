@@ -11,6 +11,8 @@ use std::net::UdpSocket;
 pub struct SceneMetadata {
     pub scrub: f64,
     pub params: HashMap<String, Vec<f64>>,
+    pub width: f64,
+    pub height: f64,
 }
 
 /// A static expression parser for Asemic expressions.
@@ -96,7 +98,7 @@ impl ExpressionParser {
 
         // Handle polar notation '@theta,radius'
         if point.starts_with('@') {
-            let parts = self.expr_point(&point[1..]).unwrap();
+            let parts = self.expr_point(&point[1..], None).unwrap();
             let theta = parts.0;
             let radius = parts.1;
 
@@ -105,7 +107,7 @@ impl ExpressionParser {
             return Ok(pt);
         }
 
-        let parts = self.expr_point(&point).map_err(|e| {
+        let parts = self.expr_point(&point, None).map_err(|e| {
             format!(
                 "eval_point: Failed to evaluate point expression '{}': {}",
                 this_point, e
@@ -130,6 +132,8 @@ impl ExpressionParser {
             scene_metadata: SceneMetadata {
                 scrub: 0.0,
                 params: HashMap::new(),
+                width: 1080.0,
+                height: 1080.0,
             },
             cache_max_size: 1000, // Limit cache to 1000 entries
             transforms: vec![Transform::new()],

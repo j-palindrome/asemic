@@ -1,7 +1,8 @@
-import { AsemicGroup } from '@/lib/parser/Parser'
+import { AsemicGroup, Scene } from '@/lib/parser/Parser'
 import wgslRequires from './wgsl/wgslRequires.wgsl?raw'
 import { sumBy } from 'lodash'
 import calcPosition from './wgsl/calcPosition'
+import { SceneMetadata } from '@/lib/parser/core/Output'
 
 export default abstract class WebGPUBrush {
   ctx: GPUCanvasContext
@@ -438,7 +439,7 @@ export default abstract class WebGPUBrush {
     }
   }
 
-  render(curves: AsemicGroup, renderPass: GPURenderPassEncoder) {
+  render(curves: AsemicGroup, renderPass: GPURenderPassEncoder, scene: Scene) {
     if (
       curves.points.length === 0 ||
       (curves.points.length < 2 && curves.points[0].length < 2)
@@ -480,8 +481,7 @@ export default abstract class WebGPUBrush {
     this.device.queue.writeBuffer(
       this.scrub.buffer,
       0,
-      new Float32Array([0])
-      // new Float32Array([curves.parser.progress.scrub || 0])
+      new Float32Array([scene.scrub])
     )
 
     // These operations could all be done once during init

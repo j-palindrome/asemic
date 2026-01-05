@@ -31,8 +31,10 @@ export interface Scene {
   pause?: number | false
   params?: Record<string, number[]>
   // Runtime-only properties (not persisted):
-  // scrub?: number - Current playback position within scene (calculated from global progress)
+  scrub: number
   [key: string]: any
+  width: number
+  height: number
 }
 
 export class Parser {

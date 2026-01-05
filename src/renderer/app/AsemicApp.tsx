@@ -279,35 +279,41 @@ function AsemicAppInner({
           replacements: {}
         } as Parser['preProcessing']
 
-        if (activeSceneRef.current < scenesArray.length) {
-          const currentSceneSettings = scenesArray[activeSceneRef.current]
-          const currentScene: Scene = {
-            code: currentSceneSettings.code || '',
-            length: currentSceneSettings.length,
-            offset: currentSceneSettings.offset,
-            pause: currentSceneSettings.pause,
-            params: scrubValuesRef.current[activeSceneRef.current]!.params,
-            scrub:
-              (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
-              (currentSceneSettings.length || 0.1)
-          }
+        const boundingRect = canvas.current.getBoundingClientRect()
+        devicePixelRatio = 2
 
-          asemic.current?.postMessage({
-            // scene: currentScene,
-            // sceneIndex: activeSceneRef.current,
-            // preProcess
-          })
-          // console.log('drawing scene', currentScene)
+        // canvas.current.width = boundingRect.width * devicePixelRatio
+        // canvas.current.height = boundingRect.height * devicePixelRatio
+
+        const width = (boundingRect.width || 1080) * devicePixelRatio
+        const height = (boundingRect.height || 1080) * devicePixelRatio
+
+        const currentSceneSettings = scenesArray[activeSceneRef.current]
+        const currentScene: Scene = {
+          code: currentSceneSettings.code || '',
+          length: currentSceneSettings.length,
+          offset: currentSceneSettings.offset,
+          pause: currentSceneSettings.pause,
+          params: scrubValuesRef.current[activeSceneRef.current]!.params,
+          scrub:
+            (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
+            (currentSceneSettings.length || 0.1),
+          width,
+          height
         }
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
         const curves: any = await invoke('parse_asemic_source', {
-          source: sceneSettings.code || ''
+          source: sceneSettings.code || '',
+          scene: currentScene
         })
 
         console.log(curves)
-        asemic.current?.postMessage({ groups: curves.groups as any })
+        asemic.current?.postMessage({
+          groups: curves.groups as any,
+          scene: currentScene
+        })
         for (const [paramName, paramValue] of Object.entries(
           globalSettings.params || {}
         )) {
@@ -326,7 +332,7 @@ function AsemicAppInner({
             oscAddress: globalSettings.params[paramName].oscPath,
             oscHost: 'localhost',
             oscPort: 57120,
-            sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
+            sceneMetadata: currentScene
           })
 
           sentValuesRef.current[paramName] = [...value]
@@ -347,7 +353,7 @@ function AsemicAppInner({
               oscAddress: oscMsg.name,
               oscHost: oscHost,
               oscPort: oscPort,
-              sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
+              sceneMetadata: currentScene
             })
             sentValuesRef.current[oscMsg.name] = [result]
           }

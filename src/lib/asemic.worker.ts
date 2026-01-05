@@ -41,20 +41,18 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (!isUndefined(ev.data.loadFiles)) {
     parser.data.loadFiles(ev.data.loadFiles)
   }
-  if (!isUndefined(ev.data.groups)) {
-    console.log('rendering')
-
-    renderer.render(ev.data.groups)
+  if (!isUndefined(ev.data.groups) && !isUndefined(ev.data.scene)) {
+    renderer.render(ev.data.groups, ev.data.scene)
   }
-  if (!isUndefined(ev.data.scene)) {
-    currentScene = ev.data.scene
+  // if (!isUndefined(ev.data.scene)) {
+  //   currentScene = ev.data.scene
 
-    parser.draw(currentScene)
-    renderer.render(parser.groups)
-    if (parser.output.errors.length > 0) {
-      self.postMessage({
-        errors: parser.output.errors
-      })
-    }
-  }
+  //   parser.draw(currentScene)
+  //   renderer.render(parser.groups)
+  //   if (parser.output.errors.length > 0) {
+  //     self.postMessage({
+  //       errors: parser.output.errors
+  //     })
+  //   }
+  // }
 }

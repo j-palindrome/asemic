@@ -14,7 +14,7 @@ pub trait ExpressionEval {
     fn eval_constant(&mut self, expr: &str) -> Result<f64, String>;
 
     /// Evaluate an expression that returns a point (x, y coordinates)
-    fn expr_point(&mut self, expr: &str) -> Result<(f64, f64), String>;
+    fn expr_point(&mut self, expr: &str, default: Option<f64>) -> Result<(f64, f64), String>;
 
     /// Split expression by operators while respecting precedence
     fn split_by_operators(&self, expr: &str) -> Result<Vec<SplitResult>, String>;
@@ -38,12 +38,20 @@ pub trait ExpressionEval {
 
     /// Check if a string is a number or negative number
     fn is_number_or_negative(s: &str) -> bool;
+
+    fn hash(&mut self, seed: Option<f64>) -> f64;
 }
 
 impl ExpressionEval for ExpressionParser {
-    fn expr_point(&mut self, expr: &str) -> Result<(f64, f64), String> {
+    fn expr_point(&mut self, expr: &str, default: Option<f64>) -> Result<(f64, f64), String> {
         let values = self.expr_list(expr)?;
-        Ok((values[0], values.get(1).copied().unwrap_or(values[0])))
+        Ok((
+            values[0],
+            values
+                .get(1)
+                .copied()
+                .unwrap_or(default.unwrap_or(values[0])),
+        ))
     }
 
     fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String> {
@@ -107,6 +115,16 @@ impl ExpressionEval for ExpressionParser {
         }
 
         self.eval_constant(string_expr)
+    }
+
+    fn hash(&mut self, seed: Option<f64>) -> f64 {
+        let seed_offset = self.seeds.get((self.curve as usize) % 100).unwrap_or(&0.0);
+        let seed_val = seed.unwrap_or(self.curve) + seed_offset;
+        let bits = seed_val.to_bits() as u64;
+        let xor_hash = bits ^ (bits >> 32) ^ (bits >> 16);
+        let hash = ((xor_hash as f64) / (u32::MAX as f64)).fract();
+        self.curve += 1.0;
+        hash
     }
 
     fn eval_constant(&mut self, expr: &str) -> Result<f64, String> {
@@ -350,7 +368,15 @@ impl ExpressionEval for ExpressionParser {
                     Err("sah state corrupted".to_string())
                 }
             }
-            "~" => Err("~ (FM synthesis) not fully implemented in Rust parser".to_string()),
+            "~" => {
+                let hash = self.hash(None);
+                let freq = self.expr_point(args[0], Some(hash))?;
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64();
+                Ok(((current_time * freq.0 + freq.1) * std::f64::consts::PI * 2.0).sin())
+            }
             "bell" => {
                 if args.is_empty() {
                     return Err("bell requires at least 1 argument".to_string());
@@ -391,6 +417,8 @@ impl ExpressionEval for ExpressionParser {
                 }
                 Ok(0.0)
             }
+            "H" => Ok(self.scene_metadata.height / self.scene_metadata.width),
+            "px" => Ok(1.0 / self.scene_metadata.width),
             "table" => Err(
                 "table requires image data and is not fully implemented in Rust parser".to_string(),
             ),

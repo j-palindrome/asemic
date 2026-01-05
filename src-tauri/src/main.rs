@@ -100,11 +100,15 @@ async fn parser_eval_expression(
 
 // Tauri command for parsing and evaluating Asemic source code
 #[tauri::command]
-async fn parse_asemic_source(source: String) -> Result<ParseSourceResult, String> {
+async fn parse_asemic_source(
+    source: String,
+    scene: SceneMetadata,
+) -> Result<ParseSourceResult, String> {
     let mut parser = TextParser::new();
-    
+
     // Load the default font
     parser.load_default_font()?;
+    parser.expression_parser.set_scene_metadata(scene);
 
     // Parse the source code
     parser.text(&source)?;

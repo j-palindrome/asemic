@@ -1,12 +1,10 @@
 import { Color, Pt } from 'pts'
-import { Parser, Scene } from './parser/Parser'
 import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
-export type { Parser } from './parser/Parser'
 
 export type AsemicData = {
-  preProcess?: Partial<Parser['preProcessing']>
-  scene?: Scene
+  preProcess?: Partial<any>
+  scene?: any
   sceneIndex?: number // Index of current scene for noise table isolation
   live: {
     keys: string[]
@@ -35,4 +33,17 @@ export type Transform = {
   s: number | (() => number)
   l: number | (() => number)
   a: number | (() => number)
+}
+
+export interface Scene {
+  code: string
+  length?: number
+  offset?: number
+  pause?: number | false
+  params?: Record<string, number[]>
+  // Runtime-only properties (not persisted):
+  scrub: number
+  [key: string]: any
+  width: number
+  height: number
 }

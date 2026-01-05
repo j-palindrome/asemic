@@ -1,8 +1,11 @@
-import { AsemicGroup, Scene } from '@/lib/parser/Parser'
 import wgslRequires from './wgsl/wgslRequires.wgsl?raw'
 import { sumBy } from 'lodash'
 import calcPosition from './wgsl/calcPosition'
-import { SceneMetadata } from '@/lib/parser/core/Output'
+
+export type AsemicGroup = {
+  points: any[][]
+  settings: any
+}
 
 export default abstract class WebGPUBrush {
   ctx: GPUCanvasContext
@@ -24,7 +27,7 @@ export default abstract class WebGPUBrush {
     imageData: ImageData[]
     transformBuffer: GPUBuffer
   } | null = null
-  settings: AsemicGroup['settings']
+  settings: any
 
   abstract get mode(): string
 

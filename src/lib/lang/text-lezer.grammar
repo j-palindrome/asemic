@@ -1,0 +1,85 @@
+@top Program { Region* }
+
+Region {
+  SquareRegion
+| ParenRegion
+| StringRegion
+| CurlyRegion
+| LineCommentContent
+| Heading
+}
+
+@precedence {
+  important, reduce
+}
+
+CurlyRegion {
+  "{" CurlyStatement (space CurlyStatement)* "}"
+}
+
+CurlyStatement {
+  ("!" | (Push Name?)) | ((Name "=" | CurlyName) (ExprChar+ | StringRegion))
+}
+
+SquareRegion {
+  "[" (ExprChar | CurlyRegion | space)* "]"
+}
+
+ExprChar {
+  Letter | Operator | Number | ExprRegion | SquareRegion
+}
+
+ExprRegion {
+  "(" (ExprChar+ ~name | Name ~name (space ExprChar+)*) ")"
+}
+
+Char {
+  Letter | Operator | Number | space
+}
+
+ParenRegion {
+  "(" Name space (Char | ParenRegion | SquareRegion | CurlyRegion | StringRegion)* ")"
+}
+
+Name {
+  (Letter)+
+}
+
+CurlyName {
+  "*" | "+" | "@"
+}
+
+StringRegion {
+  "\"" (StringContent | CurlyRegion)* "\""
+}
+
+
+@tokens {
+
+StringContent {
+  ![\"\{]
+}
+LineCommentContent {
+  (![/\(\)\[\]\{\}\"#])
+}
+Letter {
+  @asciiLetter | "\\\"" | "~" | "<" | ">" | "?" | "#"
+}
+Number {
+  @digit | "."
+}
+Operator {
+  $[\+\-\*\^\|\,\/\%\_\#]
+}
+space {
+  @whitespace
+}
+Heading {
+  "#"+ (@asciiLetter | " " | ":")+
+}
+Push {
+  "<" | ">"
+}
+
+@precedence { Operator, Push, Letter, Heading }
+}

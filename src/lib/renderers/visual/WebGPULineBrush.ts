@@ -1,6 +1,5 @@
-import { AsemicGroup } from '@/lib/parser/Parser'
 import { range } from 'lodash'
-import WebGPUBrush from './WebGPUBrush'
+import WebGPUBrush, { AsemicGroup } from './WebGPUBrush'
 
 export default class WebGPULineBrush extends WebGPUBrush {
   get mode() {

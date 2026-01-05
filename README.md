@@ -50,8 +50,6 @@ The Tauri app provides:
 ### Basic Parser Usage
 
 ```typescript
-import { Parser } from 'asemic/parser'
-
 const parser = new Parser()
 parser.parse('[0,0 1,1]') // Creates a simple line
 console.log(parser.curves) // Array of curve data

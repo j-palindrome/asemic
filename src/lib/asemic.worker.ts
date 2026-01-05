@@ -6,10 +6,8 @@ import { compileWithContext, noise, osc, shape } from './hydra-compiler'
 import { invoke } from '@tauri-apps/api/core'
 // import { generators, generators as realOsc } from 'hydra-ts'
 
-let parser: Parser = new Parser()
 let renderer: WebGPURenderer
 let offscreenCanvas: OffscreenCanvas
-let currentScene: Scene | null = null
 
 self.onmessage = (ev: MessageEvent<AsemicData>) => {
   if (ev.data.offscreenCanvas) {
@@ -24,37 +22,20 @@ self.onmessage = (ev: MessageEvent<AsemicData>) => {
   // if (!renderer?.device || !offscreenCanvas) return
   if (!offscreenCanvas) return
 
-  if (!isUndefined(ev.data.reset) && ev.data.reset) {
-    console.log('setup parser', ev.data)
-    parser.setup()
-  }
-  if (!isUndefined(ev.data.preProcess) && renderer) {
-    Object.assign(parser.preProcessing, ev.data.preProcess)
-    if (parser.preProcessing.width)
-      offscreenCanvas.width = parser.preProcessing.width
-    if (parser.preProcessing.height)
-      offscreenCanvas.height = parser.preProcessing.height
-  }
-  if (!isUndefined(ev.data.live)) {
-    Object.assign(parser.live, ev.data.live)
-  }
-  if (!isUndefined(ev.data.loadFiles)) {
-    parser.data.loadFiles(ev.data.loadFiles)
-  }
-  if (!isUndefined(ev.data.groups)) {
+  if (!isUndefined(ev.data.groups) && !isUndefined(ev.data.scene)) {
     console.log('rendering')
 
-    renderer.render(ev.data.groups)
+    renderer.render(ev.data.groups, ev.data.scene)
   }
-  if (!isUndefined(ev.data.scene)) {
-    currentScene = ev.data.scene
+  // if (!isUndefined(ev.data.scene)) {
+  //   currentScene = ev.data.scene
 
-    parser.draw(currentScene)
-    renderer.render(parser.groups)
-    if (parser.output.errors.length > 0) {
-      self.postMessage({
-        errors: parser.output.errors
-      })
-    }
-  }
+  //   parser.draw(currentScene)
+  //   renderer.render(parser.groups)
+  //   if (parser.output.errors.length > 0) {
+  //     self.postMessage({
+  //       errors: parser.output.errors
+  //     })
+  //   }
+  // }
 }

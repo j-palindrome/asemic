@@ -18,10 +18,10 @@ impl Utilities for TextParser {
     /// * `callback` - Function or expression to draw content to be aligned
     fn align(&mut self, coords: &str, align_type: &str, callback: &str) -> Result<(), String> {
         // Parse center coordinates
-        let (center_x, center_y) = self.expression_parser.expr_point(&coords)?;
+        let (center_x, center_y) = self.expression_parser.expr_point(&coords, None)?;
 
         // Evaluate alignment values
-        let (align_x, align_y) = self.expression_parser.expr_point(&align_type)?;
+        let (align_x, align_y) = self.expression_parser.expr_point(&align_type, None)?;
 
         // Store the starting curve index before executing callback
         let start_curve = self.groups.last().map(|g| g.points.len()).unwrap_or(0);

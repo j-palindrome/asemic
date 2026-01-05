@@ -19,6 +19,7 @@ import {
 import {
   act,
   MouseEventHandler,
+  use,
   useEffect,
   useMemo,
   useRef,
@@ -176,12 +177,6 @@ function AsemicAppInner({
     setErrors([])
   }, [activeScene, scenesArray[activeScene]?.code])
 
-  const animationFrameRef = useRef<number | null>(null)
-  const globalTimeRef = useRef<number>(0) // Global time counter, always incrementing
-
-  // const client = useMemo(() => new Client('localhost', 57120), [])
-  const [isSetup, setIsSetup] = useState(false)
-
   useEffect(() => {
     if (!asemic.current) {
       asemic.current = new Asemic(data => {
@@ -196,15 +191,9 @@ function AsemicAppInner({
           setScenes(data.scenes)
         }
       })
+      asemic.current.setup(canvas.current)
     }
   }, [asemic])
-
-  useEffect(() => {
-    setIsSetup(true)
-  }, [])
-
-  // Animation loop - updates parser and OSC
-  const lastFrameTimeRef = useRef<number>(performance.now())
 
   useEffect(() => {
     const newScrubs = [...scrubValues]
@@ -265,125 +254,117 @@ function AsemicAppInner({
   }, [activeScene])
 
   useEffect(() => {
-    const animate = async () => {
-      try {
-        const now = performance.now()
-        const deltaTime = (now - lastFrameTimeRef.current) / 1000
-        lastFrameTimeRef.current = now
+    let frameReady = true
+    const draw = () => {
+      // frameReady = false
+      // Evaluate OSC expressions if present
+      const sceneSettings = scenesArray[activeSceneRef.current]
+      const currentSceneSettings = scenesArray[activeSceneRef.current]
+      const boundingRect = canvas.current.getBoundingClientRect()
+      devicePixelRatio = 2
 
-        // Global time always increments
-        globalTimeRef.current += deltaTime
+      // canvas.current.width = boundingRect.width * devicePixelRatio
+      // canvas.current.height = boundingRect.height * devicePixelRatio
 
-        // Update parser with current scene
-        const preProcess = {
-          replacements: {}
-        } as Parser['preProcessing']
+      const width = (boundingRect.width || 1080) * devicePixelRatio
+      const height = (boundingRect.height || 1080) * devicePixelRatio
+      const currentScene: Scene = {
+        code: currentSceneSettings.code || '',
+        length: currentSceneSettings.length,
+        offset: currentSceneSettings.offset,
+        pause: currentSceneSettings.pause,
+        params: scrubValuesRef.current[activeSceneRef.current]!.params,
+        scrub:
+          (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
+          (currentSceneSettings.length || 0.1),
+        width,
+        height
+      }
+      // const curves: any = await invoke('parse_asemic_source', {
+      //   source: currentScene.code,
+      //   metadata: currentScene
+      // })
+      invoke('parse_asemic_source', {
+        source: currentScene.code,
+        metadata: currentScene
+      }).then(curves => {
+        asemic.current!.postMessage({
+          groups: curves.groups as any,
+          scene: currentScene
+        })
+      })
 
-        if (activeSceneRef.current < scenesArray.length) {
-          const currentSceneSettings = scenesArray[activeSceneRef.current]
-          const currentScene: Scene = {
-            code: currentSceneSettings.code || '',
-            length: currentSceneSettings.length,
-            offset: currentSceneSettings.offset,
-            pause: currentSceneSettings.pause,
-            params: scrubValuesRef.current[activeSceneRef.current]!.params,
-            scrub:
-              (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
-              (currentSceneSettings.length || 0.1)
-          }
+      // console.log(curves)
 
-          asemic.current?.postMessage({
-            // scene: currentScene,
-            // sceneIndex: activeSceneRef.current,
-            // preProcess
-          })
-          // console.log('drawing scene', currentScene)
+      for (const [paramName, paramValue] of Object.entries(
+        globalSettings.params || {}
+      )) {
+        if (!paramValue?.oscPath) continue
+
+        // Skip if value hasn't changed from last sent value
+        const lastSentValue = sentValuesRef.current[paramName]
+        const value =
+          scrubValuesRef.current[activeSceneRef.current]!.params[paramName]
+        if (isEqual(lastSentValue, value)) {
+          continue
         }
 
-        // Evaluate OSC expressions if present
-        const sceneSettings = scenesArray[activeSceneRef.current]
-        const curves: any = await invoke('parse_asemic_source', {
-          source: sceneSettings.code || ''
+        invoke<number>('parser_eval_expression', {
+          expr: value.join(','),
+          oscAddress: globalSettings.params[paramName].oscPath,
+          oscHost: 'localhost',
+          oscPort: 57120,
+          sceneMetadata: currentScene
         })
 
-        console.log(curves)
-        asemic.current?.postMessage({ groups: curves.groups as any })
-        for (const [paramName, paramValue] of Object.entries(
-          globalSettings.params || {}
-        )) {
-          if (!paramValue?.oscPath) continue
+        sentValuesRef.current[paramName] = [...value]
+      }
+      for (const group of sceneSettings.oscGroups || []) {
+        const oscHost = group.oscHost || 'localhost'
+        const oscPort = group.oscPort || 57120
 
-          // Skip if value hasn't changed from last sent value
-          const lastSentValue = sentValuesRef.current[paramName]
-          const value =
-            scrubValuesRef.current[activeSceneRef.current]!.params[paramName]
-          if (isEqual(lastSentValue, value)) {
+        // Process OSC messages in group sequentially
+        for (const oscMsg of group.osc || []) {
+          // Skip if once flag is set and value exists
+          if (oscMsg.play === 'once' && sentValuesRef.current[oscMsg.name]) {
             continue
           }
 
-          await invoke<number>('parser_eval_expression', {
-            expr: value.join(','),
-            oscAddress: globalSettings.params[paramName].oscPath,
-            oscHost: 'localhost',
-            oscPort: 57120,
-            sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
-          })
-
-          sentValuesRef.current[paramName] = [...value]
-        }
-        for (const group of sceneSettings.oscGroups || []) {
-          const oscHost = group.oscHost || 'localhost'
-          const oscPort = group.oscPort || 57120
-
-          // Process OSC messages in group sequentially
-          for (const oscMsg of group.osc || []) {
-            // Skip if once flag is set and value exists
-            if (oscMsg.play === 'once' && sentValuesRef.current[oscMsg.name]) {
-              continue
-            }
-
-            const result = await invoke<number>('parser_eval_expression', {
-              expr: oscMsg.value.toString(),
-              oscAddress: oscMsg.name,
-              oscHost: oscHost,
-              oscPort: oscPort,
-              sceneMetadata: scrubValuesRef.current[activeSceneRef.current]!
-            })
+          const result = invoke<number>('parser_eval_expression', {
+            expr: oscMsg.value.toString(),
+            oscAddress: oscMsg.name,
+            oscHost: oscHost,
+            oscPort: oscPort,
+            sceneMetadata: currentScene
+          }).then(result => {
             sentValuesRef.current[oscMsg.name] = [result]
-          }
+          })
         }
-      } catch (error) {
-        console.error('Animation loop error:', error)
       }
-
-      // animationFrameRef.current = requestAnimationFrame(animate)
+      frameReady = true
     }
 
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current)
+    let frame: number | null = null
+    const animate = () => {
+      if (frameReady) {
+        draw()
+      }
+      frame = requestAnimationFrame(animate)
     }
-    if (isSetup) {
-      lastFrameTimeRef.current = performance.now()
-      animationFrameRef.current = requestAnimationFrame(animate)
-    }
+    frameReady = true
+    frame = requestAnimationFrame(animate)
 
     return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
+      if (frame !== null) {
+        cancelAnimationFrame(frame)
       }
     }
-  }, [isSetup, scenesArray, activeScene])
+  }, [scenesArray, activeScene])
 
   const [deletedScene, setDeletedScene] = useState<{
     scene: SceneSettings
     index: number
   } | null>(null)
-
-  // Extract settings from active scene
-  useEffect(() => {
-    asemic.current?.postMessage({ reset: true })
-  }, [activeScene])
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: SceneSettings) => {
@@ -490,38 +471,6 @@ function AsemicAppInner({
       requestFullscreen()
     }
   }, [settings.perform])
-
-  useEffect(() => {
-    const onResize = () => {
-      const boundingRect = canvas.current.getBoundingClientRect()
-      devicePixelRatio = 2
-
-      // canvas.current.width = boundingRect.width * devicePixelRatio
-      // canvas.current.height = boundingRect.height * devicePixelRatio
-
-      const width = (boundingRect.width || 1080) * devicePixelRatio
-      const height = (boundingRect.height || 1080) * devicePixelRatio
-
-      asemic.current!.postMessage({
-        preProcess: {
-          width,
-          height
-        }
-      })
-    }
-    if (asemic.current) {
-      asemic.current.setup(canvas.current)
-      const resizeObserver = new ResizeObserver(onResize)
-      resizeObserver.observe(canvas.current)
-
-      window.addEventListener('resize', onResize)
-      onResize()
-      return () => {
-        resizeObserver.disconnect()
-        window.removeEventListener('resize', onResize)
-      }
-    }
-  }, [showCanvas, asemic])
 
   return (
     <div className='asemic-container relative group'>

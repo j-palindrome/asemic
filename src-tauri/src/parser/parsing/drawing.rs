@@ -362,9 +362,9 @@ impl DrawingMixin for TextParser {
         // Default settings: mode=line, vert=0,0, curve=true, count=100, correction=0, close=false
         let mut mode = "line".to_string();
         let mut vert = "0,0".to_string();
+        let mut a = None;
         let mut curve_str = "true".to_string();
         let mut count = 100;
-        let mut correction = 0.0;
         let mut close = false;
 
         // Parse key=value pairs from arguments
@@ -376,19 +376,15 @@ impl DrawingMixin for TextParser {
                 match key {
                     "mode" => mode = value.to_string(),
                     "vert" => vert = value.to_string().replace("\"", ""),
+                    "a" => a = Some(value.to_string().replace("\"", "")),
                     "curve" => curve_str = value.to_string(),
                     "count" => {
                         if let Ok(n) = value.parse::<usize>() {
                             count = n;
                         }
                     }
-                    "correction" => {
-                        if let Ok(n) = value.parse::<f64>() {
-                            correction = n;
-                        }
-                    }
                     "close" => close = value.parse::<bool>().unwrap_or(false),
-                    _ => {} // Ignore unknown keys
+                    _ => return Err(format!("Unknown key in group settings: {}", key)), // Ignore unknown keys
                 }
             }
         }
@@ -398,15 +394,10 @@ impl DrawingMixin for TextParser {
             points: vec![Vec::new()],
             settings: crate::parser::parsing::text_parser::GroupSettings {
                 mode,
-                texture: None,
-                a: None,
-                synth: None,
-                xy: None,
-                wh: None,
+                a,
                 vert,
                 curve: curve_str,
                 count: count as i32,
-                correction,
                 close: Some(close),
                 blend: None,
             },

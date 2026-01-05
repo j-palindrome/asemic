@@ -2,6 +2,7 @@ use crate::parser::methods::asemic_pt::AsemicPt;
 use crate::parser::methods::asemic_pt::BasicPt;
 pub use crate::parser::methods::expression_eval::ExpressionEval;
 use crate::parser::methods::transforms::Transform;
+use crate::parser::methods::transforms::Transforms;
 use rosc::{encoder, OscMessage, OscPacket, OscType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,6 +12,8 @@ use std::net::UdpSocket;
 pub struct SceneMetadata {
     pub scrub: f64,
     pub params: HashMap<String, Vec<f64>>,
+    pub height: f64,
+    pub width: f64,
 }
 
 /// A static expression parser for Asemic expressions.
@@ -96,7 +99,7 @@ impl ExpressionParser {
 
         // Handle polar notation '@theta,radius'
         if point.starts_with('@') {
-            let parts = self.expr_point(&point[1..]).unwrap();
+            let parts = self.expr_point(&point[1..], None).unwrap();
             let theta = parts.0;
             let radius = parts.1;
 
@@ -105,7 +108,7 @@ impl ExpressionParser {
             return Ok(pt);
         }
 
-        let parts = self.expr_point(&point).map_err(|e| {
+        let parts = self.expr_point(&point, None).map_err(|e| {
             format!(
                 "eval_point: Failed to evaluate point expression '{}': {}",
                 this_point, e
@@ -130,6 +133,8 @@ impl ExpressionParser {
             scene_metadata: SceneMetadata {
                 scrub: 0.0,
                 params: HashMap::new(),
+                height: 1080.0,
+                width: 1920.0,
             },
             cache_max_size: 1000, // Limit cache to 1000 entries
             transforms: vec![Transform::new()],
@@ -162,6 +167,16 @@ impl ExpressionParser {
             .get(name)
             .and_then(|v| v.get(index))
             .copied();
+    }
+
+    pub fn get_constant(&mut self, name: &str) -> Option<f64> {
+        let transform = self.peek_transform();
+        if let Some(value_str) = transform.constants.get(name) {
+            if let Ok(value) = self.expr(value_str) {
+                return Some(value);
+            }
+        }
+        None
     }
 
     /// Main expression evaluation function

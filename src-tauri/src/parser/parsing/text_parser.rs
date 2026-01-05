@@ -8,15 +8,10 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupSettings {
     pub mode: String, // 'line' | 'fill' | 'blank'
-    pub texture: Option<String>,
     pub a: Option<String>,
-    pub synth: Option<String>,
-    pub xy: Option<String>,
-    pub wh: Option<String>,
     pub vert: String,
     pub curve: String, // 'true' | 'false'
     pub count: i32,
-    pub correction: f64,
     pub close: Option<bool>,
     pub blend: Option<bool>,
 }
@@ -118,15 +113,10 @@ impl TextParser {
                 points: new_points,
                 settings: GroupSettings {
                     mode: "line".to_string(),
-                    texture: None,
                     a: None,
-                    synth: None,
-                    xy: None,
-                    wh: None,
                     vert: "0,0".to_string(),
                     curve: "true".to_string(),
                     count: 100,
-                    correction: 0.0,
                     close: Some(false),
                     blend: None,
                 },

@@ -40,6 +40,20 @@ impl TextMethods for TextParser {
                     parser.repeat(args[0], args[1])?
                 }
                 "align" => parser.align(args[0], args[1], args[2])?,
+                "choose" => {
+                    if args.len() < 2 {
+                        return Err("choose requires at least 2 arguments".to_string());
+                    }
+                    let mut sample = parser.expression_parser.expr(args[0])?;
+                    if sample < 0.0 {
+                        sample = 0.0;
+                    }
+                    if sample >= 1.0 {
+                        sample = 0.9999;
+                    }
+                    let index = (sample * (args.len() - 1) as f64).floor() as usize;
+                    parser.text(args[index + 1])?
+                }
                 _ => return Err(format!("text: Unknown function: {}", func_name)),
             }
 
@@ -171,16 +185,23 @@ impl TextMethods for TextParser {
                     let parts: Vec<&str> = token.splitn(2, '=').collect();
                     if parts.len() == 2 {
                         let key = parts[0];
-                        let value = parts[1];
+                        let mut value = parts[1];
+                        let mut dynamic = false;
+                        if value.starts_with(">") {
+                            dynamic = true;
+                            value = &value[1..];
+                        } else {
+                            dynamic = false;
+                        }
 
-                        parser.expression_parser.modify_transform(|t| {
-                            match key {
-                                "h" => t.h = value.to_string(),
-                                "s" => t.s = value.to_string(),
-                                "l" => t.l = value.to_string(),
-                                "a" => t.a = value.to_string(),
-                                "w" => t.w = value.to_string(),
-                                _ => {} // Custom constants would be handled here
+                        parser.expression_parser.modify_transform(|t| match key {
+                            "h" => t.h = value.to_string(),
+                            "s" => t.s = value.to_string(),
+                            "l" => t.l = value.to_string(),
+                            "a" => t.a = value.to_string(),
+                            "w" => t.w = value.to_string(),
+                            _ => {
+                                t.constants.insert(key.to_string(), value.to_string());
                             }
                         })?;
                     }

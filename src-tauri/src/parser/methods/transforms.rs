@@ -16,7 +16,6 @@ pub struct Transform {
     pub s: String,
     pub l: String,
     pub a: String,
-    pub constants: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +45,6 @@ impl Transform {
             s: "0.0".to_string(),
             l: "1.0".to_string(),
             a: "1.0".to_string(),
-            constants: std::collections::HashMap::new(),
         }
     }
 

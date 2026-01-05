@@ -1,12 +1,27 @@
 import { Color, Pt } from 'pts'
-import { AsemicGroup, Parser, Scene } from './parser/Parser'
+import { Parser, Scene } from './parser/Parser'
 import { BasicPt } from './blocks/AsemicPt'
 import { InputSchema } from '../renderer/inputSchema'
 export type { Parser } from './parser/Parser'
 
 export type AsemicData = {
+  preProcess?: Partial<Parser['preProcessing']>
   scene?: Scene
-  groups?: AsemicGroup[]
+  sceneIndex?: number // Index of current scene for noise table isolation
+  live: {
+    keys: string[]
+    index: { value: number }
+  }
+  reset?: true
+  play?: boolean | { pauseAt: number }
+  mouse?: { x: number; y: number; cursorPosition: number }
+  offscreenCanvas?: OffscreenCanvas
+  startRecording?: boolean
+  stopRecording?: boolean
+  params?: InputSchema['params']
+  presets?: InputSchema['presets']
+  files?: Record<string, string>
+  loadFiles?: Record<string, ImageData[]>
 }
 
 export type Transform = {

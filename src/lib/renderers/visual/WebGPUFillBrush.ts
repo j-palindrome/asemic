@@ -10,7 +10,7 @@ export default class WebGPUFillBrush extends WebGPUBrush {
     // Create a buffer to store vertex data
 
     const indices = new Uint32Array(
-      range(curves.points.length).flatMap(i =>
+      range(curves.length).flatMap(i =>
         range(99).flatMap(x => [
           i * 200,
           i * 200 + x * 2 + 1,

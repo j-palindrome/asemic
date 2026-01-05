@@ -40,14 +40,14 @@ export default class Asemic {
     this.worker = new AsemicWorker({ name: 'asemic' })
 
     this.worker.onmessage = (evt: { data: Partial<Parser['output']> }) => {
-      // if (evt.data.ready) {
-      //   this.ready = true
-      //   for (const data of this.messageQueue) {
-      //     console.log('posting queued message')
-      //     this.postMessage(data)
-      //   }
-      //   this.messageQueue = []
-      // }
+      if (evt.data.ready) {
+        this.ready = true
+        for (const data of this.messageQueue) {
+          console.log('posting queued message')
+          this.postMessage(data)
+        }
+        this.messageQueue = []
+      }
       if (onmessage) onmessage(evt.data)
     }
   }

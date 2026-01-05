@@ -30,9 +30,6 @@ export interface Scene {
   offset?: number
   pause?: number | false
   params?: Record<string, number[]>
-  scrub: number
-  width: number
-  height: number
   // Runtime-only properties (not persisted):
   // scrub?: number - Current playback position within scene (calculated from global progress)
   [key: string]: any
@@ -286,7 +283,7 @@ export class Parser {
           lastCurve =
             this.groups[this.groups.length - 1][
               exprN < 0
-                ? this.groups[this.groups.length - 1].points.length + exprN
+                ? this.groups[this.groups.length - 1].length + exprN
                 : exprN
             ]
         }
@@ -470,7 +467,6 @@ export class Parser {
     const allCurves = this.groups.flat()
     const c = allCurves
       .slice(slice)
-      .map(x => x.points)
       .map(
         curve =>
           `[${curve.map(x => `${toFixed(x[0])},${toFixed(x[1])}`).join(' ')}]`

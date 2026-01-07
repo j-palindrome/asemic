@@ -1,9 +1,13 @@
 use regex::Regex;
+use std::collections::HashMap;
 use string_replace_all::string_replace_all;
 
 use super::drawing::DrawingMixin;
 use crate::parser::{
-    methods::{asemic_pt::BasicPt, transforms::Transforms},
+    methods::{
+        asemic_pt::{AsemicPt, BasicPt},
+        transforms::Transforms,
+    },
     parsing::utilities::Utilities,
     ExpressionEval, TextParser, TokenizeOptions,
 };
@@ -14,203 +18,6 @@ pub trait TextMethods {
 
 impl TextMethods for TextParser {
     fn text(&mut self, token: &str) -> Result<(), String> {
-        fn parse_function_call(parser: &mut TextParser, func_call: &str) -> Result<(), String> {
-            let parts = parser.tokenizer.tokenize(
-                func_call,
-                Some(TokenizeOptions {
-                    ..Default::default()
-                }),
-            );
-            if parts.is_empty() {
-                return Ok(());
-            }
-
-            let func_name: &str = parts[0].as_str();
-            let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
-
-            // Map of supported functions
-            match func_name {
-                "circle" => parser.circle(&args)?,
-                "group" => parser.group(&args)?,
-                "repeat" => {
-                    if args.len() < 2 {
-                        return Err("repeat requires count and callback arguments".to_string());
-                    }
-
-                    parser.repeat(args[0], args[1])?
-                }
-                "align" => parser.align(args[0], args[1], args[2])?,
-                "choose" => {
-                    if args.len() < 2 {
-                        return Err("choose requires at least 2 arguments".to_string());
-                    }
-                    let mut sample = parser.expression_parser.expr(args[0])?;
-                    if sample < 0.0 {
-                        sample = 0.0;
-                    }
-                    if sample >= 1.0 {
-                        sample = 0.9999;
-                    }
-                    let index = (sample * (args.len() - 1) as f64).floor() as usize;
-                    parser.text(args[index + 1])?
-                }
-                _ => return Err(format!("text: Unknown function: {}", func_name)),
-            }
-
-            Ok(())
-        }
-
-        fn parse_transform(content: &str, parser: &mut TextParser) -> Result<(), String> {
-            // Check if this is a font definition: {fontname ...}
-            // Font names are lowercase words followed by whitespace
-            if let Some(space_index) = content.find(|c: char| c.is_whitespace()) {
-                let potential_font_name = &content[..space_index];
-                // Check if it's a valid font name (all lowercase letters)
-                if !potential_font_name.is_empty()
-                    && potential_font_name.chars().all(|c| c.is_ascii_lowercase())
-                {
-                    // This looks like a font definition
-                    let font_content = content[space_index..].trim();
-                    parser.parse_font(potential_font_name, font_content)?;
-                    return Ok(());
-                }
-            }
-
-            // Tokenize by whitespace
-            let tokenized = parser.tokenizer.tokenize_points(content);
-            let tokens: Vec<&str> = tokenized.iter().map(|x| x.as_str()).collect();
-
-            for token in tokens {
-                // Handle special character prefixes
-                if token.starts_with('<') {
-                    parser.expression_parser.pop_transform();
-                    continue;
-                }
-
-                if token.starts_with('>') {
-                    parser.expression_parser.push_transform();
-                    continue;
-                }
-
-                // Handle scale: *value or *[x y]
-                if token.starts_with('*') && !token.starts_with("*!") {
-                    let value_str = &token[1..];
-                    if let Ok(val) = parser.expression_parser.expr_list(&value_str) {
-                        parser.expression_parser.modify_transform(|t| {
-                            t.scale.scale(
-                                BasicPt::new(val[0], val.get(1).cloned().unwrap_or(val[0])),
-                                None,
-                            );
-                        })?;
-                    }
-                    continue;
-                }
-
-                // Handle rotation: @value
-                if token.starts_with('@') && !token.starts_with("@!") {
-                    let value_str = &token[1..];
-                    if let Ok(val) = value_str.parse::<f64>() {
-                        parser.expression_parser.modify_transform(|t| {
-                            t.rotation += val;
-                        })?;
-                    }
-                    continue;
-                }
-
-                // Handle translation: +[x y] or +value
-                if token.starts_with('+') && !token.starts_with("+!") && !token.starts_with("+=>") {
-                    let value_str = &token[1..];
-                    let mut val = parser.expression_parser.eval_point(&value_str)?;
-                    val.scale(parser.expression_parser.peek_transform().scale, None);
-                    val.rotate(parser.expression_parser.peek_transform().rotation, None);
-                    parser.expression_parser.modify_transform(|t| {
-                        t.translate.add(val);
-                    })?;
-
-                    continue;
-                }
-
-                // Handle reset operations
-                match token {
-                    "!" => {
-                        // Reset all transformations
-                        parser.expression_parser.modify_transform(|t| {
-                            t.scale = crate::parser::methods::asemic_pt::BasicPt { x: 1.0, y: 1.0 };
-                            t.translate =
-                                crate::parser::methods::asemic_pt::BasicPt { x: 0.0, y: 0.0 };
-                            t.rotation = 0.0;
-                            t.add = None;
-                            t.rotate = None;
-                        })?;
-                    }
-                    "*!" => {
-                        // Reset scale
-                        parser.expression_parser.modify_transform(|t| {
-                            t.scale = crate::parser::methods::asemic_pt::BasicPt { x: 1.0, y: 1.0 };
-                        })?;
-                    }
-                    "@!" => {
-                        // Reset rotation
-                        parser.expression_parser.modify_transform(|t| {
-                            t.rotation = 0.0;
-                        })?;
-                    }
-                    "+!" => {
-                        // Reset translation
-                        parser.expression_parser.modify_transform(|t| {
-                            t.translate =
-                                crate::parser::methods::asemic_pt::BasicPt { x: 0.0, y: 0.0 };
-                        })?;
-                    }
-                    _ => {}
-                }
-
-                // Handle dynamic transforms: @=> or +=>
-                if token.starts_with("+=>") {
-                    parser.expression_parser.modify_transform(|t| {
-                        t.add = Some(token[3..].to_string());
-                    })?;
-                    continue;
-                }
-
-                if token.starts_with("@=>") {
-                    parser.expression_parser.modify_transform(|t| {
-                        t.rotate = Some(token[3..].to_string());
-                    })?;
-                    continue;
-                }
-
-                // Handle key-value pairs: key=value or key=>value
-                if token.contains('=') {
-                    let parts: Vec<&str> = token.splitn(2, '=').collect();
-                    if parts.len() == 2 {
-                        let key = parts[0];
-                        let mut value = parts[1];
-                        let mut dynamic = false;
-                        if value.starts_with(">") {
-                            dynamic = true;
-                            value = &value[1..];
-                        } else {
-                            dynamic = false;
-                        }
-
-                        parser.expression_parser.modify_transform(|t| match key {
-                            "h" => t.h = value.to_string(),
-                            "s" => t.s = value.to_string(),
-                            "l" => t.l = value.to_string(),
-                            "a" => t.a = value.to_string(),
-                            "w" => t.w = value.to_string(),
-                            _ => {
-                                t.constants.insert(key.to_string(), value.to_string());
-                            }
-                        })?;
-                    }
-                }
-            }
-
-            Ok(())
-        }
-
         fn process_string(
             content: &str,
             add_mode: bool,
@@ -280,7 +87,7 @@ impl TextMethods for TextParser {
                         i += 1;
                     }
                     let nested_content: String = chars[(start + 1)..(i - 1)].iter().collect();
-                    parse_transform(&nested_content, parser)?;
+                    parser.parse_transform(&nested_content)?;
                     continue;
                 } else {
                     this_char = chars[i].to_string();
@@ -400,9 +207,6 @@ impl TextMethods for TextParser {
             Ok(())
         }
 
-        let regex = Regex::new("//.*").unwrap();
-        let token = string_replace_all(token, &regex, "");
-
         let token_length = token.len();
         let chars: Vec<char> = token.chars().collect();
         let mut i = 0;
@@ -433,7 +237,6 @@ impl TextMethods for TextParser {
                 let start = i;
                 let mut parentheses = 1;
                 i += 1;
-                println!("Found function call starting at index {}", start);
 
                 while i < token_length && parentheses > 0 {
                     if chars[i] == '(' {
@@ -457,10 +260,9 @@ impl TextMethods for TextParser {
                     return Err("text: Missing ) in function call".to_string());
                 }
 
-                println!("Evaluating function: {}", token);
                 let end = i;
                 let func_call: String = chars[(start + 1)..end].iter().collect();
-                parse_function_call(self, &func_call)?;
+                self.parse_function_call(&func_call)?;
                 i += 1;
                 continue;
             }
@@ -491,16 +293,39 @@ impl TextMethods for TextParser {
 
                 // Process each point - check if it's a transform or a point
                 let points: Vec<String> = self.tokenizer.tokenize_points(&content.as_str());
-                for point in points {
+                let point_exprs: Vec<_> = points
+                    .iter()
+                    .filter(|p| !(p.starts_with('{') && p.ends_with('}')))
+                    .collect();
+                let amount_of_points = point_exprs.len();
+                let mut j = 0.0;
+                for point in &points {
+                    self.expression_parser.point = j / (amount_of_points as f64 - 1.0);
                     if point.starts_with('{') && point.ends_with('}') {
                         // Parse as transform
                         let transform_content = &point[1..point.len() - 1];
-                        parse_transform(transform_content, self)?;
+                        self.parse_transform(transform_content)?;
                     } else {
                         // Add as point
-                        let mut pt = self.parse_point(&mut point.as_str())?;
-                        self.add_point(pt);
+                        let pts = self.parse_point(&mut point.as_str())?;
+                        for pt in pts {
+                            self.add_point(pt);
+                        }
+                        if j == 0.0 && amount_of_points == 2 {
+                            // fill out a 3-point curve
+                            let p0 = self.current_curve[0];
+                            let p1_pts = self.parse_point(&mut point_exprs[1].as_str())?;
+                            let p1 = p1_pts.first().ok_or("No point returned")?;
+                            let mut lerped = *p0.clone().lerp(*p1, 0.5);
+                            self.expression_parser.point = 0.5;
+                            self.current_curve.insert(
+                                1,
+                                self.expression_parser.generate_point(&lerped.basic_pt())?,
+                            );
+                        }
                     }
+
+                    j += 1.0;
                 }
 
                 // Handle operators after bracket
@@ -546,7 +371,7 @@ impl TextMethods for TextParser {
                 let end = i;
                 let content: String = chars[(start + 1)..end].iter().collect();
 
-                parse_transform(&content, self)?;
+                self.parse_transform(&content)?;
 
                 i += 1;
 
@@ -589,7 +414,7 @@ impl TextMethods for TextParser {
                         }
                         let nested_content: String =
                             chars[(nested_start + 1)..(i - 1)].iter().collect();
-                        parse_transform(&nested_content, self);
+                        self.parse_transform(&nested_content);
                         i += 1;
                         continue;
                     }
@@ -608,6 +433,292 @@ impl TextMethods for TextParser {
             }
 
             i += 1;
+        }
+
+        Ok(())
+    }
+}
+
+impl TextParser {
+    pub fn parse_function_call(&mut self, func_call: &str) -> Result<(), String> {
+        let parts = self.tokenizer.tokenize(
+            func_call,
+            Some(TokenizeOptions {
+                ..Default::default()
+            }),
+        );
+        if parts.is_empty() {
+            return Ok(());
+        }
+
+        let func_name: &str = parts[0].as_str();
+        let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
+
+        // Map of supported functions
+        match func_name {
+            "circle" => self.circle(&args)?,
+            "group" => self.group(&args)?,
+            "repeat" => {
+                if args.len() < 2 {
+                    return Err("repeat requires count and callback arguments".to_string());
+                }
+
+                self.repeat(args[0], args[1])?
+            }
+            "align" => self.align(args[0], args[1], args[2])?,
+            "choose" => {
+                if args.len() < 2 {
+                    return Err("choose requires at least 2 arguments".to_string());
+                }
+                let mut sample = self.expression_parser.expr(args[0])?;
+                if sample < 0.0 {
+                    sample = 0.0;
+                }
+                if sample >= 1.0 {
+                    sample = 0.9999;
+                }
+                let index = (sample * (args.len() - 1) as f64).floor() as usize;
+
+                self.text(args[index + 1])?
+            }
+            "?" => {
+                if args.len() < 3 {
+                    return Err(
+                        "? requires condition, true_case, and false_case arguments".to_string()
+                    );
+                }
+                let condition = self.expression_parser.expr(args[0])?;
+                if condition > 0.0 {
+                    self.text(args[1])?
+                } else {
+                    self.text(args[2])?
+                }
+            }
+            "remap" => {
+                if args.len() < 2 {
+                    return Err("remap requires two point arguments".to_string());
+                }
+                let pt0_vec = self.parse_point(&mut args[0].clone())?;
+                let pt0 = pt0_vec.first().ok_or("No first point returned")?;
+                let pt1_vec = self.parse_point(&mut args[1].clone())?;
+                let pt1 = pt1_vec.first().ok_or("No second point returned")?;
+
+                // Calculate angle and distance
+                let dx = pt1.x - pt0.x;
+                let dy = pt1.y - pt0.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                let angle = dy.atan2(dx) / (std::f64::consts::PI * 2.0);
+
+                self.expression_parser.modify_transform(|t| {
+                    t.translate.x = pt0.x;
+                    t.translate.y = pt0.y;
+                    t.rotation = angle;
+                    t.scale = BasicPt::new(distance, distance);
+                })?
+            }
+            "end" => self.end_curve(false)?,
+            "linden" => {
+                if args.len() < 3 {
+                    return Err("linden requires at least 3 arguments".to_string());
+                }
+                let iter_count = self.expression_parser.expr(args[0])? as usize;
+
+                // Parse remaining arguments into HashMap (key=value pairs)
+                let mut params: HashMap<String, String> = HashMap::new();
+                let axiom = args.get(1).cloned().unwrap_or("A").to_string();
+
+                for arg in &args[2..] {
+                    if let Some(eq_pos) = arg.find('=') {
+                        let key = arg[..eq_pos].trim().to_string();
+                        let value = arg[eq_pos + 1..].trim().to_string();
+                        params.insert(key, value);
+                    }
+                }
+
+                // Apply L-system iterations
+                let mut current = axiom;
+                for _ in 0..iter_count {
+                    let mut next = String::new();
+                    for ch in current.chars() {
+                        if let Some(replacement) = params.get(&ch.to_string()) {
+                            next.push_str(replacement);
+                        } else {
+                            next.push(ch);
+                        }
+                    }
+                    current = next;
+                }
+
+                // Process the resulting string as drawing commands
+                self.text(&format!("\"{}\"", current))?
+            }
+            _ => {
+                return Err(format!(
+                    "text: Unknown function {} in {}",
+                    func_name, func_call
+                ))
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn parse_transform(&mut self, content: &str) -> Result<(), String> {
+        // Check if this is a font definition: {fontname ...}
+        // Font names are lowercase words followed by whitespace
+        if let Some(space_index) = content.find(|c: char| c.is_whitespace()) {
+            let potential_font_name = &content[..space_index];
+            // Check if it's a valid font name (all lowercase letters)
+            if !potential_font_name.is_empty()
+                && potential_font_name.chars().all(|c| c.is_ascii_lowercase())
+            {
+                // This looks like a font definition
+                let font_content = content[space_index..].trim();
+                self.parse_font(potential_font_name, font_content)?;
+                return Ok(());
+            }
+        }
+
+        // Tokenize by whitespace
+        let tokenized = self.tokenizer.tokenize_points(content);
+        let tokens: Vec<&str> = tokenized.iter().map(|x| x.as_str()).collect();
+
+        for token in tokens {
+            // Handle special character prefixes
+            if token.starts_with('<') {
+                self.expression_parser.pop_transform();
+                continue;
+            }
+
+            if token.starts_with('>') {
+                self.expression_parser.push_transform();
+                continue;
+            }
+
+            // Handle scale: *value or *[x y]
+            if token.starts_with('*') && !token.starts_with("*!") {
+                let value_str = &token[1..];
+                if let Ok(val) = self.expression_parser.expr_point(&value_str, None) {
+                    self.expression_parser.modify_transform(|t| {
+                        t.scale.scale(BasicPt::new(val.0, val.1), None);
+                    })?;
+                }
+                continue;
+            }
+
+            // Handle rotation: @value
+            if token.starts_with('@') && !token.starts_with("@!") {
+                let value_str = &token[1..];
+                let val = self.expression_parser.expr(&value_str)?;
+                self.expression_parser.modify_transform(|t| {
+                    t.rotation += val;
+                })?;
+
+                continue;
+            }
+
+            // Handle translation: +[x y] or +value
+            if token.starts_with('+') && !token.starts_with("+!") && !token.starts_with("+=>") {
+                let value_str = &token[1..];
+                let mut val = self.expression_parser.eval_point(&value_str)?;
+                val.scale(self.expression_parser.peek_transform().scale, None);
+                val.rotate(self.expression_parser.peek_transform().rotation, None);
+                self.expression_parser.modify_transform(|t| {
+                    t.translate.add(val);
+                })?;
+
+                continue;
+            }
+
+            // Handle reset operations
+            match token {
+                "!" => {
+                    // Reset all transformations
+                    self.expression_parser.modify_transform(|t| {
+                        t.scale = crate::parser::methods::asemic_pt::BasicPt { x: 1.0, y: 1.0 };
+                        t.translate = crate::parser::methods::asemic_pt::BasicPt { x: 0.0, y: 0.0 };
+                        t.rotation = 0.0;
+                        t.add = None;
+                        t.rotate = None;
+                        t.a = "1".to_string();
+                        t.h = "0".to_string();
+                        t.s = "0".to_string();
+                        t.l = "1".to_string();
+                        t.w = "px".to_string();
+                    })?;
+                }
+                "*!" => {
+                    // Reset scale
+                    self.expression_parser.modify_transform(|t| {
+                        t.scale = crate::parser::methods::asemic_pt::BasicPt { x: 1.0, y: 1.0 };
+                    })?;
+                }
+                "@!" => {
+                    // Reset rotation
+                    self.expression_parser.modify_transform(|t| {
+                        t.rotation = 0.0;
+                    })?;
+                }
+                "+!" => {
+                    // Reset translation
+                    self.expression_parser.modify_transform(|t| {
+                        t.translate = crate::parser::methods::asemic_pt::BasicPt { x: 0.0, y: 0.0 };
+                    })?;
+                }
+                _ => {}
+            }
+
+            // Handle dynamic transforms: @=> or +=>
+            if token.starts_with("+=>") {
+                self.expression_parser.modify_transform(|t| {
+                    t.add = Some(token[3..].to_string());
+                })?;
+                continue;
+            }
+
+            if token.starts_with("@=>") {
+                self.expression_parser.modify_transform(|t| {
+                    t.rotate = Some(token[3..].to_string());
+                })?;
+                continue;
+            }
+
+            // Handle key-value pairs: key=value or key=>value
+            if token.contains('=') {
+                let parts: Vec<&str> = token.splitn(2, '=').collect();
+                if parts.len() == 2 {
+                    let key = parts[0];
+                    let mut value = parts[1].to_string();
+                    let mut dynamic = false;
+                    if value.starts_with(">") {
+                        dynamic = true;
+                        value = value[1..].to_string();
+                    } else {
+                        dynamic = false;
+                    }
+
+                    if !dynamic {
+                        value = self
+                            .expression_parser
+                            .expr_list(&value)?
+                            .iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",");
+                    }
+
+                    self.expression_parser.modify_transform(|t| match key {
+                        "h" => t.h = value.clone(),
+                        "s" => t.s = value.clone(),
+                        "l" => t.l = value.clone(),
+                        "a" => t.a = value.clone(),
+                        "w" => t.w = value.clone(),
+                        _ => {
+                            t.constants.insert(key.to_string(), value.clone());
+                        }
+                    })?;
+                }
+            }
         }
 
         Ok(())

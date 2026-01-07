@@ -7,11 +7,11 @@ use crate::parser::TextParser;
 /// Drawing mixin trait for ExpressionParser
 /// Provides methods to draw geometric primitives using expressions
 pub trait DrawingMixin {
-    /// Parse a single point expression
-    fn parse_point(&mut self, point: &mut &str) -> Result<AsemicPt, String>;
+    /// Parse a single point expression, returns a Vec of points
+    fn parse_point(&mut self, point: &mut &str) -> Result<Vec<AsemicPt>, String>;
 
     /// Perform Bezier interpolation between multiple points
-    fn bezier_interpolate(&self, points: &[BasicPt], t: f64) -> Result<BasicPt, String>;
+    fn bezier_interpolate(points: &[BasicPt], t: f64) -> Result<BasicPt, String>;
 
     /// Draw a circle at a given center with specified width and height
     ///
@@ -53,7 +53,7 @@ pub trait DrawingMixin {
 
 impl DrawingMixin for TextParser {
     /// Perform quadratic/cubic Bezier interpolation between multiple points
-    fn bezier_interpolate(&self, points: &[BasicPt], t: f64) -> Result<BasicPt, String> {
+    fn bezier_interpolate(points: &[BasicPt], t: f64) -> Result<BasicPt, String> {
         if points.is_empty() {
             return Err("No points provided for Bezier interpolation".to_string());
         }
@@ -139,11 +139,15 @@ impl DrawingMixin for TextParser {
         Err("Index out of bounds".to_string())
     }
 
-    fn parse_point(&mut self, point: &mut &str) -> Result<AsemicPt, String> {
+    fn parse_point(&mut self, point: &mut &str) -> Result<Vec<AsemicPt>, String> {
         let mut adding = false;
+        let mut absolute = false;
         if point.starts_with('+') {
             *point = &point[1..];
             adding = true;
+        } else if point.starts_with('=') {
+            *point = &point[1..];
+            absolute = true;
         }
 
         // Handle point constants '(name arg1 arg2...)'
@@ -156,8 +160,40 @@ impl DrawingMixin for TextParser {
             }
 
             let result: AsemicPt = match tokens[0] {
-                // '>': Bezier interpolation between points at progress
-                // Usage: (> progress point1 point2 [point3 ...])
+                // '..': Interpolate between previous point and target point
+                // Usage: (.. target_point num_points)
+                ".." => {
+                    if tokens.len() < 3 {
+                        return Err("'..' requires target point and number of points".to_string());
+                    }
+
+                    let num_points = self.expression_parser.expr(tokens[1])? as usize;
+                    let target_expr = tokens[2].to_string();
+
+                    if num_points == 0 {
+                        return Err("Number of points must be greater than 0".to_string());
+                    }
+
+                    // Get the previous point
+                    let prev_pt = self.peek_last_point(-1, None)?;
+                    let mut target_expr_str = target_expr.as_str();
+                    let arg = self.parse_point(&mut target_expr_str)?;
+                    let target_point = *arg.first().ok_or("No target point returned")?;
+
+                    // Generate interpolated points
+                    let mut interpolated = Vec::new();
+                    for i in 1..=num_points {
+                        let t = 0.5;
+                        let mut pt = prev_pt.clone().basic_pt();
+                        let target_basic = target_point.basic_pt();
+                        pt.lerp(target_basic, t);
+
+                        interpolated.push(self.expression_parser.generate_point(&pt)?);
+                    }
+                    interpolated.push(target_point);
+
+                    return Ok(interpolated);
+                }
                 ">" => {
                     if tokens.len() < 3 {
                         return Err("'>' requires at least progress and 2 points".to_string());
@@ -184,7 +220,7 @@ impl DrawingMixin for TextParser {
                         res
                     } else {
                         // Quadratic/cubic Bezier for 3+ points
-                        self.bezier_interpolate(&pts, fade)?
+                        TextParser::bezier_interpolate(&pts, fade)?
                     };
 
                     let transform_clone = self
@@ -297,10 +333,14 @@ impl DrawingMixin for TextParser {
 
             // Convert BasicPt to AsemicPt with transform metadata
 
-            return Ok(result);
+            return Ok(vec![result]);
         }
 
         let mut pt = self.expression_parser.eval_point(point)?;
+
+        if (absolute) {
+            return Ok(vec![self.expression_parser.generate_point(&pt)?]);
+        }
 
         let transform_clone = self
             .expression_parser
@@ -317,7 +357,7 @@ impl DrawingMixin for TextParser {
             transformed_pt.x += last_pt.x;
             transformed_pt.y += last_pt.y;
         }
-        Ok(transformed_pt)
+        Ok(vec![transformed_pt])
     }
 
     fn circle(&mut self, args: &[&str]) -> Result<(), String> {
@@ -334,7 +374,8 @@ impl DrawingMixin for TextParser {
         // A circle is drawn as a polygon approximation
         self.expression_parser.push_transform();
 
-        let center_pt = self.parse_point(&mut center_str)?;
+        let center_pts = self.parse_point(&mut center_str)?;
+        let center_pt = center_pts.first().ok_or("No center point returned")?;
         let _tr = self.expression_parser.peek_transform();
         let wh_pt = self.expression_parser.eval_point(&mut wh_str.to_string())?;
 
@@ -349,8 +390,10 @@ impl DrawingMixin for TextParser {
         let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1 -1,0";
         let points: Vec<String> = self.tokenizer.tokenize_points(&circle_points);
         for point in points {
-            let mut pt = self.parse_point(&mut point.as_str())?;
-            self.add_point(pt);
+            let pts = self.parse_point(&mut point.as_str())?;
+            for pt in pts {
+                self.add_point(pt);
+            }
         }
         self.end_curve(false)?;
         self.expression_parser.pop_transform();
@@ -362,6 +405,7 @@ impl DrawingMixin for TextParser {
         // Default settings: mode=line, vert=0,0, curve=true, count=100, correction=0, close=false
         let mut mode = "line".to_string();
         let mut vert = "0,0".to_string();
+        let mut a = None;
         let mut curve_str = "true".to_string();
         let mut count = 100;
         let mut correction = 0.0;
@@ -377,6 +421,7 @@ impl DrawingMixin for TextParser {
                     "mode" => mode = value.to_string(),
                     "vert" => vert = value.to_string().replace("\"", ""),
                     "curve" => curve_str = value.to_string(),
+                    "a" => a = Some(value.to_string().replace("\"", "")),
                     "count" => {
                         if let Ok(n) = value.parse::<usize>() {
                             count = n;
@@ -395,11 +440,11 @@ impl DrawingMixin for TextParser {
 
         // Create new group with the parsed settings
         let new_group = crate::parser::parsing::text_parser::Group {
-            points: vec![Vec::new()],
+            points: vec![],
             settings: crate::parser::parsing::text_parser::GroupSettings {
                 mode,
                 texture: None,
-                a: None,
+                a,
                 synth: None,
                 xy: None,
                 wh: None,

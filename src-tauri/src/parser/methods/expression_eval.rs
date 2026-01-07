@@ -55,7 +55,36 @@ impl ExpressionEval for ExpressionParser {
     }
 
     fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String> {
-        exprs.split(',').map(|expr| self.expr(expr)).collect()
+        let mut paren_count = 0;
+        let mut current_expr = String::new();
+        let mut results = Vec::new();
+
+        for ch in exprs.chars() {
+            match ch {
+                '(' => {
+                    paren_count += 1;
+                    current_expr.push(ch);
+                }
+                ')' => {
+                    paren_count -= 1;
+                    current_expr.push(ch);
+                }
+                ',' if paren_count == 0 => {
+                    results.push(self.expr(current_expr.trim())?);
+                    current_expr.clear();
+                }
+                _ => {
+                    current_expr.push(ch);
+                }
+            }
+        }
+
+        let trimmed = current_expr.trim();
+        if !trimmed.is_empty() {
+            results.push(self.expr(trimmed.clone())?);
+        }
+
+        Ok(results)
     }
 
     fn expr(&mut self, expr: &str) -> Result<f64, String> {
@@ -111,6 +140,7 @@ impl ExpressionEval for ExpressionParser {
         }
 
         if string_expr.contains(',') {
+            panic!("Vector expression {} passed to fast_expr", string_expr);
             return Err(format!("Vector {} passed, scalar expected", string_expr));
         }
 
@@ -145,16 +175,8 @@ impl ExpressionEval for ExpressionParser {
         }
 
         let (func_name, remaining) = match longest_match {
-            Some(name) => (name, &expr[name.len()..].trim_start()),
-            None => {
-                if let Some(value) = self.get_param(expr, 0) {
-                    return Ok(value);
-                } else if let Some(value) = self.get_constant(expr) {
-                    return Ok(value);
-                } else {
-                    return Err(format!("Unknown constant or function: {}", expr));
-                }
-            }
+            Some(name) => (name, &expr[name.len()..]),
+            None => (expr, ""),
         };
 
         let args: Vec<&str> = remaining.split_whitespace().collect();
@@ -383,7 +405,7 @@ impl ExpressionEval for ExpressionParser {
                     if val2 > 0.5 && !*sampling {
                         *sampling = true;
                         *value = val1;
-                    } else if val2 <= 0.5 {
+                    } else if val2 <= 0.5 && *sampling {
                         *sampling = false;
                     }
                     Ok(*value)
@@ -392,13 +414,23 @@ impl ExpressionEval for ExpressionParser {
                 }
             }
             "~" => {
-                let hash = self.hash(None);
-                let freq = self.expr_point(args[0], Some(hash))?;
+                if (args.is_empty()) {
+                    return Err("~ requires an argument".to_string());
+                }
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64();
-                Ok(((current_time * freq.0 + freq.1) * std::f64::consts::PI * 2.0).sin())
+                let mut result = 0.0;
+                let mut total = 0.0;
+                for arg in args {
+                    let freq = self.expr_point(arg, Some(1.0))?;
+                    let hash = self.hash(None);
+                    result += ((current_time * freq.0 + hash) * std::f64::consts::PI * 2.0).sin()
+                        * freq.1;
+                    total += freq.1;
+                }
+                Ok(result / total * 0.5 + 0.5)
             }
             "bell" => {
                 if args.is_empty() {
@@ -440,18 +472,46 @@ impl ExpressionEval for ExpressionParser {
                 }
                 Ok(0.0)
             }
-            "H" => Ok(self.scene_metadata.height / self.scene_metadata.width),
-            "px" => Ok(1.0 / self.scene_metadata.width),
+            "H" => Ok(self.scene_metadata.height / self.scene_metadata.width
+                * args
+                    .first()
+                    .map_or(1.0, |arg| self.expr(arg).unwrap_or(1.0))),
+            "px" => Ok(1.0 / self.scene_metadata.width
+                * args
+                    .first()
+                    .map_or(1.0, |arg| self.expr(arg).unwrap_or(1.0))),
             "table" => Err(
                 "table requires image data and is not fully implemented in Rust parser".to_string(),
             ),
             _ => {
-                if let Some(value) = self.get_param(func_name, 0) {
-                    Ok(value)
-                } else if let Some(value) = self.get_constant(func_name) {
-                    Ok(value)
+                if let Some(value) = self.get_param(expr, 0) {
+                    let value_str = value.to_string();
+                    if value_str.contains(',') {
+                        let values = self.expr_list(&value_str)?;
+                        return Ok(values[0]);
+                    } else {
+                        return self.expr(&value_str);
+                    }
+                } else if let Some((key, value)) = self.get_constant(expr) {
+                    if value.contains(',') {
+                        let values = self.expr_list(&value)?;
+                        let index = expr[key.len()..].trim();
+                        if !index.is_empty() {
+                            let idx = self.expr(index)? as usize;
+                            let len = values.len();
+                            return values.get(idx).copied().ok_or_else(|| {
+                                format!("Index {} out of range for {} (length {})", idx, key, len)
+                            });
+                        }
+                        return Ok(values[0]);
+                    } else {
+                        return self.expr(&value);
+                    }
+                } else if expr.contains(',') {
+                    let values = self.expr_list(expr)?;
+                    return Ok(values[0]);
                 } else {
-                    Err(format!("Unknown constant or function: {}", func_name))
+                    return Err(format!("Unknown constant or variable: {}", expr));
                 }
             }
         }
@@ -528,13 +588,12 @@ impl ExpressionEval for ExpressionParser {
         let mut index = split_result.iter().rposition(|x| x.operator_type == "(");
 
         while let Some(idx) = index {
-            let closing_index = split_result
+            let closing_index_opt = split_result[idx..]
                 .iter()
-                .position(|x| x.operator_type == ")")
-                .filter(|&i| i > idx);
-
-            let closing_index = closing_index
+                .position(|x| x.operator_type == ")");
+            let mut closing_index = closing_index_opt
                 .ok_or_else(|| format!("Mismatched parentheses in {}", original_expr))?;
+            closing_index += idx;
 
             split_result[idx].operator_type = String::new();
             let inner_result = self

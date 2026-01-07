@@ -24,6 +24,7 @@ export interface GlobalSettings {
   supercolliderHost?: string
   supercolliderPort?: number
   params: Record<string, ParamConfig>
+  sendTo?: Record<string, { host: string }>
 }
 
 export interface SceneSettings {

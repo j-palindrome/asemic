@@ -36,6 +36,7 @@ import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import ParamEditors from '../components/ParamEditors'
 import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
@@ -77,6 +78,7 @@ function AsemicAppInner({
   useEffect(() => {
     scrubValuesRef.current = scrubValues
   }, [scrubValues])
+
   const setScenesArray = (newArray: SceneSettings[]) => {
     if (newArray.length !== scrubValues.length) {
       const newValues: ScrubSettings[] = new Array(newArray.length)
@@ -166,6 +168,18 @@ function AsemicAppInner({
     return 0
   }, [progress, sceneStarts])
 
+  useEffect(() => {
+    for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+      invoke('emit_osc_event', {
+        targetAddr: `${sendTo.host}:${9000}`,
+        eventName: '/progress',
+        data: `${progress}`
+      }).catch(err => {
+        console.error('Failed to emit OSC scene list:', err)
+      })
+    }
+  }, [progress])
+
   const activeSceneRef = useRef(activeScene)
   useEffect(() => {
     activeSceneRef.current = activeScene
@@ -197,6 +211,46 @@ function AsemicAppInner({
 
   useEffect(() => {
     setIsSetup(true)
+  }, [])
+
+  // Listen for OSC scenelist events
+  useEffect(() => {
+    const setupListener = async () => {
+      const unlisten = await listen('progress', event => {
+        // console.log('payload', event)
+
+        // const payload = JSON.parse(event.payload)
+        // setScrubValues(prev => {
+        //   const newValues = [...prev]
+        //   const currentScrub = newValues[activeSceneRef.current] || {
+        //     scrub: 0,
+        //     params: {},
+        //     sent: {},
+        //     ...payload
+        //   }
+        //   newValues[activeSceneRef.current] = currentScrub
+        //   return newValues
+        // })
+        const progressValue = parseFloat(event.payload as string)
+        setProgress(progressValue)
+      })
+      return unlisten
+    }
+
+    let unlistener: (() => void) | null = null
+    setupListener()
+      .then(fn => {
+        unlistener = fn
+      })
+      .catch(err => {
+        console.error('Failed to set up OSC listener:', err)
+      })
+
+    return () => {
+      if (unlistener) {
+        unlistener()
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -272,8 +326,8 @@ function AsemicAppInner({
         // canvas.current.width = boundingRect.width * devicePixelRatio
         // canvas.current.height = boundingRect.height * devicePixelRatio
 
-        const width = (boundingRect.width || 1080) * devicePixelRatio
-        const height = (boundingRect.height || 1080) * devicePixelRatio
+        const width = boundingRect.width || 1080
+        const height = boundingRect.height || 1080
 
         const currentSceneSettings = scenesArray[activeSceneRef.current]
         const currentScene: Scene = {
@@ -291,14 +345,22 @@ function AsemicAppInner({
 
         // Evaluate OSC expressions if present
         const sceneSettings = scenesArray[activeSceneRef.current]
-        const curves: any = invoke('parse_asemic_source', {
+        const perfStart = performance.now()
+        // console.log('start:', perfStart)
+
+        invoke('parse_asemic_source', {
           source: sceneSettings.code || '',
           scene: currentScene
         }).then(curves => {
+          // console.log('parse time:', performance.now() - perfStart)
+          // console.log(curves.groups)
+
           asemic.current?.postMessage({
+            // @ts-ignore
             groups: curves.groups as any,
             scene: currentScene
           })
+
           sceneReady = true
         })
 
@@ -390,7 +452,7 @@ function AsemicAppInner({
       try {
         const parsed = JSON.parse(stored) as SceneSettings[]
         setScenesArray(parsed)
-        console.log('loading', parsed)
+        // console.log('loading', parsed)
       } catch (e) {
         // Ignore parse errors
       }
@@ -400,7 +462,7 @@ function AsemicAppInner({
       try {
         const parsed = JSON.parse(stored) as GlobalSettings
         setGlobalSettings(parsed)
-        console.log('loading', parsed)
+        // console.log('loading', parsed)
       } catch (e) {
         // Ignore parse errors
       }

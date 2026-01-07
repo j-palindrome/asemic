@@ -41,7 +41,7 @@ impl Transform {
             rotation: 0.0,
             add: None,
             rotate: None,
-            w: "1.0".to_string(),
+            w: "px".to_string(),
             h: "1.0".to_string(),
             s: "0.0".to_string(),
             l: "1.0".to_string(),

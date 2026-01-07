@@ -29,6 +29,9 @@ export default function GlobalSettingsEditor({
   const [newParamName, setNewParamName] = useState('')
   const [renamingParam, setRenamingParam] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [showAddSyncTarget, setShowAddSyncTarget] = useState(false)
+  const [newSyncTargetName, setNewSyncTargetName] = useState('')
+  const [newSyncTargetHost, setNewSyncTargetHost] = useState('localhost')
 
   const handleStartSuperCollider = async () => {
     setIsConnecting(true)
@@ -116,6 +119,45 @@ export default function GlobalSettingsEditor({
     setRenameValue('')
   }
 
+  const handleAddSyncTarget = () => {
+    if (newSyncTargetName.trim()) {
+      onUpdate({
+        ...settings,
+        sendTo: {
+          ...(settings.sendTo || {}),
+          [newSyncTargetName.trim()]: {
+            host: newSyncTargetHost
+          }
+        }
+      })
+      setNewSyncTargetName('')
+      setNewSyncTargetHost('')
+      setShowAddSyncTarget(false)
+    }
+  }
+
+  const handleDeleteSyncTarget = (key: string) => {
+    const newSendTo = { ...(settings.sendTo || {}) }
+    delete newSendTo[key]
+    onUpdate({ ...settings, sendTo: newSendTo })
+  }
+
+  const handleUpdateSyncTarget = (
+    key: string,
+    updates: { host?: string; port?: number }
+  ) => {
+    onUpdate({
+      ...settings,
+      sendTo: {
+        ...(settings.sendTo || {}),
+        [key]: {
+          ...settings.sendTo![key],
+          ...updates
+        }
+      }
+    })
+  }
+
   return (
     <div className='absolute bottom-0 left-0 w-full border-l border-t border-white/20 z-50 flex flex-col max-h-[calc(100vh-50px)] overflow-y-auto'>
       {/* Header */}
@@ -198,7 +240,126 @@ export default function GlobalSettingsEditor({
           </div>
         </div>
 
-        {/* Global Params Section */}
+        {/* Send To Settings */}
+        <div className='border-b border-white/10 pb-3'>
+          <div className='flex items-center gap-2 mb-3'>
+            <label className='text-white/70 text-sm font-semibold'>
+              Send To (Sync Targets)
+            </label>
+            <button
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                setShowAddSyncTarget(true)
+              }}
+              className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+              + Add
+            </button>
+          </div>
+
+          {/* Add Sync Target Input */}
+          {showAddSyncTarget && (
+            <div className='mb-3 p-2 bg-white/5 rounded border border-white/20'>
+              <div className='space-y-2'>
+                <div>
+                  <label className='text-white/50 text-xs block mb-1'>
+                    Target Name
+                  </label>
+                  <input
+                    type='text'
+                    placeholder='e.g., instance-2, secondary'
+                    value={newSyncTargetName}
+                    onChange={e => setNewSyncTargetName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newSyncTargetName.trim()) {
+                        handleAddSyncTarget()
+                      } else if (e.key === 'Escape') {
+                        setNewSyncTargetName('')
+                        setShowAddSyncTarget(false)
+                      }
+                    }}
+                    autoFocus
+                    className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                  />
+                </div>
+                <div className='flex gap-2'>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Host
+                    </label>
+                    <input
+                      type='text'
+                      placeholder='localhost'
+                      value={newSyncTargetHost}
+                      onChange={e => setNewSyncTargetHost(e.target.value)}
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    />
+                  </div>
+                </div>
+                <div className='flex gap-2'>
+                  <button
+                    onClick={handleAddSyncTarget}
+                    className='flex-1 text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewSyncTargetName('')
+                      setShowAddSyncTarget(false)
+                    }}
+                    className='text-white/50 hover:text-white text-xs px-2 py-1'>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sync Targets List */}
+          <div className='space-y-2'>
+            {sortBy(Object.entries(settings.sendTo || {}), 0).map(
+              ([key, config]) => (
+                <div
+                  key={key}
+                  className='bg-white/5 p-2 rounded border border-white/10 flex items-end gap-2'>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Name
+                    </label>
+                    <div className='text-white/90 text-sm font-medium'>
+                      {key}
+                    </div>
+                  </div>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Host
+                    </label>
+                    <input
+                      type='text'
+                      value={config.host}
+                      onChange={e =>
+                        handleUpdateSyncTarget(key, { host: e.target.value })
+                      }
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleDeleteSyncTarget(key)}
+                    className='text-red-400 hover:text-red-300 text-xs px-2 py-1'>
+                    ✕
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+
+          {(!settings.sendTo || Object.keys(settings.sendTo).length === 0) && (
+            <p className='text-white/40 text-xs italic'>
+              No sync targets configured
+            </p>
+          )}
+        </div>
+
         <div className='border-b border-white/10 pb-3'>
           <div className='flex items-center gap-2 mb-3'>
             <label className='text-white/70 text-sm font-semibold'>

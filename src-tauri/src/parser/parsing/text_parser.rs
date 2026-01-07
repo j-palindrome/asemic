@@ -1,5 +1,6 @@
 use crate::parser::fonts::fonts::AsemicFont;
 use crate::parser::methods::expressions::ExpressionParser;
+use crate::parser::methods::transforms::{self, Transforms};
 use crate::parser::Tokenizer;
 use crate::parser::{methods::asemic_pt::AsemicPt, TokenizeOptions};
 use serde::{Deserialize, Serialize};
@@ -85,15 +86,13 @@ impl TextParser {
     }
 
     /// Reset parser state for a new frame/scene
-    pub fn reset(&mut self, new_frame: bool) {
-        if new_frame {
-            self.groups.clear();
-            self.errors.clear();
-            self.current_font = "default".to_string();
-        }
-
+    pub fn reset(&mut self) {
+        self.groups.clear();
+        self.errors.clear();
+        self.current_font = "default".to_string();
         self.current_curve.clear();
         self.adding = 0.0;
+        self.expression_parser.reset();
     }
 
     /// Finalize current curve and add to groups
@@ -103,6 +102,7 @@ impl TextParser {
     pub fn end_curve(&mut self, close: bool) -> Result<(), String> {
         if self.current_curve.len() < 2 {
             return Err("Cannot end a curve with less than 2 points".to_string());
+        } else if self.current_curve.len() == 2 {
         }
 
         if close && !self.current_curve.is_empty() {
@@ -141,7 +141,6 @@ impl TextParser {
         }
 
         self.adding = 0.0;
-        println!("Ended curve with {} points", self.current_curve.len());
         Ok(())
     }
 

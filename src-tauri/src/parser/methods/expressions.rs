@@ -16,6 +16,17 @@ pub struct SceneMetadata {
     pub height: f64,
 }
 
+// pub struct Scene {
+//     pub code: String,
+//     pub text: String,
+//     pub length: f64,
+//     pub offset: f64,
+//     pub pause: f64,
+//     pub params: HashMap<String, ParamConfig>,
+//     pub global_params: HashMap<String, SceneParamConfig>,
+//     pub osc_groups: Vec<OscGroup>,
+// }
+
 /// A static expression parser for Asemic expressions.
 /// This is a port of the TypeScript expr() function without global state.
 ///
@@ -78,6 +89,16 @@ pub enum NoiseState {
 }
 
 impl ExpressionParser {
+    pub fn reset(&mut self) {
+        self.noise_index = 0;
+        self.point = 0.0;
+        self.letter = 0.0;
+        self.curve = 0.0;
+        self.indexes = vec![0.0; 3];
+        self.count_nums = vec![0.0; 3];
+        self.transforms = vec![Transform::new()];
+    }
+
     pub fn eval_point(&mut self, this_point: &str) -> Result<BasicPt, String> {
         let mut point = this_point.to_string();
 
@@ -99,7 +120,12 @@ impl ExpressionParser {
 
         // Handle polar notation '@theta,radius'
         if point.starts_with('@') {
-            let parts = self.expr_point(&point[1..], None).unwrap();
+            let parts = self.expr_point(&point[1..], None).map_err(|_| {
+                format!(
+                    "eval_point: Failed to evaluate polar expression '{}'",
+                    this_point
+                )
+            })?;
             let theta = parts.0;
             let radius = parts.1;
 
@@ -115,6 +141,13 @@ impl ExpressionParser {
             )
         })?;
         Ok(BasicPt::new(parts.0, parts.1))
+    }
+
+    pub fn generate_point(&mut self, pt: &BasicPt) -> Result<AsemicPt, String> {
+        let solved = self.peek_transform().solve(self)?;
+        Ok(AsemicPt::new(
+            pt.x, pt.y, solved.w, solved.h, solved.s, solved.l, solved.a,
+        ))
     }
 
     pub fn new() -> Self {
@@ -154,9 +187,6 @@ impl ExpressionParser {
 
     pub fn set_scene_metadata(&mut self, scene_metadata: SceneMetadata) {
         self.scene_metadata = scene_metadata;
-        // Clear noise table when scene metadata changes to prevent memory leak
-        // Noise states are scene-specific, so old entries become stale
-        self.noise_table.clear();
     }
 
     /// Get a parameter value from the current scene's metadata
@@ -168,14 +198,15 @@ impl ExpressionParser {
             .and_then(|v| v.get(index))
             .copied();
     }
-    pub fn get_constant(&mut self, name: &str) -> Option<f64> {
+    pub fn get_constant(&mut self, name: &str) -> Option<(String, String)> {
         let transform = self.peek_transform();
-        if let Some(value_str) = transform.constants.get(name) {
-            if let Ok(value) = self.expr(value_str) {
-                return Some(value);
-            }
-        }
-        None
+        // Search for the longest matching prefix
+        transform
+            .constants
+            .iter()
+            .filter(|(key, _)| name.starts_with(key.as_str()))
+            .max_by_key(|(key, _)| key.len())
+            .map(|(key, value)| (key.clone(), value.clone()))
     }
 
     /// Main expression evaluation function

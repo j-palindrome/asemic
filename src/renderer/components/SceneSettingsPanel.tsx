@@ -35,6 +35,7 @@ export interface SceneSettings {
   pause?: number | false
   params: Record<string, ParamConfig>
   globalParams?: Record<string, SceneParamConfig>
+  presets?: Record<string, { params: Record<string, number[]> }>
   oscGroups?: Array<{
     osc?: Array<{
       name: string
@@ -78,6 +79,8 @@ export default function SceneSettingsPanel({
   const [renameValue, setRenameValue] = useState('')
   const [editAllMode, setEditAllMode] = useState<Set<string>>(new Set())
   const [fullScreenCode, setFullScreenCode] = useState(false)
+  const [showAddPreset, setShowAddPreset] = useState(false)
+  const [newPresetName, setNewPresetName] = useState('')
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -136,6 +139,44 @@ export default function SceneSettingsPanel({
     onUpdateScrub({ ...scrubSettings, params: newScrubParams })
     setRenamingParam(null)
     setRenameValue('')
+  }
+
+  const handleSavePreset = (presetName: string) => {
+    if (!presetName.trim()) {
+      setNewPresetName('')
+      setShowAddPreset(false)
+      return
+    }
+
+    const currentParams = scrubSettings.params
+    onUpdate({
+      ...sceneList[activeScene],
+      presets: {
+        ...(sceneList[activeScene].presets || {}),
+        [presetName]: { params: currentParams }
+      }
+    })
+    setNewPresetName('')
+    setShowAddPreset(false)
+  }
+
+  const handleLoadPreset = (presetName: string) => {
+    const preset = sceneList[activeScene].presets?.[presetName]
+    if (preset) {
+      onUpdateScrub({
+        ...scrubSettings,
+        params: preset.params
+      })
+    }
+  }
+
+  const handleDeletePreset = (presetName: string) => {
+    const newPresets = { ...sceneList[activeScene].presets }
+    delete newPresets[presetName]
+    onUpdate({
+      ...sceneList[activeScene],
+      presets: newPresets
+    })
   }
 
   const handleUpdateParam = (key: string, value: number[]) => {
@@ -952,7 +993,98 @@ export default function SceneSettingsPanel({
           )}
         </div>
 
-        {/* OSC Messages Section */}
+        {/* Presets Section */}
+        <div className='mt-3 border-t border-white/10 pt-3'>
+          <div className='flex items-center gap-2 mb-2'>
+            <label className='text-white/70 text-sm font-semibold'>
+              Presets
+            </label>
+            <button
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                setShowAddPreset(true)
+              }}
+              className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+              + New Preset
+            </button>
+          </div>
+
+          {/* Add Preset Input */}
+          {showAddPreset && (
+            <div className='mb-3 p-2 bg-white/5 rounded border border-white/20'>
+              <div className='flex items-center gap-2'>
+                <input
+                  type='text'
+                  placeholder='Preset name'
+                  value={newPresetName}
+                  onChange={e => setNewPresetName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newPresetName.trim()) {
+                      handleSavePreset(newPresetName)
+                    } else if (e.key === 'Escape') {
+                      setNewPresetName('')
+                      setShowAddPreset(false)
+                    }
+                  }}
+                  autoFocus
+                  className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                />
+                <button
+                  onClick={() => handleSavePreset(newPresetName)}
+                  className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setNewPresetName('')
+                    setShowAddPreset(false)
+                  }}
+                  className='text-white/50 hover:text-white text-xs'>
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Presets List */}
+          <div className='space-y-2 pr-1'>
+            {Object.entries(sceneList[activeScene].presets || {}).map(
+              ([presetName]) => (
+                <div
+                  key={presetName}
+                  className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                  <span className='text-white/70 text-sm'>{presetName}</span>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => handleLoadPreset(presetName)}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Load this preset'>
+                      Load
+                    </button>
+                    <button
+                      onClick={() => handleSavePreset(presetName)}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Overwrite this preset with current params'>
+                      Update
+                    </button>
+                    <button
+                      onClick={() => handleDeletePreset(presetName)}
+                      className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Delete this preset'>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
+          {(!sceneList[activeScene].presets ||
+            Object.keys(sceneList[activeScene].presets).length === 0) && (
+            <p className='text-white/40 text-xs italic'>No presets saved</p>
+          )}
+        </div>
         <div className='mt-3 border-t border-white/10 pt-3'>
           <div className='flex items-center gap-2 mb-2'>
             <label className='text-white/70 text-sm font-semibold'>

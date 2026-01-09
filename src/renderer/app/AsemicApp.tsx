@@ -513,6 +513,8 @@ function AsemicAppInner({
 
   const [perform, _setPerform] = useState(settings.perform)
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
+  const [presetInterpolation, setPresetInterpolation] = useState(0)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
       _setShowGlobalSettings(false)
@@ -523,6 +525,52 @@ function AsemicAppInner({
     setPerform(settings.perform)
   }, [settings.perform])
   const [showCanvas, setShowCanvas] = useState(true)
+
+  // Interpolate between current params and target preset
+  useEffect(() => {
+    if (!selectedPreset || presetInterpolation === 0) {
+      return
+    }
+
+    const targetPreset = scenesArray[activeScene]?.presets?.[selectedPreset]
+    if (!targetPreset) return
+
+    setScrubValues(prev => {
+      const newValues = [...prev]
+      const currentScrub = newValues[activeScene]
+      if (!currentScrub) return prev
+
+      const interpolatedParams: Record<string, number[]> = {}
+
+      // Get all param keys from current and target
+      const allKeys = new Set([
+        ...Object.keys(currentScrub.params || {}),
+        ...Object.keys(targetPreset.params || {})
+      ])
+
+      for (const key of allKeys) {
+        const currentValue = currentScrub.params[key] || []
+        const targetValue = targetPreset.params[key] || []
+
+        // Interpolate each dimension
+        interpolatedParams[key] = []
+        const maxLen = Math.max(currentValue.length, targetValue.length)
+
+        for (let i = 0; i < maxLen; i++) {
+          const curr = currentValue[i] ?? 0
+          const target = targetValue[i] ?? 0
+          interpolatedParams[key][i] =
+            curr + (target - curr) * presetInterpolation
+        }
+      }
+
+      newValues[activeScene] = {
+        ...currentScrub,
+        params: interpolatedParams
+      }
+      return newValues
+    })
+  }, [selectedPreset, presetInterpolation, activeScene])
 
   const setShowGlobalSettings = (value: boolean) => {
     if (value && !perform) setPerform(true)
@@ -652,7 +700,7 @@ function AsemicAppInner({
                   (scenesArray[activeScene]?.length || 0.1) -
                   (scenesArray[activeScene]?.offset || 0)
                 }
-                step='0.01'
+                step='0.001'
                 value={scrubValues[activeScene]?.scrub || 0}
                 onChange={e => {
                   const newScrub = parseFloat(e.target.value)
@@ -673,6 +721,50 @@ function AsemicAppInner({
                 {(scrubValues[activeScene]?.scrub || 0).toFixed(2)}s
               </span>
             </div>
+
+            {/* Preset selector and interpolation */}
+            {Object.keys(scenesArray[activeScene]?.presets || {}).length >
+              0 && (
+              <div className='flex items-center gap-2 px-2'>
+                <select
+                  value={selectedPreset || ''}
+                  onChange={e => {
+                    setSelectedPreset(e.target.value || null)
+                    setPresetInterpolation(0)
+                  }}
+                  className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
+                  <option value=''>Select Preset</option>
+                  {Object.keys(scenesArray[activeScene]?.presets || {}).map(
+                    presetName => (
+                      <option key={presetName} value={presetName}>
+                        {presetName}
+                      </option>
+                    )
+                  )}
+                </select>
+                {selectedPreset && (
+                  <div className='flex items-center gap-1'>
+                    <input
+                      type='range'
+                      min='0'
+                      max='1'
+                      step='0.001'
+                      value={presetInterpolation}
+                      onChange={e => {
+                        setPresetInterpolation(parseFloat(e.target.value))
+                      }}
+                      className='w-24 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer'
+                      style={{
+                        accentColor: 'white'
+                      }}
+                    />
+                    <span className='text-white text-xs opacity-50 font-mono min-w-[30px]'>
+                      {(presetInterpolation * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className='grow' />
             {deletedScene && (
               <button

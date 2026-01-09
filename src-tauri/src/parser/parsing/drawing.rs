@@ -387,7 +387,7 @@ impl DrawingMixin for TextParser {
             x.scale.scale(wh_pt, None);
         })?;
 
-        let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1 -1,0";
+        let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1";
         let points: Vec<String> = self.tokenizer.tokenize_points(&circle_points);
         for point in points {
             let pts = self.parse_point(&mut point.as_str())?;
@@ -395,7 +395,7 @@ impl DrawingMixin for TextParser {
                 self.add_point(pt);
             }
         }
-        self.end_curve(false)?;
+        self.end_curve(true)?;
         self.expression_parser.pop_transform();
         Ok(())
     }
@@ -410,6 +410,7 @@ impl DrawingMixin for TextParser {
         let mut count = 100;
         let mut correction = 0.0;
         let mut close = false;
+        let mut blend = false;
 
         // Parse key=value pairs from arguments
         for arg in args {
@@ -422,6 +423,9 @@ impl DrawingMixin for TextParser {
                     "vert" => vert = value.to_string().replace("\"", ""),
                     "curve" => curve_str = value.to_string(),
                     "a" => a = Some(value.to_string().replace("\"", "")),
+                    "blend" => {
+                        blend = value.parse::<bool>().unwrap_or(false);
+                    }
                     "count" => {
                         if let Ok(n) = value.parse::<usize>() {
                             count = n;
@@ -453,7 +457,7 @@ impl DrawingMixin for TextParser {
                 count: count as i32,
                 correction,
                 close: Some(close),
-                blend: None,
+                blend: Some(blend),
             },
         };
 

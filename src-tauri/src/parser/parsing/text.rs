@@ -482,7 +482,7 @@ impl TextParser {
                 self.text(args[index + 1])?
             }
             "?" => {
-                if args.len() < 3 {
+                if args.len() < 2 {
                     return Err(
                         "? requires condition, true_case, and false_case arguments".to_string()
                     );
@@ -490,7 +490,7 @@ impl TextParser {
                 let condition = self.expression_parser.expr(args[0])?;
                 if condition > 0.0 {
                     self.text(args[1])?
-                } else {
+                } else if args.get(2).is_some() {
                     self.text(args[2])?
                 }
             }

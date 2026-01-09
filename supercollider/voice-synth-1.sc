@@ -5,34 +5,37 @@ s.freeAll;
 
 s.reboot;
 (
-s.freeAll;
-OSCdef.freeAll;
+s.waitForBoot({
+	s.freeAll;
+	OSCdef.freeAll;
 
-~effectsBus = Bus.audio(s, 1);
-~recordBuf = Buffer.alloc(s, 44100 * 5, 1);
+	~inputBus = Bus.audio(s, 2);
+	~effectsBus = Bus.audio(s, 2);
+	~recordBuf = Buffer.alloc(s, 44100 * 5, 1);
 
-SynthDef(\input, {
-	arg inBus = 0, effectsOutBus = 1, amp = 1.0, pan = 0.5;
-	var input, stereo;
+	SynthDef(\input, {
+		arg inBus = 0, effectsOutBus = 1, amp = 1.0, pan = 0.5;
+		var input, stereo;
 
-	// Get audio input from specified bus (default is hardware input 0)
-	input = SoundIn.ar(inBus);
-	RecordBuf.ar(input, ~recordBuf, Line.ar(0, BufDur.ir(~recordBuf) * 44100, BufDur.ir(~recordBuf)));
-	// Route to effects bus
-	Out.ar(effectsOutBus, Pan2.ar(input * amp), pan);
-}).add;
+		// Get audio input from specified bus (default is hardware input 0)
+		input = SoundIn.ar(inBus);
+		RecordBuf.ar(input, ~recordBuf, Line.ar(0, BufDur.ir(~recordBuf) * 44100, BufDur.ir(~recordBuf)));
+		// Route to effects bus
+		Out.ar(effectsOutBus, Pan2.ar(input * amp), pan);
+	}).add;
 
-SynthDef(\passthrough, {
-	arg inBus = 1, outBus = 0, level = 1.0;
-	var input;
+	SynthDef(\passthrough, {
+		arg inBus = 1, outBus = 0, level = 1.0;
+		var input;
 
-	// Read from effects bus and pass through with amplitude control
-	input = In.ar(inBus, 2);
-	Out.ar(outBus, input * level);
-}).add;
-OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, "/passthrough/level");
+		// Read from effects bus and pass through with amplitude control
+		input = In.ar(inBus, 2);
+		Out.ar(outBus, input * level);
+	}).add;
+	OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, "/passthrough/level");
 
-"./synths/*".resolveRelative.loadPaths;
+	"./synths/*".resolveRelative.loadPaths;
+});
 )
 
 (
@@ -40,10 +43,12 @@ OSCdef.new(\passthroughLevel, { |msg| ~passthroughSynth.set(\level, msg[1]); }, 
 ~effectsGroup = Group.new(s, \addToTail);
 ~inputSynth = Synth(\input, [\inBus, 0, \effectsOutBus, ~effectsBus, \amp, 1.0], ~inputGroup);
 ~passthroughSynth = Synth(\passthrough, [\inBus, ~effectsBus.index, \outBus, 0, \level, 1], ~effectsGroup);
+// effects
 ~delaysSynth = Synth(\delays, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~granularSynth = Synth(\granular, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
 ~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus.index, \outBus, 0, \level, 0], ~effectsGroup);
+
 OSCdef.new(\allLevel, {|msg| ~effectsGroup.set(\level, msg[1])}, "/all/level");
 )
 

@@ -82,7 +82,10 @@ async fn parser_eval_expression(
     scene_metadata: SceneMetadata,
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<f64>, String> {
-    let mut parser = state.text_parser.lock().unwrap();
+    let mut parser = state
+        .text_parser
+        .lock()
+        .map_err(|_| "Failed to lock text_parser".to_string())?;
 
     if let Some(param) = scene_metadata.params.get(&expr) {
         parser
@@ -236,6 +239,7 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
     });
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut text_parser = TextParser::new();
     // Initialize text parser with default font at startup

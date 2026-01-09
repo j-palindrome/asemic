@@ -107,7 +107,7 @@ impl TextParser {
 
         if close && !self.current_curve.is_empty() {
             if let Some(first) = self.current_curve.first() {
-                self.current_curve.push(*first);
+                self.current_curve.push(first.clone());
             }
         }
 

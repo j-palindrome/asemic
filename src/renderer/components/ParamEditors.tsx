@@ -88,6 +88,11 @@ export default function ParamEditors({
 
             return (
               <div key={i} className='w-full'>
+                {activeParamConfig.labels?.[i] && (
+                  <div className='text-white/50 text-xs mb-1 px-1'>
+                    {activeParamConfig.labels[i]}
+                  </div>
+                )}
                 <div className='flex relative h-6 rounded'>
                   <span className='text-white/70 text-xs absolute left-0 top-0 p-1 select-none'>
                     {currentValue.toFixed(3)}

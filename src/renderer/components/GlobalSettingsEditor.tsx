@@ -71,6 +71,7 @@ export default function GlobalSettingsEditor({
             exponent: 1,
             dimension: 1,
             default: [1],
+            labels: [],
             oscPath: ''
           }
         }
@@ -497,6 +498,34 @@ export default function GlobalSettingsEditor({
                           })
                         }
                         className='w-14 bg-white/10 text-white px-1 py-0.5 rounded text-xs'
+                      />
+                    </div>
+                    <div className='flex-1'>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Labels
+                      </label>
+                      <input
+                        type='text'
+                        placeholder='Comma-separated labels'
+                        value={(paramConfig.labels || []).join(', ')}
+                        onChange={e => {
+                          const labelText = e.target.value
+                          const labels = labelText
+                            .split(',')
+                            .map(s => s.trim())
+                            .filter(s => s)
+                          onUpdate({
+                            ...settings,
+                            params: {
+                              ...(settings.params || {}),
+                              [key]: {
+                                ...settings.params![key],
+                                labels: labels.length > 0 ? labels : undefined
+                              }
+                            }
+                          })
+                        }}
+                        className='w-full bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                       />
                     </div>
                     <div>

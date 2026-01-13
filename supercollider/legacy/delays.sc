@@ -1,7 +1,7 @@
 SynthDef(\delays, {
 	arg inBus = 1, outBus = 0, pan = 0, gate = 1,
 	delayTime = #[0.25, 0.5, 0.75, 1], feedback = 0.9, level = 0;
-	var input, stereo, delayed, feedbackSignal, mixed, delayBus, interference = 0.33;
+	var input, stereo, delayed, feedbackSignal, mixed, delayBus, interference = 0.33, matrix;
 
 	// Get audio input from specified bus (default is hardware input 0)
 	input = In.ar(inBus) ! 4;
@@ -18,6 +18,11 @@ SynthDef(\delays, {
 		maxdelaytime: 2.0,    // Maximum possible delay time
 		delaytime: delayTime   // Actual delay time spread
 	);
+
+	matrix = Array2D(3, 3);
+	3.do({|i| 3.do({|j| matrix[i,j] = LFNoise2.ar(rate, 0.2, 0.8) }); });
+
+	delayed = delayed.collect(|d| {d});
 
 	// Write delayed signal back to local bus for feedback
 	LocalOut.ar(delayed.collect({|x,i| (x + (delayed[0]*interference) + (delayed[1]*interference) + (delayed[2]*interference) + (delayed[3]*interference)) / (1 + (interference * 4))}));

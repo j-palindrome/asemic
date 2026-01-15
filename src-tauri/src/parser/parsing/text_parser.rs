@@ -95,6 +95,10 @@ impl TextParser {
         self.expression_parser.reset();
     }
 
+    pub fn reset_scene(&mut self) {
+        self.expression_parser.reset_scene();
+    }
+
     /// Finalize current curve and add to groups
     ///
     /// # Arguments

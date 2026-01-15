@@ -76,16 +76,8 @@ pub struct SplitResult {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum NoiseState {
-    SampleAndHold {
-        value: f64,
-        sampling: bool,
-    },
-    FmSynthesis {
-        freq: f64,
-        phase: f64,
-        fm_curve: Vec<(f64, f64)>,
-        freq_phases: Vec<f64>,
-    },
+    SampleAndHold { value: f64, sampling: bool },
+    FmSynthesis { value: f64, phases: Vec<f64> },
 }
 
 impl ExpressionParser {
@@ -97,6 +89,10 @@ impl ExpressionParser {
         self.indexes = vec![0.0; 3];
         self.count_nums = vec![0.0; 3];
         self.transforms = vec![Transform::new()];
+    }
+
+    pub fn reset_scene(&mut self) {
+        self.noise_table.clear();
     }
 
     pub fn eval_point(&mut self, this_point: &str) -> Result<BasicPt, String> {

@@ -7,6 +7,7 @@ SynthDef(\bitcrush, {
 	Out.ar(outBus, (input * (1 - level[0])) + (output * level[0]));
 	Out.ar(0, output * level[1]);
 }).add;
+
 OSCdef(\bitcrush_level, { |msg, time, addr, recvPort|
 	~bitcrush.set(\level, msg[1..2]);
 }, "/bitcrush/level");

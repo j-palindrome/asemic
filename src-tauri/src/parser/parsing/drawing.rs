@@ -135,7 +135,7 @@ impl DrawingMixin for TextParser {
             let idx = len - 1 - point_index;
             return Ok(curve_to_peek[idx as usize].clone());
         }
-        panic!("Index out of bounds in peek_last_point");
+        // panic!("Index out of bounds in peek_last_point");
         Err("Index out of bounds".to_string())
     }
 

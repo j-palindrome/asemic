@@ -187,6 +187,7 @@ function AsemicAppInner({
 
   useEffect(() => {
     setErrors([])
+    invoke('parser_reset')
   }, [activeScene, scenesArray[activeScene]?.code])
 
   // const client = useMemo(() => new Client('localhost', 57120), [])

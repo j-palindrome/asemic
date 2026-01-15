@@ -239,6 +239,16 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
     });
 }
 
+#[tauri::command]
+async fn parser_reset(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mut parser = state
+        .text_parser
+        .lock()
+        .map_err(|_| "Failed to lock text_parser".to_string())?;
+    parser.reset_scene();
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut text_parser = TextParser::new();
@@ -258,7 +268,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             parser_eval_expression,
             parse_asemic_source,
-            emit_osc_event
+            emit_osc_event,
+            parser_reset
         ])
         .setup(|app| {
             // Start OSC listener in background thread

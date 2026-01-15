@@ -140,7 +140,7 @@ impl ExpressionEval for ExpressionParser {
         }
 
         if string_expr.contains(',') {
-            panic!("Vector expression {} passed to fast_expr", string_expr);
+            // panic!("Vector expression {} passed to fast_expr", string_expr);
             return Err(format!("Vector {} passed, scalar expected", string_expr));
         }
 
@@ -414,23 +414,65 @@ impl ExpressionEval for ExpressionParser {
                 }
             }
             "~" => {
-                if (args.is_empty()) {
+                if args.is_empty() {
                     return Err("~ requires an argument".to_string());
                 }
+                // Cache current_time in noise array with unique key
+                let time_key = format!("fm_time_{}", self.noise_index);
+                let stored_phase = self.noise_table.entry(time_key.clone()).or_insert_with(|| {
+                    use rand::Rng;
+                    let mut rng = rand::rng();
+                    crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                        value: 0.0,
+                        phases: (0..args.len())
+                            .map(|_| rng.random::<f64>())
+                            .collect::<Vec<f64>>(),
+                    }
+                });
+
+                // Extract values before calling self.expr to avoid double borrow
+                let (mut current_value, phases_copy) = match stored_phase {
+                    crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                        value,
+                        phases,
+                    } => (*value, phases.clone()),
+                    _ => return Err("FM synthesis state corrupted".to_string()),
+                };
+
+                let mut total_freq = self.expr(args[0])?;
+                let mut idx = 1;
+                // Process each wave specification
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64();
-                let mut result = 0.0;
-                let mut total = 0.0;
-                for arg in args {
-                    let freq = self.expr_point(arg, Some(1.0))?;
-                    let hash = self.hash(None);
-                    result += ((current_time * freq.0 + hash) * std::f64::consts::PI * 2.0).sin()
-                        * freq.1;
-                    total += freq.1;
+
+                for arg in &args[1..] {
+                    let freq_data = self.expr_point(arg, Some(1.0))?;
+                    let current_freq =
+                        (freq_data.0 * (current_time + phases_copy[idx]) * std::f64::consts::TAU)
+                            .sin();
+                    total_freq *= 1.0 + (current_freq * freq_data.1);
+                    idx += 1;
                 }
-                Ok(result / total * 0.5 + 0.5)
+
+                let result =
+                    (((current_value + phases_copy[0]) * std::f64::consts::TAU).sin() + 1.0) / 2.0;
+
+                current_value += total_freq * 1.0 / 60.0;
+
+                // Update the stored state
+                if let Some(crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                    value,
+                    ..
+                }) = self.noise_table.get_mut(&time_key)
+                {
+                    *value = current_value;
+                    // println!("freq {} current_value {}", total_freq, current_value);
+                }
+
+                self.noise_index += 1;
+                Ok(result)
             }
             "bell" => {
                 if args.is_empty() {

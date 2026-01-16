@@ -8,7 +8,11 @@ use crate::parser::TextParser;
 /// Provides methods to draw geometric primitives using expressions
 pub trait DrawingMixin {
     /// Parse a single point expression, returns a Vec of points
-    fn parse_point(&mut self, point: &mut &str) -> Result<Vec<AsemicPt>, String>;
+    fn parse_point(
+        &mut self,
+        point: &mut &str,
+        relative: Option<bool>,
+    ) -> Result<Vec<AsemicPt>, String>;
 
     /// Perform Bezier interpolation between multiple points
     fn bezier_interpolate(points: &[BasicPt], t: f64) -> Result<BasicPt, String>;
@@ -139,7 +143,11 @@ impl DrawingMixin for TextParser {
         Err("Index out of bounds".to_string())
     }
 
-    fn parse_point(&mut self, point: &mut &str) -> Result<Vec<AsemicPt>, String> {
+    fn parse_point(
+        &mut self,
+        point: &mut &str,
+        relative: Option<bool>,
+    ) -> Result<Vec<AsemicPt>, String> {
         let mut adding = false;
         let mut absolute = false;
         if point.starts_with('+') {
@@ -177,7 +185,7 @@ impl DrawingMixin for TextParser {
                     // Get the previous point
                     let prev_pt = self.peek_last_point(-1, None)?;
                     let mut target_expr_str = target_expr.as_str();
-                    let arg = self.parse_point(&mut target_expr_str)?;
+                    let arg = self.parse_point(&mut target_expr_str, relative)?;
                     let target_point = *arg.first().ok_or("No target point returned")?;
 
                     // Generate interpolated points
@@ -234,6 +242,7 @@ impl DrawingMixin for TextParser {
                         &mut result,
                         false,
                         &mut self.expression_parser,
+                        relative,
                     )?
                 }
                 // '<': Reverse transform of a point from a curve
@@ -348,8 +357,12 @@ impl DrawingMixin for TextParser {
             .last()
             .ok_or("No transform found")?
             .clone();
-        let mut transformed_pt =
-            transform_clone.apply_transform(&mut pt, false, &mut self.expression_parser)?;
+        let mut transformed_pt = transform_clone.apply_transform(
+            &mut pt,
+            false,
+            &mut self.expression_parser,
+            relative,
+        )?;
         if adding {
             let last_pt = self.peek_last_point(-1, None)?;
             transformed_pt.x -= transform_clone.translate.x;
@@ -374,7 +387,7 @@ impl DrawingMixin for TextParser {
         // A circle is drawn as a polygon approximation
         self.expression_parser.push_transform();
 
-        let center_pts = self.parse_point(&mut center_str)?;
+        let center_pts = self.parse_point(&mut center_str, Some(false))?;
         let center_pt = center_pts.first().ok_or("No center point returned")?;
         let _tr = self.expression_parser.peek_transform();
         let wh_pt = self.expression_parser.eval_point(&mut wh_str.to_string())?;
@@ -390,7 +403,7 @@ impl DrawingMixin for TextParser {
         let circle_points = "-1,0 -1,-1 1,-1 1,1 -1,1";
         let points: Vec<String> = self.tokenizer.tokenize_points(&circle_points);
         for point in points {
-            let pts = self.parse_point(&mut point.as_str())?;
+            let pts = self.parse_point(&mut point.as_str(), Some(false))?;
             for pt in pts {
                 self.add_point(pt);
             }

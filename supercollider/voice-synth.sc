@@ -2,6 +2,7 @@
 
 s.options.memSize = 2.pow(20);
 s.options.numWireBufs = 128;
+Sever.killAll;
 s.reboot;
 (
 s.waitForBoot({

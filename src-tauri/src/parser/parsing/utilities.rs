@@ -19,14 +19,14 @@ impl Utilities for TextParser {
     fn align(&mut self, coords: &str, align_type: &str, callback: &str) -> Result<(), String> {
         // Parse center coordinates
         let mut coords_ref = coords;
-        let center_pt_vec = self.parse_point(&mut coords_ref)?;
+        let center_pt_vec = self.parse_point(&mut coords_ref, None)?;
         let center_pt = center_pt_vec.first().ok_or("No center point returned")?;
         let center_x = center_pt.x;
         let center_y = center_pt.y;
 
         // Evaluate alignment values
         let mut align_ref = align_type;
-        let align_pt_vec = self.parse_point(&mut align_ref)?;
+        let align_pt_vec = self.parse_point(&mut align_ref, None)?;
         let align_pt = align_pt_vec.first().ok_or("No alignment point returned")?;
         let align_x = align_pt.x;
         let align_y = align_pt.y;

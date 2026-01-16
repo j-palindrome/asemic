@@ -307,14 +307,15 @@ impl TextMethods for TextParser {
                         self.parse_transform(transform_content)?;
                     } else {
                         // Add as point
-                        let pts = self.parse_point(&mut point.as_str())?;
+                        let pts = self.parse_point(&mut point.as_str(), Some(false))?;
                         for pt in pts {
                             self.add_point(pt);
                         }
                         if j == 0.0 && amount_of_points == 2 {
                             // fill out a 3-point curve
                             let p0 = self.current_curve[0];
-                            let p1_pts = self.parse_point(&mut point_exprs[1].as_str())?;
+                            let p1_pts =
+                                self.parse_point(&mut point_exprs[1].as_str(), Some(false))?;
                             let p1 = p1_pts.first().ok_or("No point returned")?;
                             let mut lerped = *p0.clone().lerp(*p1, 0.5);
                             self.expression_parser.point = 0.5;
@@ -498,9 +499,9 @@ impl TextParser {
                 if args.len() < 2 {
                     return Err("remap requires two point arguments".to_string());
                 }
-                let pt0_vec = self.parse_point(&mut args[0].clone())?;
+                let pt0_vec = self.parse_point(&mut args[0].clone(), Some(false))?;
                 let pt0 = pt0_vec.first().ok_or("No first point returned")?;
-                let pt1_vec = self.parse_point(&mut args[1].clone())?;
+                let pt1_vec = self.parse_point(&mut args[1].clone(), None)?;
                 let pt1 = pt1_vec.first().ok_or("No second point returned")?;
 
                 // Calculate angle and distance
@@ -584,6 +585,12 @@ impl TextParser {
         let tokens: Vec<&str> = tokenized.iter().map(|x| x.as_str()).collect();
 
         for token in tokens {
+            if token == "<>" {
+                self.expression_parser.pop_transform();
+                self.expression_parser.push_transform();
+                continue;
+            }
+
             // Handle special character prefixes
             if token.starts_with('<') {
                 self.expression_parser.pop_transform();
@@ -619,10 +626,9 @@ impl TextParser {
 
             // Handle translation: +[x y] or +value
             if token.starts_with('+') && !token.starts_with("+!") && !token.starts_with("+=>") {
-                let value_str = &token[1..];
-                let mut val = self.expression_parser.eval_point(&value_str)?;
-                val.scale(self.expression_parser.peek_transform().scale, None);
-                val.rotate(self.expression_parser.peek_transform().rotation, None);
+                let mut value_str = &token[1..];
+                let val_pt = self.parse_point(&mut value_str, Some(true))?[0];
+                let val = BasicPt::new(val_pt.x, val_pt.y);
                 self.expression_parser.modify_transform(|t| {
                     t.translate.add(val);
                 })?;

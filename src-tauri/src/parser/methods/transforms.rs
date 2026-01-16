@@ -55,6 +55,7 @@ impl Transform {
         point: &mut BasicPt,
         randomize: bool,
         parser: &mut ExpressionParser,
+        relative: Option<bool>,
     ) -> Result<AsemicPt, String> {
         // Scale the point
         let mut basic_pt = point.clone();
@@ -85,10 +86,12 @@ impl Transform {
 
         // Apply translation
         // Note: relative parameter handling would need to be added
-        basic_pt.add(super::asemic_pt::BasicPt::new(
-            self.translate.x,
-            self.translate.y,
-        ));
+        if relative != Some(true) {
+            basic_pt.add(super::asemic_pt::BasicPt::new(
+                self.translate.x,
+                self.translate.y,
+            ));
+        }
 
         let this_transform = self.solve(parser)?;
 

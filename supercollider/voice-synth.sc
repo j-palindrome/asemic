@@ -11,6 +11,7 @@ s.waitForBoot({
 
 	~inputBus = Bus.audio(s, 2);
 	~effectsBus = Bus.audio(s, 2);
+	~feedbackBus = Bus.audio(s, 2);
 
 	"./synths/*".resolveRelative.loadPaths;
 	s.sync;
@@ -18,11 +19,11 @@ s.waitForBoot({
 	~inputGroup = Group.new(s, \addToHead);
 	~effectsGroup = Group.new(s, \addToTail);
 
-	// {Out.ar(0, In.ar(~effectsBus, 2))}.play;
 	~inputSynth = Synth(\input, [\inBus, 0, \effectsOutBus, ~effectsBus, \amp, 1.0], ~inputGroup);
-	~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus, \outBus, ~effectsBus], ~effectsGroup, \addToTail);
-	~granularSynth = Synth(\granular, [\inBus, ~effectsBus, \outBus, ~effectsBus], ~effectsGroup, \addToTail);
-	~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus, \outBus, ~effectsBus], ~effectsGroup, \addToTail);
+	~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
+	~granularSynth = Synth(\granular, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
+	~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
+	~output = Synth(\output, [], ~effectsGroup, \addToTail);	
 });
 )
 s.queryAllNodes;

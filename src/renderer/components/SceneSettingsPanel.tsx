@@ -25,6 +25,7 @@ export interface GlobalSettings {
   supercolliderHost?: string
   supercolliderPort?: number
   params: Record<string, ParamConfig>
+  presets: Record<string, { params: Record<string, number[]> }>
   sendTo?: Record<string, { host: string }>
 }
 
@@ -70,6 +71,7 @@ export default function SceneSettingsPanel({
   scrubSettings,
   sceneList,
   globalSettings,
+  setGlobalSettings,
   errors
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
@@ -82,6 +84,8 @@ export default function SceneSettingsPanel({
   const [fullScreenCode, setFullScreenCode] = useState(false)
   const [showAddPreset, setShowAddPreset] = useState(false)
   const [newPresetName, setNewPresetName] = useState('')
+  const [showAddGlobalPreset, setShowAddGlobalPreset] = useState(false)
+  const [newGlobalPresetName, setNewGlobalPresetName] = useState('')
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -151,11 +155,16 @@ export default function SceneSettingsPanel({
     }
 
     const currentParams = scrubSettings.params
+    const filteredParams = Object.fromEntries(
+      Object.entries(currentParams).filter(
+        ([key]) => sceneList[activeScene].globalParams?.[key]
+      )
+    )
     onUpdate({
       ...sceneList[activeScene],
       presets: {
         ...(sceneList[activeScene].presets || {}),
-        [presetName]: { params: currentParams }
+        [presetName]: { params: filteredParams }
       }
     })
     setNewPresetName('')
@@ -177,6 +186,44 @@ export default function SceneSettingsPanel({
     delete newPresets[presetName]
     onUpdate({
       ...sceneList[activeScene],
+      presets: newPresets
+    })
+  }
+
+  const handleSaveGlobalPreset = (presetName: string) => {
+    if (!presetName.trim()) {
+      setNewGlobalPresetName('')
+      setShowAddGlobalPreset(false)
+      return
+    }
+
+    const currentParams = scrubSettings.params
+    setGlobalSettings({
+      ...globalSettings,
+      presets: {
+        ...(globalSettings.presets || {}),
+        [presetName]: { params: currentParams }
+      }
+    })
+    setNewGlobalPresetName('')
+    setShowAddGlobalPreset(false)
+  }
+
+  const handleLoadGlobalPreset = (presetName: string) => {
+    const preset = globalSettings.presets?.[presetName]
+    if (preset) {
+      onUpdateScrub({
+        ...scrubSettings,
+        params: preset.params
+      })
+    }
+  }
+
+  const handleDeleteGlobalPreset = (presetName: string) => {
+    const newPresets = { ...globalSettings.presets }
+    delete newPresets[presetName]
+    setGlobalSettings({
+      ...globalSettings,
       presets: newPresets
     })
   }
@@ -367,7 +414,7 @@ export default function SceneSettingsPanel({
               value={
                 sceneList[activeScene].pause === false
                   ? -1
-                  : sceneList[activeScene].pause ?? 0
+                  : (sceneList[activeScene].pause ?? 0)
               }
               onChange={e => {
                 const val = parseFloat(e.target.value)
@@ -1120,6 +1167,102 @@ export default function SceneSettingsPanel({
             <p className='text-white/40 text-xs italic'>No presets saved</p>
           )}
         </div>
+
+        {/* Global Presets Section */}
+        <div className='mt-3 border-t border-white/10 pt-3'>
+          <div className='flex items-center gap-2 mb-2'>
+            <label className='text-white/70 text-sm font-semibold'>
+              Global Presets
+            </label>
+            <button
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                setShowAddGlobalPreset(true)
+              }}
+              className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+              + New Preset
+            </button>
+          </div>
+
+          {/* Add Global Preset Input */}
+          {showAddGlobalPreset && (
+            <div className='mb-3 p-2 bg-white/5 rounded border border-white/20'>
+              <div className='flex items-center gap-2'>
+                <input
+                  type='text'
+                  placeholder='Preset name'
+                  value={newGlobalPresetName}
+                  onChange={e => setNewGlobalPresetName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newGlobalPresetName.trim()) {
+                      handleSaveGlobalPreset(newGlobalPresetName)
+                    } else if (e.key === 'Escape') {
+                      setNewGlobalPresetName('')
+                      setShowAddGlobalPreset(false)
+                    }
+                  }}
+                  autoFocus
+                  className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs'
+                />
+                <button
+                  onClick={() => handleSaveGlobalPreset(newGlobalPresetName)}
+                  className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setNewGlobalPresetName('')
+                    setShowAddGlobalPreset(false)
+                  }}
+                  className='text-white/50 hover:text-white text-xs'>
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Global Presets List */}
+          <div className='space-y-2 pr-1'>
+            {Object.entries(globalSettings.presets || {}).map(
+              ([presetName]) => (
+                <div
+                  key={presetName}
+                  className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                  <span className='text-white/70 text-sm'>{presetName}</span>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => handleLoadGlobalPreset(presetName)}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Load this preset'>
+                      Load
+                    </button>
+                    <button
+                      onClick={() => handleSaveGlobalPreset(presetName)}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Overwrite this preset with current params'>
+                      Update
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGlobalPreset(presetName)}
+                      className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Delete this preset'>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
+          {(!globalSettings.presets ||
+            Object.keys(globalSettings.presets).length === 0) && (
+            <p className='text-white/40 text-xs italic'>
+              No global presets saved
+            </p>
+          )}
+        </div>
+
         <div className='mt-3 border-t border-white/10 pt-3'>
           <div className='flex items-center gap-2 mb-2'>
             <label className='text-white/70 text-sm font-semibold'>

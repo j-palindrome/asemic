@@ -68,7 +68,8 @@ function AsemicAppInner({
     }
   ])
   const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
-    params: {}
+    params: {},
+    presets: {}
   } as GlobalSettings)
 
   const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
@@ -187,7 +188,6 @@ function AsemicAppInner({
 
   useEffect(() => {
     setErrors([])
-    invoke('parser_reset')
   }, [activeScene, scenesArray[activeScene]?.code])
 
   // const client = useMemo(() => new Client('localhost', 57120), [])
@@ -415,7 +415,9 @@ function AsemicAppInner({
       // animationFrameRef.current = requestAnimationFrame(animate)
     }
     if (isSetup) {
-      animationFrame = requestAnimationFrame(animate)
+      invoke('parser_reset').then(() => {
+        animationFrame = requestAnimationFrame(animate)
+      })
     }
 
     return () => {
@@ -515,6 +517,9 @@ function AsemicAppInner({
   const [perform, _setPerform] = useState(settings.perform)
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
+  const [selectedPresetType, setSelectedPresetType] = useState<
+    'scene' | 'global' | null
+  >(null)
   const [presetInterpolation, setPresetInterpolation] = useState(0)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
@@ -529,11 +534,17 @@ function AsemicAppInner({
 
   // Interpolate between current params and target preset
   useEffect(() => {
-    if (!selectedPreset || presetInterpolation === 0) {
+    if (!selectedPreset || !selectedPresetType || presetInterpolation === 0) {
       return
     }
 
-    const targetPreset = scenesArray[activeScene]?.presets?.[selectedPreset]
+    let targetPreset
+    if (selectedPresetType === 'scene') {
+      targetPreset = scenesArray[activeScene]?.presets?.[selectedPreset]
+    } else {
+      targetPreset = globalSettings.presets?.[selectedPreset]
+    }
+
     if (!targetPreset) return
 
     setScrubValues(prev => {
@@ -571,7 +582,7 @@ function AsemicAppInner({
       }
       return newValues
     })
-  }, [selectedPreset, presetInterpolation, activeScene])
+  }, [selectedPreset, selectedPresetType, presetInterpolation, activeScene])
 
   const setShowGlobalSettings = (value: boolean) => {
     if (value && !perform) setPerform(true)
@@ -724,23 +735,59 @@ function AsemicAppInner({
             </div>
 
             {/* Preset selector and interpolation */}
-            {Object.keys(scenesArray[activeScene]?.presets || {}).length >
-              0 && (
+            {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||
+              Object.keys(globalSettings.presets || {}).length > 0) && (
               <div className='flex items-center gap-2 px-2'>
                 <select
-                  value={selectedPreset || ''}
+                  value={
+                    selectedPreset
+                      ? `${selectedPresetType}:${selectedPreset}`
+                      : ''
+                  }
                   onChange={e => {
-                    setSelectedPreset(e.target.value || null)
-                    setPresetInterpolation(0)
+                    if (!e.target.value) {
+                      setSelectedPreset(null)
+                      setSelectedPresetType(null)
+                      setPresetInterpolation(0)
+                    } else {
+                      const [type, name] = e.target.value.split(':')
+                      setSelectedPreset(name)
+                      setSelectedPresetType(type as 'scene' | 'global')
+                      setPresetInterpolation(0)
+                    }
                   }}
                   className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
                   <option value=''>Select Preset</option>
-                  {Object.keys(scenesArray[activeScene]?.presets || {}).map(
-                    presetName => (
-                      <option key={presetName} value={presetName}>
-                        {presetName}
-                      </option>
-                    )
+                  {Object.keys(globalSettings.presets || {}).length > 0 && (
+                    <>
+                      <optgroup label='Global Presets'>
+                        {Object.keys(globalSettings.presets || {}).map(
+                          presetName => (
+                            <option
+                              key={`global:${presetName}`}
+                              value={`global:${presetName}`}>
+                              {presetName}
+                            </option>
+                          )
+                        )}
+                      </optgroup>
+                    </>
+                  )}
+                  {Object.keys(scenesArray[activeScene]?.presets || {}).length >
+                    0 && (
+                    <>
+                      <optgroup label='Scene Presets'>
+                        {Object.keys(
+                          scenesArray[activeScene]?.presets || {}
+                        ).map(presetName => (
+                          <option
+                            key={`scene:${presetName}`}
+                            value={`scene:${presetName}`}>
+                            {presetName}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
                   )}
                 </select>
                 {selectedPreset && (

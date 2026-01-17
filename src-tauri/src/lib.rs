@@ -125,7 +125,10 @@ async fn parse_asemic_source(
     scene: SceneMetadata,
     state: tauri::State<'_, AppState>,
 ) -> Result<ParseSourceResult, String> {
-    let mut parser = state.text_parser.lock().unwrap();
+    let mut parser = state
+        .text_parser
+        .lock()
+        .map_err(|_| "failed to lock parser".to_string())?;
 
     // Load the default font
     parser.load_default_font()?;

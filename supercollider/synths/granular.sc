@@ -3,7 +3,8 @@ SynthDef(\granular, {
 	| rate = #[30, 30],
 	inBus = 0,
 	outBus = 0,
-	level = #[1, 1],
+	feedbackBus = 0,
+	level = #[1, 1, 0],
 	variation = #[0.5, 2] |
 
 	var sig, trigger = Dust.ar(rate[0]), recordBuf = Buffer.alloc(s, 48000 * 5, 1);
@@ -21,10 +22,11 @@ SynthDef(\granular, {
 		amp: TRand.ar(0, 1, trigger),
 		interp: 2
 	);
-	Out.ar(outBus, (input * (1 - level[0])) + (sig * level[0]));
+	ReplaceOut.ar(outBus, (input * (1 - level[0])) + (sig * level[0]));
 	Out.ar(0, sig * level[1]);
+	Out.ar(feedbackBus, sig * level[2]);
 }).add;
 
 OSCdef.new(\granularRate, { |msg| ~granularSynth.set(\rate, msg[1..2]); }, "/granular/rate");
-OSCdef.new(\granularLevel, { |msg| ~granularSynth.set(\level, msg[1..2]); }, "/granular/level");
+OSCdef.new(\granularLevel, { |msg| ~granularSynth.set(\level, msg[1..3]); }, "/granular/level");
 OSCdef.new(\granularVariation, { |msg| ~granularSynth.set(\variation, msg[1..2]); }, "/granular/variation");

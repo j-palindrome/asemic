@@ -38,6 +38,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import ParamEditors from '../components/ParamEditors'
+import Scrubber from '../components/Scrubber'
 import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
@@ -704,35 +705,19 @@ function AsemicAppInner({
               </button>
             </div>
             {/* Scrub slider for current scene */}
-            <div className='flex items-center gap-2 px-2'>
-              <input
-                type='range'
-                min='0'
-                max={
-                  (scenesArray[activeScene]?.length || 0.1) -
-                  (scenesArray[activeScene]?.offset || 0)
-                }
-                step='0.001'
-                value={scrubValues[activeScene]?.scrub || 0}
-                onChange={e => {
-                  const newScrub = parseFloat(e.target.value)
-                  setScrubValues(prev => {
-                    const newValues = [...prev]
-                    if (newValues[activeScene]) {
-                      newValues[activeScene].scrub = newScrub
-                    }
-                    return newValues
-                  })
-                }}
-                className='w-32 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer'
-                style={{
-                  accentColor: 'white'
-                }}
-              />
-              <span className='text-white text-xs opacity-50 font-mono min-w-[60px]'>
-                {(scrubValues[activeScene]?.scrub || 0).toFixed(2)}s
-              </span>
-            </div>
+            <Scrubber
+              scrubValue={scrubValues[activeScene]?.scrub || 0}
+              onScrubChange={newScrub => {
+                setScrubValues(prev => {
+                  const newValues = [...prev]
+                  if (newValues[activeScene]) {
+                    newValues[activeScene].scrub = newScrub
+                  }
+                  return newValues
+                })
+              }}
+              sceneSettings={scenesArray[activeScene]}
+            />
 
             {/* Preset selector and interpolation */}
             {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||

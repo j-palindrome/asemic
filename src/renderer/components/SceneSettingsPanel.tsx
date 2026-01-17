@@ -84,8 +84,14 @@ export default function SceneSettingsPanel({
   const [fullScreenCode, setFullScreenCode] = useState(false)
   const [showAddPreset, setShowAddPreset] = useState(false)
   const [newPresetName, setNewPresetName] = useState('')
+  const [renamingPreset, setRenamingPreset] = useState<string | null>(null)
+  const [renamePresetValue, setRenamePresetValue] = useState('')
   const [showAddGlobalPreset, setShowAddGlobalPreset] = useState(false)
   const [newGlobalPresetName, setNewGlobalPresetName] = useState('')
+  const [renamingGlobalPreset, setRenamingGlobalPreset] = useState<
+    string | null
+  >(null)
+  const [renameGlobalPresetValue, setRenameGlobalPresetValue] = useState('')
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -190,6 +196,26 @@ export default function SceneSettingsPanel({
     })
   }
 
+  const handleRenamePreset = (oldName: string) => {
+    if (!renamePresetValue.trim() || renamePresetValue === oldName) {
+      setRenamingPreset(null)
+      setRenamePresetValue('')
+      return
+    }
+
+    const newName = renamePresetValue.trim()
+    const newPresets = { ...sceneList[activeScene].presets }
+    newPresets[newName] = newPresets[oldName]
+    delete newPresets[oldName]
+
+    onUpdate({
+      ...sceneList[activeScene],
+      presets: newPresets
+    })
+    setRenamingPreset(null)
+    setRenamePresetValue('')
+  }
+
   const handleSaveGlobalPreset = (presetName: string) => {
     if (!presetName.trim()) {
       setNewGlobalPresetName('')
@@ -226,6 +252,29 @@ export default function SceneSettingsPanel({
       ...globalSettings,
       presets: newPresets
     })
+  }
+
+  const handleRenameGlobalPreset = (oldName: string) => {
+    if (
+      !renameGlobalPresetValue.trim() ||
+      renameGlobalPresetValue === oldName
+    ) {
+      setRenamingGlobalPreset(null)
+      setRenameGlobalPresetValue('')
+      return
+    }
+
+    const newName = renameGlobalPresetValue.trim()
+    const newPresets = { ...globalSettings.presets }
+    newPresets[newName] = newPresets[oldName]
+    delete newPresets[oldName]
+
+    setGlobalSettings({
+      ...globalSettings,
+      presets: newPresets
+    })
+    setRenamingGlobalPreset(null)
+    setRenameGlobalPresetValue('')
   }
 
   const handleUpdateParam = (key: string, value: number[]) => {
@@ -1133,30 +1182,79 @@ export default function SceneSettingsPanel({
           <div className='space-y-2 pr-1'>
             {Object.entries(sceneList[activeScene].presets || {}).map(
               ([presetName]) => (
-                <div
-                  key={presetName}
-                  className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
-                  <span className='text-white/70 text-sm'>{presetName}</span>
-                  <div className='flex items-center gap-2'>
-                    <button
-                      onClick={() => handleLoadPreset(presetName)}
-                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Load this preset'>
-                      Load
-                    </button>
-                    <button
-                      onClick={() => handleSavePreset(presetName)}
-                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Overwrite this preset with current params'>
-                      Update
-                    </button>
-                    <button
-                      onClick={() => handleDeletePreset(presetName)}
-                      className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Delete this preset'>
-                      Delete
-                    </button>
+                <div key={presetName}>
+                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                    <span className='text-white/70 text-sm'>{presetName}</span>
+                    <div className='flex items-center gap-2'>
+                      <button
+                        onClick={() => handleLoadPreset(presetName)}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Load this preset'>
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleSavePreset(presetName)}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Overwrite this preset with current params'>
+                        Update
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRenamingPreset(presetName)
+                          setRenamePresetValue(presetName)
+                        }}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Rename this preset'>
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => handleDeletePreset(presetName)}
+                        className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Delete this preset'>
+                        Delete
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Rename Dialog */}
+                  {renamingPreset === presetName && (
+                    <div className='mt-2 p-2 bg-white/10 rounded border border-white/30'>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          Rename to:
+                        </span>
+                        <input
+                          type='text'
+                          placeholder='New preset name'
+                          value={renamePresetValue}
+                          onChange={e => setRenamePresetValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              handleRenamePreset(presetName)
+                            } else if (e.key === 'Escape') {
+                              setRenamingPreset(null)
+                              setRenamePresetValue('')
+                            }
+                          }}
+                          autoFocus
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                        <button
+                          onClick={() => handleRenamePreset(presetName)}
+                          className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRenamingPreset(null)
+                            setRenamePresetValue('')
+                          }}
+                          className='text-white/50 hover:text-white text-xs'>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             )}
@@ -1226,30 +1324,81 @@ export default function SceneSettingsPanel({
           <div className='space-y-2 pr-1'>
             {Object.entries(globalSettings.presets || {}).map(
               ([presetName]) => (
-                <div
-                  key={presetName}
-                  className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
-                  <span className='text-white/70 text-sm'>{presetName}</span>
-                  <div className='flex items-center gap-2'>
-                    <button
-                      onClick={() => handleLoadGlobalPreset(presetName)}
-                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Load this preset'>
-                      Load
-                    </button>
-                    <button
-                      onClick={() => handleSaveGlobalPreset(presetName)}
-                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Overwrite this preset with current params'>
-                      Update
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGlobalPreset(presetName)}
-                      className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
-                      title='Delete this preset'>
-                      Delete
-                    </button>
+                <div key={presetName}>
+                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                    <span className='text-white/70 text-sm'>{presetName}</span>
+                    <div className='flex items-center gap-2'>
+                      <button
+                        onClick={() => handleLoadGlobalPreset(presetName)}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Load this preset'>
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleSaveGlobalPreset(presetName)}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Overwrite this preset with current params'>
+                        Update
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRenamingGlobalPreset(presetName)
+                          setRenameGlobalPresetValue(presetName)
+                        }}
+                        className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Rename this preset'>
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGlobalPreset(presetName)}
+                        className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
+                        title='Delete this preset'>
+                        Delete
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Rename Dialog */}
+                  {renamingGlobalPreset === presetName && (
+                    <div className='mt-2 p-2 bg-white/10 rounded border border-white/30'>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          Rename to:
+                        </span>
+                        <input
+                          type='text'
+                          placeholder='New preset name'
+                          value={renameGlobalPresetValue}
+                          onChange={e =>
+                            setRenameGlobalPresetValue(e.target.value)
+                          }
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              handleRenameGlobalPreset(presetName)
+                            } else if (e.key === 'Escape') {
+                              setRenamingGlobalPreset(null)
+                              setRenameGlobalPresetValue('')
+                            }
+                          }}
+                          autoFocus
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                        <button
+                          onClick={() => handleRenameGlobalPreset(presetName)}
+                          className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRenamingGlobalPreset(null)
+                            setRenameGlobalPresetValue('')
+                          }}
+                          className='text-white/50 hover:text-white text-xs'>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             )}

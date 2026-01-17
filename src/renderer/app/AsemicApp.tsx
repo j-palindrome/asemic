@@ -38,7 +38,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import ParamEditors from '../components/ParamEditors'
-import Scrubber from '../components/Scrubber'
+import Scroller from '../components/Scrubber'
 import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
@@ -705,9 +705,9 @@ function AsemicAppInner({
               </button>
             </div>
             {/* Scrub slider for current scene */}
-            <Scrubber
-              scrubValue={scrubValues[activeScene]?.scrub || 0}
-              onScrubChange={newScrub => {
+            <Scroller
+              value={scrubValues[activeScene]?.scrub || 0}
+              onChange={newScrub => {
                 setScrubValues(prev => {
                   const newValues = [...prev]
                   if (newValues[activeScene]) {
@@ -716,7 +716,12 @@ function AsemicAppInner({
                   return newValues
                 })
               }}
-              sceneSettings={scenesArray[activeScene]}
+              min={0}
+              max={
+                (scenesArray[activeScene]?.length || 0.1) -
+                (scenesArray[activeScene]?.offset || 0)
+              }
+              format={(v: number) => `${v.toFixed(2)}s`}
             />
 
             {/* Preset selector and interpolation */}

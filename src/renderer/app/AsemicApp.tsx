@@ -522,6 +522,7 @@ function AsemicAppInner({
     'scene' | 'global' | null
   >(null)
   const [presetInterpolation, setPresetInterpolation] = useState(0)
+  const presetFromRef = useRef<Record<string, number[]> | null>(null)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
       _setShowGlobalSettings(false)
@@ -533,9 +534,14 @@ function AsemicAppInner({
   }, [settings.perform])
   const [showCanvas, setShowCanvas] = useState(true)
 
-  // Interpolate between current params and target preset
+  // Interpolate between saved ref params and target preset
   useEffect(() => {
-    if (!selectedPreset || !selectedPresetType || presetInterpolation === 0) {
+    if (
+      !selectedPreset ||
+      !selectedPresetType ||
+      presetInterpolation === 0 ||
+      !presetFromRef.current
+    ) {
       return
     }
 
@@ -555,25 +561,25 @@ function AsemicAppInner({
 
       const interpolatedParams: Record<string, number[]> = {}
 
-      // Get all param keys from current and target
+      // Get all param keys from ref starting point and target
       const allKeys = new Set([
-        ...Object.keys(currentScrub.params || {}),
+        ...Object.keys(presetFromRef.current || {}),
         ...Object.keys(targetPreset.params || {})
       ])
 
       for (const key of allKeys) {
-        const currentValue = currentScrub.params[key] || []
+        const fromValue = presetFromRef.current?.[key] || []
         const targetValue = targetPreset.params[key] || []
 
-        // Interpolate each dimension
+        // Interpolate each dimension from ref to target
         interpolatedParams[key] = []
-        const maxLen = Math.max(currentValue.length, targetValue.length)
+        const maxLen = Math.max(fromValue.length, targetValue.length)
 
         for (let i = 0; i < maxLen; i++) {
-          const curr = currentValue[i] ?? 0
+          const from = fromValue[i] ?? 0
           const target = targetValue[i] ?? 0
           interpolatedParams[key][i] =
-            curr + (target - curr) * presetInterpolation
+            from + (target - from) * presetInterpolation
         }
       }
 
@@ -652,7 +658,7 @@ function AsemicAppInner({
           height={1080}
           width={1080}></canvas>
 
-        <div className='fixed top-1 left-1 h-full w-full flex-col flex !z-100 pointer-events-none'>
+        <div className='fixed top-1 left-1 h-full w-full flex-col flex !z-100 pointer-events-none select-none'>
           <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
             <div className='flex items-center gap-1'>
               <button
@@ -702,7 +708,7 @@ function AsemicAppInner({
                 disabled={activeScene === scenesArray.length - 1}
                 className='disabled:opacity-30'>
                 <ChevronRight {...lucideProps} size={16} />
-              </button>
+              </button>{' '}
             </div>
             {/* Scrub slider for current scene */}
             <Scroller
@@ -723,7 +729,6 @@ function AsemicAppInner({
               }
               format={(v: number) => `${v.toFixed(2)}s`}
             />
-
             {/* Preset selector and interpolation */}
             {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||
               Object.keys(globalSettings.presets || {}).length > 0) && (
@@ -739,8 +744,18 @@ function AsemicAppInner({
                       setSelectedPreset(null)
                       setSelectedPresetType(null)
                       setPresetInterpolation(0)
+                      presetFromRef.current = null
                     } else {
                       const [type, name] = e.target.value.split(':')
+                      // Save current params to ref as interpolation starting point
+                      presetFromRef.current = scrubValuesRef.current[
+                        activeSceneRef.current
+                      ]?.params
+                        ? {
+                            ...scrubValuesRef.current[activeSceneRef.current]
+                              .params
+                          }
+                        : null
                       setSelectedPreset(name)
                       setSelectedPresetType(type as 'scene' | 'global')
                       setPresetInterpolation(0)
@@ -781,25 +796,13 @@ function AsemicAppInner({
                   )}
                 </select>
                 {selectedPreset && (
-                  <div className='flex items-center gap-1'>
-                    <input
-                      type='range'
-                      min='0'
-                      max='1'
-                      step='0.001'
-                      value={presetInterpolation}
-                      onChange={e => {
-                        setPresetInterpolation(parseFloat(e.target.value))
-                      }}
-                      className='w-24 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer'
-                      style={{
-                        accentColor: 'white'
-                      }}
-                    />
-                    <span className='text-white text-xs opacity-50 font-mono min-w-[30px]'>
-                      {(presetInterpolation * 100).toFixed(0)}%
-                    </span>
-                  </div>
+                  <Scroller
+                    value={presetInterpolation}
+                    onChange={setPresetInterpolation}
+                    min={0}
+                    max={1}
+                    format={(v: number) => `${(v * 100).toFixed(0)}%`}
+                  />
                 )}
               </div>
             )}
@@ -814,6 +817,26 @@ function AsemicAppInner({
                 </span>
               </button>
             )}
+            <button
+              onClick={() => {
+                setScenesArray([
+                  {
+                    code: '',
+                    length: 0.1,
+                    offset: 0,
+                    params: {}
+                  }
+                ])
+                setScrubValues([{ params: {}, scrub: 0, sent: {} }])
+                setProgress(0)
+                setGlobalSettings({ params: {}, presets: {} })
+                localStorage.removeItem('scenesArray')
+                localStorage.removeItem('globalSettings')
+              }}
+              title='New Document'
+              className='p-1 hover:bg-white/10 rounded transition-colors'>
+              <Plus {...lucideProps} size={16} />
+            </button>{' '}
             <JsonFileLoader
               sceneList={scenesArray}
               setSceneList={setScenesArray}
@@ -858,7 +881,7 @@ function AsemicAppInner({
           )}
           {perform && scenesArray[activeScene]?.text && (
             <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
-              <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mx-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
+              <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
                 {scenesArray[activeScene]?.text || ''}
               </div>
             </div>

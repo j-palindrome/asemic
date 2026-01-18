@@ -1,9 +1,8 @@
 
 SynthDef(\bitcrush, {
-	| inBus = 3, outBus = 0, level = #[1, 1, 0], rate = #[1, 1, 1, 1], mix = 1, feedbackBus = 0 |
+	| inBus = 3, outBus = 0, level = #[0, 0, 0], rate = #[0, 0, 0, 0], mix = 1, feedbackBus = 0 |
 	var input = In.ar(inBus, 2);
-	var freq = rate.collect { |r| LFNoise0.ar(LFNoise2.ar(r, 1/2, 1/2), 1/2, 1/2) * (mix * 2000) + 100 };
-	var output = freq.collect { |f| Pan2.ar(Latch.ar(input, Impulse.ar(f)), LFNoise2.ar(1, -1, 1)) };
+	var output = Mix.ar(rate.collect { |f| Pan2.ar(Latch.ar(input, Impulse.ar(f * 2000 + 100)), LFNoise2.ar(1, -1, 1)) }) / rate.size;
 	ReplaceOut.ar(outBus, (input * (1 - level[0])) + (output * level[0]));
 	Out.ar(0, output * level[1]);
 	Out.ar(feedbackBus, output * level[2]);

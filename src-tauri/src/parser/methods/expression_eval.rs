@@ -449,8 +449,9 @@ impl ExpressionEval for ExpressionParser {
 
                 for arg in &args[1..] {
                     let freq_data = self.expr_point(arg, Some(1.0))?;
+                    let current_phase = phases_copy.get(idx).ok_or("Missing phase data")?;
                     let current_freq =
-                        (freq_data.0 * (current_time + phases_copy[idx]) * std::f64::consts::TAU)
+                        (freq_data.0 * (current_time + current_phase) * std::f64::consts::TAU)
                             .sin();
                     total_freq *= 1.0 + (current_freq * freq_data.1);
                     idx += 1;

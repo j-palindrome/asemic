@@ -5,7 +5,6 @@ import AsemicEditor, { AsemicEditorRef } from './Editor'
 import { lucideProps, ScrubSettings } from '../app/AsemicApp'
 import { isEqual, uniq } from 'lodash'
 import { Delete, Eye, EyeClosed, Save, Maximize2 } from 'lucide-react'
-import { l } from 'node_modules/react-router/dist/development/index-react-server-client-DRhjXpk2.mjs'
 
 type ParamConfig = {
   max: number
@@ -240,7 +239,7 @@ export default function SceneSettingsPanel({
     if (preset) {
       onUpdateScrub({
         ...scrubSettings,
-        params: preset.params
+        params: { ...scrubSettings.params, ...preset.params }
       })
     }
   }

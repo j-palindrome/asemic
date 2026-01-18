@@ -23,7 +23,8 @@ s.waitForBoot({
 	~delayDistortion = Synth(\delayDistortion, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
 	~granularSynth = Synth(\granular, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
 	~bitcrush = Synth(\bitcrush, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
-	~output = Synth(\output, [], ~effectsGroup, \addToTail);	
+	~reverb = Synth(\reverb, [\inBus, ~effectsBus, \outBus, ~effectsBus, \feedbackBus, ~feedbackBus], ~effectsGroup, \addToTail);
+	~output = Synth(\output, [], ~effectsGroup, \addToTail);
 });
 )
 s.queryAllNodes;

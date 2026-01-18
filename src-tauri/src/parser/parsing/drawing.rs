@@ -361,12 +361,10 @@ impl DrawingMixin for TextParser {
             &mut pt,
             false,
             &mut self.expression_parser,
-            relative,
+            if adding { Some(true) } else { relative },
         )?;
         if adding {
             let last_pt = self.peek_last_point(-1, None)?;
-            transformed_pt.x -= transform_clone.translate.x;
-            transformed_pt.y -= transform_clone.translate.y;
             transformed_pt.x += last_pt.x;
             transformed_pt.y += last_pt.y;
         }

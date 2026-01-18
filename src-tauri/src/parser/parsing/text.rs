@@ -6,7 +6,7 @@ use super::drawing::DrawingMixin;
 use crate::parser::{
     methods::{
         asemic_pt::{AsemicPt, BasicPt},
-        transforms::Transforms,
+        transforms::{SolvedTransform, Transform, Transforms},
     },
     parsing::utilities::Utilities,
     ExpressionEval, TextParser, TokenizeOptions,
@@ -299,6 +299,7 @@ impl TextMethods for TextParser {
                     .collect();
                 let amount_of_points = point_exprs.len();
                 let mut j = 0.0;
+                let mut saved_transform: Option<SolvedTransform> = None;
                 for point in &points {
                     self.expression_parser.point = j / (amount_of_points as f64 - 1.0);
                     if point.starts_with('{') && point.ends_with('}') {
@@ -312,21 +313,30 @@ impl TextMethods for TextParser {
                             self.add_point(pt);
                         }
                         if j == 0.0 && amount_of_points == 2 {
-                            // fill out a 3-point curve
-                            let p0 = self.current_curve[0];
-                            let p1_pts =
-                                self.parse_point(&mut point_exprs[1].as_str(), Some(false))?;
-                            let p1 = p1_pts.first().ok_or("No point returned")?;
-                            let mut lerped = *p0.clone().lerp(*p1, 0.5);
-                            self.expression_parser.point = 0.5;
-                            self.current_curve.insert(
-                                1,
-                                self.expression_parser.generate_point(&lerped.basic_pt())?,
+                            saved_transform = Some(
+                                self.expression_parser
+                                    .peek_transform()
+                                    .solve(&mut self.expression_parser)?,
                             );
                         }
                     }
 
                     j += 1.0;
+                }
+                if amount_of_points == 2 {
+                    let p0 = self
+                        .current_curve
+                        .first()
+                        .ok_or("No first point in curve")?;
+                    let p1 = self.current_curve.last().ok_or("No last point in curve")?;
+                    self.expression_parser.point = 0.5;
+                    let mut lerped = *p0.clone().lerp(*p1, 0.5);
+                    let solved_values = saved_transform.ok_or("No saved transform for lerp")?;
+                    lerped.h = solved_values.h;
+                    lerped.w = solved_values.w;
+                    lerped.s = solved_values.s;
+                    lerped.l = solved_values.l;
+                    self.current_curve.insert(1, lerped);
                 }
 
                 // Handle operators after bracket

@@ -106,7 +106,6 @@ impl TextParser {
     pub fn end_curve(&mut self, close: bool) -> Result<(), String> {
         if self.current_curve.len() < 2 {
             return Err("Cannot end a curve with less than 2 points".to_string());
-        } else if self.current_curve.len() == 2 {
         }
 
         if close && !self.current_curve.is_empty() {

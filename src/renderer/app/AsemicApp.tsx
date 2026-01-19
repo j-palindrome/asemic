@@ -39,6 +39,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
+import { useProgressNavigation } from '../hooks/useProgressNavigation'
 import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
@@ -135,40 +136,16 @@ function AsemicAppInner({
 
   const asemic = useRef<Asemic>(null)
 
-  const useProgress = () => {
-    const [progress, setProgress] = useState(0)
-    const [scenes, setScenes] = useState<number[]>([])
-
-    return [progress, setProgress, scenes, setScenes] as const
-  }
-  const [progress, setProgress, scenes, setScenes] = useProgress()
-
-  // Calculate scene boundaries from scenesArray for navigation
-  const sceneStarts = useMemo(() => {
-    let cumulative = 0
-    return scenesArray.map((scene, idx) => {
-      const start = cumulative
-      const length = scene.length || 0.1
-      const offset = scene.offset || 0
-      cumulative += length - offset
-      return start
-    })
-  }, [scenesArray])
-
-  // Track scrub position and params per scene
-
-  // Calculate active scene based on current progress
-  const activeScene = useMemo(() => {
-    if (sceneStarts.length === 0) return 0
-
-    // Find which scene we're currently in
-    for (let i = sceneStarts.length - 1; i >= 0; i--) {
-      if (progress >= sceneStarts[i]) {
-        return i
-      }
-    }
-    return 0
-  }, [progress, sceneStarts])
+  const {
+    progress,
+    totalProgress,
+    setProgress,
+    scenes,
+    setScenes,
+    sceneStarts,
+    activeScene,
+    activeSceneRef
+  } = useProgressNavigation(scenesArray)
 
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
@@ -181,11 +158,6 @@ function AsemicAppInner({
       })
     }
   }, [progress])
-
-  const activeSceneRef = useRef(activeScene)
-  useEffect(() => {
-    activeSceneRef.current = activeScene
-  }, [activeScene])
 
   useEffect(() => {
     setErrors([])
@@ -200,10 +172,6 @@ function AsemicAppInner({
         if (!isUndefined(data.errors)) {
           setErrors(data.errors)
         }
-        if (!isUndefined(data.progress)) {
-          setProgress(data.progress)
-          // Remove Rust state sync
-        }
         if (!isUndefined(data.scenes)) {
           setScenes(data.scenes)
         }
@@ -213,46 +181,6 @@ function AsemicAppInner({
 
   useEffect(() => {
     setIsSetup(true)
-  }, [])
-
-  // Listen for OSC scenelist events
-  useEffect(() => {
-    const setupListener = async () => {
-      const unlisten = await listen('progress', event => {
-        // console.log('payload', event)
-
-        // const payload = JSON.parse(event.payload)
-        // setScrubValues(prev => {
-        //   const newValues = [...prev]
-        //   const currentScrub = newValues[activeSceneRef.current] || {
-        //     scrub: 0,
-        //     params: {},
-        //     sent: {},
-        //     ...payload
-        //   }
-        //   newValues[activeSceneRef.current] = currentScrub
-        //   return newValues
-        // })
-        const progressValue = parseFloat(event.payload as string)
-        setProgress(progressValue)
-      })
-      return unlisten
-    }
-
-    let unlistener: (() => void) | null = null
-    setupListener()
-      .then(fn => {
-        unlistener = fn
-      })
-      .catch(err => {
-        console.error('Failed to set up OSC listener:', err)
-      })
-
-    return () => {
-      if (unlistener) {
-        unlistener()
-      }
-    }
   }, [])
 
   useEffect(() => {
@@ -700,8 +628,7 @@ function AsemicAppInner({
                   if (nextScene !== activeScene) {
                     // Jump to the start of the next scene using our calculated boundaries
                     const nextSceneStart = sceneStarts[nextScene] || 0
-                    const offset = scenesArray[nextScene]?.offset || 0
-                    const targetProgress = nextSceneStart + offset + 0.001
+                    const targetProgress = nextSceneStart + 0.001
                     setProgress(targetProgress)
                   }
                 }}
@@ -712,21 +639,20 @@ function AsemicAppInner({
             </div>
             {/* Scrub slider for current scene */}
             <Scroller
-              value={scrubValues[activeScene]?.scrub || 0}
+              value={progress}
               onChange={newScrub => {
+                setProgress(newScrub)
                 setScrubValues(prev => {
                   const newValues = [...prev]
                   if (newValues[activeScene]) {
-                    newValues[activeScene].scrub = newScrub
+                    newValues[activeScene].scrub =
+                      newScrub - scenes[activeScene]
                   }
                   return newValues
                 })
               }}
               min={0}
-              max={
-                (scenesArray[activeScene]?.length || 0.1) -
-                (scenesArray[activeScene]?.offset || 0)
-              }
+              max={totalProgress}
               format={(v: number) => `${v.toFixed(2)}s`}
             />
             {/* Preset selector and interpolation */}

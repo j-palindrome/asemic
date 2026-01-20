@@ -3,7 +3,6 @@ import { SceneSettings } from '../components/SceneSettingsPanel'
 
 export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
   const [progress, setProgress] = useState(0)
-  const [scenes, setScenes] = useState<number[]>([])
 
   // Calculate scene boundaries from scenesArray for navigation
   const sceneStarts = useMemo(() => {
@@ -12,8 +11,9 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
       const start = cumulative
       const length = scene.length || 0.1
       const offset = scene.offset || 0
+      const end = start + length
       cumulative += length - offset
-      return start
+      return { start, end }
     })
   }, [scenesArray])
 
@@ -23,7 +23,7 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
 
     // Find which scene we're currently in
     for (let i = sceneStarts.length - 1; i >= 0; i--) {
-      if (progress >= sceneStarts[i]) {
+      if (progress >= sceneStarts[i].start) {
         return i
       }
     }
@@ -48,8 +48,6 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
     progress,
     totalProgress,
     setProgress,
-    scenes,
-    setScenes,
     sceneStarts,
     activeScene,
     activeSceneRef

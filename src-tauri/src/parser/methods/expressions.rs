@@ -149,7 +149,7 @@ impl ExpressionParser {
     pub fn new() -> Self {
         Self {
             operator_split_cache: HashMap::new(),
-            curve: 0.0,
+            curve: 1.0,
             letter: 0.0,
             point: 0.0,
             noise_index: 0,

@@ -140,8 +140,6 @@ function AsemicAppInner({
     progress,
     totalProgress,
     setProgress,
-    scenes,
-    setScenes,
     sceneStarts,
     activeScene,
     activeSceneRef
@@ -171,9 +169,6 @@ function AsemicAppInner({
       asemic.current = new Asemic(data => {
         if (!isUndefined(data.errors)) {
           setErrors(data.errors)
-        }
-        if (!isUndefined(data.scenes)) {
-          setScenes(data.scenes)
         }
       })
     }
@@ -594,7 +589,7 @@ function AsemicAppInner({
                   const prevScene = Math.max(0, activeScene - 1)
                   if (prevScene !== activeScene) {
                     // Jump to the start of the previous scene using our calculated boundaries
-                    const prevSceneStart = sceneStarts[prevScene] || 0
+                    const prevSceneStart = sceneStarts[prevScene]?.start || 0
                     const offset = scenesArray[prevScene]?.offset || 0
                     const targetProgress = prevSceneStart + offset + 0.001
                     setProgress(targetProgress)
@@ -610,7 +605,7 @@ function AsemicAppInner({
                   const sceneIndex = parseInt(e.target.value, 10)
                   const sceneStart = sceneStarts[sceneIndex] || 0
                   const offset = scenesArray[sceneIndex]?.offset || 0
-                  setProgress(sceneStart + offset + 0.001)
+                  setProgress(sceneStart.start + offset + 0.001)
                 }}
                 className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 font-mono cursor-pointer hover:bg-white/20'>
                 {scenesArray.map((_, idx) => (
@@ -628,7 +623,7 @@ function AsemicAppInner({
                   if (nextScene !== activeScene) {
                     // Jump to the start of the next scene using our calculated boundaries
                     const nextSceneStart = sceneStarts[nextScene] || 0
-                    const targetProgress = nextSceneStart + 0.001
+                    const targetProgress = nextSceneStart.start + 0.001
                     setProgress(targetProgress)
                   }
                 }}
@@ -646,7 +641,7 @@ function AsemicAppInner({
                   const newValues = [...prev]
                   if (newValues[activeScene]) {
                     newValues[activeScene].scrub =
-                      newScrub - scenes[activeScene]
+                      newScrub - sceneStarts[activeScene].start
                   }
                   return newValues
                 })

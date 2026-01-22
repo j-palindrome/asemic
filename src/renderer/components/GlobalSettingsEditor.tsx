@@ -41,7 +41,7 @@ export default function GlobalSettingsEditor({
     try {
       const result = await invoke<string>('sc_connect', {
         host: `${settings.supercolliderHost || 'localhost'}:${
-          settings.supercolliderPort || 57110
+          settings.supercolliderPort || 57120
         }`
       })
       setConnectionStatus('connected')
@@ -217,8 +217,8 @@ export default function GlobalSettingsEditor({
                 connectionStatus === 'connected'
                   ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
                   : connectionStatus === 'error'
-                  ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                  : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                    : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
               } disabled:opacity-50`}>
               <RotateCw
                 size={14}
@@ -232,8 +232,8 @@ export default function GlobalSettingsEditor({
                   connectionStatus === 'connected'
                     ? 'bg-green-500/10 text-green-300'
                     : connectionStatus === 'error'
-                    ? 'bg-red-500/10 text-red-300'
-                    : 'bg-blue-500/10 text-blue-300'
+                      ? 'bg-red-500/10 text-red-300'
+                      : 'bg-blue-500/10 text-blue-300'
                 }`}>
                 {statusMessage}
               </div>

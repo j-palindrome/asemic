@@ -14,6 +14,7 @@ pub struct SceneMetadata {
     pub params: HashMap<String, Vec<f64>>,
     pub width: f64,
     pub height: f64,
+    pub id: String,
 }
 
 // pub struct Scene {
@@ -160,6 +161,7 @@ impl ExpressionParser {
                 .collect(),
             noise_table: HashMap::new(),
             scene_metadata: SceneMetadata {
+                id: "0".to_string(),
                 scrub: 0.0,
                 params: HashMap::new(),
                 width: 1080.0,

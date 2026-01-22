@@ -194,14 +194,11 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
                 loop {
                     match socket.recv(&mut buf) {
                         Ok(size) => {
-                            eprint!("Waiting for OSC packets...");
                             // Decode OSC packet
                             match rosc::decoder::decode_udp(&buf[..size]) {
                                 Ok((_, packet)) => {
                                     match packet {
                                         rosc::OscPacket::Message(msg) => {
-                                            eprintln!("Received OSC message: {}", msg.addr);
-
                                             // Check if this is a /scenelist message
                                             if msg.addr == "/progress" {
                                                 // Extract JSON string from the message arguments

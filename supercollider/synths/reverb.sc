@@ -10,7 +10,7 @@
 // ~delayDistortion.set(\level, 1, \delayTimes, 3.collect({ 1/(30.rand + 10); }), \inBus, 2, \outBus, 0);
 (
 SynthDef(\reverb, {
-	arg level = #[0], inBus = 2, outBus = 0, feedbackBus = 0;
+	arg level = #[0], inBus = 2, outBus = 0;
 	
 	var input = In.ar(inBus, 2);
 	var output = FreeVerb2.ar(input[0], input[1], mix: level[0], room: 0.5, damp: 0.5);

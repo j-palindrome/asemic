@@ -27,11 +27,15 @@ export default function ParamEditors({
   const activeSceneSettings = scenesArray[activeScene]
 
   // Collect visible global params (where show is true)
-  const visibleGlobalParams = Object.entries(
-    activeSceneSettings?.globalParams || {}
-  )
-    .filter(([, config]) => config?.show === true)
+  // const visibleGlobalParams = Object.entries(
+  //   activeSceneSettings?.globalParams || {}
+  // )
+  //   .filter(([, config]) => config?.show === true)
+  //   .map(([key]) => key)
+  const visibleGlobalParams = Object.entries(globalSettings?.params || {})
+    // .filter(([, config]) => config?.show === true)
     .map(([key]) => key)
+    .sort()
 
   const allParamKeys = [
     ...Object.keys(activeSceneSettings?.params || {}),
@@ -65,8 +69,8 @@ export default function ParamEditors({
                 activeParamKey === paramKey
                   ? '!bg-white/50 !text-black'
                   : isGlobal
-                  ? 'bg-white/10 text-white/70 hover:bg-white/20 italic'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                    ? 'bg-white/10 text-white/70 hover:bg-white/20 italic'
+                    : 'bg-white/10 text-white hover:bg-white/20'
               }`}
               title={isGlobal ? 'Global Parameter' : 'Scene Parameter'}>
               {paramKey}

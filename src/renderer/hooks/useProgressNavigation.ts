@@ -8,9 +8,9 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
   const sceneStarts = useMemo(() => {
     let cumulative = 0
     return scenesArray.map((scene, idx) => {
-      const start = cumulative
       const length = scene.length || 0.1
       const offset = scene.offset || 0
+      const start = cumulative - offset
       const end = start + length
       cumulative += length - offset
       return { start, end }
@@ -30,10 +30,15 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
     return 0
   }, [progress, sceneStarts])
 
-  const activeSceneRef = useRef(activeScene)
-  useEffect(() => {
-    activeSceneRef.current = activeScene
-  }, [activeScene])
+  const activeScenes = useMemo(() => {
+    return scenesArray.reduce<number[]>((indices, _, idx) => {
+      const scene = sceneStarts[idx]
+      if (progress >= scene.start && progress < scene.end) {
+        indices.push(idx)
+      }
+      return indices
+    }, [])
+  }, [progress, sceneStarts, scenesArray])
 
   // Calculate total progress of all scenes
   const totalProgress = useMemo(() => {
@@ -50,6 +55,6 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
     setProgress,
     sceneStarts,
     activeScene,
-    activeSceneRef
+    activeScenes
   }
 }

@@ -161,7 +161,8 @@ impl ExpressionEval for ExpressionParser {
         // List of all known function names
         let functions = vec![
             "PHI", "choose", "tangent", "peaks", "sah", "bell", "sin", "abs", "fib", "<>", "~",
-            "-", "?", ">", "!", "S", "C", "L", "P", "N", "I", "i", "T", "#", "H", "px", "table",
+            "fm", "-", "?", ">", "!", "S", "C", "L", "P", "N", "I", "i", "T", "#", "H", "px",
+            "table",
         ];
 
         // Find the longest matching function name at the start of expr
@@ -384,7 +385,7 @@ impl ExpressionEval for ExpressionParser {
                 if args.len() < 2 {
                     return Err("sah requires 2 arguments".to_string());
                 }
-                let key = format!("{}", self.noise_index);
+                let key = format!("{}_sah_{}", self.scene_metadata.id, self.noise_index);
                 self.noise_index += 1;
 
                 let val1 = self.expr(args[0])?;
@@ -413,12 +414,8 @@ impl ExpressionEval for ExpressionParser {
                     Err("sah state corrupted".to_string())
                 }
             }
-            "~" => {
-                if args.is_empty() {
-                    return Err("~ requires an argument".to_string());
-                }
-                // Cache current_time in noise array with unique key
-                let time_key = format!("fm_time_{}", self.noise_index);
+            "am" => {
+                let time_key = format!("{}_am_time_{}", self.scene_metadata.id, self.noise_index);
                 let stored_phase = self.noise_table.entry(time_key.clone()).or_insert_with(|| {
                     use rand::Rng;
                     let mut rng = rand::rng();
@@ -439,6 +436,80 @@ impl ExpressionEval for ExpressionParser {
                     _ => return Err("FM synthesis state corrupted".to_string()),
                 };
 
+                let mut total_amp = 0.0;
+                let mut idx = 0;
+                // Process each wave specification
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64();
+
+                let mut total_mult = 0.0;
+                for arg in &args[0..] {
+                    let freq_data = self.expr_point(arg, Some(1.0))?;
+                    let current_phase = phases_copy.get(idx).ok_or("Missing phase data")?;
+                    let current_amp =
+                        (freq_data.0 * (current_time + current_phase) * std::f64::consts::TAU)
+                            .sin();
+                    total_amp += current_amp * freq_data.1;
+                    total_mult += freq_data.1;
+                    idx += 1;
+                }
+
+                let result = total_mult / total_amp;
+
+                current_value += total_amp * 1.0 / 60.0;
+
+                // Update the stored state
+                if let Some(crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                    value,
+                    ..
+                }) = self.noise_table.get_mut(&time_key)
+                {
+                    *value = current_value;
+                    // println!("freq {} current_value {}", total_freq, current_value);
+                }
+
+                self.noise_index += 1;
+                Ok(result)
+            }
+            "~" => {
+                if args.is_empty() {
+                    return Err("fm requires an argument".to_string());
+                }
+                // Cache current_time in noise array with unique key
+                let time_key = format!("{}_fm_time_{}", self.scene_metadata.id, self.noise_index);
+                let stored_phase = self.noise_table.entry(time_key.clone()).or_insert_with(|| {
+                    use rand::Rng;
+                    let mut rng = rand::rng();
+                    crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                        value: 0.0,
+                        phases: (0..args.len())
+                            .map(|_| rng.random::<f64>())
+                            .collect::<Vec<f64>>(),
+                    }
+                });
+
+                // Extract values before calling self.expr to avoid double borrow
+                let (mut current_value, mut phases_copy) = match stored_phase {
+                    crate::parser::methods::expressions::NoiseState::FmSynthesis {
+                        value,
+                        phases,
+                    } => (*value, phases.clone()),
+                    _ => return Err("FM synthesis state corrupted".to_string()),
+                };
+
+                // Pad or trim phases to match args length
+                if phases_copy.len() < args.len() {
+                    use rand::Rng;
+                    let mut rng = rand::rng();
+                    while phases_copy.len() < args.len() {
+                        phases_copy.push(rng.random::<f64>());
+                    }
+                } else if phases_copy.len() > args.len() {
+                    phases_copy.truncate(args.len());
+                }
+
                 let mut total_freq = self.expr(args[0])?;
                 let mut idx = 1;
                 // Process each wave specification
@@ -449,7 +520,9 @@ impl ExpressionEval for ExpressionParser {
 
                 for arg in &args[1..] {
                     let freq_data = self.expr_point(arg, Some(1.0))?;
-                    let current_phase = phases_copy.get(idx).ok_or("Missing phase data")?;
+                    let current_phase = phases_copy.get(idx).ok_or_else({
+                        || format!("Missing phase data for {}", time_key).to_string()
+                    })?;
                     let current_freq =
                         (freq_data.0 * (current_time + current_phase) * std::f64::consts::TAU)
                             .sin();
@@ -554,7 +627,8 @@ impl ExpressionEval for ExpressionParser {
                     let values = self.expr_list(expr)?;
                     return Ok(values[0]);
                 } else {
-                    return Err(format!("Unknown constant or variable: {}", expr));
+                    return Ok(0.0);
+                    // return Err(format!("Unknown constant or variable: {}", expr));
                 }
             }
         }

@@ -1,6 +1,7 @@
 import wgslRequires from './wgsl/wgslRequires.wgsl?raw'
 import { sumBy } from 'lodash'
 import calcPosition from './wgsl/calcPosition'
+import { Scene } from '@/lib/types'
 
 export type AsemicGroup = {
   points: any[][]

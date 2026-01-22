@@ -50,4 +50,5 @@ export interface Scene {
   [key: string]: any
   width: number
   height: number
+  id: string
 }

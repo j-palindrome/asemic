@@ -142,7 +142,7 @@ function AsemicAppInner({
     setProgress,
     sceneStarts,
     activeScene,
-    activeSceneRef
+    activeScenes
   } = useProgressNavigation(scenesArray)
 
   useEffect(() => {
@@ -239,6 +239,8 @@ function AsemicAppInner({
   useEffect(() => {
     let animationFrame: number | null = null
     let sceneReady = true
+    console.log(activeScenes)
+
     const animate = () => {
       animationFrame = requestAnimationFrame(animate)
       try {
@@ -248,100 +250,106 @@ function AsemicAppInner({
         const boundingRect = canvas.current.getBoundingClientRect()
         devicePixelRatio = 2
 
-        // canvas.current.width = boundingRect.width * devicePixelRatio
-        // canvas.current.height = boundingRect.height * devicePixelRatio
-
         const width = boundingRect.width || 1080
         const height = boundingRect.height || 1080
 
-        const currentSceneSettings = scenesArray[activeSceneRef.current]
-        const currentScene: Scene = {
-          code: currentSceneSettings.code || '',
-          length: currentSceneSettings.length,
-          offset: currentSceneSettings.offset,
-          pause: currentSceneSettings.pause,
-          params: scrubValuesRef.current[activeSceneRef.current]!.params,
-          scrub:
-            (scrubValuesRef.current[activeSceneRef.current]?.scrub || 0) /
-            (currentSceneSettings.length || 0.1),
-          width,
-          height
-        }
+        ;(async () => {
+          const groups: any[] = []
 
-        // Evaluate OSC expressions if present
-        const sceneSettings = scenesArray[activeSceneRef.current]
-        const perfStart = performance.now()
-        // console.log('start:', perfStart)
+          for (let scene of activeScenes) {
+            const currentSceneSettings = scenesArray[scene]
+            const currentScene: Scene = {
+              code: currentSceneSettings.code || '',
+              length: currentSceneSettings.length,
+              offset: currentSceneSettings.offset,
+              pause: currentSceneSettings.pause,
+              params: scrubValuesRef.current[scene]!.params,
+              scrub:
+                (scrubValuesRef.current[scene]?.scrub || 0) /
+                (currentSceneSettings.length || 0.1),
+              width,
+              height,
+              id: `${scene}` // Assign unique ID per scene
+            }
 
-        invoke('parse_asemic_source', {
-          source: sceneSettings.code || '',
-          scene: currentScene
-        }).then(curves => {
-          // console.log('parse time:', performance.now() - perfStart)
-          // console.log(curves.groups)
+            // Evaluate OSC expressions if present
+            const sceneSettings = scenesArray[scene]
+
+            const curves: any = await invoke('parse_asemic_source', {
+              source: sceneSettings.code || '',
+              scene: currentScene
+            })
+
+            for (const [paramName, paramValue] of Object.entries(
+              globalSettings.params || {}
+            )) {
+              if (!paramValue?.oscPath) continue
+
+              // Skip if value hasn't changed from last sent value
+              const lastSentValue = sentValuesRef.current[paramName]
+              const value = scrubValuesRef.current[scene]!.params[paramName]
+              if (isEqual(lastSentValue, value) || value === undefined) {
+                continue
+              }
+              console.log(value)
+
+              const newValue = await invoke<number>('parser_eval_expression', {
+                expr: value.join(','),
+                oscAddress: globalSettings.params[paramName].oscPath,
+                oscHost: 'localhost',
+                oscPort: 57120,
+                sceneMetadata: currentScene
+              })
+              sentValuesRef.current[paramName] = [...newValue]
+            }
+            for (const group of sceneSettings.oscGroups || []) {
+              const oscHost = group.oscHost || 'localhost'
+              const oscPort = group.oscPort || 57120
+
+              // Process OSC messages in group sequentially
+              for (const oscMsg of group.osc || []) {
+                // Skip if once flag is set and value exists
+                if (
+                  oscMsg.play === 'once' &&
+                  sentValuesRef.current[oscMsg.name]
+                ) {
+                  continue
+                }
+
+                const result = await invoke<number>('parser_eval_expression', {
+                  expr: oscMsg.value.toString(),
+                  oscAddress: oscMsg.name,
+                  oscHost: oscHost,
+                  oscPort: oscPort,
+                  sceneMetadata: currentScene
+                })
+                sentValuesRef.current[oscMsg.name] = [result]
+              }
+            }
+
+            groups.push(...curves.groups)
+          }
 
           asemic.current?.postMessage({
             // @ts-ignore
-            groups: curves.groups as any,
-            scene: currentScene
+            groups: groups as any,
+            scene: {
+              scrub:
+                (scrubValuesRef.current[activeScene]?.scrub || 0) /
+                (scenesArray[activeScene]?.length || 0.1)
+            } as any
           })
-
+        })().then(() => {
           sceneReady = true
         })
-
-        for (const [paramName, paramValue] of Object.entries(
-          globalSettings.params || {}
-        )) {
-          if (!paramValue?.oscPath) continue
-
-          // Skip if value hasn't changed from last sent value
-          const lastSentValue = sentValuesRef.current[paramName]
-          const value =
-            scrubValuesRef.current[activeSceneRef.current]!.params[paramName]
-          if (isEqual(lastSentValue, value)) {
-            continue
-          }
-
-          invoke<number>('parser_eval_expression', {
-            expr: value.join(','),
-            oscAddress: globalSettings.params[paramName].oscPath,
-            oscHost: 'localhost',
-            oscPort: 57120,
-            sceneMetadata: currentScene
-          }).then(result => {
-            sentValuesRef.current[paramName] = [...value]
-          })
-        }
-        for (const group of sceneSettings.oscGroups || []) {
-          const oscHost = group.oscHost || 'localhost'
-          const oscPort = group.oscPort || 57120
-
-          // Process OSC messages in group sequentially
-          for (const oscMsg of group.osc || []) {
-            // Skip if once flag is set and value exists
-            if (oscMsg.play === 'once' && sentValuesRef.current[oscMsg.name]) {
-              continue
-            }
-
-            const result = invoke<number>('parser_eval_expression', {
-              expr: oscMsg.value.toString(),
-              oscAddress: oscMsg.name,
-              oscHost: oscHost,
-              oscPort: oscPort,
-              sceneMetadata: currentScene
-            }).then(result => (sentValuesRef.current[oscMsg.name] = [result]))
-          }
-        }
-      } catch (error) {
-        console.error('Animation loop error:', error)
+      } catch (e) {
+        console.error('Error in animation frame:', e)
+        sceneReady = true
       }
-
-      // animationFrameRef.current = requestAnimationFrame(animate)
     }
+
     if (isSetup) {
-      invoke('parser_reset').then(() => {
-        animationFrame = requestAnimationFrame(animate)
-      })
+      animationFrame = requestAnimationFrame(animate)
     }
 
     return () => {
@@ -349,7 +357,7 @@ function AsemicAppInner({
         cancelAnimationFrame(animationFrame)
       }
     }
-  }, [isSetup, scenesArray, activeScene])
+  }, [isSetup, scenesArray, activeScenes])
 
   const [deletedScene, setDeletedScene] = useState<{
     scene: SceneSettings
@@ -364,12 +372,14 @@ function AsemicAppInner({
   // Update scene settings in source
   const updateSceneSettings = (newSettings: SceneSettings) => {
     const newScenesArray = [...scenesArray]
+    console.log(newScenesArray)
     if (activeScene < newScenesArray.length) {
       newScenesArray[activeScene] = {
         ...newScenesArray[activeScene],
         ...newSettings
       }
     }
+
     setScenesArray(newScenesArray)
   }
 
@@ -670,11 +680,10 @@ function AsemicAppInner({
                       const [type, name] = e.target.value.split(':')
                       // Save current params to ref as interpolation starting point
                       presetFromRef.current = scrubValuesRef.current[
-                        activeSceneRef.current
+                        activeScene
                       ]?.params
                         ? {
-                            ...scrubValuesRef.current[activeSceneRef.current]
-                              .params
+                            ...scrubValuesRef.current[activeScene].params
                           }
                         : null
                       setSelectedPreset(name)
@@ -684,21 +693,6 @@ function AsemicAppInner({
                   }}
                   className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
                   <option value=''>Select Preset</option>
-                  {Object.keys(globalSettings.presets || {}).length > 0 && (
-                    <>
-                      <optgroup label='Global Presets'>
-                        {Object.keys(globalSettings.presets || {}).map(
-                          presetName => (
-                            <option
-                              key={`global:${presetName}`}
-                              value={`global:${presetName}`}>
-                              {presetName}
-                            </option>
-                          )
-                        )}
-                      </optgroup>
-                    </>
-                  )}
                   {Object.keys(scenesArray[activeScene]?.presets || {}).length >
                     0 && (
                     <>
@@ -712,6 +706,21 @@ function AsemicAppInner({
                             {presetName}
                           </option>
                         ))}
+                      </optgroup>
+                    </>
+                  )}
+                  {Object.keys(globalSettings.presets || {}).length > 0 && (
+                    <>
+                      <optgroup label='Global Presets'>
+                        {Object.keys(globalSettings.presets || {}).map(
+                          presetName => (
+                            <option
+                              key={`global:${presetName}`}
+                              value={`global:${presetName}`}>
+                              {presetName}
+                            </option>
+                          )
+                        )}
                       </optgroup>
                     </>
                   )}

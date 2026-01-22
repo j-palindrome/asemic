@@ -160,16 +160,13 @@ export default function SceneSettingsPanel({
     }
 
     const currentParams = scrubSettings.params
-    const filteredParams = Object.fromEntries(
-      Object.entries(currentParams).filter(
-        ([key]) => sceneList[activeScene].globalParams?.[key]
-      )
-    )
+    console.log(scrubSettings)
+
     onUpdate({
       ...sceneList[activeScene],
       presets: {
         ...(sceneList[activeScene].presets || {}),
-        [presetName]: { params: filteredParams }
+        [presetName]: { params: currentParams }
       }
     })
     setNewPresetName('')
@@ -178,10 +175,12 @@ export default function SceneSettingsPanel({
 
   const handleLoadPreset = (presetName: string) => {
     const preset = sceneList[activeScene].presets?.[presetName]
+    console.log(preset)
+
     if (preset) {
       onUpdateScrub({
         ...scrubSettings,
-        params: preset.params
+        params: { ...scrubSettings.params, ...preset.params }
       })
     }
   }
@@ -413,7 +412,7 @@ export default function SceneSettingsPanel({
               <textarea
                 ref={textEditorRef as any}
                 defaultValue={sceneList[activeScene].text || ''}
-                className='w-full h-[100px] bg-transparent hover:backdrop-blur focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y'
+                className='w-full h-[100px] bg-transparent hover:backdrop-blur hover:bg-black/50 focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y'
                 spellCheck='false'
               />
             </div>
@@ -438,22 +437,25 @@ export default function SceneSettingsPanel({
               className='w-full bg-white/10 text-white px-2 py-1 rounded'
             />
           </div>
-          <div>
-            <label className='text-white/70 block mb-1'>Offset</label>
-            <input
-              type='number'
-              step='0.1'
-              value={sceneList[activeScene].offset ?? 0}
-              onChange={e =>
-                document.activeElement !== e.target &&
-                onUpdate({
-                  ...sceneList[activeScene],
-                  offset: parseFloat(e.target.value)
-                })
-              }
-              className='w-full bg-white/10 text-white px-2 py-1 rounded'
-            />
-          </div>
+          {activeScene > 0 && (
+            <div>
+              <label className='text-white/70 block mb-1'>Offset</label>
+              <input
+                type='number'
+                step='0.01'
+                value={sceneList[activeScene].offset ?? 0}
+                onChange={e => {
+                  console.log(e.target.value)
+
+                  onUpdate({
+                    ...sceneList[activeScene],
+                    offset: parseFloat(e.target.value)
+                  })
+                }}
+                className='w-full bg-white/10 text-white px-2 py-1 rounded'
+              />
+            </div>
+          )}
           <div>
             <label className='text-white/70 block mb-1'>Pause</label>
             <input
@@ -525,7 +527,7 @@ export default function SceneSettingsPanel({
                 .map(([paramId, paramConfig]) => (
                   <div
                     key={paramId}
-                    className='select-none bg-white/5 p-2 rounded border border-white/10 hover:backdrop-blur-sm relative flex-shrink-0'>
+                    className='select-none bg-white/5 p-2 rounded border border-white/10 hover:bg-black/50 hover:backdrop-blur-sm relative flex-shrink-0'>
                     <div className='flex flex-col items-center gap-2 mb-2'>
                       <div className='flex items-center justify-between'>
                         <span className='text-white/70 text-xs font-medium'>
@@ -639,7 +641,7 @@ export default function SceneSettingsPanel({
                           <div
                             key={dimIndex}
                             className='flex flex-col items-center gap-1 w-6 flex-none'>
-                            <div className='relative h-32 w-full bg-white/5 rounded'>
+                            <div className='relative h-32 w-full hover:bg-black/50 hover:backdrop-blur-sm rounded'>
                               <Slider
                                 className='w-full h-full'
                                 innerClassName=''
@@ -708,7 +710,7 @@ export default function SceneSettingsPanel({
         <div className='mt-3 border-t border-white/10 pt-3'>
           <div className='flex items-center gap-2 mb-2'>
             <label className='text-white/70 text-sm font-semibold'>
-              Params (Global)
+              Params
             </label>
             <button
               onClick={e => {
@@ -775,7 +777,7 @@ export default function SceneSettingsPanel({
               ([key, paramConfig]) => (
                 <div
                   key={key}
-                  className='bg-white/5 p-2 rounded border border-white/10'>
+                  className='bg-white/5 p-2 rounded border border-white/10 hover:bg-black/50 hover:backdrop-blur-sm'>
                   {/* Title and Controls Row */}
                   <div className='flex items-end gap-2 mb-2'>
                     <div className='flex-1 min-w-[80px]'>
@@ -1182,7 +1184,7 @@ export default function SceneSettingsPanel({
             {Object.entries(sceneList[activeScene].presets || {}).map(
               ([presetName]) => (
                 <div key={presetName}>
-                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between hover:bg-black/50 hover:backdrop-blur-sm'>
                     <span className='text-white/70 text-sm'>{presetName}</span>
                     <div className='flex items-center gap-2'>
                       <button
@@ -1324,7 +1326,7 @@ export default function SceneSettingsPanel({
             {Object.entries(globalSettings.presets || {}).map(
               ([presetName]) => (
                 <div key={presetName}>
-                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between'>
+                  <div className='bg-white/5 p-2 rounded border border-white/10 flex items-center justify-between hover:bg-black/50 hover:backdrop-blur-sm'>
                     <span className='text-white/70 text-sm'>{presetName}</span>
                     <div className='flex items-center gap-2'>
                       <button

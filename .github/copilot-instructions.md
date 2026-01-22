@@ -9,14 +9,12 @@ Asemic is a creative coding library for generative asemic writing and visual syn
 ### Three-Layer System
 
 1. **TypeScript Parser & Renderer** (`src/lib/`)
-
    - Main parser implementation
    - WebGPU/Canvas renderers
    - Web Worker for off-main-thread rendering
    - Expression evaluation and scene management
 
 2. **React UI** (`src/renderer/`)
-
    - Monaco-based code editor
    - Scene parameter controls
    - Real-time preview canvas
@@ -122,10 +120,13 @@ const sceneMetadata = scenesArray.map((scene, idx) => ({
   length: scene.length || 0.1,
   offset: scene.offset || 0,
   params: scene.params
-    ? Object.entries(scene.params).reduce((acc, [key, config]) => {
-        acc[key] = config.value ?? config.default ?? 0
-        return acc
-      }, {} as Record<string, number>)
+    ? Object.entries(scene.params).reduce(
+        (acc, [key, config]) => {
+          acc[key] = config.value ?? config.default ?? 0
+          return acc
+        },
+        {} as Record<string, number>
+      )
     : {}
 }))
 
@@ -145,13 +146,11 @@ await invoke<number>('parser_eval_expression', {
 ### Key Architectural Decisions
 
 1. **Stateless Rust Parser**: No global state in Rust
-
    - All context passed with each expression evaluation
    - Simplifies architecture and prevents sync bugs
    - Thread-safe by design (no shared mutable state)
 
 2. **Direct Parameter Passing**:
-
    - Canvas dimensions passed directly when needed
    - Scene metadata passed as complete array
    - Current scene index passed explicitly
@@ -262,7 +261,6 @@ src-tauri/
    ```
 
 3. **For OSC Expressions** (if needed in Rust):
-
    - Add constant to `ExpressionParser` in `expressions.rs`
    - Pass context via function parameters (no global state)
    - Update `parser_eval_expression` signature if needed

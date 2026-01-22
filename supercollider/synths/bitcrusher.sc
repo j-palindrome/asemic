@@ -1,11 +1,10 @@
 
 SynthDef(\bitcrush, {
-	| inBus = 3, outBus = 0, level = #[0, 0, 0], rate = #[0, 0, 0, 0], mix = 1, feedbackBus = 0 |
+	| inBus = 3, outBus = 0, level = #[0, 0, 0], rate = #[0, 0, 0, 0], mix = 1 |
 	var input = In.ar(inBus, 2);
-	var output = Mix.ar(rate.collect { |f| Pan2.ar(Latch.ar(input, Impulse.ar(f * 2000 + 100)), LFNoise2.ar(1, -1, 1)) }) / rate.size;
+	var output = Mix.ar(rate.collect { |f| Pan2.ar(Latch.ar(input, Impulse.ar(f * 4000 + 50)), LFNoise2.ar(1, -1, 1)) }) / rate.size;
 	ReplaceOut.ar(outBus, (input * (1 - level[0])) + (output * level[0]));
 	Out.ar(0, output * level[1]);
-	Out.ar(feedbackBus, output * level[2]);
 }).add;
 
 OSCdef(\bitcrush_level, { |msg, time, addr, recvPort|

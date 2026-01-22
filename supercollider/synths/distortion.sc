@@ -11,7 +11,7 @@
 (
 
 SynthDef(\delayDistortion, {
-	arg rate = #[0.1, 0.1, 0.1, 0.1], level = #[1, 1], inBus = 2, outBus = 0, mix = #[1, 1, 0, 0], feedbackBus = 0;
+	arg rate = #[0.1, 0.1, 0.1, 0.1], level = #[1, 1], inBus = 2, outBus = 0, mix = #[1, 1, 0, 0];
 	var input, delayed, feedback, matrix, count = 4, mixRatio = 1 - mix[0], amp;
 
 	input = In.ar(inBus);

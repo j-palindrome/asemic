@@ -134,7 +134,7 @@ async fn parse_asemic_source(
     parser.load_default_font()?;
     parser.expression_parser.set_scene_metadata(scene);
 
-    let regex = Regex::new("//.*").unwrap();
+    let regex = Regex::new("(?s)//.*?$|/\\*.*?\\*/").unwrap();
     let token = string_replace_all(&source, &regex, "");
     // let start = std::time::Instant::now();
     // Parse the source code

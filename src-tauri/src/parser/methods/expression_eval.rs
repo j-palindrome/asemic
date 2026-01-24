@@ -381,6 +381,26 @@ impl ExpressionEval for ExpressionParser {
                 let min = center - spread / 2.0;
                 Ok(progress * (max - min) + min)
             }
+            "acc" => {
+                if args.is_empty() {
+                    return Err("acc requires 1 argument (speed)".to_string());
+                }
+                let key = format!("{}_acc_{}", self.scene_metadata.id, self.noise_index);
+                self.noise_index += 1;
+
+                let speed = self.expr(args[0])?;
+
+                let state = self.noise_table.entry(key.clone()).or_insert(
+                    crate::parser::methods::expressions::NoiseState::Cycle { value: 0.0 },
+                );
+
+                if let crate::parser::methods::expressions::NoiseState::Cycle { value } = state {
+                    *value += speed;
+                    Ok(*value)
+                } else {
+                    Err("cycle state corrupted".to_string())
+                }
+            }
             "sah" => {
                 if args.len() < 2 {
                     return Err("sah requires 2 arguments".to_string());
@@ -797,7 +817,13 @@ impl ExpressionEval for ExpressionParser {
                 "-" => left_val - right_val,
                 "*" => left_val * right_val,
                 "/" => left_val / right_val,
-                "%" => left_val % right_val,
+                "%" => {
+                    let mut modulo = left_val % right_val;
+                    if { modulo < 0.0 && right_val > 0.0 } || { modulo > 0.0 && right_val < 0.0 } {
+                        modulo += right_val;
+                    }
+                    modulo
+                }
                 _ => return Err(format!("Unknown operator: {}", result.operator_type)),
             };
         }

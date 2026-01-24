@@ -79,6 +79,7 @@ pub struct SplitResult {
 pub enum NoiseState {
     SampleAndHold { value: f64, sampling: bool },
     FmSynthesis { value: f64, phases: Vec<f64> },
+    Cycle { value: f64 },
 }
 
 impl ExpressionParser {

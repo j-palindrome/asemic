@@ -77,6 +77,7 @@ export default function SceneSettingsPanel({
   const [newParamName, setNewParamName] = useState('')
   const [codeExpanded, setCodeExpanded] = useState(true)
   const [notesExpanded, setNotesExpanded] = useState(true)
+  const [notesHeightExpanded, setNotesHeightExpanded] = useState(false)
   const [renamingParam, setRenamingParam] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editAllMode, setEditAllMode] = useState<Set<string>>(new Set())
@@ -393,16 +394,24 @@ export default function SceneSettingsPanel({
             </button>
             <label className='text-xs text-white/50'>Notes</label>
             {notesExpanded && (
-              <button
-                onClick={() => {
-                  const currentCode = textEditorRef.current?.value
-                  if (currentCode !== undefined) {
-                    onUpdate({ ...sceneList[activeScene], text: currentCode })
-                  }
-                }}
-                className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-                Update Code
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    const currentCode = textEditorRef.current?.value
+                    if (currentCode !== undefined) {
+                      onUpdate({ ...sceneList[activeScene], text: currentCode })
+                    }
+                  }}
+                  className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
+                  Update Code
+                </button>
+                <button
+                  onClick={() => setNotesHeightExpanded(!notesHeightExpanded)}
+                  className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                  title={notesHeightExpanded ? 'Collapse' : 'Expand'}>
+                  <Maximize2 {...lucideProps} />
+                </button>
+              </>
             )}
           </div>
           {notesExpanded && (
@@ -412,7 +421,9 @@ export default function SceneSettingsPanel({
               <textarea
                 ref={textEditorRef as any}
                 defaultValue={sceneList[activeScene].text || ''}
-                className='w-full h-[100px] bg-transparent hover:backdrop-blur hover:bg-black/50 focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y'
+                className={`w-full bg-transparent hover:backdrop-blur hover:bg-black/50 focus:backdrop-blur relative outline-none text-white px-3 py-2 rounded border border-white/20 text-sm font-serif resize-y ${
+                  notesHeightExpanded ? 'h-[50vh]' : 'h-[100px]'
+                }`}
                 spellCheck='false'
               />
             </div>

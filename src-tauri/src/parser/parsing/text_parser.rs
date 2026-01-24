@@ -214,9 +214,21 @@ impl TextParser {
             }
         }
 
-        // Create and store the font
-        let font = AsemicFont::new(chars, dynamic_chars);
-        self.fonts.insert(font_name.to_string(), font);
+        // Create or merge the font
+        if let Some(existing_font) = self.fonts.get_mut(font_name) {
+            // Merge chars into existing font
+            for (char_name, code) in chars {
+                existing_font.set_character(char_name, code, false);
+            }
+            // Merge dynamic_chars into existing font
+            for (char_name, code) in dynamic_chars {
+                existing_font.set_character(char_name, code, true);
+            }
+        } else {
+            // Create new font
+            let font = AsemicFont::new(chars, dynamic_chars);
+            self.fonts.insert(font_name.to_string(), font);
+        }
 
         Ok(())
     }

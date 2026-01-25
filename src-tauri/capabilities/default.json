@@ -9,6 +9,9 @@
     "core:default",
     "fs:default",
     "dialog:default",
-    "fs:allow-app-write-recursive"
+    "fs:allow-app-write-recursive",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-write-text",
+    "websocket:default"
   ]
 }

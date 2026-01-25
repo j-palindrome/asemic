@@ -13,7 +13,11 @@ import {
   Save,
   Undo,
   Upload,
-  Settings
+  Settings,
+  Wifi,
+  WifiOff,
+  Copy,
+  Check
 } from 'lucide-react'
 import {
   act,
@@ -37,9 +41,12 @@ import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import WebSocket from '@tauri-apps/plugin-websocket'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
 import { useProgressNavigation } from '../hooks/useProgressNavigation'
+import { useWebRTCStream } from '../hooks/useWebRTCStream'
 import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
@@ -145,6 +152,9 @@ function AsemicAppInner({
     activeScenes
   } = useProgressNavigation(scenesArray)
 
+  const { state: webrtcState, createOffer: createWebRTCOffer } =
+    useWebRTCStream(canvas)
+
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
       invoke('emit_osc_event', {
@@ -239,7 +249,6 @@ function AsemicAppInner({
   useEffect(() => {
     let animationFrame: number | null = null
     let sceneReady = true
-    console.log(activeScenes)
 
     const animate = () => {
       animationFrame = requestAnimationFrame(animate)
@@ -291,15 +300,18 @@ function AsemicAppInner({
               if (isEqual(lastSentValue, value) || value === undefined) {
                 continue
               }
-              console.log(value)
 
-              const newValue = await invoke<number>('parser_eval_expression', {
-                expr: value.join(','),
-                oscAddress: globalSettings.params[paramName].oscPath,
-                oscHost: 'localhost',
-                oscPort: 57120,
-                sceneMetadata: currentScene
-              })
+              const newValue: any = await invoke<number>(
+                'parser_eval_expression',
+                {
+                  expr: value.join(','),
+                  oscAddress: globalSettings.params[paramName].oscPath,
+                  oscHost: 'localhost',
+                  oscPort: 57120,
+                  sceneMetadata: currentScene
+                }
+              )
+
               sentValuesRef.current[paramName] = [...newValue]
             }
             for (const group of sceneSettings.oscGroups || []) {
@@ -448,6 +460,8 @@ function AsemicAppInner({
     setDeletedScene(null)
   }
 
+  const wsRef = useRef<any>(null)
+  const [wsConnected, setWsConnected] = useState(false)
   const [perform, _setPerform] = useState(settings.perform)
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
@@ -456,6 +470,8 @@ function AsemicAppInner({
   >(null)
   const [presetInterpolation, setPresetInterpolation] = useState(0)
   const presetFromRef = useRef<Record<string, number[]> | null>(null)
+  const [showWebRTC, setShowWebRTC] = useState(false)
+  const [copiedOffer, setCopiedOffer] = useState(false)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
       _setShowGlobalSettings(false)
@@ -571,6 +587,14 @@ function AsemicAppInner({
       }
     }
   }, [showCanvas, asemic])
+
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.disconnect()
+      }
+    }
+  }, [])
 
   return (
     <div className='asemic-container relative group'>
@@ -779,6 +803,20 @@ function AsemicAppInner({
               className='p-1 hover:bg-white/10 rounded transition-colors'>
               <Settings {...lucideProps} size={16} />
             </button>
+            <button
+              onClick={() => setShowWebRTC(!showWebRTC)}
+              title={
+                webrtcState.isConnected
+                  ? 'WebRTC Streaming'
+                  : 'Start WebRTC Stream'
+              }
+              className='p-1 hover:bg-white/10 rounded transition-colors'>
+              {webrtcState.isConnected ? (
+                <Wifi {...lucideProps} size={16} className='text-green-400' />
+              ) : (
+                <WifiOff {...lucideProps} size={16} />
+              )}
+            </button>
             <button onClick={() => setPerform(!perform)}>
               {<Ellipsis {...lucideProps} />}
             </button>
@@ -839,6 +877,131 @@ function AsemicAppInner({
                 sceneList={scenesArray}
                 setSceneList={setScenesArray}
               />
+            </div>
+          )}
+          {showWebRTC && (
+            <div className='pointer-events-auto absolute top-16 right-4 bg-black/90 border border-white/20 rounded-lg p-4 w-96 max-h-96 overflow-y-auto z-100'>
+              <div className='flex items-center justify-between mb-4'>
+                <h3 className='text-white text-sm font-mono'>WebRTC Stream</h3>
+                <button
+                  onClick={() => setShowWebRTC(false)}
+                  className='text-white/50 hover:text-white'>
+                  ✕
+                </button>
+              </div>
+
+              <div className='space-y-3'>
+                <div className='flex items-center gap-2'>
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      webrtcState.isConnected ? 'bg-green-400' : 'bg-red-400'
+                    }`}
+                  />
+                  <span className='text-white/70 text-xs'>
+                    {webrtcState.connectionState || 'disconnected'}
+                  </span>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      if (!wsRef.current) {
+                        wsRef.current = await WebSocket.connect(
+                          'ws://localhost:9980'
+                        )
+                        wsRef.current.onmessage = (event: any) => {
+                          console.log('WebSocket message received:', event.data)
+                        }
+                        setWsConnected(true)
+
+                        // Send ClientEnter message
+                        const clientEnterMessage = {
+                          metadata: {
+                            apiVersion: '1.0.0',
+                            compVersion: '1.0.0',
+                            compOrigin: 'asemic-webrtc',
+                            projectName: 'asemic'
+                          },
+                          signalingType: 'ClientEnter',
+                          content: {
+                            properties: {
+                              domain: 'asemic'
+                            }
+                          }
+                        }
+
+                        await wsRef.current.send(
+                          JSON.stringify(clientEnterMessage)
+                        )
+                        setCopiedOffer(true)
+                        setTimeout(() => setCopiedOffer(false), 2000)
+                      } else {
+                        // Send the offer as a custom message
+                        const offer = await createWebRTCOffer()
+                        if (offer) {
+                          const offerMessage = {
+                            metadata: {
+                              apiVersion: '1.0.0',
+                              compVersion: '1.0.0',
+                              compOrigin: 'asemic-webrtc',
+                              projectName: 'asemic'
+                            },
+                            signalingType: 'Offer',
+                            content: offer
+                          }
+                          await wsRef.current.send(JSON.stringify(offerMessage))
+                          setCopiedOffer(true)
+                          setTimeout(() => setCopiedOffer(false), 2000)
+                        }
+                      }
+                    } catch (err) {
+                      console.error(
+                        'Failed to establish WebSocket connection:',
+                        err
+                      )
+                      setWsConnected(false)
+                      wsRef.current = null
+                    }
+                  }}
+                  className='w-full flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-xs transition-colors'>
+                  {copiedOffer ? (
+                    <>
+                      <Check size={14} />
+                      {wsConnected ? 'Connected' : 'Offer Sent'}
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      {wsConnected ? 'Send Offer' : 'Connect to Signaling'}
+                    </>
+                  )}
+                </button>
+
+                <div className='bg-white/5 rounded p-2'>
+                  <p className='text-white/50 text-xs mb-2'>Instructions:</p>
+                  <ol className='text-white/40 text-xs space-y-1 list-decimal list-inside'>
+                    <li>Click "Copy SDP Offer"</li>
+                    <li>Paste in remote peer receiver</li>
+                    <li>Get SDP Answer from peer</li>
+                    <li>Share Answer to complete connection</li>
+                  </ol>
+                </div>
+
+                <textarea
+                  placeholder='Paste SDP Answer here to connect'
+                  onPaste={async e => {
+                    const text = e.clipboardData.getData('text')
+                    try {
+                      const answer = JSON.parse(text)
+                      // Note: handleAnswer method can be called here when needed
+                      console.log('Answer received:', answer)
+                    } catch (error) {
+                      console.error('Invalid answer format')
+                    }
+                  }}
+                  className='w-full h-24 px-2 py-2 bg-white/5 border border-white/10 rounded text-white text-xs font-mono resize-none focus:outline-none focus:border-white/30'
+                />
+              </div>
             </div>
           )}
         </div>

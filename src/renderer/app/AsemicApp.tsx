@@ -44,7 +44,7 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
 import { useProgressNavigation } from '../hooks/useProgressNavigation'
-import { useWebRTCStream } from '../hooks/useWebRTCStream'
+import WebRTCStream from '../components/WebRTCStream'
 
 export type ScrubSettings = {
   scrub: number
@@ -148,20 +148,6 @@ function AsemicAppInner({
     activeScene,
     activeScenes
   } = useProgressNavigation(scenesArray)
-
-  const {
-    state: webrtcState,
-    signalingClient,
-    webRTCConnection,
-    mouseDataChannel,
-    keyboardDataChannel,
-    addCanvasStream,
-    initiateCall,
-    endCall
-  } = useWebRTCStream(canvas, {
-    signalingAddress: 'ws://localhost',
-    signalingPort: 9980
-  })
 
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
@@ -477,7 +463,6 @@ function AsemicAppInner({
   const [presetInterpolation, setPresetInterpolation] = useState(0)
   const presetFromRef = useRef<Record<string, number[]> | null>(null)
   const [showWebRTC, setShowWebRTC] = useState(false)
-  const [copiedOffer, setCopiedOffer] = useState(false)
   const setPerform = (value: boolean) => {
     if (!value && showGlobalSettings) {
       _setShowGlobalSettings(false)
@@ -803,14 +788,10 @@ function AsemicAppInner({
             </button>
             <button
               onClick={() => setShowWebRTC(!showWebRTC)}
-              title={
-                webrtcState.isConnected
-                  ? 'WebRTC Streaming'
-                  : 'Start WebRTC Stream'
-              }
+              title='WebRTC Stream'
               className='p-1 hover:bg-white/10 rounded transition-colors'>
-              {webrtcState.isConnected ? (
-                <Wifi {...lucideProps} size={16} className='text-green-400' />
+              {showWebRTC ? (
+                <Wifi {...lucideProps} size={16} />
               ) : (
                 <WifiOff {...lucideProps} size={16} />
               )}
@@ -877,127 +858,8 @@ function AsemicAppInner({
               />
             </div>
           )}
-          {showWebRTC && (
-            <div className='pointer-events-auto absolute top-16 right-4 bg-black/90 border border-white/20 rounded-lg p-4 w-96 max-h-96 overflow-y-auto z-100'>
-              <div className='flex items-center justify-between mb-4'>
-                <h3 className='text-white text-sm font-mono'>WebRTC Stream</h3>
-                <button
-                  onClick={() => setShowWebRTC(false)}
-                  className='text-white/50 hover:text-white'>
-                  ✕
-                </button>
-              </div>
-
-              <div className='space-y-3'>
-                {/* Connection Status */}
-                <div className='bg-white/5 rounded p-3 space-y-2'>
-                  <div className='flex items-center gap-2'>
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        webrtcState.connectedToServer
-                          ? 'bg-blue-400'
-                          : 'bg-gray-400'
-                      }`}
-                    />
-                    <span className='text-white/70 text-xs'>
-                      Signaling:{' '}
-                      {webrtcState.connectedToServer
-                        ? 'Connected'
-                        : 'Disconnected'}
-                    </span>
-                  </div>
-
-                  <div className='flex items-center gap-2'>
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        webrtcState.isConnected ? 'bg-green-400' : 'bg-red-400'
-                      }`}
-                    />
-                    <span className='text-white/70 text-xs'>
-                      WebRTC: {webrtcState.connectionState || 'disconnected'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Available Clients */}
-                {webrtcState.clients.length > 0 && (
-                  <div className='bg-white/5 rounded p-3'>
-                    <p className='text-white/70 text-xs font-mono mb-2'>
-                      Available Clients:
-                    </p>
-                    <div className='space-y-1'>
-                      {webrtcState.clients.map((client, idx) => (
-                        <div
-                          key={idx}
-                          className='flex items-center justify-between p-2 bg-white/10 rounded text-xs'>
-                          <span className='text-white/70 truncate'>
-                            {client.address || `Client ${client.id}`}
-                          </span>
-                          <button
-                            onClick={() => {
-                              initiateCall(client.address, client.properties)
-                              addCanvasStream(30)
-                            }}
-                            className='px-2 py-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded text-xs transition-colors'>
-                            Connect
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Canvas Stream Control */}
-                <button
-                  onClick={async () => {
-                    const success = await addCanvasStream(30)
-                    if (success) {
-                      setCopiedOffer(true)
-                      setTimeout(() => setCopiedOffer(false), 2000)
-                    }
-                  }}
-                  className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-xs transition-colors'>
-                  {copiedOffer ? (
-                    <>
-                      <Check size={14} />
-                      Canvas Stream Active
-                    </>
-                  ) : (
-                    <>
-                      <Wifi size={14} />
-                      Add Canvas Stream
-                    </>
-                  )}
-                </button>
-
-                {/* End Call */}
-                {webrtcState.isConnected && (
-                  <button
-                    onClick={() => {
-                      endCall()
-                    }}
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-xs transition-colors'>
-                    <WifiOff size={14} />
-                    End Call
-                  </button>
-                )}
-
-                {/* Instructions */}
-                <div className='bg-white/5 rounded p-2'>
-                  <p className='text-white/50 text-xs mb-2 font-mono'>
-                    Instructions:
-                  </p>
-                  <ol className='text-white/40 text-xs space-y-1 list-decimal list-inside'>
-                    <li>Ensure signaling server is running</li>
-                    <li>Available clients will appear above</li>
-                    <li>Click "Connect" to establish WebRTC connection</li>
-                    <li>Click "Add Canvas Stream" to start streaming</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
+        {showWebRTC && <WebRTCStream roomId={null} />}
       </div>
     </div>
   )

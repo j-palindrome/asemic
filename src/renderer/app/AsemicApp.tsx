@@ -16,7 +16,6 @@ import {
   Settings,
   Wifi,
   WifiOff,
-  Copy,
   Check
 } from 'lucide-react'
 import {
@@ -42,12 +41,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import WebSocket from '@tauri-apps/plugin-websocket'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
 import { useProgressNavigation } from '../hooks/useProgressNavigation'
 import { useWebRTCStream } from '../hooks/useWebRTCStream'
-import { s } from 'node_modules/react-router/dist/development/context-jKip1TFB.mjs'
 
 export type ScrubSettings = {
   scrub: number
@@ -152,8 +149,19 @@ function AsemicAppInner({
     activeScenes
   } = useProgressNavigation(scenesArray)
 
-  const { state: webrtcState, createOffer: createWebRTCOffer } =
-    useWebRTCStream(canvas)
+  const {
+    state: webrtcState,
+    signalingClient,
+    webRTCConnection,
+    mouseDataChannel,
+    keyboardDataChannel,
+    addCanvasStream,
+    initiateCall,
+    endCall
+  } = useWebRTCStream(canvas, {
+    signalingAddress: 'ws://localhost',
+    signalingPort: 9980
+  })
 
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
@@ -460,8 +468,6 @@ function AsemicAppInner({
     setDeletedScene(null)
   }
 
-  const wsRef = useRef<any>(null)
-  const [wsConnected, setWsConnected] = useState(false)
   const [perform, _setPerform] = useState(settings.perform)
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
@@ -587,14 +593,6 @@ function AsemicAppInner({
       }
     }
   }, [showCanvas, asemic])
-
-  useEffect(() => {
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.disconnect()
-      }
-    }
-  }, [])
 
   return (
     <div className='asemic-container relative group'>
@@ -891,116 +889,111 @@ function AsemicAppInner({
               </div>
 
               <div className='space-y-3'>
-                <div className='flex items-center gap-2'>
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      webrtcState.isConnected ? 'bg-green-400' : 'bg-red-400'
-                    }`}
-                  />
-                  <span className='text-white/70 text-xs'>
-                    {webrtcState.connectionState || 'disconnected'}
-                  </span>
+                {/* Connection Status */}
+                <div className='bg-white/5 rounded p-3 space-y-2'>
+                  <div className='flex items-center gap-2'>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        webrtcState.connectedToServer
+                          ? 'bg-blue-400'
+                          : 'bg-gray-400'
+                      }`}
+                    />
+                    <span className='text-white/70 text-xs'>
+                      Signaling:{' '}
+                      {webrtcState.connectedToServer
+                        ? 'Connected'
+                        : 'Disconnected'}
+                    </span>
+                  </div>
+
+                  <div className='flex items-center gap-2'>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        webrtcState.isConnected ? 'bg-green-400' : 'bg-red-400'
+                      }`}
+                    />
+                    <span className='text-white/70 text-xs'>
+                      WebRTC: {webrtcState.connectionState || 'disconnected'}
+                    </span>
+                  </div>
                 </div>
 
+                {/* Available Clients */}
+                {webrtcState.clients.length > 0 && (
+                  <div className='bg-white/5 rounded p-3'>
+                    <p className='text-white/70 text-xs font-mono mb-2'>
+                      Available Clients:
+                    </p>
+                    <div className='space-y-1'>
+                      {webrtcState.clients.map((client, idx) => (
+                        <div
+                          key={idx}
+                          className='flex items-center justify-between p-2 bg-white/10 rounded text-xs'>
+                          <span className='text-white/70 truncate'>
+                            {client.address || `Client ${client.id}`}
+                          </span>
+                          <button
+                            onClick={() => {
+                              initiateCall(client.address, client.properties)
+                              addCanvasStream(30)
+                            }}
+                            className='px-2 py-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded text-xs transition-colors'>
+                            Connect
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Canvas Stream Control */}
                 <button
                   onClick={async () => {
-                    try {
-                      if (!wsRef.current) {
-                        wsRef.current = await WebSocket.connect(
-                          'ws://localhost:9980'
-                        )
-                        wsRef.current.onmessage = (event: any) => {
-                          console.log('WebSocket message received:', event.data)
-                        }
-                        setWsConnected(true)
-
-                        // Send ClientEnter message
-                        const clientEnterMessage = {
-                          metadata: {
-                            apiVersion: '1.0.0',
-                            compVersion: '1.0.0',
-                            compOrigin: 'asemic-webrtc',
-                            projectName: 'asemic'
-                          },
-                          signalingType: 'ClientEnter',
-                          content: {
-                            properties: {
-                              domain: 'asemic'
-                            }
-                          }
-                        }
-
-                        await wsRef.current.send(
-                          JSON.stringify(clientEnterMessage)
-                        )
-                        setCopiedOffer(true)
-                        setTimeout(() => setCopiedOffer(false), 2000)
-                      } else {
-                        // Send the offer as a custom message
-                        const offer = await createWebRTCOffer()
-                        if (offer) {
-                          const offerMessage = {
-                            metadata: {
-                              apiVersion: '1.0.0',
-                              compVersion: '1.0.0',
-                              compOrigin: 'asemic-webrtc',
-                              projectName: 'asemic'
-                            },
-                            signalingType: 'Offer',
-                            content: offer
-                          }
-                          await wsRef.current.send(JSON.stringify(offerMessage))
-                          setCopiedOffer(true)
-                          setTimeout(() => setCopiedOffer(false), 2000)
-                        }
-                      }
-                    } catch (err) {
-                      console.error(
-                        'Failed to establish WebSocket connection:',
-                        err
-                      )
-                      setWsConnected(false)
-                      wsRef.current = null
+                    const success = await addCanvasStream(30)
+                    if (success) {
+                      setCopiedOffer(true)
+                      setTimeout(() => setCopiedOffer(false), 2000)
                     }
                   }}
-                  className='w-full flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-xs transition-colors'>
+                  className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-xs transition-colors'>
                   {copiedOffer ? (
                     <>
                       <Check size={14} />
-                      {wsConnected ? 'Connected' : 'Offer Sent'}
+                      Canvas Stream Active
                     </>
                   ) : (
                     <>
-                      <Copy size={14} />
-                      {wsConnected ? 'Send Offer' : 'Connect to Signaling'}
+                      <Wifi size={14} />
+                      Add Canvas Stream
                     </>
                   )}
                 </button>
 
+                {/* End Call */}
+                {webrtcState.isConnected && (
+                  <button
+                    onClick={() => {
+                      endCall()
+                    }}
+                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-xs transition-colors'>
+                    <WifiOff size={14} />
+                    End Call
+                  </button>
+                )}
+
+                {/* Instructions */}
                 <div className='bg-white/5 rounded p-2'>
-                  <p className='text-white/50 text-xs mb-2'>Instructions:</p>
+                  <p className='text-white/50 text-xs mb-2 font-mono'>
+                    Instructions:
+                  </p>
                   <ol className='text-white/40 text-xs space-y-1 list-decimal list-inside'>
-                    <li>Click "Copy SDP Offer"</li>
-                    <li>Paste in remote peer receiver</li>
-                    <li>Get SDP Answer from peer</li>
-                    <li>Share Answer to complete connection</li>
+                    <li>Ensure signaling server is running</li>
+                    <li>Available clients will appear above</li>
+                    <li>Click "Connect" to establish WebRTC connection</li>
+                    <li>Click "Add Canvas Stream" to start streaming</li>
                   </ol>
                 </div>
-
-                <textarea
-                  placeholder='Paste SDP Answer here to connect'
-                  onPaste={async e => {
-                    const text = e.clipboardData.getData('text')
-                    try {
-                      const answer = JSON.parse(text)
-                      // Note: handleAnswer method can be called here when needed
-                      console.log('Answer received:', answer)
-                    } catch (error) {
-                      console.error('Invalid answer format')
-                    }
-                  }}
-                  className='w-full h-24 px-2 py-2 bg-white/5 border border-white/10 rounded text-white text-xs font-mono resize-none focus:outline-none focus:border-white/30'
-                />
               </div>
             </div>
           )}

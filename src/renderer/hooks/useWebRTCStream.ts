@@ -1,143 +1,153 @@
 import { useEffect, useRef, useState } from 'react'
+import SignalingClient from '../utils/signalingClient'
+import WebRTCConnection from '../utils/webRTCConnection'
 
 export interface WebRTCStreamState {
   isConnected: boolean
   connectionState: RTCPeerConnectionState | null
-  offer: RTCSessionDescriptionInit | null
+  clients: Array<{
+    id: number
+    address: string
+    properties: Record<string, any>
+  }>
+  connectedToServer: boolean
 }
 
-export const useWebRTCStream = (canvas: React.RefObject<HTMLCanvasElement>) => {
-  const pcRef = useRef<RTCPeerConnection | null>(null)
+export const useWebRTCStream = (
+  canvas: React.RefObject<HTMLCanvasElement>,
+  config?: { signalingAddress?: string; signalingPort?: number }
+) => {
+  const signalingClientRef = useRef<SignalingClient | null>(null)
+  const webRTCConnectionRef = useRef<WebRTCConnection | null>(null)
+
   const [state, setState] = useState<WebRTCStreamState>({
     isConnected: false,
     connectionState: null,
-    offer: null
+    clients: [],
+    connectedToServer: false
   })
 
-  // Initialize WebRTC connection
+  const [mouseDataChannel, setMouseDataChannel] =
+    useState<RTCDataChannel | null>(null)
+  const [keyboardDataChannel, setKeyboardDataChannel] =
+    useState<RTCDataChannel | null>(null)
+
+  const signalingAddress = config?.signalingAddress || 'wss://127.0.0.1'
+  const signalingPort = config?.signalingPort || 443
+
+  // Initialize WebRTC and Signaling
   useEffect(() => {
     if (!canvas.current) return
 
-    const initWebRTC = async () => {
-      try {
-        // Create peer connection
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: ['stun:stun.l.google.com:19302'] },
-            { urls: ['stun:stun1.l.google.com:19302'] }
-          ]
-        })
+    try {
+      // Create signaling client
+      const signalingClient = new SignalingClient(
+        signalingAddress,
+        signalingPort,
+        (clients: any[]) => {
+          setState(prev => ({ ...prev, clients }))
+        },
+        (connected: boolean) => {
+          setState(prev => ({ ...prev, connectedToServer: connected }))
+        }
+      )
 
-        // Capture canvas stream at 30 FPS
-        const canvasStream = canvas.current!.captureStream(30)
+      // Create WebRTC connection
+      const webRTCConnection = new WebRTCConnection(
+        signalingClient,
+        (channel: RTCDataChannel) => {
+          setMouseDataChannel(channel)
+        },
+        (channel: RTCDataChannel) => {
+          setKeyboardDataChannel(channel)
+        }
+      )
 
-        // Add video track to peer connection
-        canvasStream.getTracks().forEach(track => {
-          pc.addTrack(track, canvasStream)
-        })
+      signalingClientRef.current = signalingClient
+      webRTCConnectionRef.current = webRTCConnection
 
-        // Handle connection state changes
-        pc.onconnectionstatechange = () => {
+      // Monitor connection state
+      const stateCheckInterval = setInterval(() => {
+        const pc = webRTCConnection.getPeerConnection()
+        if (pc) {
           setState(prev => ({
             ...prev,
-            connectionState: pc.connectionState as RTCPeerConnectionState,
-            isConnected: pc.connectionState === 'connected'
+            connectionState: webRTCConnection.getConnectionState(),
+            isConnected: webRTCConnection.isConnected()
           }))
         }
+      }, 500)
 
-        // Handle ICE candidates
-        pc.onicecandidate = event => {
-          if (event.candidate) {
-            console.log('ICE candidate:', event.candidate)
-          }
-        }
-
-        // Handle connection errors
-        pc.onicecandidateerror = event => {
-          console.error('WebRTC error:', event)
-        }
-
-        pcRef.current = pc
-      } catch (error) {
-        console.error('Failed to initialize WebRTC:', error)
+      return () => {
+        clearInterval(stateCheckInterval)
+        signalingClient.close()
       }
+    } catch (error) {
+      console.error('Failed to initialize WebRTC:', error)
     }
+  }, [canvas, signalingAddress, signalingPort])
 
-    initWebRTC()
-
-    return () => {
-      if (pcRef.current) {
-        pcRef.current.getSenders().forEach(sender => {
-          if (sender.track) {
-            sender.track.stop()
-          }
-        })
-        pcRef.current.close()
-        pcRef.current = null
-      }
-    }
-  }, [canvas])
-
-  // Create SDP offer for signaling
-  const createOffer = async () => {
-    if (!pcRef.current) {
-      console.error('Peer connection not initialized')
-      return null
+  // Add canvas stream to peer connection
+  const addCanvasStream = async (fps: number = 30) => {
+    if (!canvas.current || !webRTCConnectionRef.current) {
+      console.error('Canvas or WebRTC connection not available')
+      return false
     }
 
     try {
-      const offer = await pcRef.current.createOffer({
-        offerToReceiveAudio: false,
-        offerToReceiveVideo: true
+      const pc = webRTCConnectionRef.current.getPeerConnection()
+      if (!pc) {
+        console.error('Peer connection not initialized')
+        return false
+      }
+
+      const canvasStream = canvas.current.captureStream(fps)
+      canvasStream.getTracks().forEach(track => {
+        pc.addTrack(track, canvasStream)
       })
-      await pcRef.current.setLocalDescription(offer)
-      setState(prev => ({ ...prev, offer }))
-      return offer
-    } catch (error) {
-      console.error('Failed to create offer:', error)
-      return null
-    }
-  }
 
-  // Handle SDP answer from remote peer
-  const handleAnswer = async (answer: RTCSessionDescriptionInit) => {
-    if (!pcRef.current) {
-      console.error('Peer connection not initialized')
-      return false
-    }
-
-    try {
-      await pcRef.current.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      )
       return true
     } catch (error) {
-      console.error('Failed to handle answer:', error)
+      console.error('Failed to add canvas stream:', error)
       return false
     }
   }
 
-  // Add ICE candidate from remote peer
-  const addIceCandidate = async (candidate: RTCIceCandidate) => {
-    if (!pcRef.current) {
-      console.error('Peer connection not initialized')
+  // Initiate call with a remote client
+  const initiateCall = (
+    targetAddress: string,
+    properties: Record<string, any>
+  ) => {
+    if (!webRTCConnectionRef.current) {
+      console.error('WebRTC connection not initialized')
       return false
     }
 
     try {
-      await pcRef.current.addIceCandidate(candidate)
+      webRTCConnectionRef.current.onCallStart(targetAddress, properties)
+      addCanvasStream()
       return true
     } catch (error) {
-      console.error('Failed to add ICE candidate:', error)
+      console.error('Failed to initiate call:', error)
       return false
     }
+  }
+
+  // End current call
+  const endCall = () => {
+    if (!webRTCConnectionRef.current) return
+
+    webRTCConnectionRef.current.onCallEnd()
   }
 
   return {
     state,
-    createOffer,
-    handleAnswer,
-    addIceCandidate,
-    peerConnection: pcRef.current
+    signalingClient: signalingClientRef.current,
+    webRTCConnection: webRTCConnectionRef.current,
+    mouseDataChannel,
+    keyboardDataChannel,
+    addCanvasStream,
+    initiateCall,
+    endCall
   }
 }

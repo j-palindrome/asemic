@@ -594,6 +594,7 @@ function AsemicAppInner({
               settings.h === 'window' ? undefined : `1 / ${settings.h}`,
             display: showCanvas ? 'block' : 'none'
           }}
+          id='mainCanvas'
           ref={canvas}
           height={1080}
           width={1080}></canvas>

@@ -200,7 +200,7 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
                                 Ok((_, packet)) => {
                                     match packet {
                                         rosc::OscPacket::Message(msg) => {
-                                            // Check if this is a /scenelist message
+                                            // Check if this is a /progress message
                                             if msg.addr == "/progress" {
                                                 // Extract JSON string from the message arguments
                                                 if let Some(rosc::OscType::String(json_str)) =
@@ -208,7 +208,21 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
                                                 {
                                                     let _ = app_handle.emit("progress", json_str);
                                                     eprintln!(
-                                                        "Emitted scenelist event: {:?}",
+                                                        "Emitted progress event: {:?}",
+                                                        json_str
+                                                    );
+                                                }
+                                            }
+
+                                            // Check if this is a /params message
+                                            if msg.addr == "/params" {
+                                                // Expect a JSON string with params data
+                                                if let Some(rosc::OscType::String(json_str)) =
+                                                    msg.args.first()
+                                                {
+                                                    let _ = app_handle.emit("params", json_str);
+                                                    eprintln!(
+                                                        "Emitted params event: {:?}",
                                                         json_str
                                                     );
                                                 }

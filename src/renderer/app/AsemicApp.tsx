@@ -542,6 +542,45 @@ function AsemicAppInner({
     _setShowGlobalSettings(value)
   }
 
+  // Listen for params events from Tauri
+  useEffect(() => {
+    let unlistenParams: (() => void) | null = null
+
+    const setupParamsListener = async () => {
+      try {
+        unlistenParams = await listen<{
+          params: Record<string, number[]>
+          scene?: number
+        }>('params', event => {
+          const { params, scene } = event.payload
+          const targetScene = scene ?? activeScene
+
+          setScrubValues(prev => {
+            const newValues = [...prev]
+            if (!newValues[targetScene]) {
+              newValues[targetScene] = { scrub: 0, params: {}, sent: {} }
+            }
+            newValues[targetScene].params = {
+              ...newValues[targetScene].params,
+              ...params
+            }
+            return newValues
+          })
+        })
+      } catch (error) {
+        console.error('Failed to setup params listener:', error)
+      }
+    }
+
+    setupParamsListener()
+
+    return () => {
+      if (unlistenParams) {
+        unlistenParams()
+      }
+    }
+  }, [activeScene])
+
   useEffect(() => {
     const onResize = () => {
       const boundingRect = canvas.current.getBoundingClientRect()

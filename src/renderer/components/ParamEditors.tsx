@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Slider from './Slider'
 import { GlobalSettings } from './SceneSettingsPanel'
+import { invoke } from '@tauri-apps/api/core'
 
 interface ParamEditorsProps {
   scenesArray: Array<{
@@ -131,6 +132,29 @@ export default function ParamEditors({
                         updated[activeScene] = {
                           ...updated[activeScene],
                           params: newParams
+                        }
+                        for (let sendTo of Object.values(
+                          globalSettings.sendTo || {}
+                        )) {
+                          invoke('emit_osc_event', {
+                            targetAddr: `${sendTo.host}:${9000}`,
+                            eventName: '/params',
+                            data: JSON.stringify({
+                              params: {
+                                [activeParamKey]: newParams[activeParamKey]
+                              },
+                              scene: activeScene
+                            })
+                          })
+                            .catch(err => {
+                              console.error(
+                                'Failed to emit OSC scene list:',
+                                err
+                              )
+                            })
+                            .then(res => {
+                              console.log('sent', res)
+                            })
                         }
                         return updated
                       })

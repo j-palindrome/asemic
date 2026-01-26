@@ -694,81 +694,6 @@ function AsemicAppInner({
             max={totalProgress}
             format={(v: number) => `${v.toFixed(2)}s`}
           />
-          {/* Preset selector and interpolation */}
-          {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||
-            Object.keys(globalSettings.presets || {}).length > 0) && (
-            <div className='flex items-center gap-2 px-2'>
-              <select
-                value={
-                  selectedPreset
-                    ? `${selectedPresetType}:${selectedPreset}`
-                    : ''
-                }
-                onChange={e => {
-                  if (!e.target.value) {
-                    setSelectedPreset(null)
-                    setSelectedPresetType(null)
-                    setPresetInterpolation(0)
-                    presetFromRef.current = null
-                  } else {
-                    const [type, name] = e.target.value.split(':')
-                    // Save current params to ref as interpolation starting point
-                    presetFromRef.current = scrubValuesRef.current[activeScene]
-                      ?.params
-                      ? {
-                          ...scrubValuesRef.current[activeScene].params
-                        }
-                      : null
-                    setSelectedPreset(name)
-                    setSelectedPresetType(type as 'scene' | 'global')
-                    setPresetInterpolation(0)
-                  }
-                }}
-                className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
-                <option value=''>Select Preset</option>
-                {Object.keys(scenesArray[activeScene]?.presets || {}).length >
-                  0 && (
-                  <>
-                    <optgroup label='Scene Presets'>
-                      {Object.keys(scenesArray[activeScene]?.presets || {}).map(
-                        presetName => (
-                          <option
-                            key={`scene:${presetName}`}
-                            value={`scene:${presetName}`}>
-                            {presetName}
-                          </option>
-                        )
-                      )}
-                    </optgroup>
-                  </>
-                )}
-                {Object.keys(globalSettings.presets || {}).length > 0 && (
-                  <>
-                    <optgroup label='Global Presets'>
-                      {Object.keys(globalSettings.presets || {}).map(
-                        presetName => (
-                          <option
-                            key={`global:${presetName}`}
-                            value={`global:${presetName}`}>
-                            {presetName}
-                          </option>
-                        )
-                      )}
-                    </optgroup>
-                  </>
-                )}
-              </select>
-              {selectedPreset && (
-                <Scroller
-                  value={presetInterpolation}
-                  onChange={setPresetInterpolation}
-                  min={0}
-                  max={1}
-                  format={(v: number) => `${(v * 100).toFixed(0)}%`}
-                />
-              )}
-            </div>
-          )}
           <div className='grow' />
           {deletedScene && (
             <button
@@ -846,6 +771,13 @@ function AsemicAppInner({
                 globalSettings={globalSettings}
                 setGlobalSettings={setGlobalSettings}
                 errors={errors}
+                selectedPreset={selectedPreset}
+                selectedPresetType={selectedPresetType}
+                presetInterpolation={presetInterpolation}
+                setSelectedPreset={setSelectedPreset}
+                setSelectedPresetType={setSelectedPresetType}
+                setPresetInterpolation={setPresetInterpolation}
+                presetFromRef={presetFromRef}
               />
             </div>
           </>
@@ -867,6 +799,13 @@ function AsemicAppInner({
                 setScrubValues={setScrubValues}
                 globalSettings={globalSettings}
                 setGlobalSettings={setGlobalSettings}
+                selectedPreset={selectedPreset}
+                selectedPresetType={selectedPresetType}
+                presetInterpolation={presetInterpolation}
+                setSelectedPreset={setSelectedPreset}
+                setSelectedPresetType={setSelectedPresetType}
+                setPresetInterpolation={setPresetInterpolation}
+                presetFromRef={presetFromRef}
               />
             </div>
           </>

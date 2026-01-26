@@ -7,12 +7,20 @@ interface ParamEditorsProps {
   scenesArray: Array<{
     params?: Record<string, any>
     globalParams?: Record<string, any>
+    presets?: Record<string, { params: Record<string, number[]> }>
   }>
   activeScene: number
   scrubSettings: { params?: Record<string, number[]> }
   setScrubValues: (updater: (prev: any) => any) => void
   globalSettings: GlobalSettings
   setGlobalSettings?: (settings: GlobalSettings) => void
+  selectedPreset?: string | null
+  selectedPresetType?: 'scene' | 'global' | null
+  presetInterpolation?: number
+  setSelectedPreset?: (preset: string | null) => void
+  setSelectedPresetType?: (type: 'scene' | 'global' | null) => void
+  setPresetInterpolation?: (value: number) => void
+  presetFromRef?: React.MutableRefObject<Record<string, number[]> | null>
 }
 
 export default function ParamEditors({
@@ -21,7 +29,14 @@ export default function ParamEditors({
   scrubSettings,
   setScrubValues,
   globalSettings,
-  setGlobalSettings
+  setGlobalSettings,
+  selectedPreset,
+  selectedPresetType,
+  presetInterpolation = 0,
+  setSelectedPreset,
+  setSelectedPresetType,
+  setPresetInterpolation,
+  presetFromRef
 }: ParamEditorsProps) {
   const [activeParamKey, setActiveParamKey] = useState<string | null>(null)
 
@@ -50,7 +65,12 @@ export default function ParamEditors({
       }
     : null
 
-  if (allParamKeys.length === 0) {
+  const availablePresets = [
+    ...Object.keys(activeSceneSettings?.presets || {}),
+    ...Object.keys(globalSettings.presets || {})
+  ]
+
+  if (allParamKeys.length === 0 && availablePresets.length === 0) {
     return <></>
   }
 
@@ -79,6 +99,48 @@ export default function ParamEditors({
           )
         })}
       </div>
+
+      {/* Preset Selector */}
+      {availablePresets.length > 0 && (
+        <div className='flex gap-2 overflow-x-auto pb-2'>
+          {availablePresets.map(presetName => {
+            const isScenePreset = activeSceneSettings?.presets?.[presetName]
+            return (
+              <button
+                key={presetName}
+                onClick={() => {
+                  if (selectedPreset === presetName) {
+                    setSelectedPreset?.(null)
+                    setSelectedPresetType?.(null)
+                    setPresetInterpolation?.(0)
+                    if (presetFromRef) {
+                      presetFromRef.current = null
+                    }
+                  } else {
+                    if (presetFromRef) {
+                      presetFromRef.current = scrubSettings.params
+                        ? { ...scrubSettings.params }
+                        : null
+                    }
+                    setSelectedPreset?.(presetName)
+                    setSelectedPresetType?.(isScenePreset ? 'scene' : 'global')
+                    setPresetInterpolation?.(0)
+                  }
+                }}
+                className={`px-3 py-1 rounded text-xs font-mono whitespace-nowrap transition-colors ${
+                  selectedPreset === presetName
+                    ? '!bg-blue-500 !text-white'
+                    : isScenePreset
+                      ? 'bg-white/10 text-white hover:bg-white/20'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20 italic'
+                }`}
+                title={isScenePreset ? 'Scene Preset' : 'Global Preset'}>
+                {presetName}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Param Editor */}
       {activeParamKey && activeParamConfig && (
@@ -164,6 +226,41 @@ export default function ParamEditors({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Preset Fade Slider */}
+      {selectedPreset && (
+        <div className='rounded-lg p-3'>
+          <div className='text-white/70 text-xs mb-2 px-1'>Preset Fade</div>
+          <div className='flex relative h-6 rounded'>
+            <span className='text-white/70 text-xs absolute left-0 top-0 p-1 select-none'>
+              {(presetInterpolation * 100).toFixed(0)}%
+            </span>
+            <Slider
+              className='w-full h-full select-none pointer-grab'
+              min={0}
+              max={1}
+              exponent={1}
+              values={{ x: presetInterpolation, y: 0 }}
+              sliderStyle={({ x }) => ({
+                width: `${x * 200}%`,
+                left: 0,
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                opacity: x || 0.3,
+                height: '4px',
+                borderRadius: '2px',
+                backgroundColor: '#3b82f6',
+                position: 'absolute',
+                pointerEvents: 'none',
+                flex: 0
+              })}
+              onChange={({ x }) => {
+                setPresetInterpolation?.(x)
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

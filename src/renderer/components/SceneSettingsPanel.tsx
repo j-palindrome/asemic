@@ -59,6 +59,13 @@ interface SceneSettingsPanelProps {
   globalSettings: GlobalSettings
   setGlobalSettings: (settings: GlobalSettings) => void
   errors?: string[]
+  selectedPreset?: string | null
+  selectedPresetType?: 'scene' | 'global' | null
+  presetInterpolation?: number
+  setSelectedPreset?: (preset: string | null) => void
+  setSelectedPresetType?: (type: 'scene' | 'global' | null) => void
+  setPresetInterpolation?: (value: number) => void
+  presetFromRef?: React.MutableRefObject<Record<string, number[]> | null>
 }
 
 export default function SceneSettingsPanel({
@@ -71,7 +78,14 @@ export default function SceneSettingsPanel({
   sceneList,
   globalSettings,
   setGlobalSettings,
-  errors
+  errors,
+  selectedPreset,
+  selectedPresetType,
+  presetInterpolation = 0,
+  setSelectedPreset,
+  setSelectedPresetType,
+  setPresetInterpolation,
+  presetFromRef
 }: SceneSettingsPanelProps) {
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -1139,7 +1153,118 @@ export default function SceneSettingsPanel({
           </button>
         </div>
 
-        {/* Add Preset Input */}
+        {/* Preset Selector and Interpolation */}
+        {(Object.keys(sceneList[activeScene]?.presets || {}).length > 0 ||
+          Object.keys(globalSettings.presets || {}).length > 0) && (
+          <div className='mb-3 p-3 bg-white/5 rounded border border-white/10 space-y-3'>
+            <div>
+              <label className='text-white/70 text-xs block mb-2'>
+                Load Preset
+              </label>
+              <select
+                value={
+                  selectedPreset
+                    ? `${selectedPresetType}:${selectedPreset}`
+                    : ''
+                }
+                onChange={e => {
+                  if (!e.target.value) {
+                    setSelectedPreset?.(null)
+                    setSelectedPresetType?.(null)
+                    setPresetInterpolation?.(0)
+                    if (presetFromRef) {
+                      presetFromRef.current = null
+                    }
+                  } else {
+                    const [type, name] = e.target.value.split(':')
+                    // Save current params to ref as interpolation starting point
+                    if (presetFromRef) {
+                      presetFromRef.current = scrubSettings.params
+                        ? { ...scrubSettings.params }
+                        : null
+                    }
+                    setSelectedPreset?.(name)
+                    setSelectedPresetType?.(type as 'scene' | 'global')
+                    setPresetInterpolation?.(0)
+                  }
+                }}
+                className='w-full text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-2 cursor-pointer hover:bg-white/20'>
+                <option value=''>Select Preset</option>
+                {Object.keys(sceneList[activeScene]?.presets || {}).length >
+                  0 && (
+                  <>
+                    <optgroup label='Scene Presets'>
+                      {Object.keys(sceneList[activeScene]?.presets || {}).map(
+                        presetName => (
+                          <option
+                            key={`scene:${presetName}`}
+                            value={`scene:${presetName}`}>
+                            {presetName}
+                          </option>
+                        )
+                      )}
+                    </optgroup>
+                  </>
+                )}
+                {Object.keys(globalSettings.presets || {}).length > 0 && (
+                  <>
+                    <optgroup label='Global Presets'>
+                      {Object.keys(globalSettings.presets || {}).map(
+                        presetName => (
+                          <option
+                            key={`global:${presetName}`}
+                            value={`global:${presetName}`}>
+                            {presetName}
+                          </option>
+                        )
+                      )}
+                    </optgroup>
+                  </>
+                )}
+              </select>
+            </div>
+
+            {selectedPreset && (
+              <div>
+                <label className='text-white/70 text-xs block mb-2'>
+                  Preset Fade
+                </label>
+                <div className='flex items-center gap-3'>
+                  <div className='relative flex-1 h-6 bg-white/5 rounded'>
+                    <Slider
+                      className='w-full h-full'
+                      innerClassName=''
+                      min={0}
+                      max={1}
+                      exponent={1}
+                      values={{
+                        x: presetInterpolation,
+                        y: 0
+                      }}
+                      sliderStyle={({ x }) => ({
+                        left: `${x * 100}%`,
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: 'white',
+                        position: 'absolute',
+                        pointerEvents: 'none'
+                      })}
+                      onChange={({ x }) => {
+                        setPresetInterpolation?.(x)
+                      }}
+                    />
+                  </div>
+                  <span className='text-white/70 text-xs w-12 text-right'>
+                    {(presetInterpolation * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {showAddPreset && (
           <div className='mb-3 p-2 bg-white/5 rounded border border-white/20'>
             <div className='flex items-center gap-2'>

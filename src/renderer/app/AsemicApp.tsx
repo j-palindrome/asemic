@@ -613,7 +613,7 @@ function AsemicAppInner({
 
   return (
     <div
-      className={`relative w-full bg-black overflow-hidden h-[calc(100vh-55px)]`}>
+      className={`relative w-full bg-black overflow-hidden h-screen touch:h-[calc(100vh-55px)]`}>
       <canvas
         style={{
           width: '100%',
@@ -791,7 +791,7 @@ function AsemicAppInner({
         )}
         {perform && (
           <>
-            <div className='pointer-events-auto w-full px-4 pb-4 absolute top-[60px] left-0'>
+            <div className='pointer-events-auto w-full h-[calc(100%-60px)] px-4 pb-4 absolute top-[60px] right-0'>
               <ParamEditors
                 scenesArray={scenesArray}
                 activeScene={activeScene}

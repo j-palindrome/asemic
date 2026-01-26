@@ -12,5 +12,9 @@ export default {
       }
     }
   },
-  plugins: []
+  plugins: [
+    function ({ addVariant, e }) {
+      addVariant('touch', '@media (hover: none) and (pointer: coarse)')
+    }
+  ]
 }

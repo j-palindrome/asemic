@@ -548,11 +548,8 @@ function AsemicAppInner({
 
     const setupParamsListener = async () => {
       try {
-        unlistenParams = await listen<{
-          params: Record<string, number[]>
-          scene?: number
-        }>('params', event => {
-          const { params, scene } = event.payload
+        unlistenParams = await listen<string>('params', event => {
+          const { params, scene } = JSON.parse(event.payload)
           const targetScene = scene ?? activeScene
 
           setScrubValues(prev => {
@@ -564,6 +561,7 @@ function AsemicAppInner({
               ...newValues[targetScene].params,
               ...params
             }
+
             return newValues
           })
         })

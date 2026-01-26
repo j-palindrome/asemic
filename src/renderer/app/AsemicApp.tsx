@@ -151,13 +151,19 @@ function AsemicAppInner({
 
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+      console.log(`Sending OSC message to ${sendTo.host}:${9000}`)
+
       invoke('emit_osc_event', {
         targetAddr: `${sendTo.host}:${9000}`,
         eventName: '/progress',
         data: `${progress}`
-      }).catch(err => {
-        console.error('Failed to emit OSC scene list:', err)
       })
+        .catch(err => {
+          console.error('Failed to emit OSC scene list:', err)
+        })
+        .then(res => {
+          console.log('sent', res)
+        })
     }
   }, [progress])
 
@@ -536,17 +542,6 @@ function AsemicAppInner({
     _setShowGlobalSettings(value)
   }
 
-  const frame = useRef<HTMLDivElement>(null!)
-  const requestFullscreen = async () => {
-    frame.current.style.setProperty('height', '100vh', 'important')
-    await frame.current?.requestFullscreen()
-  }
-  useEffect(() => {
-    if (settings.perform) {
-      requestFullscreen()
-    }
-  }, [settings.perform])
-
   useEffect(() => {
     const onResize = () => {
       const boundingRect = canvas.current.getBoundingClientRect()
@@ -580,288 +575,292 @@ function AsemicAppInner({
   }, [showCanvas, asemic])
 
   return (
-    <div className='asemic-container relative group'>
-      <div
-        className={`relative w-full bg-black overflow-auto ${
-          settings.h === 'window' ? 'h-screen' : 'h-fit max-h-screen'
-        } fullscreen:max-h-screen`}
-        ref={frame}>
-        <canvas
-          style={{
-            width: '100%',
-            height: settings.h === 'window' ? '100%' : undefined,
-            aspectRatio:
-              settings.h === 'window' ? undefined : `1 / ${settings.h}`,
-            display: showCanvas ? 'block' : 'none'
-          }}
-          id='mainCanvas'
-          ref={canvas}
-          height={1080}
-          width={1080}></canvas>
+    <div
+      className={`relative w-full bg-black overflow-hidden h-[calc(100vh-55px)]`}>
+      <canvas
+        style={{
+          width: '100%',
+          height: '100%',
+          display: showCanvas ? 'block' : 'none'
+        }}
+        id='mainCanvas'
+        ref={canvas}
+        height={1080}
+        width={1080}></canvas>
 
-        <div className='fixed top-1 left-1 h-full w-full flex-col flex !z-100 pointer-events-none select-none'>
-          <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
-            <div className='flex items-center gap-1'>
-              <button
-                onClick={() => {
-                  const prevScene = Math.max(0, activeScene - 1)
-                  if (prevScene !== activeScene) {
-                    // Jump to the start of the previous scene using our calculated boundaries
-                    const prevSceneStart = sceneStarts[prevScene]?.start || 0
-                    const offset = scenesArray[prevScene]?.offset || 0
-                    const targetProgress = prevSceneStart + offset + 0.001
-                    setProgress(targetProgress)
-                  }
-                }}
-                disabled={activeScene === 0}
-                className='disabled:opacity-30'>
-                <ChevronLeft {...lucideProps} size={16} />
-              </button>
-              <select
-                value={activeScene}
-                onChange={e => {
-                  const sceneIndex = parseInt(e.target.value, 10)
-                  const sceneStart = sceneStarts[sceneIndex] || 0
-                  const offset = scenesArray[sceneIndex]?.offset || 0
-                  setProgress(sceneStart.start + offset + 0.001)
-                }}
-                className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 font-mono cursor-pointer hover:bg-white/20'>
-                {scenesArray.map((_, idx) => (
-                  <option key={idx} value={idx}>
-                    {idx + 1}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => {
-                  const nextScene = Math.min(
-                    scenesArray.length - 1,
-                    activeScene + 1
-                  )
-                  if (nextScene !== activeScene) {
-                    // Jump to the start of the next scene using our calculated boundaries
-                    const nextSceneStart = sceneStarts[nextScene] || 0
-                    const targetProgress = nextSceneStart.start + 0.001
-                    setProgress(targetProgress)
-                  }
-                }}
-                disabled={activeScene === scenesArray.length - 1}
-                className='disabled:opacity-30'>
-                <ChevronRight {...lucideProps} size={16} />
-              </button>{' '}
-            </div>
-            {/* Scrub slider for current scene */}
-            <Scroller
-              value={progress}
-              onChange={newScrub => {
-                setProgress(newScrub)
-                setScrubValues(prev => {
-                  const newValues = [...prev]
-                  if (newValues[activeScene]) {
-                    newValues[activeScene].scrub =
-                      newScrub - sceneStarts[activeScene].start
-                  }
-                  return newValues
-                })
+      <div className='absolute top-0 left-0 h-full w-full flex-col flex !z-100 pointer-events-none select-none'>
+        <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
+          <div className='flex items-center gap-1'>
+            <button
+              onClick={() => {
+                const prevScene = Math.max(0, activeScene - 1)
+                if (prevScene !== activeScene) {
+                  // Jump to the start of the previous scene using our calculated boundaries
+                  const prevSceneStart = sceneStarts[prevScene]?.start || 0
+                  const offset = scenesArray[prevScene]?.offset || 0
+                  const targetProgress = prevSceneStart + offset + 0.001
+                  setProgress(targetProgress)
+                }
               }}
-              min={0}
-              max={totalProgress}
-              format={(v: number) => `${v.toFixed(2)}s`}
-            />
-            {/* Preset selector and interpolation */}
-            {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||
-              Object.keys(globalSettings.presets || {}).length > 0) && (
-              <div className='flex items-center gap-2 px-2'>
-                <select
-                  value={
-                    selectedPreset
-                      ? `${selectedPresetType}:${selectedPreset}`
-                      : ''
+              disabled={activeScene === 0}
+              className='disabled:opacity-30'>
+              <ChevronLeft {...lucideProps} size={16} />
+            </button>
+            <select
+              value={activeScene}
+              onChange={e => {
+                const sceneIndex = parseInt(e.target.value, 10)
+                const sceneStart = sceneStarts[sceneIndex] || 0
+                const offset = scenesArray[sceneIndex]?.offset || 0
+                setProgress(sceneStart.start + offset + 0.001)
+              }}
+              className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 font-mono cursor-pointer hover:bg-white/20'>
+              {scenesArray.map((_, idx) => (
+                <option key={idx} value={idx}>
+                  {idx + 1}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                const nextScene = Math.min(
+                  scenesArray.length - 1,
+                  activeScene + 1
+                )
+                if (nextScene !== activeScene) {
+                  // Jump to the start of the next scene using our calculated boundaries
+                  const nextSceneStart = sceneStarts[nextScene] || 0
+                  const targetProgress = nextSceneStart.start + 0.001
+                  setProgress(targetProgress)
+                }
+              }}
+              disabled={activeScene === scenesArray.length - 1}
+              className='disabled:opacity-30'>
+              <ChevronRight {...lucideProps} size={16} />
+            </button>{' '}
+          </div>
+          {/* Scrub slider for current scene */}
+          <Scroller
+            value={progress}
+            onChange={newScrub => {
+              setProgress(newScrub)
+              setScrubValues(prev => {
+                const newValues = [...prev]
+                if (newValues[activeScene]) {
+                  newValues[activeScene].scrub =
+                    newScrub - sceneStarts[activeScene].start
+                }
+                return newValues
+              })
+            }}
+            min={0}
+            max={totalProgress}
+            format={(v: number) => `${v.toFixed(2)}s`}
+          />
+          {/* Preset selector and interpolation */}
+          {(Object.keys(scenesArray[activeScene]?.presets || {}).length > 0 ||
+            Object.keys(globalSettings.presets || {}).length > 0) && (
+            <div className='flex items-center gap-2 px-2'>
+              <select
+                value={
+                  selectedPreset
+                    ? `${selectedPresetType}:${selectedPreset}`
+                    : ''
+                }
+                onChange={e => {
+                  if (!e.target.value) {
+                    setSelectedPreset(null)
+                    setSelectedPresetType(null)
+                    setPresetInterpolation(0)
+                    presetFromRef.current = null
+                  } else {
+                    const [type, name] = e.target.value.split(':')
+                    // Save current params to ref as interpolation starting point
+                    presetFromRef.current = scrubValuesRef.current[activeScene]
+                      ?.params
+                      ? {
+                          ...scrubValuesRef.current[activeScene].params
+                        }
+                      : null
+                    setSelectedPreset(name)
+                    setSelectedPresetType(type as 'scene' | 'global')
+                    setPresetInterpolation(0)
                   }
-                  onChange={e => {
-                    if (!e.target.value) {
-                      setSelectedPreset(null)
-                      setSelectedPresetType(null)
-                      setPresetInterpolation(0)
-                      presetFromRef.current = null
-                    } else {
-                      const [type, name] = e.target.value.split(':')
-                      // Save current params to ref as interpolation starting point
-                      presetFromRef.current = scrubValuesRef.current[
-                        activeScene
-                      ]?.params
-                        ? {
-                            ...scrubValuesRef.current[activeScene].params
-                          }
-                        : null
-                      setSelectedPreset(name)
-                      setSelectedPresetType(type as 'scene' | 'global')
-                      setPresetInterpolation(0)
-                    }
-                  }}
-                  className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
-                  <option value=''>Select Preset</option>
-                  {Object.keys(scenesArray[activeScene]?.presets || {}).length >
-                    0 && (
-                    <>
-                      <optgroup label='Scene Presets'>
-                        {Object.keys(
-                          scenesArray[activeScene]?.presets || {}
-                        ).map(presetName => (
+                }}
+                className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 cursor-pointer hover:bg-white/20'>
+                <option value=''>Select Preset</option>
+                {Object.keys(scenesArray[activeScene]?.presets || {}).length >
+                  0 && (
+                  <>
+                    <optgroup label='Scene Presets'>
+                      {Object.keys(scenesArray[activeScene]?.presets || {}).map(
+                        presetName => (
                           <option
                             key={`scene:${presetName}`}
                             value={`scene:${presetName}`}>
                             {presetName}
                           </option>
-                        ))}
-                      </optgroup>
-                    </>
-                  )}
-                  {Object.keys(globalSettings.presets || {}).length > 0 && (
-                    <>
-                      <optgroup label='Global Presets'>
-                        {Object.keys(globalSettings.presets || {}).map(
-                          presetName => (
-                            <option
-                              key={`global:${presetName}`}
-                              value={`global:${presetName}`}>
-                              {presetName}
-                            </option>
-                          )
-                        )}
-                      </optgroup>
-                    </>
-                  )}
-                </select>
-                {selectedPreset && (
-                  <Scroller
-                    value={presetInterpolation}
-                    onChange={setPresetInterpolation}
-                    min={0}
-                    max={1}
-                    format={(v: number) => `${(v * 100).toFixed(0)}%`}
-                  />
+                        )
+                      )}
+                    </optgroup>
+                  </>
                 )}
-              </div>
-            )}
-            <div className='grow' />
-            {deletedScene && (
-              <button
-                onClick={undoDeleteScene}
-                className='flex items-center gap-1 px-2 py-1 bg-white/10 rounded hover:bg-white/20 transition-colors'>
-                <Undo {...lucideProps} size={14} />
-                <span className='text-white text-xs opacity-70'>
-                  Undo Delete
-                </span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setScenesArray([
-                  {
-                    code: '',
-                    length: 0.1,
-                    offset: 0,
-                    params: {}
-                  }
-                ])
-                setScrubValues([{ params: {}, scrub: 0, sent: {} }])
-                setProgress(0)
-                setGlobalSettings({ params: {}, presets: {} })
-                localStorage.removeItem('scenesArray')
-                localStorage.removeItem('globalSettings')
-              }}
-              title='New Document'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              <Plus {...lucideProps} size={16} />
-            </button>{' '}
-            <JsonFileLoader
-              sceneList={scenesArray}
-              setSceneList={setScenesArray}
-              globalSettings={globalSettings}
-              setGlobalSettings={setGlobalSettings}
-            />
-            <button
-              onClick={() => setShowGlobalSettings(!showGlobalSettings)}
-              title='Global Settings'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              <Settings {...lucideProps} size={16} />
-            </button>
-            <button
-              onClick={() => setShowWebRTC(!showWebRTC)}
-              title='WebRTC Stream'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              {showWebRTC ? (
-                <Wifi {...lucideProps} size={16} />
-              ) : (
-                <WifiOff {...lucideProps} size={16} />
-              )}
-            </button>
-            <button onClick={() => setPerform(!perform)}>
-              {<Ellipsis {...lucideProps} />}
-            </button>
-          </div>
-          {!perform && (
-            <>
-              <div className='pointer-events-auto'>
-                <SceneSettingsPanel
-                  sceneList={scenesArray}
-                  activeScene={activeScene}
-                  onUpdate={newSettings => {
-                    updateSceneSettings(newSettings)
-                  }}
-                  scrubSettings={scrubValues[activeScene]}
-                  onUpdateScrub={newScrubSettings => {
-                    setScrubValues(prev => {
-                      const newValues = [...prev]
-                      newValues[activeScene] = newScrubSettings
-                      return newValues
-                    })
-                  }}
-                  onAddScene={addSceneAfterCurrent}
-                  onDeleteScene={deleteCurrentScene}
-                  globalSettings={globalSettings}
-                  setGlobalSettings={setGlobalSettings}
-                  errors={errors}
+                {Object.keys(globalSettings.presets || {}).length > 0 && (
+                  <>
+                    <optgroup label='Global Presets'>
+                      {Object.keys(globalSettings.presets || {}).map(
+                        presetName => (
+                          <option
+                            key={`global:${presetName}`}
+                            value={`global:${presetName}`}>
+                            {presetName}
+                          </option>
+                        )
+                      )}
+                    </optgroup>
+                  </>
+                )}
+              </select>
+              {selectedPreset && (
+                <Scroller
+                  value={presetInterpolation}
+                  onChange={setPresetInterpolation}
+                  min={0}
+                  max={1}
+                  format={(v: number) => `${(v * 100).toFixed(0)}%`}
                 />
-              </div>
-            </>
-          )}
-          {perform && scenesArray[activeScene]?.text && (
-            <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
-              <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
-                {scenesArray[activeScene]?.text || ''}
-              </div>
+              )}
             </div>
           )}
-          {perform && (
-            <>
-              <div className='pointer-events-auto w-full px-4 pb-4 absolute top-[60px] left-0'>
-                <ParamEditors
-                  scenesArray={scenesArray}
-                  activeScene={activeScene}
-                  scrubSettings={scrubValues[activeScene]}
-                  setScrubValues={setScrubValues}
-                  globalSettings={globalSettings}
-                  setGlobalSettings={setGlobalSettings}
-                />
-              </div>
-            </>
+          <div className='grow' />
+          {deletedScene && (
+            <button
+              onClick={undoDeleteScene}
+              className='flex items-center gap-1 px-2 py-1 bg-white/10 rounded hover:bg-white/20 transition-colors'>
+              <Undo {...lucideProps} size={14} />
+              <span className='text-white text-xs opacity-70'>Undo Delete</span>
+            </button>
           )}
-          {showGlobalSettings && (
+          <button
+            onClick={() => {
+              setScenesArray([
+                {
+                  code: '',
+                  length: 0.1,
+                  offset: 0,
+                  params: {}
+                }
+              ])
+              setScrubValues([{ params: {}, scrub: 0, sent: {} }])
+              setProgress(0)
+              setGlobalSettings({ params: {}, presets: {} })
+              localStorage.removeItem('scenesArray')
+              localStorage.removeItem('globalSettings')
+            }}
+            title='New Document'
+            className='p-1 hover:bg-white/10 rounded transition-colors'>
+            <Plus {...lucideProps} size={16} />
+          </button>{' '}
+          <JsonFileLoader
+            sceneList={scenesArray}
+            setSceneList={setScenesArray}
+            globalSettings={globalSettings}
+            setGlobalSettings={setGlobalSettings}
+          />
+          <button
+            onClick={() => setShowGlobalSettings(!showGlobalSettings)}
+            title='Global Settings'
+            className='p-1 hover:bg-white/10 rounded transition-colors'>
+            <Settings {...lucideProps} size={16} />
+          </button>
+          <button
+            onClick={() => setShowWebRTC(!showWebRTC)}
+            title='WebRTC Stream'
+            className='p-1 hover:bg-white/10 rounded transition-colors'>
+            {showWebRTC ? (
+              <Wifi {...lucideProps} size={16} />
+            ) : (
+              <WifiOff {...lucideProps} size={16} />
+            )}
+          </button>
+          <button onClick={() => setPerform(!perform)}>
+            {<Ellipsis {...lucideProps} />}
+          </button>
+        </div>
+        {!perform && (
+          <>
             <div className='pointer-events-auto'>
-              <GlobalSettingsEditor
-                settings={globalSettings}
-                onUpdate={setGlobalSettings}
-                onClose={() => setShowGlobalSettings(false)}
+              <SceneSettingsPanel
                 sceneList={scenesArray}
-                setSceneList={setScenesArray}
+                activeScene={activeScene}
+                onUpdate={newSettings => {
+                  updateSceneSettings(newSettings)
+                }}
+                scrubSettings={scrubValues[activeScene]}
+                onUpdateScrub={newScrubSettings => {
+                  setScrubValues(prev => {
+                    const newValues = [...prev]
+                    newValues[activeScene] = newScrubSettings
+                    return newValues
+                  })
+                }}
+                onAddScene={addSceneAfterCurrent}
+                onDeleteScene={deleteCurrentScene}
+                globalSettings={globalSettings}
+                setGlobalSettings={setGlobalSettings}
+                errors={errors}
               />
             </div>
-          )}
-        </div>
-        {showWebRTC && <WebRTCStream roomId={null} />}
+          </>
+        )}
+        {perform && scenesArray[activeScene]?.text && (
+          <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
+            <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
+              {scenesArray[activeScene]?.text || ''}
+            </div>
+          </div>
+        )}
+        {perform && (
+          <>
+            <div className='pointer-events-auto w-full px-4 pb-4 absolute top-[60px] left-0'>
+              <ParamEditors
+                scenesArray={scenesArray}
+                activeScene={activeScene}
+                scrubSettings={scrubValues[activeScene]}
+                setScrubValues={setScrubValues}
+                globalSettings={globalSettings}
+                setGlobalSettings={setGlobalSettings}
+              />
+            </div>
+          </>
+        )}
+        {showGlobalSettings && (
+          <div className='pointer-events-auto'>
+            <GlobalSettingsEditor
+              settings={globalSettings}
+              onUpdate={setGlobalSettings}
+              onClose={() => setShowGlobalSettings(false)}
+              sceneList={scenesArray}
+              setSceneList={setScenesArray}
+            />
+          </div>
+        )}
       </div>
+      {showWebRTC && (
+        <div
+          id='tdSignaling'
+          className='fixed top-4 right-4 w-96 backdrop-blur border border-gray-700 rounded-lg shadow-lg p-4 z-100 max-h-[90vh] overflow-y-auto select-text'>
+          <button
+            onClick={() => setShowWebRTC(false)}
+            className='absolute top-2 right-2 p-1 hover:bg-white/10 rounded transition-colors'
+            title='Close'>
+            <span className='text-white text-lg opacity-70 hover:opacity-100'>
+              ×
+            </span>
+          </button>
+          <WebRTCStream roomId={null} />
+        </div>
+      )}
     </div>
   )
 }

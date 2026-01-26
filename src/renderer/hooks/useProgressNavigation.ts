@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import { SceneSettings } from '../components/SceneSettingsPanel'
 
 export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
   const [progress, setProgress] = useState(0)
+
+  // Listen to progress updates from Tauri
+  useEffect(() => {
+    const unlisten = listen<string>('progress', event => {
+      console.log(event)
+      setProgress(parseFloat(event.payload))
+    })
+
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
 
   // Calculate scene boundaries from scenesArray for navigation
   const sceneStarts = useMemo(() => {

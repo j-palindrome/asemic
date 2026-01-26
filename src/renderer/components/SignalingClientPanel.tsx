@@ -44,9 +44,7 @@ export function SignalingClientPanel(props: SignalingClientPanelProps) {
   }
 
   return (
-    <div
-      id='tdSignaling'
-      className='fixed top-4 right-4 w-96 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-4 z-100 max-h-[90vh] overflow-y-auto select-text'>
+    <>
       <h2 className='text-xl font-bold mb-4 text-white'>
         Signaling server settings
       </h2>
@@ -133,6 +131,6 @@ export function SignalingClientPanel(props: SignalingClientPanelProps) {
           })}
         </div>
       </div>
-    </div>
+    </>
   )
 }

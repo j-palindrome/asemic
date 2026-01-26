@@ -5,6 +5,7 @@ use crate::parser::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::arch::aarch64::int16x4x2_t;
+use std::fmt::format;
 use std::net::UdpSocket;
 use std::sync::Mutex;
 use std::thread;
@@ -154,7 +155,7 @@ async fn emit_osc_event(
     target_addr: String,
     event_name: String,
     data: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let msg = rosc::OscMessage {
         addr: event_name.to_string(),
         args: vec![rosc::OscType::String(data)],
@@ -165,12 +166,12 @@ async fn emit_osc_event(
         .map_err(|e| format!("Failed to encode OSC message: {}", e))?;
 
     let socket =
-        UdpSocket::bind("127.0.0.1:0").map_err(|e| format!("Failed to bind socket: {}", e))?;
+        UdpSocket::bind("0.0.0.0:0").map_err(|e| format!("Failed to bind socket: {}", e))?;
     socket
         .send_to(&msg_buf, &format!("{}", target_addr))
         .map_err(|e| format!("Failed to send OSC message: {}", e))?;
 
-    Ok(())
+    Ok(format!("Osc message {} {}", target_addr, event_name))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -186,7 +187,7 @@ fn start_osc_listener(app_handle: tauri::AppHandle<tauri::Wry>) {
     thread::spawn(move || {
         // Bind to OSC default port (9000)
         let osc_port = 9000u16;
-        match UdpSocket::bind(format!("127.0.0.1:{}", osc_port)) {
+        match UdpSocket::bind(format!("0.0.0.0:{}", osc_port)) {
             Ok(socket) => {
                 eprintln!("OSC Listener started on port {}", osc_port);
                 let mut buf = [0u8; 4096];

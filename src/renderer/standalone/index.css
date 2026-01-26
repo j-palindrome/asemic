@@ -12,14 +12,6 @@ body,
   color: #fff;
 }
 
-.asemic-container {
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
 /* Styles for the editor textarea */
 /* .editor {
   font-family: monospace;

@@ -72,7 +72,8 @@ export default function GlobalSettingsEditor({
             dimension: 1,
             default: [1],
             labels: [],
-            oscPath: ''
+            oscPath: '',
+            snap: false
           }
         }
       })
@@ -527,6 +528,28 @@ export default function GlobalSettingsEditor({
                         }}
                         className='w-full bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                       />
+                    </div>
+                    <div className='flex items-end'>
+                      <label className='text-white/50 text-xs flex items-center gap-1 cursor-pointer'>
+                        <input
+                          type='checkbox'
+                          checked={paramConfig.snap || false}
+                          onChange={e =>
+                            onUpdate({
+                              ...settings,
+                              params: {
+                                ...(settings.params || {}),
+                                [key]: {
+                                  ...settings.params![key],
+                                  snap: e.target.checked
+                                }
+                              }
+                            })
+                          }
+                          className='w-3 h-3 bg-white/10 rounded cursor-pointer'
+                        />
+                        Snap
+                      </label>
                     </div>
                     <div>
                       <label className='text-white/50 text-xs block mb-1'>

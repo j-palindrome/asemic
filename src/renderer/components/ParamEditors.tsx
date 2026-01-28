@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Slider from './Slider'
 import { GlobalSettings } from './SceneSettingsPanel'
 import { invoke } from '@tauri-apps/api/core'
@@ -39,15 +39,16 @@ export default function ParamEditors({
   presetFromRef
 }: ParamEditorsProps) {
   const [activeParamKey, setActiveParamKey] = useState<string | null>(null)
+  const snapTimersRef = useRef<Record<string, number>>({})
 
   const activeSceneSettings = scenesArray[activeScene]
 
-  // Collect visible global params (where show is true)
-  // const visibleGlobalParams = Object.entries(
-  //   activeSceneSettings?.globalParams || {}
-  // )
-  //   .filter(([, config]) => config?.show === true)
-  //   .map(([key]) => key)
+  // Clean up snap timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(snapTimersRef.current).forEach(timer => clearTimeout(timer))
+    }
+  }, [])
   const visibleGlobalParams = Object.entries(globalSettings?.params || {})
     // .filter(([, config]) => config?.show === true)
     .map(([key]) => key)
@@ -182,7 +183,12 @@ export default function ParamEditors({
                     pointerEvents: 'none',
                     flex: 0
                   })}
-                  onChange={({ y }) => {
+                  onChange={({ y }, end) => {
+                    // Clear existing snap timer for this param
+                    if (snapTimersRef.current[activeParamKey + i]) {
+                      clearTimeout(snapTimersRef.current[activeParamKey + i])
+                    }
+
                     setScrubValues(prev => {
                       const updated = [...prev]
                       const newParams = { ...updated[activeScene].params }
@@ -216,6 +222,45 @@ export default function ParamEditors({
                       }
                       return updated
                     })
+
+                    // Set snap timer only on mouseup if snap is enabled
+                    if (end && activeParamConfig.snap) {
+                      snapTimersRef.current[activeParamKey] = setTimeout(() => {
+                        setScrubValues(prev => {
+                          const updated = [...prev]
+                          const newParams = { ...updated[activeScene].params }
+                          newParams[activeParamKey] = [
+                            ...(newParams[activeParamKey] || [])
+                          ]
+                          newParams[activeParamKey][i] = 0
+                          updated[activeScene] = {
+                            ...updated[activeScene],
+                            params: newParams
+                          }
+                          for (let sendTo of Object.values(
+                            globalSettings.sendTo || {}
+                          )) {
+                            invoke('emit_osc_event', {
+                              targetAddr: `${sendTo.host}:${9000}`,
+                              eventName: '/params',
+                              data: JSON.stringify({
+                                params: {
+                                  [activeParamKey]: newParams[activeParamKey]
+                                },
+                                scene: activeScene
+                              })
+                            }).catch(err => {
+                              console.error(
+                                'Failed to emit OSC scene list:',
+                                err
+                              )
+                            })
+                          }
+                          delete snapTimersRef.current[activeParamKey + i]
+                          return updated
+                        })
+                      }, 500)
+                    }
                   }}
                 />
                 <span className='text-white/70 text-xs p-1 select-none'>

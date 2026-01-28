@@ -14,6 +14,7 @@ type ParamConfig = {
   default: number[]
   labels?: string[]
   oscPath?: string
+  snap?: boolean
 }
 
 type SceneParamConfig = Omit<ParamConfig, 'dimension'> & {
@@ -130,7 +131,8 @@ export default function SceneSettingsPanel({
             exponent: 1,
             dimension: 1,
             default: [1],
-            labels: []
+            labels: [],
+            snap: false
           }
         }
       })
@@ -941,6 +943,28 @@ export default function SceneSettingsPanel({
                       }}
                       className='w-full bg-white/10 text-white px-1 py-0.5 rounded text-xs'
                     />
+                  </div>
+                  <div className='flex items-end'>
+                    <label className='text-white/50 text-xs flex items-center gap-1 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        checked={paramConfig.snap || false}
+                        onChange={e =>
+                          onUpdate({
+                            ...sceneList[activeScene],
+                            params: {
+                              ...sceneList[activeScene].params,
+                              [key]: {
+                                ...sceneList[activeScene].params[key],
+                                snap: e.target.checked
+                              }
+                            }
+                          })
+                        }
+                        className='w-3 h-3 bg-white/10 rounded cursor-pointer'
+                      />
+                      Snap
+                    </label>
                   </div>
                   <button
                     onClick={() => {

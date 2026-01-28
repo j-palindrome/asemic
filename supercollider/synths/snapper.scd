@@ -19,9 +19,13 @@
 	// Fill the buffer with the data
 	~distortBuffer.loadCollection(bufferData);
 };
-)
 
-(
+OSCdef.new(\snapperRate, { |msg|
+	var midiNotes = msg[1..msg.size-1];
+	~updateNotes.(midiNotes);
+}, '/snapper/rate');
+
+
 Ndef(\bufferdistort, {
 	var bufplay = PlayBuf.ar(1, ~distortBuffer, 1, 0, 0, 1);
 	Out.ar(0, bufplay ! 2);

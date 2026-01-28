@@ -517,7 +517,7 @@ function AsemicAppInner({
         const fromValue = presetFromRef.current?.[key] || []
         const targetValue = targetPreset.params[key] || []
 
-        // Interpolate each dimension from ref to target
+        // Interpolate each dimension from ref to targe t
         interpolatedParams[key] = []
         const maxLen = Math.max(fromValue.length, targetValue.length)
 
@@ -531,8 +531,13 @@ function AsemicAppInner({
 
       newValues[activeScene] = {
         ...currentScrub,
-        params: interpolatedParams
+        params: { ...newValues[activeScene].params, ...interpolatedParams }
       }
+      invoke('emit_osc_event', {
+        event: 'params',
+        scene: activeScene,
+        params: interpolatedParams
+      })
       return newValues
     })
   }, [selectedPreset, selectedPresetType, presetInterpolation, activeScene])

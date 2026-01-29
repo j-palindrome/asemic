@@ -40,6 +40,12 @@ body,
   z-index: 9999;
 }
 
+@media (pointer: coarse) and (hover: none) {
+  .asemic-app {
+    height: calc(100vh - 55px);
+  }
+}
+
 /* Button styling */
 button {
   background-color: rgba(0, 0, 0, 0.5);

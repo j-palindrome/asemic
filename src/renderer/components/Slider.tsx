@@ -82,7 +82,16 @@ export default function Slider({
   const handleStart = (ev: React.MouseEvent | React.TouchEvent) => {
     if (ev.type === 'touchstart') {
       const touchEv = ev as React.TouchEvent
-      const touch = touchEv.touches[0]
+      const rect = divRef.current!.getBoundingClientRect()
+      const touch = Array.from(touchEv.touches).find(t => {
+        return (
+          t.clientX >= rect.left &&
+          t.clientX <= rect.right &&
+          t.clientY >= rect.top &&
+          t.clientY <= rect.bottom
+        )
+      })
+      if (!touch) return
       setTouchId(touch.identifier)
     }
     setIsDragging(true)

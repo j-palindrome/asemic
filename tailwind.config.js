@@ -14,7 +14,7 @@ export default {
   },
   plugins: [
     function ({ addVariant, e }) {
-      addVariant('touch', '@media (hover: none) and (pointer: coarse)')
+      addVariant('touch', '@media (hover: none)')
     }
   ]
 }

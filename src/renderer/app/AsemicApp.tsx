@@ -618,7 +618,7 @@ function AsemicAppInner({
 
   return (
     <div
-      className={`relative w-full bg-black overflow-hidden h-screen touch:h-[calc(100vh-55px)]`}>
+      className={`relative w-full bg-black overflow-hidden h-screen asemic-app`}>
       <canvas
         style={{
           width: '100%',

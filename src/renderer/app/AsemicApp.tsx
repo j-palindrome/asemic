@@ -150,8 +150,6 @@ function AsemicAppInner({
 
   useEffect(() => {
     for (let sendTo of Object.values(globalSettings.sendTo || {})) {
-      console.log(`Sending OSC message to ${sendTo.host}:${9000}`)
-
       invoke('emit_osc_event', {
         targetAddr: `${sendTo.host}:${9000}`,
         eventName: '/progress',
@@ -288,25 +286,31 @@ function AsemicAppInner({
               scene: currentScene
             })
 
-            for (const [paramName, paramValue] of Object.entries(
-              globalSettings.params || {}
+            for (const sample of Object.entries(
+              scrubValuesRef.current[scene]!.params || {}
             )) {
-              if (!paramValue?.oscPath) continue
+              const paramName = sample[0]
 
               // Skip if value hasn't changed from last sent value
               const lastSentValue = sentValuesRef.current[paramName]
-              const value = scrubValuesRef.current[scene]!.params[paramName]
+              const value = sample[1]
+
               if (isEqual(lastSentValue, value) || value === undefined) {
                 continue
               }
+              // if (paramName === 'interfere') debugger
 
               const newValue: any = await invoke<number>(
                 'parser_eval_expression',
                 {
                   expr: value.join(','),
-                  oscAddress: globalSettings.params[paramName].oscPath,
-                  oscHost: 'localhost',
-                  oscPort: 57120,
+                  oscAddress:
+                    globalSettings.params[paramName]?.oscPath ??
+                    '/' + paramName,
+                  oscTargets: [
+                    { host: 'localhost', port: 57120 },
+                    { host: 'localhost', port: 57110 }
+                  ],
                   sceneMetadata: currentScene
                 }
               )
@@ -314,8 +318,13 @@ function AsemicAppInner({
               sentValuesRef.current[paramName] = [...newValue]
             }
             for (const group of sceneSettings.oscGroups || []) {
-              const oscHost = group.oscHost || 'localhost'
-              const oscPort = group.oscPort || 57120
+              const oscTargets =
+                (group.osc?.length || 0) > 0
+                  ? Object.values(globalSettings.sendTo || {}).map(t => ({
+                      host: t.host,
+                      port: t.port
+                    }))
+                  : []
 
               // Process OSC messages in group sequentially
               for (const oscMsg of group.osc || []) {
@@ -330,8 +339,7 @@ function AsemicAppInner({
                 const result = await invoke<number>('parser_eval_expression', {
                   expr: oscMsg.value.toString(),
                   oscAddress: oscMsg.name,
-                  oscHost: oscHost,
-                  oscPort: oscPort,
+                  oscTargets: oscTargets,
                   sceneMetadata: currentScene
                 })
                 sentValuesRef.current[oscMsg.name] = [result]

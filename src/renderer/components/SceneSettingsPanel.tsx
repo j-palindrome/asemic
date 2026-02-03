@@ -22,11 +22,9 @@ type SceneParamConfig = Omit<ParamConfig, 'dimension'> & {
 }
 
 export interface GlobalSettings {
-  supercolliderHost?: string
-  supercolliderPort?: number
   params: Record<string, ParamConfig>
   presets: Record<string, { params: Record<string, number[]> }>
-  sendTo?: Record<string, { host: string }>
+  sendTo?: Record<string, { host: string; port: number }>
 }
 
 export interface SceneSettings {

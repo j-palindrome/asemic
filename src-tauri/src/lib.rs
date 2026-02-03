@@ -24,6 +24,12 @@ struct SyntaxNode {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct OscTarget {
+    host: String,
+    port: u16,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct ParserInput {
     source: String,
     tree: SyntaxNode,
@@ -78,8 +84,7 @@ struct AppState {
 async fn parser_eval_expression(
     expr: String,
     osc_address: String,
-    osc_host: String,
-    osc_port: u16,
+    osc_targets: Vec<OscTarget>,
     scene_metadata: SceneMetadata,
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<f64>, String> {
@@ -89,9 +94,14 @@ async fn parser_eval_expression(
         .map_err(|_| "Failed to lock text_parser".to_string())?;
 
     if let Some(param) = scene_metadata.params.get(&expr) {
-        parser
-            .expression_parser
-            .send_osc(&osc_address, param.to_vec(), &osc_host, osc_port)?;
+        for target in &osc_targets {
+            parser.expression_parser.send_osc(
+                &osc_address,
+                param.to_vec(),
+                &target.host,
+                target.port,
+            )?;
+        }
         return Ok(param.clone());
     }
 
@@ -100,9 +110,14 @@ async fn parser_eval_expression(
 
     if expr.contains(",") {
         let results = parser.expression_parser.expr_list(&expr)?;
-        parser
-            .expression_parser
-            .send_osc(&osc_address, results.clone(), &osc_host, osc_port)?;
+        for target in &osc_targets {
+            parser.expression_parser.send_osc(
+                &osc_address,
+                results.clone(),
+                &target.host,
+                target.port,
+            )?;
+        }
         return Ok(results);
     }
 
@@ -110,11 +125,12 @@ async fn parser_eval_expression(
     let result = parser.expression_parser.expr(&expr)?;
     // println!("Evaluated expression '{}' to {:?}", expr, result);
 
-    // Send OSC message
-
-    parser
-        .expression_parser
-        .send_osc(&osc_address, vec![result], &osc_host, osc_port)?;
+    // Send OSC message to all targets
+    for target in &osc_targets {
+        parser
+            .expression_parser
+            .send_osc(&osc_address, vec![result], &target.host, target.port)?;
+    }
 
     Ok(vec![result])
 }

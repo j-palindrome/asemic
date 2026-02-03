@@ -32,32 +32,7 @@ export default function GlobalSettingsEditor({
   const [showAddSyncTarget, setShowAddSyncTarget] = useState(false)
   const [newSyncTargetName, setNewSyncTargetName] = useState('')
   const [newSyncTargetHost, setNewSyncTargetHost] = useState('localhost')
-
-  const handleStartSuperCollider = async () => {
-    setIsConnecting(true)
-    setConnectionStatus('connecting')
-    setStatusMessage('Connecting to SuperCollider...')
-
-    try {
-      const result = await invoke<string>('sc_connect', {
-        host: `${settings.supercolliderHost || 'localhost'}:${
-          settings.supercolliderPort || 57120
-        }`
-      })
-      setConnectionStatus('connected')
-      setStatusMessage('Connected to SuperCollider')
-      setTimeout(() => setIsConnecting(false), 2000)
-    } catch (error) {
-      setConnectionStatus('error')
-      console.error(error)
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : 'Failed to connect to SuperCollider'
-      )
-      setIsConnecting(false)
-    }
-  }
+  const [newSyncTargetPort, setNewSyncTargetPort] = useState('57120')
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -128,12 +103,14 @@ export default function GlobalSettingsEditor({
         sendTo: {
           ...(settings.sendTo || {}),
           [newSyncTargetName.trim()]: {
-            host: newSyncTargetHost
+            host: newSyncTargetHost,
+            port: parseInt(newSyncTargetPort) || 57120
           }
         }
       })
       setNewSyncTargetName('')
-      setNewSyncTargetHost('')
+      setNewSyncTargetHost('localhost')
+      setNewSyncTargetPort('57120')
       setShowAddSyncTarget(false)
     }
   }
@@ -175,73 +152,6 @@ export default function GlobalSettingsEditor({
       </div>
       {/* Settings Panel */}
       <div className='overflow-y-auto p-3 space-y-4 flex-1'>
-        {/* SuperCollider Settings */}
-        <div className='border-b border-white/10 pb-3'>
-          <label className='text-white/70 text-sm font-semibold block mb-3'>
-            SuperCollider
-          </label>
-          <div className='space-y-2'>
-            <div>
-              <label className='text-white/50 text-xs block mb-1'>Host</label>
-              <input
-                type='text'
-                value={settings.supercolliderHost}
-                onChange={e =>
-                  onUpdate({
-                    ...settings,
-                    supercolliderHost: e.target.value
-                  })
-                }
-                className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
-              />
-            </div>
-            <div>
-              <label className='text-white/50 text-xs block mb-1'>Port</label>
-              <input
-                type='number'
-                value={settings.supercolliderPort}
-                onChange={e =>
-                  onUpdate({
-                    ...settings,
-                    supercolliderPort: e.target.value
-                      ? parseInt(e.target.value)
-                      : undefined
-                  })
-                }
-                className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
-              />
-            </div>
-            <button
-              onClick={handleStartSuperCollider}
-              disabled={isConnecting}
-              className={`w-full flex items-center justify-center gap-2 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
-                connectionStatus === 'connected'
-                  ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                  : connectionStatus === 'error'
-                    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                    : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
-              } disabled:opacity-50`}>
-              <RotateCw
-                size={14}
-                className={isConnecting ? 'animate-spin' : ''}
-              />
-              Start SuperCollider
-            </button>
-            {statusMessage && (
-              <div
-                className={`text-xs p-2 rounded ${
-                  connectionStatus === 'connected'
-                    ? 'bg-green-500/10 text-green-300'
-                    : connectionStatus === 'error'
-                      ? 'bg-red-500/10 text-red-300'
-                      : 'bg-blue-500/10 text-blue-300'
-                }`}>
-                {statusMessage}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Send To Settings */}
         <div className='border-b border-white/10 pb-3'>
           <div className='flex items-center gap-2 mb-3'>
@@ -297,6 +207,18 @@ export default function GlobalSettingsEditor({
                       className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
                     />
                   </div>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Port
+                    </label>
+                    <input
+                      type='number'
+                      placeholder='57120'
+                      value={newSyncTargetPort}
+                      onChange={e => setNewSyncTargetPort(e.target.value)}
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    />
+                  </div>
                 </div>
                 <div className='flex gap-2'>
                   <button
@@ -341,6 +263,21 @@ export default function GlobalSettingsEditor({
                       value={config.host}
                       onChange={e =>
                         handleUpdateSyncTarget(key, { host: e.target.value })
+                      }
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                    />
+                  </div>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Port
+                    </label>
+                    <input
+                      type='number'
+                      value={config.port}
+                      onChange={e =>
+                        handleUpdateSyncTarget(key, {
+                          port: parseInt(e.target.value)
+                        })
                       }
                       className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
                     />

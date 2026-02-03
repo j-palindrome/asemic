@@ -204,7 +204,7 @@ export default function ParamEditors({
                         globalSettings.sendTo || {}
                       )) {
                         invoke('emit_osc_event', {
-                          targetAddr: `${sendTo.host}:${9000}`,
+                          targetAddr: `${sendTo.host}:${sendTo.port}`,
                           eventName: '/params',
                           data: JSON.stringify({
                             params: {
@@ -241,7 +241,7 @@ export default function ParamEditors({
                             globalSettings.sendTo || {}
                           )) {
                             invoke('emit_osc_event', {
-                              targetAddr: `${sendTo.host}:${9000}`,
+                              targetAddr: `${sendTo.host}:${sendTo.port}`,
                               eventName: '/params',
                               data: JSON.stringify({
                                 params: {

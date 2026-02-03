@@ -4,6 +4,10 @@ import { SceneSettings } from '../components/SceneSettingsPanel'
 
 export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
   const [progress, setProgress] = useState(0)
+  const progressRef = useRef(progress)
+  useEffect(() => {
+    progressRef.current = progress
+  }, [progress])
 
   // Listen to progress updates from Tauri
   useEffect(() => {
@@ -68,6 +72,7 @@ export const useProgressNavigation = (scenesArray: SceneSettings[]) => {
     setProgress,
     sceneStarts,
     activeScene,
-    activeScenes
+    activeScenes,
+    progressRef
   }
 }

@@ -47,7 +47,6 @@ import { useProgressNavigation } from '../hooks/useProgressNavigation'
 import WebRTCStream from '../components/WebRTCStream'
 
 export type ScrubSettings = {
-  scrub: number
   params: Record<string, number[]>
   sent: Record<string, number[]>
 }
@@ -79,7 +78,7 @@ function AsemicAppInner({
   } as GlobalSettings)
 
   const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
-    { params: {}, scrub: 0, sent: {} }
+    { params: {}, sent: {} }
   ])
   const scrubValuesRef = useRef(scrubValues)
   useEffect(() => {
@@ -91,7 +90,6 @@ function AsemicAppInner({
       const newValues: ScrubSettings[] = new Array(newArray.length)
         .fill(null)
         .map(() => ({
-          scrub: 0,
           params: {},
           sent: {}
         }))
@@ -142,6 +140,7 @@ function AsemicAppInner({
 
   const {
     progress,
+    progressRef,
     totalProgress,
     setProgress,
     sceneStarts,
@@ -192,7 +191,7 @@ function AsemicAppInner({
     const newScrubs = [...scrubValues]
     newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
     while (!newScrubs[activeScene]) {
-      newScrubs.push({ scrub: 0, params: {}, sent: {} })
+      newScrubs.push({ params: {}, sent: {} })
     }
     if (!scenesArray[activeScene]) {
       const newArray = [...scenesArray]
@@ -274,7 +273,7 @@ function AsemicAppInner({
               pause: currentSceneSettings.pause,
               params: scrubValuesRef.current[scene]!.params,
               scrub:
-                (scrubValuesRef.current[scene]?.scrub || 0) /
+                (progressRef.current - (sceneStarts[scene]?.start || 0)) /
                 (currentSceneSettings.length || 0.1),
               width,
               height,
@@ -347,7 +346,7 @@ function AsemicAppInner({
             groups: groups as any,
             scene: {
               scrub:
-                (scrubValuesRef.current[activeScene]?.scrub || 0) /
+                (progressRef.current - (sceneStarts[activeScene]?.start || 0)) /
                 (scenesArray[activeScene]?.length || 0.1)
             } as any
           })
@@ -533,11 +532,17 @@ function AsemicAppInner({
         ...currentScrub,
         params: { ...newValues[activeScene].params, ...interpolatedParams }
       }
-      invoke('emit_osc_event', {
-        event: 'params',
-        scene: activeScene,
-        params: interpolatedParams
-      })
+      for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+        invoke('emit_osc_event', {
+          targetAddr: `${sendTo.host}:${9000}`,
+          eventName: '/params',
+          data: JSON.stringify({
+            params: interpolatedParams,
+            scene: activeScene
+          })
+        })
+      }
+
       return newValues
     })
   }, [selectedPreset, selectedPresetType, presetInterpolation, activeScene])
@@ -560,7 +565,7 @@ function AsemicAppInner({
           setScrubValues(prev => {
             const newValues = [...prev]
             if (!newValues[targetScene]) {
-              newValues[targetScene] = { scrub: 0, params: {}, sent: {} }
+              newValues[targetScene] = { params: {}, sent: {} }
             }
             newValues[targetScene].params = {
               ...newValues[targetScene].params,
@@ -686,14 +691,6 @@ function AsemicAppInner({
             value={progress}
             onChange={newScrub => {
               setProgress(newScrub)
-              setScrubValues(prev => {
-                const newValues = [...prev]
-                if (newValues[activeScene]) {
-                  newValues[activeScene].scrub =
-                    newScrub - sceneStarts[activeScene].start
-                }
-                return newValues
-              })
             }}
             min={0}
             max={totalProgress}
@@ -718,7 +715,7 @@ function AsemicAppInner({
                   params: {}
                 }
               ])
-              setScrubValues([{ params: {}, scrub: 0, sent: {} }])
+              setScrubValues([{ params: {}, sent: {} }])
               setProgress(0)
               setGlobalSettings({ params: {}, presets: {} })
               localStorage.removeItem('scenesArray')

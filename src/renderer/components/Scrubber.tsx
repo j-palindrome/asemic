@@ -20,6 +20,10 @@ export default function Scroller({
   sensitivity = 0.001
 }: ScrollerProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const touchStateRef = useRef<{ active: boolean; lastY: number }>({
+    active: false,
+    lastY: 0
+  })
 
   useEffect(() => {
     const handleScroll = (e: WheelEvent) => {
@@ -29,10 +33,44 @@ export default function Scroller({
       onChange(newValue)
     }
 
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 0) return
+      touchStateRef.current.active = true
+      touchStateRef.current.lastY = e.touches[0].clientY
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStateRef.current.active || e.touches.length === 0) return
+      e.preventDefault()
+      const currentY = e.touches[0].clientY
+      const delta = (currentY - touchStateRef.current.lastY) * sensitivity
+      touchStateRef.current.lastY = currentY
+      const newValue = Math.max(min, Math.min(max, value + delta))
+      onChange(newValue)
+    }
+
+    const handleTouchEnd = () => {
+      touchStateRef.current.active = false
+    }
+
     const container = scrollContainerRef.current
     if (container) {
       container.addEventListener('wheel', handleScroll, { passive: false })
-      return () => container.removeEventListener('wheel', handleScroll)
+      container.addEventListener('touchstart', handleTouchStart, {
+        passive: true
+      })
+      container.addEventListener('touchmove', handleTouchMove, {
+        passive: false
+      })
+      container.addEventListener('touchend', handleTouchEnd)
+      container.addEventListener('touchcancel', handleTouchEnd)
+      return () => {
+        container.removeEventListener('wheel', handleScroll)
+        container.removeEventListener('touchstart', handleTouchStart)
+        container.removeEventListener('touchmove', handleTouchMove)
+        container.removeEventListener('touchend', handleTouchEnd)
+        container.removeEventListener('touchcancel', handleTouchEnd)
+      }
     }
   }, [value, min, max, onChange, sensitivity])
 

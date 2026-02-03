@@ -183,7 +183,7 @@ impl TextParser {
             // Parse character definition: "char = code" or "char => code"
             if let Some(eq_pos) = token.find('=') {
                 let char_name = token[..eq_pos].trim().to_string();
-                let is_dynamic = token[..eq_pos + 1].ends_with("=>");
+                let is_dynamic = token[..eq_pos + 2].ends_with(">");
                 let code = if is_dynamic {
                     token[eq_pos + 2..].trim().to_string()
                 } else {

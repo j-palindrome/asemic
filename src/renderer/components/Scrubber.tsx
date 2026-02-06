@@ -28,7 +28,9 @@ export default function Scroller({
   useEffect(() => {
     const handleScroll = (e: WheelEvent) => {
       e.preventDefault()
-      const delta = e.deltaY * -sensitivity // Negative to make scroll up = increase value
+      const delta = e.deltaY * sensitivity // Negative to make scroll up = increase value
+      console.log(delta)
+
       const newValue = Math.max(min, Math.min(max, value + delta))
       onChange(newValue)
     }

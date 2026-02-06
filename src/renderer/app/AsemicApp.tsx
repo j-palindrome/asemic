@@ -43,12 +43,14 @@ import { listen } from '@tauri-apps/api/event'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
-import { useProgressNavigation } from '../hooks/useProgressNavigation'
 import WebRTCStream from '../components/WebRTCStream'
+import ScenePicker from '../components/ScenePicker'
+import { useAsemicStore } from '../store/asemicStore'
 
 export type ScrubSettings = {
   params: Record<string, number[]>
   sent: Record<string, number[]>
+  scrub: number
 }
 
 export const lucideProps = {
@@ -64,48 +66,48 @@ function AsemicAppInner({
   getRequire: (file: string) => Promise<string>
 }) {
   // Parse scenes as JSON array
-  const [scenesArray, _setScenesArray] = useState<SceneSettings[]>([
-    {
-      code: '',
-      length: 0.1,
-      offset: 0,
-      params: {}
+  const scenesArray = useAsemicStore(state => state.scenesArray)
+  const setScenesArray = useAsemicStore(state => state.setScenesArray)
+  const focusedScene = useAsemicStore(state => state.focusedScene)
+
+  const scrubValues = useAsemicStore(state => state.scrubValues)
+  const setScrubValues = useAsemicStore(state => state.setScrubValues)
+  let activeScenes: number[] = []
+  for (let i = 0; i < scrubValues.length; i++) {
+    if (scrubValues[i]?.scrub! > 0) {
+      activeScenes.push(i)
     }
-  ])
+  }
   const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
     params: {},
     presets: {}
   } as GlobalSettings)
-
-  const [scrubValues, setScrubValues] = useState<ScrubSettings[]>([
-    { params: {}, sent: {} }
-  ])
   const scrubValuesRef = useRef(scrubValues)
   useEffect(() => {
     scrubValuesRef.current = scrubValues
   }, [scrubValues])
 
-  const setScenesArray = (newArray: SceneSettings[]) => {
-    if (newArray.length !== scrubValues.length) {
-      const newValues: ScrubSettings[] = new Array(newArray.length)
-        .fill(null)
-        .map(() => ({
-          params: {},
-          sent: {}
-        }))
-      // Copy over what we can
-      for (let i = 0; i < Math.min(scrubValues.length, newValues.length); i++) {
-        newValues[i] = scrubValues[i]
-      }
+  // const setScenesArray = (newArray: SceneSettings[]) => {
+  //   if (newArray.length !== scrubValues.length) {
+  //     const newValues: ScrubSettings[] = new Array(newArray.length)
+  //       .fill(null)
+  //       .map(() => ({
+  //         params: {},
+  //         sent: {}
+  //       }))
+  //     // Copy over what we can
+  //     for (let i = 0; i < Math.min(scrubValues.length, newValues.length); i++) {
+  //       newValues[i] = scrubValues[i]
+  //     }
 
-      setScrubValues(newValues)
-    }
+  //     setScrubValues(newValues)
+  //   }
 
-    // Update only if different
-    _setScenesArray(newArray)
+  //   // Update only if different
+  //   _setScenesArray(newArray)
 
-    localStorage.setItem('scenesArray', JSON.stringify(newArray))
-  }
+  //   localStorage.setItem('scenesArray', JSON.stringify(newArray))
+  // }
 
   const setGlobalSettings = (newSettings: GlobalSettings) => {
     // Update only if different
@@ -138,35 +140,27 @@ function AsemicAppInner({
 
   const asemic = useRef<Asemic>(null)
 
-  const {
-    progress,
-    progressRef,
-    totalProgress,
-    setProgress,
-    sceneStarts,
-    activeScene,
-    activeScenes
-  } = useProgressNavigation(scenesArray)
+  // active scene is now a "focus" state for the last focused scene
 
-  useEffect(() => {
-    for (let sendTo of Object.values(globalSettings.sendTo || {})) {
-      invoke('emit_osc_event', {
-        targetAddr: `${sendTo.host}:${9000}`,
-        eventName: '/progress',
-        data: `${progress}`
-      })
-        .catch(err => {
-          console.error('Failed to emit OSC scene list:', err)
-        })
-        .then(res => {
-          console.log('sent', res)
-        })
-    }
-  }, [progress])
+  // useEffect(() => {
+  //   for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+  //     invoke('emit_osc_event', {
+  //       targetAddr: `${sendTo.host}:${9000}`,
+  //       eventName: '/progress',
+  //       data: `${progress}`
+  //     })
+  //       .catch(err => {
+  //         console.error('Failed to emit OSC scene list:', err)
+  //       })
+  //       .then(res => {
+  //         console.log('sent', res)
+  //       })
+  //   }
+  // }, [progress])
 
-  useEffect(() => {
-    setErrors([])
-  }, [activeScene, scenesArray[activeScene]?.code])
+  // useEffect(() => {
+  //   setErrors([])
+  // }, [activeScene, scenesArray[activeScene]?.code])
 
   // const client = useMemo(() => new Client('localhost', 57120), [])
   const [isSetup, setIsSetup] = useState(false)
@@ -187,21 +181,21 @@ function AsemicAppInner({
 
   useEffect(() => {
     const newScrubs = [...scrubValues]
-    newScrubs[activeScene] = { ...newScrubs[activeScene], sent: {} }
-    while (!newScrubs[activeScene]) {
-      newScrubs.push({ params: {}, sent: {} })
+    newScrubs[focusedScene] = { ...newScrubs[focusedScene], sent: {} }
+    while (!newScrubs[focusedScene]) {
+      newScrubs.push({ params: {}, sent: {}, scrub: 0 })
     }
-    if (!scenesArray[activeScene]) {
+    if (!scenesArray[focusedScene]) {
       const newArray = [...scenesArray]
-      while (!newArray[activeScene]) {
+      while (!newArray[focusedScene]) {
         newArray.push({ code: '', length: 0.1, offset: 0, params: {} })
       }
       setScenesArray(newArray)
       return
     }
 
-    const sceneParams = scenesArray[activeScene].params || {}
-    const currentParams = newScrubs[activeScene].params || {}
+    const sceneParams = scenesArray[focusedScene].params || {}
+    const currentParams = newScrubs[focusedScene].params || {}
 
     // Initialize any undefined params with their default values
     for (const [key, config] of Object.entries(sceneParams)) {
@@ -210,17 +204,17 @@ function AsemicAppInner({
     // Also initialize global params if present
     for (const [key, config] of Object.entries(globalSettings.params)) {
       // global settings force their saved defaults
-      if (scenesArray[activeScene].globalParams?.[key]) {
+      if (scenesArray[focusedScene].globalParams?.[key]) {
         currentParams[key] =
-          scenesArray[activeScene].globalParams?.[key].default
+          scenesArray[focusedScene].globalParams?.[key].default
       } else if (
         scenesArray.findLastIndex(
-          (scene, i) => i < activeScene && scene.globalParams?.[key]
+          (scene, i) => i < focusedScene && scene.globalParams?.[key]
         ) !== -1
       ) {
         // find last scene that had this param defined
         const lastSceneIdx = scenesArray.findLastIndex(
-          (scene, i) => i < activeScene && scene.globalParams?.[key]
+          (scene, i) => i < focusedScene && scene.globalParams?.[key]
         )
 
         currentParams[key] =
@@ -231,17 +225,17 @@ function AsemicAppInner({
       }
     }
 
-    newScrubs[activeScene].params = currentParams
-    newScrubs[activeScene].sent = {}
+    newScrubs[focusedScene].params = currentParams
+    newScrubs[focusedScene].sent = {}
 
     setScrubValues(newScrubs)
-  }, [activeScene, scenesArray.length])
+  }, [focusedScene, scenesArray.length])
 
   const sentValuesRef = useRef<{}>({})
 
   useEffect(() => {
     sentValuesRef.current = {}
-  }, [activeScene])
+  }, [focusedScene])
 
   useEffect(() => {
     let animationFrame: number | null = null
@@ -270,9 +264,7 @@ function AsemicAppInner({
               offset: currentSceneSettings.offset,
               pause: currentSceneSettings.pause,
               params: scrubValuesRef.current[scene]!.params,
-              scrub:
-                (progressRef.current - (sceneStarts[scene]?.start || 0)) /
-                (currentSceneSettings.length || 0.1),
+              scrub: scrubValuesRef.current[scene]!.scrub || 0,
               width,
               height,
               id: `${scene}` // Assign unique ID per scene
@@ -353,9 +345,7 @@ function AsemicAppInner({
             // @ts-ignore
             groups: groups as any,
             scene: {
-              scrub:
-                (progressRef.current - (sceneStarts[activeScene]?.start || 0)) /
-                (scenesArray[activeScene]?.length || 0.1)
+              scrub: scrubValuesRef.current[focusedScene]?.scrub
             } as any
           })
         })().then(() => {
@@ -386,15 +376,15 @@ function AsemicAppInner({
   // Extract settings from active scene
   useEffect(() => {
     asemic.current?.postMessage({ reset: true })
-  }, [activeScene])
+  }, [focusedScene])
 
   // Update scene settings in source
   const updateSceneSettings = (newSettings: SceneSettings) => {
     const newScenesArray = [...scenesArray]
     console.log(newScenesArray)
-    if (activeScene < newScenesArray.length) {
-      newScenesArray[activeScene] = {
-        ...newScenesArray[activeScene],
+    if (focusedScene < newScenesArray.length) {
+      newScenesArray[focusedScene] = {
+        ...newScenesArray[focusedScene],
         ...newSettings
       }
     }
@@ -429,7 +419,7 @@ function AsemicAppInner({
   const addSceneAfterCurrent = () => {
     const newScenesArray = [...scenesArray]
     // Insert empty scene after current scene
-    newScenesArray.splice(activeScene + 1, 0, {
+    newScenesArray.splice(focusedScene + 1, 0, {
       code: '',
       length: 0.1,
       offset: 0,
@@ -445,13 +435,13 @@ function AsemicAppInner({
       return
     }
     const newScenesArray = [...scenesArray]
-    const deletedSceneData = newScenesArray[activeScene]
-    newScenesArray.splice(activeScene, 1)
+    const deletedSceneData = newScenesArray[focusedScene]
+    newScenesArray.splice(focusedScene, 1)
     setScenesArray(newScenesArray)
     // Store deleted scene for undo
     setDeletedScene({
       scene: deletedSceneData,
-      index: activeScene
+      index: focusedScene
     })
     // Clear undo after 10 seconds
     setTimeout(() => setDeletedScene(null), 10000)
@@ -500,7 +490,7 @@ function AsemicAppInner({
 
     let targetPreset
     if (selectedPresetType === 'scene') {
-      targetPreset = scenesArray[activeScene]?.presets?.[selectedPreset]
+      targetPreset = scenesArray[focusedScene]?.presets?.[selectedPreset]
     } else {
       targetPreset = globalSettings.presets?.[selectedPreset]
     }
@@ -509,7 +499,7 @@ function AsemicAppInner({
 
     setScrubValues(prev => {
       const newValues = [...prev]
-      const currentScrub = newValues[activeScene]
+      const currentScrub = newValues[focusedScene]
       if (!currentScrub) return prev
 
       const interpolatedParams: Record<string, number[]> = {}
@@ -536,9 +526,9 @@ function AsemicAppInner({
         }
       }
 
-      newValues[activeScene] = {
+      newValues[focusedScene] = {
         ...currentScrub,
-        params: { ...newValues[activeScene].params, ...interpolatedParams }
+        params: { ...newValues[focusedScene].params, ...interpolatedParams }
       }
       for (let sendTo of Object.values(globalSettings.sendTo || {})) {
         invoke('emit_osc_event', {
@@ -546,14 +536,14 @@ function AsemicAppInner({
           eventName: '/params',
           data: JSON.stringify({
             params: interpolatedParams,
-            scene: activeScene
+            scene: focusedScene
           })
         })
       }
 
       return newValues
     })
-  }, [selectedPreset, selectedPresetType, presetInterpolation, activeScene])
+  }, [selectedPreset, selectedPresetType, presetInterpolation, focusedScene])
 
   const setShowGlobalSettings = (value: boolean) => {
     if (value && !perform) setPerform(true)
@@ -568,12 +558,12 @@ function AsemicAppInner({
       try {
         unlistenParams = await listen<string>('params', event => {
           const { params, scene } = JSON.parse(event.payload)
-          const targetScene = scene ?? activeScene
+          const targetScene = scene ?? focusedScene
 
           setScrubValues(prev => {
             const newValues = [...prev]
             if (!newValues[targetScene]) {
-              newValues[targetScene] = { params: {}, sent: {} }
+              newValues[targetScene] = { params: {}, sent: {}, scrub: 0 }
             }
             newValues[targetScene].params = {
               ...newValues[targetScene].params,
@@ -595,7 +585,7 @@ function AsemicAppInner({
         unlistenParams()
       }
     }
-  }, [activeScene])
+  }, [focusedScene])
 
   useEffect(() => {
     const onResize = () => {
@@ -645,65 +635,7 @@ function AsemicAppInner({
 
       <div className='absolute top-0 left-0 h-full w-full flex-col flex !z-100 pointer-events-none select-none'>
         <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
-          <div className='flex items-center gap-1'>
-            <button
-              onClick={() => {
-                const prevScene = Math.max(0, activeScene - 1)
-                if (prevScene !== activeScene) {
-                  // Jump to the start of the previous scene using our calculated boundaries
-                  const prevSceneStart = sceneStarts[prevScene]?.start || 0
-                  const offset = scenesArray[prevScene]?.offset || 0
-                  const targetProgress = prevSceneStart + offset + 0.001
-                  setProgress(targetProgress)
-                }
-              }}
-              disabled={activeScene === 0}
-              className='disabled:opacity-30'>
-              <ChevronLeft {...lucideProps} size={16} />
-            </button>
-            <select
-              value={activeScene}
-              onChange={e => {
-                const sceneIndex = parseInt(e.target.value, 10)
-                const sceneStart = sceneStarts[sceneIndex] || 0
-                const offset = scenesArray[sceneIndex]?.offset || 0
-                setProgress(sceneStart.start + offset + 0.001)
-              }}
-              className='text-white text-xs bg-white/10 border border-white/20 rounded px-2 py-1 font-mono cursor-pointer hover:bg-white/20'>
-              {scenesArray.map((_, idx) => (
-                <option key={idx} value={idx}>
-                  {idx + 1}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                const nextScene = Math.min(
-                  scenesArray.length - 1,
-                  activeScene + 1
-                )
-                if (nextScene !== activeScene) {
-                  // Jump to the start of the next scene using our calculated boundaries
-                  const nextSceneStart = sceneStarts[nextScene] || 0
-                  const targetProgress = nextSceneStart.start + 0.001
-                  setProgress(targetProgress)
-                }
-              }}
-              disabled={activeScene === scenesArray.length - 1}
-              className='disabled:opacity-30'>
-              <ChevronRight {...lucideProps} size={16} />
-            </button>{' '}
-          </div>
-          {/* Scrub slider for current scene */}
-          <Scroller
-            value={progress}
-            onChange={newScrub => {
-              setProgress(newScrub)
-            }}
-            min={0}
-            max={totalProgress}
-            format={(v: number) => `${v.toFixed(2)}s`}
-          />
+          <ScenePicker />
           <div className='grow' />
           {deletedScene && (
             <button
@@ -723,8 +655,7 @@ function AsemicAppInner({
                   params: {}
                 }
               ])
-              setScrubValues([{ params: {}, sent: {} }])
-              setProgress(0)
+              setScrubValues([{ params: {}, sent: {}, scrub: 0 }])
               setGlobalSettings({ params: {}, presets: {} })
               localStorage.removeItem('scenesArray')
               localStorage.removeItem('globalSettings')
@@ -764,15 +695,15 @@ function AsemicAppInner({
             <div className='pointer-events-auto'>
               <SceneSettingsPanel
                 sceneList={scenesArray}
-                activeScene={activeScene}
+                activeScene={focusedScene}
                 onUpdate={newSettings => {
                   updateSceneSettings(newSettings)
                 }}
-                scrubSettings={scrubValues[activeScene]}
+                scrubSettings={scrubValues[focusedScene]}
                 onUpdateScrub={newScrubSettings => {
                   setScrubValues(prev => {
                     const newValues = [...prev]
-                    newValues[activeScene] = newScrubSettings
+                    newValues[focusedScene] = newScrubSettings
                     return newValues
                   })
                 }}
@@ -792,10 +723,10 @@ function AsemicAppInner({
             </div>
           </>
         )}
-        {perform && scenesArray[activeScene]?.text && (
+        {perform && scenesArray[focusedScene]?.text && (
           <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
             <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
-              {scenesArray[activeScene]?.text || ''}
+              {scenesArray[focusedScene]?.text || ''}
             </div>
           </div>
         )}
@@ -804,8 +735,8 @@ function AsemicAppInner({
             <div className='pointer-events-auto w-full h-[calc(100%-60px)] px-4 pb-4 absolute top-[60px] right-0'>
               <ParamEditors
                 scenesArray={scenesArray}
-                activeScene={activeScene}
-                scrubSettings={scrubValues[activeScene]}
+                activeScene={focusedScene}
+                scrubSettings={scrubValues[focusedScene]}
                 setScrubValues={setScrubValues}
                 globalSettings={globalSettings}
                 setGlobalSettings={setGlobalSettings}

@@ -16,6 +16,7 @@ pub struct Transform {
     pub s: String,
     pub l: String,
     pub a: String,
+    pub attrs: [String; 4],
     pub constants: std::collections::HashMap<String, String>,
 }
 
@@ -31,6 +32,7 @@ pub struct SolvedTransform {
     pub s: f64,
     pub l: f64,
     pub a: f64,
+    pub attrs: [f64; 4],
 }
 
 impl Transform {
@@ -46,6 +48,12 @@ impl Transform {
             s: "0.0".to_string(),
             l: "1.0".to_string(),
             a: "1.0".to_string(),
+            attrs: [
+                "0.0".to_string(),
+                "0.0".to_string(),
+                "0.0".to_string(),
+                "0.0".to_string(),
+            ],
             constants: std::collections::HashMap::new(),
         }
     }
@@ -145,6 +153,12 @@ impl Transform {
             s,
             l,
             a,
+            attrs: [
+                parse_or_default(&self.attrs[0], 0.0),
+                parse_or_default(&self.attrs[1], 0.0),
+                parse_or_default(&self.attrs[2], 0.0),
+                parse_or_default(&self.attrs[3], 0.0),
+            ],
         })
     }
 }

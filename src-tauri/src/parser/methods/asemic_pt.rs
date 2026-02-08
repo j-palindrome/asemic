@@ -112,6 +112,7 @@ pub struct AsemicPt {
     pub s: f64, // scale
     pub l: f64, // line width
     pub a: f64, // alpha
+    pub attrs: [f64; 4],
 }
 
 impl AsemicPt {
@@ -124,6 +125,7 @@ impl AsemicPt {
             s,
             l,
             a,
+            attrs: [0.0; 4],
         }
     }
 
@@ -136,6 +138,7 @@ impl AsemicPt {
             s,
             l,
             a,
+            attrs: [0.0; 4],
         }
     }
 
@@ -154,6 +157,12 @@ impl AsemicPt {
         self.s += addition.s;
         self.l += addition.l;
         self.a += addition.a;
+        self.attrs = [
+            self.attrs[0] + addition.attrs[0],
+            self.attrs[1] + addition.attrs[1],
+            self.attrs[2] + addition.attrs[2],
+            self.attrs[3] + addition.attrs[3],
+        ];
         self
     }
 
@@ -165,6 +174,12 @@ impl AsemicPt {
         self.s -= point.s;
         self.l -= point.l;
         self.a -= point.a;
+        self.attrs = [
+            self.attrs[0] - point.attrs[0],
+            self.attrs[1] - point.attrs[1],
+            self.attrs[2] - point.attrs[2],
+            self.attrs[3] - point.attrs[3],
+        ];
         self
     }
 
@@ -176,6 +191,12 @@ impl AsemicPt {
         self.s += (target.s - self.s) * t;
         self.l += (target.l - self.l) * t;
         self.a += (target.a - self.a) * t;
+        self.attrs = [
+            self.attrs[0] + (target.attrs[0] - self.attrs[0]) * t,
+            self.attrs[1] + (target.attrs[1] - self.attrs[1]) * t,
+            self.attrs[2] + (target.attrs[2] - self.attrs[2]) * t,
+            self.attrs[3] + (target.attrs[3] - self.attrs[3]) * t,
+        ];
         self
     }
 

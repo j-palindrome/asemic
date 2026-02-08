@@ -244,7 +244,7 @@ function AsemicAppInner({
     let sceneReady = true
 
     const animate = () => {
-      // animationFrame = requestAnimationFrame(animate)
+      animationFrame = requestAnimationFrame(animate)
       try {
         if (!sceneReady) return
         sceneReady = false
@@ -355,7 +355,6 @@ function AsemicAppInner({
 
     if (isSetup) {
       animationFrame = requestAnimationFrame(animate)
-      // animate()
     }
 
     return () => {

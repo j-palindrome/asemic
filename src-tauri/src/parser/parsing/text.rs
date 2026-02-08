@@ -577,6 +577,12 @@ impl TextParser {
                         "l" => t.l = value.clone(),
                         "a" => t.a = value.clone(),
                         "w" => t.w = value.clone(),
+                        "$0" | "$1" | "$2" | "$3" => {
+                            let index: usize = key[1..].parse().unwrap_or(0);
+                            if index < 4 {
+                                t.attrs[index] = value.clone();
+                            }
+                        }
                         _ => {
                             t.constants.insert(key.to_string(), value.clone());
                         }

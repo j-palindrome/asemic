@@ -83,7 +83,7 @@ export default abstract class WebGPUBrush {
     var<uniform> scrub: f32;
 
     @group(0) @binding(7)
-    var<storage, read> attrs: vec4<f32>;
+    var<storage, read> attrs: array<vec4<f32>>;
 
     ${
       includeTexture

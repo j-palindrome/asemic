@@ -502,8 +502,6 @@ impl DrawingMixin for TextParser {
             // Set loop variable: I = current iteration index (0-based)
             self.expression_parser.indexes[0] = i as f64;
 
-            // Execute the callback (in a real implementation, this would evaluate the callback expression)
-            // For now, this is a placeholder - would need integration with text parsing
             self.text(callback)?;
         }
 

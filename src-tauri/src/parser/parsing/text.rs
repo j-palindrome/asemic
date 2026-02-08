@@ -207,11 +207,11 @@ impl TextMethods for TextParser {
             Ok(())
         }
 
-        let token_length = token.len();
-        let chars: Vec<char> = token.chars().collect();
-        let mut i = 0;
+        if self.tokenizer.get(token).is_none() {
+            self.tokenizer.cache(token)?;
+        }
 
-        let cache = self.tokenizer.cache(token)?;
+        let cache = self.tokenizer.get(token).unwrap().clone();
         // eprintln!("Cache for '{}': {:?}", token, cache);
         // return Ok(());
 
@@ -418,8 +418,6 @@ impl TextParser {
                 ))
             }
         }
-
-        println!("Executed function call: {}", func_call);
 
         Ok(())
     }

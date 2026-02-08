@@ -53,6 +53,13 @@ impl Tokenizer {
         }
     }
 
+    pub fn get(&mut self, token: &str) -> Option<&Vec<TextSplitResult>> {
+        if let Some(value) = self.function_cache.get(token) {
+            return Some(value);
+        }
+        None
+    }
+
     /// Check if a character matches the separation pattern
     fn should_separate(c: char, options: &TokenizeOptions) -> bool {
         match c {
@@ -64,10 +71,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn cache(&mut self, tok: &str) -> Result<Vec<TextSplitResult>, String> {
-        if let Some(value) = self.function_cache.get(tok) {
-            return Ok(value.clone());
-        }
+    pub fn cache(&mut self, tok: &str) -> Result<(), String> {
         let regex = Regex::new("(?s)//.*?$|/\\*.*?\\*/").unwrap();
         let token = string_replace_all(tok, &regex, "");
         // this function takes a string and splits it by function calls, regex patterns, and point sequences, and caches the results for faster processing later
@@ -277,8 +281,7 @@ impl Tokenizer {
         }
 
         self.function_cache.insert(tok.to_string(), cache.clone());
-
-        Ok(cache)
+        Ok(())
     }
 
     /// Tokenize a string of points separated by commas

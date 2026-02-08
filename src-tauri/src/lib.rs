@@ -153,11 +153,6 @@ async fn parse_asemic_source(
 
     for (idx, scene_metadata) in scene.iter().enumerate() {
         let scene_start = std::time::Instant::now();
-        println!(
-            "Parsing scene {} with code length {}",
-            idx,
-            scene_metadata.code.len()
-        );
         parser.reset();
         parser.load_default_font()?;
         parser

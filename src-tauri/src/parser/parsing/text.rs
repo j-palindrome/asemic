@@ -276,11 +276,12 @@ impl TextMethods for TextParser {
                         self.current_curve.insert(1, lerped);
                     }
 
-                    let last_char = i.args.chars().last().unwrap_or('\0');
-                    if last_char == '+' {
-                    } else if last_char == '<' {
-                        self.end_curve(true)?;
-                    } else {
+                    if i.additional_args.as_deref() == Some("+") {
+                    }
+                    // else if last_char == '<' {
+                    //     self.end_curve(true)?;
+                    // }
+                    else {
                         self.end_curve(false)?;
                     }
                 }

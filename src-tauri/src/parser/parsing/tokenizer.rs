@@ -41,6 +41,7 @@ pub struct Tokenizer {
 pub struct TextSplitResult {
     pub args: String,
     pub operator_type: String,
+    pub additional_args: Option<String>,
 }
 
 impl Tokenizer {
@@ -128,9 +129,11 @@ impl Tokenizer {
 
                 let end = i;
                 let func_call: String = chars[(start + 1)..end].iter().collect();
+                println!("Found function call: '{}'", func_call);
                 cache.push(TextSplitResult {
                     args: func_call,
                     operator_type: "function".to_string(),
+                    additional_args: None,
                 });
                 i += 1;
                 continue;
@@ -156,6 +159,10 @@ impl Tokenizer {
                 if count > 0 {
                     return Err("text: Missing ] in point sequence".to_string());
                 }
+                let mut adding = false;
+                if i < chars.len() - 1 && chars[i + 1] == '+' {
+                    adding = true;
+                }
 
                 let end = i;
                 let content: String = chars[(start + 1)..end].iter().collect();
@@ -163,6 +170,7 @@ impl Tokenizer {
                 cache.push(TextSplitResult {
                     args: content,
                     operator_type: "points".to_string(),
+                    additional_args: if adding { Some("+".to_string()) } else { None },
                 });
                 continue;
             }
@@ -194,6 +202,7 @@ impl Tokenizer {
                 cache.push(TextSplitResult {
                     args: content,
                     operator_type: "transform".to_string(),
+                    additional_args: None,
                 });
 
                 i += 1;
@@ -253,10 +262,11 @@ impl Tokenizer {
                 // process_string(&string_content, add_mode, self)?;
                 cache.push(TextSplitResult {
                     args: string_content,
-                    operator_type: if add_mode {
-                        "string".to_string()
+                    operator_type: "string".to_string(),
+                    additional_args: if add_mode {
+                        Some("+".to_string())
                     } else {
-                        "string".to_string()
+                        None
                     },
                 });
                 i += 1;

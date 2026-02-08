@@ -85,10 +85,13 @@ impl TextParser {
         Ok(())
     }
 
-    /// Reset parser state for a new frame/scene
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.groups.clear();
         self.errors.clear();
+    }
+
+    /// Reset parser state for a new frame/scene
+    pub fn reset(&mut self) {
         self.current_font = "default".to_string();
         self.current_curve.clear();
         self.adding = 0.0;

@@ -138,27 +138,54 @@ async fn parser_eval_expression(
 // Tauri command for parsing and evaluating Asemic source code
 #[tauri::command]
 async fn parse_asemic_source(
-    source: String,
-    scene: SceneMetadata,
+    scene: Vec<SceneMetadata>,
     state: tauri::State<'_, AppState>,
 ) -> Result<ParseSourceResult, String> {
+    let overall_start = std::time::Instant::now();
+
     let mut parser = state
         .text_parser
         .lock()
         .map_err(|_| "failed to lock parser".to_string())?;
 
-    // Load the default font
-    parser.load_default_font()?;
-    parser.expression_parser.set_scene_metadata(scene);
+    parser.clear();
+    let mut scene_times = Vec::new();
 
-    let regex = Regex::new("(?s)//.*?$|/\\*.*?\\*/").unwrap();
-    let token = string_replace_all(&source, &regex, "");
-    // let start = std::time::Instant::now();
-    // Parse the source code
-    parser.reset();
-    parser.text(&token)?;
-    // let duration = start.elapsed();
-    // eprintln!("Parsing took: {:?}", duration);
+    for (idx, scene_metadata) in scene.iter().enumerate() {
+        let scene_start = std::time::Instant::now();
+        println!(
+            "Parsing scene {} with code length {}",
+            idx,
+            scene_metadata.code.len()
+        );
+        parser.reset();
+        parser.load_default_font()?;
+        parser
+            .expression_parser
+            .set_scene_metadata(scene_metadata.clone());
+
+        let parse_start = std::time::Instant::now();
+        // Parse the source code
+        parser.text(&scene_metadata.code)?;
+        let parse_duration = parse_start.elapsed();
+
+        let scene_duration = scene_start.elapsed();
+        scene_times.push((idx, parse_duration, scene_duration));
+
+        println!(
+            "Scene {} - Parse: {:.2}ms, Total: {:.2}ms",
+            idx,
+            parse_duration.as_secs_f64() * 1000.0,
+            scene_duration.as_secs_f64() * 1000.0
+        );
+    }
+
+    let overall_duration = overall_start.elapsed();
+    // eprintln!(
+    //     "==== Parse Summary ====\nTotal scenes: {}\nOverall time: {:.2}ms",
+    //     scene.len(),
+    //     overall_duration.as_secs_f64() * 1000.0
+    // );
 
     Ok(ParseSourceResult {
         groups: parser.groups.clone(),

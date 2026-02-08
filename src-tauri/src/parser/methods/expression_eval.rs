@@ -88,19 +88,31 @@ impl ExpressionEval for ExpressionParser {
     }
 
     fn expr(&mut self, expr: &str) -> Result<f64, String> {
+        let start = std::time::Instant::now();
         let expr = expr.trim();
 
         if expr.is_empty() {
+            // eprintln!(
+            //     "expr('') returned error immediately in {:?}",
+            //     start.elapsed()
+            // );
             return Err("Empty expression".to_string());
         }
 
         if Self::is_number(expr) {
-            return expr
+            let result = expr
                 .parse::<f64>()
                 .map_err(|_| format!("{} is not a valid number", expr));
+            // eprintln!("expr('{}') [number parse] took {:?}", expr, start.elapsed());
+            return result;
         }
 
         let expr = if expr.contains('`') {
+            // eprintln!(
+            //     "expr('{}') [backtick error] took {:?}",
+            //     expr,
+            //     start.elapsed()
+            // );
             return Err("Backtick expressions not supported in Rust parser".to_string());
         } else {
             expr.to_string()
@@ -115,16 +127,30 @@ impl ExpressionEval for ExpressionParser {
             }
             self.operator_split_cache
                 .insert(expr.clone(), splits.clone());
+            println!("Splitting expression: {}", expr);
             splits
         };
 
         if split_result.len() == 1 {
             if split_result[0].string.is_empty() {
+                // eprintln!(
+                //     "expr('{}') [empty expression] took {:?}",
+                //     expr,
+                //     start.elapsed()
+                // );
                 return Err(format!("Empty expression beginning {}", expr));
             }
-            return self.fast_expr(&split_result[0].string);
+            let result = self.fast_expr(&split_result[0].string);
+            // eprintln!(
+            //     "expr('{}') [single element] took {:?}",
+            //     expr,
+            //     start.elapsed()
+            // );
+            return result;
         } else {
-            return self.solve_split_result(split_result, &expr);
+            let result = self.solve_split_result(split_result, &expr);
+            // eprintln!("expr('{}') [complex] took {:?}", expr, start.elapsed());
+            return result;
         }
     }
 

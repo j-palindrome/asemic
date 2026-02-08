@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::{char, collections::HashMap};
 use string_replace_all::string_replace_all;
 
 use super::drawing::DrawingMixin;
@@ -211,239 +211,86 @@ impl TextMethods for TextParser {
         let chars: Vec<char> = token.chars().collect();
         let mut i = 0;
 
-        while i < token_length {
-            let char = chars[i];
+        let cache = self.tokenizer.cache(token)?;
+        // eprintln!("Cache for '{}': {:?}", token, cache);
+        // return Ok(());
 
-            // Handle regex patterns: /pattern/
-            if char == '/' && (i == 0 || chars[i - 1] != '\\') {
-                i += 1;
-                let start = i;
-
-                while i < token_length && (chars[i] != '/' || (i > 0 && chars[i - 1] == '\\')) {
-                    i += 1;
+        for i in cache {
+            match i.operator_type.as_str() {
+                "regex" => {
+                    // Handle regex pattern
+                    eprintln!("Regex pattern: {}", i.args);
                 }
-
-                if i >= token_length {
-                    return Err("text: Missing / in regex pattern".to_string());
+                "function" => {
+                    // Handle function call
+                    self.parse_function_call(&i.args)?;
                 }
-
-                // TODO: handle
-                i += 1;
-                continue;
-            }
-
-            // Handle function calls: (funcName arg1 arg2)
-            if char == '(' && (i == 0 || chars[i - 1] != '\\') {
-                let start = i;
-                let mut parentheses = 1;
-                i += 1;
-
-                while i < token_length && parentheses > 0 {
-                    if chars[i] == '(' {
-                        parentheses += 1;
-                    } else if chars[i] == ')' {
-                        parentheses -= 1;
-                    } else if chars[i] == '"' {
-                        i += 1;
-                        while i < token_length
-                            && (chars[i] != '"' || (i > 0 && chars[i - 1] == '\\'))
-                        {
-                            i += 1;
+                "transform" => {
+                    self.parse_transform(&i.args)?;
+                }
+                "points" => {
+                    let points: Vec<String> = self.tokenizer.tokenize_points(&i.args);
+                    let point_exprs: Vec<_> = points
+                        .iter()
+                        .filter(|p| !(p.starts_with('{') && p.ends_with('}')))
+                        .collect();
+                    let amount_of_points = point_exprs.len();
+                    let mut j = 0.0;
+                    let mut saved_transform: Option<SolvedTransform> = None;
+                    for point in &points {
+                        self.expression_parser.point = j / (amount_of_points as f64 - 1.0);
+                        if point.starts_with('{') && point.ends_with('}') {
+                            // Parse as transform
+                            let transform_content = &point[1..point.len() - 1];
+                            self.parse_transform(transform_content)?;
+                        } else {
+                            // Add as point
+                            let pts = self.parse_point(&mut point.as_str(), Some(false))?;
+                            for pt in pts {
+                                self.add_point(pt);
+                            }
+                            if j == 0.0 && amount_of_points == 2 {
+                                saved_transform = Some(
+                                    self.expression_parser
+                                        .peek_transform()
+                                        .solve(&mut self.expression_parser)?,
+                                );
+                            }
                         }
+
+                        j += 1.0;
                     }
-                    if parentheses > 0 {
-                        i += 1;
-                    }
-                }
-
-                if parentheses > 0 {
-                    return Err("text: Missing ) in function call".to_string());
-                }
-
-                let end = i;
-                let func_call: String = chars[(start + 1)..end].iter().collect();
-                self.parse_function_call(&func_call)?;
-                i += 1;
-                continue;
-            }
-
-            // Handle point sequences: [x y z ...]
-            if char == '[' && (i == 0 || chars[i - 1] != '\\') {
-                let start = i;
-                let mut count = 1;
-                i += 1;
-
-                while i < token_length && count > 0 {
-                    if chars[i] == '[' {
-                        count += 1;
-                    } else if chars[i] == ']' {
-                        count -= 1;
-                    }
-                    if count > 0 {
-                        i += 1;
-                    }
-                }
-
-                if count > 0 {
-                    return Err("text: Missing ] in point sequence".to_string());
-                }
-
-                let end = i;
-                let content: String = chars[(start + 1)..end].iter().collect();
-
-                // Process each point - check if it's a transform or a point
-                let points: Vec<String> = self.tokenizer.tokenize_points(&content.as_str());
-                let point_exprs: Vec<_> = points
-                    .iter()
-                    .filter(|p| !(p.starts_with('{') && p.ends_with('}')))
-                    .collect();
-                let amount_of_points = point_exprs.len();
-                let mut j = 0.0;
-                let mut saved_transform: Option<SolvedTransform> = None;
-                for point in &points {
-                    self.expression_parser.point = j / (amount_of_points as f64 - 1.0);
-                    if point.starts_with('{') && point.ends_with('}') {
-                        // Parse as transform
-                        let transform_content = &point[1..point.len() - 1];
-                        self.parse_transform(transform_content)?;
-                    } else {
-                        // Add as point
-                        let pts = self.parse_point(&mut point.as_str(), Some(false))?;
-                        for pt in pts {
-                            self.add_point(pt);
-                        }
-                        if j == 0.0 && amount_of_points == 2 {
-                            saved_transform = Some(
-                                self.expression_parser
-                                    .peek_transform()
-                                    .solve(&mut self.expression_parser)?,
-                            );
-                        }
+                    if amount_of_points == 2 {
+                        let p0 = self
+                            .current_curve
+                            .first()
+                            .ok_or("No first point in curve")?;
+                        let p1 = self.current_curve.last().ok_or("No last point in curve")?;
+                        self.expression_parser.point = 0.5;
+                        let mut lerped = *p0.clone().lerp(*p1, 0.5);
+                        let solved_values = saved_transform.ok_or("No saved transform for lerp")?;
+                        lerped.h = solved_values.h;
+                        lerped.w = solved_values.w;
+                        lerped.s = solved_values.s;
+                        lerped.l = solved_values.l;
+                        self.current_curve.insert(1, lerped);
                     }
 
-                    j += 1.0;
-                }
-                if amount_of_points == 2 {
-                    let p0 = self
-                        .current_curve
-                        .first()
-                        .ok_or("No first point in curve")?;
-                    let p1 = self.current_curve.last().ok_or("No last point in curve")?;
-                    self.expression_parser.point = 0.5;
-                    let mut lerped = *p0.clone().lerp(*p1, 0.5);
-                    let solved_values = saved_transform.ok_or("No saved transform for lerp")?;
-                    lerped.h = solved_values.h;
-                    lerped.w = solved_values.w;
-                    lerped.s = solved_values.s;
-                    lerped.l = solved_values.l;
-                    self.current_curve.insert(1, lerped);
-                }
-
-                // Handle operators after bracket
-                i += 1;
-
-                if i < token_length {
-                    if chars[i] == '+' {
-                    } else if chars[i] == '<' {
+                    let last_char = i.args.chars().last().unwrap_or('\0');
+                    if last_char == '+' {
+                    } else if last_char == '<' {
                         self.end_curve(true)?;
                     } else {
                         self.end_curve(false)?;
                     }
-                    i += 1; // Always increment past the ]
-                } else {
-                    self.end_curve(false)?;
-                    i += 1;
                 }
-
-                continue;
+                "string" => {
+                    process_string(&i.args, false, self)?;
+                }
+                _ => {
+                    return Err(format!("Unknown operator type: {}", i.operator_type));
+                }
             }
-
-            // Handle nested content: {content}
-            if char == '{' && (i == 0 || chars[i - 1] != '\\') {
-                let start = i;
-                let mut brackets = 1;
-                i += 1;
-
-                while i < token_length && brackets > 0 {
-                    if chars[i] == '{' {
-                        brackets += 1;
-                    } else if chars[i] == '}' {
-                        brackets -= 1;
-                    }
-                    if brackets > 0 {
-                        i += 1;
-                    }
-                }
-
-                if brackets > 0 {
-                    return Err("text: Missing } in nested content".to_string());
-                }
-
-                let end = i;
-                let content: String = chars[(start + 1)..end].iter().collect();
-
-                self.parse_transform(&content)?;
-
-                i += 1;
-
-                continue;
-            }
-
-            // Handle string literals: "content"
-            if char == '"' {
-                let add_mode = i > 0 && chars[i - 1] == '+';
-                i += 1;
-                let mut string_content = String::new();
-
-                while i < token_length && (chars[i] != '"' || (i > 0 && chars[i - 1] == '\\')) {
-                    let current_char = chars[i];
-
-                    // Handle inline expressions in strings: (expr)
-                    if current_char == '(' && (i == 0 || chars[i - 1] != '\\') {
-                        let expr_start = i + 1;
-                        let expr_end = chars[i..]
-                            .iter()
-                            .position(|&c| c == ')')
-                            .ok_or("text: Missing ) in expression")?;
-                        let expr: String = chars[expr_start..(i + expr_end)].iter().collect();
-                        string_content.push_str(&expr);
-                        i += expr_end + 1;
-                        continue;
-                    }
-
-                    if current_char == '{' && (i == 0 || chars[i - 1] != '\\') {
-                        let nested_start = i;
-                        let mut nested_brackets = 1;
-                        i += 1;
-                        while i < token_length && nested_brackets > 0 {
-                            if chars[i] == '{' {
-                                nested_brackets += 1;
-                            } else if chars[i] == '}' {
-                                nested_brackets -= 1;
-                            }
-                            i += 1;
-                        }
-                        let nested_content: String =
-                            chars[(nested_start + 1)..(i - 1)].iter().collect();
-                        self.parse_transform(&nested_content);
-                        i += 1;
-                        continue;
-                    }
-
-                    string_content.push(current_char);
-                    i += 1;
-                }
-
-                if i >= token_length {
-                    return Err("text: Missing closing \" in string".to_string());
-                }
-
-                process_string(&string_content, add_mode, self)?;
-                i += 1;
-                continue;
-            }
-
-            i += 1;
         }
 
         Ok(())
@@ -570,6 +417,8 @@ impl TextParser {
                 ))
             }
         }
+
+        println!("Executed function call: {}", func_call);
 
         Ok(())
     }

@@ -2,18 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import Slider from './Slider'
 import { GlobalSettings } from './SceneSettingsPanel'
 import { invoke } from '@tauri-apps/api/core'
+import { useAsemicStore } from '../store/asemicStore'
 
 interface ParamEditorsProps {
-  scenesArray: Array<{
-    params?: Record<string, any>
-    globalParams?: Record<string, any>
-    presets?: Record<string, { params: Record<string, number[]> }>
-  }>
-  activeScene: number
-  scrubSettings: { params?: Record<string, number[]> }
-  setScrubValues: (updater: (prev: any) => any) => void
   globalSettings: GlobalSettings
-  setGlobalSettings?: (settings: GlobalSettings) => void
+  setGlobalSettings: (settings: GlobalSettings) => void
   selectedPreset?: string | null
   selectedPresetType?: 'scene' | 'global' | null
   presetInterpolation?: number
@@ -24,10 +17,6 @@ interface ParamEditorsProps {
 }
 
 export default function ParamEditors({
-  scenesArray,
-  activeScene,
-  scrubSettings,
-  setScrubValues,
   globalSettings,
   setGlobalSettings,
   selectedPreset,
@@ -40,7 +29,10 @@ export default function ParamEditors({
 }: ParamEditorsProps) {
   const [activeParamKey, setActiveParamKey] = useState<string | null>(null)
   const snapTimersRef = useRef<Record<string, number>>({})
-
+  const scenesArray = useAsemicStore(state => state.scenesArray)
+  const activeScene = useAsemicStore(state => state.focusedScene)
+  const scrubSettings = useAsemicStore(state => state.scrubValues[activeScene])
+  const setScrubValues = useAsemicStore(state => state.setScrubValues)
   const activeSceneSettings = scenesArray[activeScene]
 
   // Clean up snap timers on unmount

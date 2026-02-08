@@ -15,6 +15,7 @@ pub struct SceneMetadata {
     pub width: f64,
     pub height: f64,
     pub id: String,
+    pub code: String,
 }
 
 // pub struct Scene {
@@ -167,8 +168,9 @@ impl ExpressionParser {
                 params: HashMap::new(),
                 width: 1080.0,
                 height: 1080.0,
+                code: "".to_string(),
             },
-            cache_max_size: 1000, // Limit cache to 1000 entries
+            cache_max_size: 10000, // Limit cache to 1000 entries
             transforms: vec![Transform::new()],
         }
     }

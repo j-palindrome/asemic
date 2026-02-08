@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
+use regex::Regex;
 use serde_json::to_string;
+use string_replace_all::string_replace_all;
 
 /// Configuration options for tokenization
 #[derive(Clone, Debug)]
@@ -32,6 +34,13 @@ impl Default for TokenizeOptions {
 /// A tokenizer for parsing Asemic expressions
 pub struct Tokenizer {
     tokenize_cache: HashMap<String, Vec<String>>,
+    function_cache: HashMap<String, Vec<TextSplitResult>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TextSplitResult {
+    pub args: String,
+    pub operator_type: String,
 }
 
 impl Tokenizer {
@@ -39,6 +48,7 @@ impl Tokenizer {
     pub fn new() -> Self {
         Self {
             tokenize_cache: HashMap::new(),
+            function_cache: HashMap::new(),
         }
     }
 
@@ -52,6 +62,215 @@ impl Tokenizer {
             _ => false,
         }
     }
+
+    pub fn cache(&mut self, tok: &str) -> Result<Vec<TextSplitResult>, String> {
+        if let Some(value) = self.function_cache.get(tok) {
+            return Ok(value.clone());
+        }
+        let regex = Regex::new("(?s)//.*?$|/\\*.*?\\*/").unwrap();
+        let token = string_replace_all(tok, &regex, "");
+        // this function takes a string and splits it by function calls, regex patterns, and point sequences, and caches the results for faster processing later
+        let token_length = token.len();
+        let chars: Vec<char> = token.chars().collect();
+        let mut i = 0;
+
+        let mut cache: Vec<TextSplitResult> = Vec::new();
+
+        while i < token_length {
+            let char = chars[i];
+            println!("Processing char '{}' at index {}", char, i);
+
+            // Handle regex patterns: /pattern/
+            if char == '/' && (i == 0 || chars[i - 1] != '\\') {
+                i += 1;
+                let start = i;
+
+                while i < token_length && (chars[i] != '/' || (i > 0 && chars[i - 1] == '\\')) {
+                    i += 1;
+                }
+
+                if i >= token_length {
+                    return Err("text: Missing / in regex pattern".to_string());
+                }
+
+                // TODO: handle
+                i += 1;
+                continue;
+            }
+
+            // Handle function calls: (funcName arg1 arg2)
+            if char == '(' && (i == 0 || chars[i - 1] != '\\') {
+                let start = i;
+                let mut parentheses = 1;
+                i += 1;
+
+                while i < token_length && parentheses > 0 {
+                    if chars[i] == '(' {
+                        parentheses += 1;
+                    } else if chars[i] == ')' {
+                        parentheses -= 1;
+                    } else if chars[i] == '"' {
+                        i += 1;
+                        while i < token_length
+                            && (chars[i] != '"' || (i > 0 && chars[i - 1] == '\\'))
+                        {
+                            i += 1;
+                        }
+                    }
+                    if parentheses > 0 {
+                        i += 1;
+                    }
+                }
+
+                if parentheses > 0 {
+                    return Err("text: Missing ) in function call".to_string());
+                }
+
+                let end = i;
+                let func_call: String = chars[(start + 1)..end].iter().collect();
+                cache.push(TextSplitResult {
+                    args: func_call,
+                    operator_type: "function".to_string(),
+                });
+                i += 1;
+                continue;
+            }
+
+            // Handle point sequences: [x y z ...]
+            if char == '[' && (i == 0 || chars[i - 1] != '\\') {
+                let start = i;
+                let mut count = 1;
+                i += 1;
+
+                while i < token_length && count > 0 {
+                    if chars[i] == '[' {
+                        count += 1;
+                    } else if chars[i] == ']' {
+                        count -= 1;
+                    }
+                    if count > 0 {
+                        i += 1;
+                    }
+                }
+
+                if count > 0 {
+                    return Err("text: Missing ] in point sequence".to_string());
+                }
+
+                let end = i;
+                let content: String = chars[(start + 1)..end].iter().collect();
+                print!("Found points: '{}'", content);
+                cache.push(TextSplitResult {
+                    args: content,
+                    operator_type: "points".to_string(),
+                });
+                continue;
+            }
+
+            // Handle nested content: {content}
+            if char == '{' && (i == 0 || chars[i - 1] != '\\') {
+                let start = i;
+                let mut brackets = 1;
+                i += 1;
+
+                while i < token_length && brackets > 0 {
+                    if chars[i] == '{' {
+                        brackets += 1;
+                    } else if chars[i] == '}' {
+                        brackets -= 1;
+                    }
+                    if brackets > 0 {
+                        i += 1;
+                    }
+                }
+
+                if brackets > 0 {
+                    return Err("text: Missing } in nested content".to_string());
+                }
+
+                let end = i;
+                let content: String = chars[(start + 1)..end].iter().collect();
+
+                cache.push(TextSplitResult {
+                    args: content,
+                    operator_type: "transform".to_string(),
+                });
+
+                i += 1;
+
+                continue;
+            }
+
+            // Handle string literals: "content"
+            if char == '"' {
+                let add_mode = i > 0 && chars[i - 1] == '+';
+                i += 1;
+                let mut string_content = String::new();
+
+                while i < token_length && (chars[i] != '"' || (i > 0 && chars[i - 1] == '\\')) {
+                    let current_char = chars[i];
+
+                    // Handle inline expressions in strings: (expr)
+                    if current_char == '(' && (i == 0 || chars[i - 1] != '\\') {
+                        let expr_start = i + 1;
+                        let expr_end = chars[i..]
+                            .iter()
+                            .position(|&c| c == ')')
+                            .ok_or("text: Missing ) in expression")?;
+                        let expr: String = chars[expr_start..(i + expr_end)].iter().collect();
+                        string_content.push_str(&expr);
+                        i += expr_end + 1;
+                        continue;
+                    }
+
+                    // if current_char == '{' && (i == 0 || chars[i - 1] != '\\') {
+                    //     let nested_start = i;
+                    //     let mut nested_brackets = 1;
+                    //     i += 1;
+                    //     while i < token_length && nested_brackets > 0 {
+                    //         if chars[i] == '{' {
+                    //             nested_brackets += 1;
+                    //         } else if chars[i] == '}' {
+                    //             nested_brackets -= 1;
+                    //         }
+                    //         i += 1;
+                    //     }
+                    //     let nested_content: String =
+                    //         chars[(nested_start + 1)..(i - 1)].iter().collect();
+                    //     self.parse_transform(&nested_content);
+                    //     i += 1;
+                    //     continue;
+                    // }
+
+                    string_content.push(current_char);
+                    i += 1;
+                }
+
+                if i >= token_length {
+                    return Err("text: Missing closing \" in string".to_string());
+                }
+
+                // process_string(&string_content, add_mode, self)?;
+                cache.push(TextSplitResult {
+                    args: string_content,
+                    operator_type: if add_mode {
+                        "string".to_string()
+                    } else {
+                        "string".to_string()
+                    },
+                });
+                i += 1;
+                continue;
+            }
+
+            i += 1;
+        }
+
+        self.function_cache.insert(tok.to_string(), cache.clone());
+
+        Ok(cache)
+    }
+
     /// Tokenize a string of points separated by commas
     pub fn tokenize_points(&mut self, source: &str) -> Vec<String> {
         let mut tokens: Vec<String> = Vec::new();

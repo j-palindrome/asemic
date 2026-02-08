@@ -144,6 +144,7 @@ version = "0.1.0"
 dependencies = [
  "flamegraph",
  "log",
+ "noise-functions",
  "once_cell",
  "rand 0.9.2",
  "regex",
@@ -2636,6 +2637,12 @@ name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
+
+[[package]]
+name = "noise-functions"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "529d33e3900a74ec8650e750c45ca474f12bc022a96bde41f516702d237630d2"
 
 [[package]]
 name = "nom"

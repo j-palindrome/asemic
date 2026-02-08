@@ -1,4 +1,14 @@
+use noise_functions::Noise;
+use std::{f64::consts::PI, sync::OnceLock};
+
 use crate::parser::methods::expressions::{ExpressionParser, SplitResult};
+
+static PROGRAM_START: OnceLock<std::time::Instant> = OnceLock::new();
+
+fn get_elapsed_seconds() -> f64 {
+    let start = PROGRAM_START.get_or_init(std::time::Instant::now);
+    start.elapsed().as_secs_f64()
+}
 
 pub trait ExpressionEval {
     /// Main expression evaluation function
@@ -259,15 +269,11 @@ impl ExpressionEval for ExpressionParser {
                 Ok(-val)
             }
             "T" => {
-                let current_time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64();
                 if args.is_empty() {
-                    Ok(current_time)
+                    Ok(get_elapsed_seconds())
                 } else {
                     let multiplier = self.expr(args[0])?;
-                    Ok(current_time * multiplier)
+                    Ok(get_elapsed_seconds() * multiplier)
                 }
             }
             "sin" => {
@@ -474,7 +480,7 @@ impl ExpressionEval for ExpressionParser {
                 });
 
                 // Extract values before calling self.expr to avoid double borrow
-                let (mut current_value, phases_copy) = match stored_phase {
+                let (mut current_value, mut phases_copy) = match stored_phase {
                     crate::parser::methods::expressions::NoiseState::FmSynthesis {
                         value,
                         phases,
@@ -482,13 +488,24 @@ impl ExpressionEval for ExpressionParser {
                     _ => return Err("FM synthesis state corrupted".to_string()),
                 };
 
+                // Single phase adjustment if needed
+                if phases_copy.len() != args.len() {
+                    if phases_copy.len() < args.len() {
+                        use rand::Rng;
+                        let mut rng = rand::rng();
+                        phases_copy.reserve(args.len() - phases_copy.len());
+                        while phases_copy.len() < args.len() {
+                            phases_copy.push(rng.random::<f64>());
+                        }
+                    } else {
+                        phases_copy.truncate(args.len());
+                    }
+                }
+
                 let mut total_amp = 0.0;
                 let mut idx = 0;
                 // Process each wave specification
-                let current_time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64();
+                let current_time = get_elapsed_seconds();
 
                 let mut total_mult = 0.0;
                 for arg in &args[0..] {
@@ -519,13 +536,64 @@ impl ExpressionEval for ExpressionParser {
                 self.noise_index += 1;
                 Ok(result)
             }
+            "simplex" => {
+                // Get elapsed time since program start as first dimension
+                let current_time = get_elapsed_seconds();
+
+                match args.len() {
+                    0 => {
+                        let x = 0;
+                        let noise_val =
+                            noise_functions::Simplex.sample2([current_time as f32, x as f32]);
+                        Ok(noise_val as f64)
+                    }
+                    1 => {
+                        // 2D simplex noise: [T, x]
+                        let x = self.expr(args[0])?;
+                        let noise_val =
+                            noise_functions::Simplex.sample2([x as f32, current_time as f32]);
+                        Ok(noise_val as f64)
+                    }
+                    2 => {
+                        // 3D simplex noise: [T, x, y]
+                        let x = self.expr(args[0])?;
+                        let y = self.expr(args[1])?;
+                        let noise_val = noise_functions::Simplex.sample3([
+                            current_time as f32,
+                            x as f32,
+                            y as f32,
+                        ]);
+                        Ok(noise_val as f64)
+                    }
+                    _ => Err("~ supports at most 2 arguments".to_string()),
+                }
+            }
             "~" => {
+                let current_time = get_elapsed_seconds();
+                if args.len() == 0 {
+                    return Ok(((current_time + self.hash(Some(self.curve))) * PI * 2.0).sin());
+                }
+                let mut total = 0.0;
+                let len = args.len() as f64;
+                for arg in args {
+                    let noise_val = self.expr(arg)?;
+                    total +=
+                        (((noise_val * current_time) + self.hash(Some(self.curve))) * PI * 2.0)
+                            .sin();
+                }
+                Ok(total / len + 1.0 / 2.0)
+            }
+            "fm" => {
                 if args.is_empty() {
                     return Err("fm requires an argument".to_string());
                 }
-                // Cache current_time in noise array with unique key
+
+                // Single lookup with mutable access
                 let time_key = format!("{}_fm_time_{}", self.scene_metadata.id, self.noise_index);
-                let stored_phase = self.noise_table.entry(time_key.clone()).or_insert_with(|| {
+                let current_time = get_elapsed_seconds();
+
+                // Use entry API to avoid double lookup
+                let stored_entry = self.noise_table.entry(time_key.clone()).or_insert_with(|| {
                     use rand::Rng;
                     let mut rng = rand::rng();
                     crate::parser::methods::expressions::NoiseState::FmSynthesis {
@@ -536,8 +604,8 @@ impl ExpressionEval for ExpressionParser {
                     }
                 });
 
-                // Extract values before calling self.expr to avoid double borrow
-                let (mut current_value, mut phases_copy) = match stored_phase {
+                // Extract and work with borrowed data
+                let (current_value, mut phases_copy) = match stored_entry {
                     crate::parser::methods::expressions::NoiseState::FmSynthesis {
                         value,
                         phases,
@@ -545,50 +613,43 @@ impl ExpressionEval for ExpressionParser {
                     _ => return Err("FM synthesis state corrupted".to_string()),
                 };
 
-                // Pad or trim phases to match args length
-                if phases_copy.len() < args.len() {
-                    use rand::Rng;
-                    let mut rng = rand::rng();
-                    while phases_copy.len() < args.len() {
-                        phases_copy.push(rng.random::<f64>());
+                // Single phase adjustment if needed
+                if phases_copy.len() != args.len() {
+                    if phases_copy.len() < args.len() {
+                        use rand::Rng;
+                        let mut rng = rand::rng();
+                        phases_copy.reserve(args.len() - phases_copy.len());
+                        while phases_copy.len() < args.len() {
+                            phases_copy.push(rng.random::<f64>());
+                        }
+                    } else {
+                        phases_copy.truncate(args.len());
                     }
-                } else if phases_copy.len() > args.len() {
-                    phases_copy.truncate(args.len());
                 }
 
                 let mut total_freq = self.expr(args[0])?;
-                let mut idx = 1;
-                // Process each wave specification
-                let current_time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64();
 
-                for arg in &args[1..] {
+                // Use enumerate instead of manual idx
+                for (idx, arg) in args[1..].iter().enumerate() {
                     let freq_data = self.expr_point(arg, Some(1.0))?;
-                    let current_phase = phases_copy.get(idx).ok_or_else({
-                        || format!("Missing phase data for {}", time_key).to_string()
-                    })?;
+                    let current_phase = phases_copy.get(idx + 1).ok_or("Missing phase data")?;
                     let current_freq =
                         (freq_data.0 * (current_time + current_phase) * std::f64::consts::TAU)
                             .sin();
                     total_freq *= 1.0 + (current_freq * freq_data.1);
-                    idx += 1;
                 }
 
                 let result =
                     (((current_value + phases_copy[0]) * std::f64::consts::TAU).sin() + 1.0) / 2.0;
+                let new_value = current_value + total_freq / 60.0;
 
-                current_value += total_freq * 1.0 / 60.0;
-
-                // Update the stored state
+                // Single mutable access to update
                 if let Some(crate::parser::methods::expressions::NoiseState::FmSynthesis {
                     value,
                     ..
                 }) = self.noise_table.get_mut(&time_key)
                 {
-                    *value = current_value;
-                    // println!("freq {} current_value {}", total_freq, current_value);
+                    *value = new_value;
                 }
 
                 self.noise_index += 1;

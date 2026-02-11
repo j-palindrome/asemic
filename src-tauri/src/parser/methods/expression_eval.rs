@@ -137,6 +137,7 @@ impl ExpressionEval for ExpressionParser {
             }
             self.operator_split_cache
                 .insert(expr.clone(), splits.clone());
+
             println!("Splitting expression: {}", expr);
             splits
         };
@@ -568,7 +569,7 @@ impl ExpressionEval for ExpressionParser {
                     _ => Err("~ supports at most 2 arguments".to_string()),
                 }
             }
-            "~" => {
+            "am" => {
                 let current_time = get_elapsed_seconds();
                 if args.len() == 0 {
                     return Ok(((current_time + self.hash(Some(self.curve))) * PI * 2.0).sin());
@@ -583,7 +584,7 @@ impl ExpressionEval for ExpressionParser {
                 }
                 Ok(total / len + 1.0 / 2.0)
             }
-            "fm" => {
+            "~" => {
                 if args.is_empty() {
                     return Err("fm requires an argument".to_string());
                 }

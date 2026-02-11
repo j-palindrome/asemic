@@ -105,6 +105,7 @@ export default function calcPosition(parser: WebGPUBrush) {
     let uv = vec2<f32>(curve_progress, select(0., 1., side));
     output.uv = uv; // Pass the UV coordinates to the fragment shader
     output.color = hslaToRgba(color);
+    output.attr = attrs[start_at_point];
 
     let P = curve_progress;
     let C = f32(curve);

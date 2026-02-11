@@ -1,3 +1,5 @@
+const PI = 3.1415926535897932384626433832795;
+
 fn saw(value: f32) -> f32 {
   return fract(value);
 }
@@ -100,8 +102,10 @@ fn hslaToRgba(hsla: vec4<f32>) -> vec4<f32> {
 }
 
 fn hash(input: f32) -> f32 {
-  let seed = 1.;
-  return fract(sin(input * 1e4 + seed) * 1e4);
+  let x = sin(input) * 43758.5453;
+  let bits = bitcast<u32>(x);
+  let xor_result = (bits ^ (bits >> 13u)) * 1274126177u;
+  return fract(f32(xor_result & 2147483647u) / 2147483647.0);
 }
 
 fn rotate(input: vec2<f32>, angle: f32) -> vec2<f32> {
@@ -112,4 +116,12 @@ fn rotate(input: vec2<f32>, angle: f32) -> vec2<f32> {
 
 fn add(input: vec2<f32>, offset: vec2<f32>) -> vec2<f32> {
   return input + offset;
+}
+
+fn noise(index: f32, C: f32, value: f32) -> f32 {
+  return sin(value * (index + hash(C)) * PI * 2.0);
+}
+
+fn noise2(index: f32, C: f32, value: vec2<f32>) -> f32 {
+  return (sin(value.x * (index + hash(C)) * PI * 2.0) + sin(value.y * (index + hash(C + 1)) * PI * 2.0)) / 2.0;
 }

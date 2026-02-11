@@ -335,6 +335,7 @@ impl DrawingMixin for TextParser {
                         transform_clone.s,
                         transform_clone.l,
                         transform_clone.a,
+                        transform_clone.attrs,
                     )
                 }
                 _ => return Err(format!("Unknown point constant: {}", tokens[0])),

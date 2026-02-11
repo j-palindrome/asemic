@@ -145,7 +145,14 @@ impl ExpressionParser {
     pub fn generate_point(&mut self, pt: &BasicPt) -> Result<AsemicPt, String> {
         let solved = self.peek_transform().solve(self)?;
         Ok(AsemicPt::new(
-            pt.x, pt.y, solved.w, solved.h, solved.s, solved.l, solved.a,
+            pt.x,
+            pt.y,
+            solved.w,
+            solved.h,
+            solved.s,
+            solved.l,
+            solved.a,
+            solved.attrs,
         ))
     }
 

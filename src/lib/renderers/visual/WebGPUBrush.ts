@@ -13,7 +13,6 @@ export default abstract class WebGPUBrush {
   device: GPUDevice
   pipeline: GPURenderPipeline
   bindGroup: GPUBindGroup
-  bindGroup2: GPUBindGroup
   shaderModule: GPUShaderModule
   dimensions: { buffer: GPUBuffer; size: number }
   time: { buffer: GPUBuffer; size: number }
@@ -59,6 +58,7 @@ export default abstract class WebGPUBrush {
     @location(1) uv: vec2<f32>,
     @location(2) tangent: vec2<f32>,
     @location(3) t: f32,
+    @location(4) attr: vec4<f32>,
     };
     
     @group(0) @binding(0)
@@ -84,15 +84,6 @@ export default abstract class WebGPUBrush {
 
     @group(0) @binding(7)
     var<storage, read> attrs: array<vec4<f32>>;
-
-    ${
-      includeTexture
-        ? /*wgsl*/ `@group(1) @binding(0) var textureSampler: sampler;
-      @group(1) @binding(1) var tex: texture_2d<f32>;
-      @group(1) @binding(2)
-      var<uniform> texture_transform: vec4<f32>; // xy offset, wh scale`
-        : ''
-    }
 
     ${wgslRequires}
 
@@ -149,11 +140,10 @@ export default abstract class WebGPUBrush {
     const colors = new Float32Array(
       curves.points.flatMap(x => x.flatMap(x => [x.h, x.s, x.l, x.a]))
     )
-
     this.device.queue.writeBuffer(this.colors.buffer, 0, colors)
 
     const attrs = new Float32Array(
-      curves.points.flatMap(x => x.flatMap(x => x.attrs)).slice(0, 4)
+      curves.points.flatMap(x => x.flatMap(x => x.attrs))
     )
     this.device.queue.writeBuffer(this.attrs.buffer, 0, attrs)
 
@@ -163,28 +153,11 @@ export default abstract class WebGPUBrush {
       this.ctx.canvas.height
     ])
     this.device.queue.writeBuffer(this.dimensions.buffer, 0, canvasDimensions)
-
-    // if (this.texture) {
-    //   const texture = this.texture.src
-    //   const imageData = this.texture.imageData
-    //   this.device.queue.writeTexture(
-    //     { texture },
-    //     imageData[0].data,
-    //     { bytesPerRow: imageData[0].width * 4 },
-    //     [imageData[0].width, imageData[0].height]
-    //   )
-    //   const xy = curves.xy
-    //   const wh = curves.wh
-    //   const textureTransform = new Float32Array([xy[0], xy[1], wh[0], wh[1]])
-    //   this.device.queue.writeBuffer(
-    //     this.texture.transformBuffer,
-    //     0,
-    //     textureTransform
-    //   )
-    // }
   }
 
   load(group: AsemicGroup) {
+    console.log('loading curves')
+
     const vertexBuffer = this.device.createBuffer({
       size:
         Float32Array.BYTES_PER_ELEMENT * sumBy(group.points, x => x.length * 2),
@@ -309,6 +282,11 @@ export default abstract class WebGPUBrush {
         binding: 6,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: { type: 'uniform' }
+      },
+      {
+        binding: 7,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'read-only-storage' }
       }
     ]
     const bindGroupEntries: Array<GPUBindGroupEntry> = [
@@ -345,77 +323,6 @@ export default abstract class WebGPUBrush {
         resource: { buffer: attrsBuffer }
       }
     ]
-
-    // if (group.settings.texture && group.imageDatas) {
-    //   const imageData = group.imageDatas[0] as ImageData
-    //   const texture = this.device.createTexture({
-    //     size: [imageData.width, imageData.height, 1],
-    //     format: 'rgba8unorm',
-    //     usage:
-    //       GPUTextureUsage.TEXTURE_BINDING |
-    //       GPUTextureUsage.COPY_DST |
-    //       GPUTextureUsage.RENDER_ATTACHMENT
-    //   })
-
-    //   // Create texture transform buffer
-    //   const textureTransformBuffer = this.device.createBuffer({
-    //     size: Float32Array.BYTES_PER_ELEMENT * 4, // xy offset + wh scale
-    //     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    //     mappedAtCreation: false,
-    //     label: 'texture transform'
-    //   })
-
-    //   const bindGroup2 = this.device.createBindGroup({
-    //     layout: this.device.createBindGroupLayout({
-    //       entries: [
-    //         {
-    //           binding: 6,
-    //           visibility: GPUShaderStage.FRAGMENT,
-    //           sampler: {}
-    //         },
-    //         {
-    //           binding: 7,
-    //           visibility: GPUShaderStage.FRAGMENT,
-    //           texture: {}
-    //         },
-    //         {
-    //           binding: 8,
-    //           visibility: GPUShaderStage.FRAGMENT,
-    //           buffer: { type: 'uniform' }
-    //         }
-    //       ]
-    //     }),
-    //     entries: [
-    //       {
-    //         binding: 6,
-    //         resource: this.device.createSampler({
-    //           addressModeU: 'repeat',
-    //           addressModeV: 'repeat',
-    //           magFilter: 'linear',
-    //           minFilter: 'linear'
-    //         })
-    //       },
-    //       {
-    //         binding: 7,
-    //         resource: texture.createView()
-    //       },
-    //       {
-    //         binding: 8,
-    //         resource: { buffer: textureTransformBuffer }
-    //       }
-    //     ]
-    //   })
-    //   this.bindGroup2 = bindGroup2
-
-    //   // Set texture transform data (xy offset, wh scale)
-    //   this.texture = {
-    //     src: texture,
-    //     transformBuffer: textureTransformBuffer,
-    //     imageData: [imageData]
-    //   }
-    // } else {
-    //   this.texture = null
-    // }
 
     // Update bind group layout to include dimensions uniform
     const bindGroupLayout = this.device.createBindGroupLayout({
@@ -481,16 +388,7 @@ export default abstract class WebGPUBrush {
 
     if (!this.vertex) {
       this.load(curves)
-    }
-    // else if (
-    //   !this.texture &&
-    //   curves.imageDatas &&
-    //   curves.imageDatas[0].data.find(x => x > 0)
-    // ) {
-    //   this.shaderModule = this.loadShader({ includeTexture: true })
-    //   this.load(curves)
-    // }
-    else if (this.curveStarts.size !== curves.points.length + 1) {
+    } else if (this.curveStarts.size !== curves.points.length + 1) {
       this.load(curves)
     } else {
       let total = 0

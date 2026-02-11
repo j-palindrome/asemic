@@ -324,6 +324,19 @@ impl TextParser {
 
                 self.repeat(args[0], args[1])?
             }
+            "instance" => {
+                if args.len() < 1 {
+                    return Err("instance requires a callback argument".to_string());
+                }
+                let amount = self.expression_parser.expr(args[0])? as usize;
+                let curve_length = self.groups.last().ok_or("No group")?.points.len();
+                self.text(args[1])?;
+                let group = self.groups.last_mut().ok_or("No group")?;
+                let curves = group.points[curve_length..].to_vec();
+                for _ in 1..amount {
+                    group.points.extend(curves.clone());
+                }
+            }
             "align" => self.align(args[0], args[1], args[2])?,
             "choose" => {
                 if args.len() < 2 {

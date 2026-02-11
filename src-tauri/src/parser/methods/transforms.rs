@@ -111,6 +111,7 @@ impl Transform {
             this_transform.s,
             this_transform.l,
             this_transform.a,
+            this_transform.attrs,
         ))
     }
 

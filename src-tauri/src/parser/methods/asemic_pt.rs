@@ -116,7 +116,7 @@ pub struct AsemicPt {
 }
 
 impl AsemicPt {
-    pub fn new(x: f64, y: f64, w: f64, h: f64, s: f64, l: f64, a: f64) -> Self {
+    pub fn new(x: f64, y: f64, w: f64, h: f64, s: f64, l: f64, a: f64, attrs: [f64; 4]) -> Self {
         AsemicPt {
             x,
             y,
@@ -125,11 +125,19 @@ impl AsemicPt {
             s,
             l,
             a,
-            attrs: [0.0; 4],
+            attrs,
         }
     }
 
-    pub fn from_basic_pt(pt: BasicPt, w: f64, h: f64, s: f64, l: f64, a: f64) -> Self {
+    pub fn from_basic_pt(
+        pt: BasicPt,
+        w: f64,
+        h: f64,
+        s: f64,
+        l: f64,
+        a: f64,
+        attrs: [f64; 4],
+    ) -> Self {
         AsemicPt {
             x: pt.x,
             y: pt.y,
@@ -138,7 +146,7 @@ impl AsemicPt {
             s,
             l,
             a,
-            attrs: [0.0; 4],
+            attrs,
         }
     }
 
@@ -236,8 +244,8 @@ mod tests {
 
     #[test]
     fn test_asemic_pt_lerp() {
-        let mut pt1 = AsemicPt::new(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-        let pt2 = AsemicPt::new(10.0, 10.0, 2.0, 2.0, 2.0, 2.0, 2.0);
+        let mut pt1 = AsemicPt::new(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, [0.0; 4]);
+        let pt2 = AsemicPt::new(10.0, 10.0, 2.0, 2.0, 2.0, 2.0, 2.0, [0.0; 4]);
         pt1.lerp(pt2, 0.5);
         assert_eq!(pt1.x, 5.0);
         assert_eq!(pt1.w, 1.5);

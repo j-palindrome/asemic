@@ -74,6 +74,7 @@ export default class WebGPURenderer {
 
   render(groups: any, scene: Scene): void {
     if (!this.isSetup) return
+    this.isSetup = false
 
     // Recreate offscreen texture if canvas size changed
     if (
@@ -103,8 +104,10 @@ export default class WebGPURenderer {
         this.brushes.push(this.generateBrush(groups[i]))
       } else if (
         this.brushes[i]?.mode !== groups[i].settings.mode ||
-        !isEqual(this.brushes[i]!, groups[i])
+        !isEqual(this.brushes[i]!.settings, groups[i].settings)
       ) {
+        console.log('regen brush')
+
         this.brushes[i]?.destroy()
         this.brushes[i] = this.generateBrush(groups[i])
         this.brushes[i]?.load(groups[i])
@@ -118,6 +121,7 @@ export default class WebGPURenderer {
     this.postProcess!.render(commandEncoder)
 
     this.device.queue.submit([commandEncoder.finish()])
+    this.isSetup = true
   }
 
   // render(groups: AsemicGroup[]): void {

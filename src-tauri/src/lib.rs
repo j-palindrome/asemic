@@ -167,12 +167,12 @@ async fn parse_asemic_source(
         let scene_duration = scene_start.elapsed();
         scene_times.push((idx, parse_duration, scene_duration));
 
-        println!(
-            "Scene {} - Parse: {:.2}ms, Total: {:.2}ms",
-            idx,
-            parse_duration.as_secs_f64() * 1000.0,
-            scene_duration.as_secs_f64() * 1000.0
-        );
+        // println!(
+        //     "Scene {} - Parse: {:.2}ms, Total: {:.2}ms",
+        //     idx,
+        //     parse_duration.as_secs_f64() * 1000.0,
+        //     scene_duration.as_secs_f64() * 1000.0
+        // );
     }
 
     let overall_duration = overall_start.elapsed();

@@ -118,10 +118,18 @@ fn add(input: vec2<f32>, offset: vec2<f32>) -> vec2<f32> {
   return input + offset;
 }
 
-fn noise(index: f32, C: f32, value: f32) -> f32 {
-  return sin(value * (index + hash(C)) * PI * 2.0);
+fn mapto(input: f32, in_min: f32, in_max: f32) -> f32 {
+  return (input - in_min) / (in_max - in_min);
 }
 
-fn noise2(index: f32, C: f32, value: vec2<f32>) -> f32 {
-  return (sin(value.x * (index + hash(C)) * PI * 2.0) + sin(value.y * (index + hash(C + 1)) * PI * 2.0)) / 2.0;
+fn noise(index: f32, curve: f32) -> f32 {
+  return sin((index + hash(curve)) * PI * 2.0);
+}
+
+fn noise2(index: f32, value: vec2<f32>, phase: f32) -> f32 {
+  return (sin(value.x * (index + hash(phase)) * PI * 2.0) + sin(value.y * (index + hash(phase + 1)) * PI * 2.0)) / 2.0;
+}
+
+fn sah(x: f32) -> f32 {
+  return floor(x / 1);
 }

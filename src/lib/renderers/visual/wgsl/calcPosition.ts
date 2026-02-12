@@ -69,7 +69,11 @@ export default function calcPosition(parser: WebGPUBrush) {
       mix(color1, color2, (t - 0.5) * 2), 
       t > 0.5);
     output.position = vec4<f32>(bezier_position.x, bezier_position.y, 0.0, 1.0);
-    output.tangent = bezier_tangent;`
+    output.tangent = bezier_tangent;
+    output.attr = select(
+      mix(attrs[start_at_point], attrs[start_at_point + 1], t * 2), 
+      mix(attrs[start_at_point + 1], attrs[start_at_point + 2], (t - 0.5) * 2), 
+      t > 0.5);`
         : /*wgsl*/ `
     let start_at_point = curve_starts[curve] + u32(fract(point_progress) * f32(curve_length - 1));
     let t = fract(fract(point_progress) * f32(curve_length - 1));
@@ -99,13 +103,14 @@ export default function calcPosition(parser: WebGPUBrush) {
 
     output.position = vec4<f32>(position.x, position.y, 0.0, 1.0);
     output.tangent = tangent;
+    output.attr = mix(attrs[start_at_point], attrs[start_at_point + 1], fract(point_progress));
       `
     }
     
     let uv = vec2<f32>(curve_progress, select(0., 1., side));
     output.uv = uv; // Pass the UV coordinates to the fragment shader
     output.color = hslaToRgba(color);
-    output.attr = attrs[start_at_point];
+    
 
     let P = curve_progress;
     let C = f32(curve);

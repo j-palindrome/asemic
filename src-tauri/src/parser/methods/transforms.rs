@@ -78,7 +78,7 @@ impl Transform {
         // Apply rotate transform if present and randomize is true
         if let Some(ref rotate_expr) = self.rotate {
             if randomize {
-                let rotation_amount = parser.expr(rotate_expr)?;
+                let rotation_amount = parser.expr(rotate_expr, None)?;
                 basic_pt.rotate(rotation_amount, None);
             }
         }
@@ -118,27 +118,27 @@ impl Transform {
     pub fn solve(&self, parser: &mut ExpressionParser) -> Result<SolvedTransform, String> {
         // Use parser to evaluate expressions, falling back to parse_or_default on error
         let w = parser
-            .expr(&self.w)
+            .expr(&self.w, None)
             .ok()
             .and_then(|v| if v.is_nan() { None } else { Some(v) })
             .unwrap_or_else(|| parse_or_default(&self.w, 1.0));
         let h = parser
-            .expr(&self.h)
+            .expr(&self.h, None)
             .ok()
             .and_then(|v| if v.is_nan() { None } else { Some(v) })
             .unwrap_or_else(|| parse_or_default(&self.h, 1.0));
         let s = parser
-            .expr(&self.s)
+            .expr(&self.s, None)
             .ok()
             .and_then(|v| if v.is_nan() { None } else { Some(v) })
             .unwrap_or_else(|| parse_or_default(&self.s, 1.0));
         let l = parser
-            .expr(&self.l)
+            .expr(&self.l, None)
             .ok()
             .and_then(|v| if v.is_nan() { None } else { Some(v) })
             .unwrap_or_else(|| parse_or_default(&self.l, 1.0));
         let a = parser
-            .expr(&self.a)
+            .expr(&self.a, None)
             .ok()
             .and_then(|v| if v.is_nan() { None } else { Some(v) })
             .unwrap_or_else(|| parse_or_default(&self.a, 0.0));

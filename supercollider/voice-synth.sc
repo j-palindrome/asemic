@@ -27,7 +27,7 @@ s.waitForBoot({
 });
 )
 s.queryAllNodes;
-OSCFunc.trace(true);
+OSCFunc.trace(false);
 ~delayDistortion.set(\mix, [1, 0, 1, 0]);
 ~delayDistortion.set(\rate, Array.fill(4, {|p| 0.1.rand}));
 

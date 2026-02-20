@@ -25,6 +25,7 @@ export interface GlobalSettings {
   params: Record<string, ParamConfig>
   presets: Record<string, { params: Record<string, number[]> }>
   sendTo?: Record<string, { host: string; port: number }>
+  fadeMode: 'single' | 'multiple'
 }
 
 export interface SceneSettings {

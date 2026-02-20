@@ -36,7 +36,7 @@ import SceneSettingsPanel, {
 import GlobalSettingsEditor from '../components/GlobalSettingsEditor'
 import { JsonFileLoader } from '../components/JsonFileLoader'
 import { ParsedJsonResult } from '../hooks/useJsonFileLoader'
-import { open, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { confirm, open, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -52,6 +52,7 @@ export type ScrubSettings = {
   params: Record<string, number[]>
   sent: Record<string, number[]>
   scrub: number
+  fade: number
 }
 
 export const lucideProps = {
@@ -75,7 +76,7 @@ function AsemicAppInner({
   const setScrubValues = useAsemicStore(state => state.setScrubValues)
   let activeScenes: number[] = []
   for (let i = 0; i < scrubValues.length; i++) {
-    if (scrubValues[i]?.scrub! > 0) {
+    if (scrubValues[i]?.fade! > 0) {
       activeScenes.push(i)
     }
   }
@@ -83,7 +84,8 @@ function AsemicAppInner({
   activeScenesRef.current = activeScenes
   const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
     params: {},
-    presets: {}
+    presets: {},
+    fadeMode: 'single'
   } as GlobalSettings)
   const scrubValuesRef = useRef(scrubValues)
   useEffect(() => {
@@ -186,7 +188,7 @@ function AsemicAppInner({
     const newScrubs = [...scrubValues]
     newScrubs[focusedScene] = { ...newScrubs[focusedScene], sent: {} }
     while (!newScrubs[focusedScene]) {
-      newScrubs.push({ params: {}, sent: {}, scrub: 0 })
+      newScrubs.push({ params: {}, sent: {}, scrub: 0, fade: 0 })
     }
     if (!scenesArray[focusedScene]) {
       const newArray = [...scenesArray]
@@ -266,6 +268,7 @@ function AsemicAppInner({
               pause: currentSceneSettings.pause,
               params: scrubValuesRef.current[scene]!.params,
               scrub: scrubValuesRef.current[scene]!.scrub || 0,
+              fade: scrubValuesRef.current[scene]!.fade || 0,
               width,
               height,
               id: `${scene}` // Assign unique ID per scene
@@ -287,8 +290,8 @@ function AsemicAppInner({
               if (isEqual(lastSentValue, value) || value === undefined) {
                 continue
               }
-              // if (paramName === 'interfere') debugger
-
+              // if (paramName === '<interf></interf>ere') debugger
+              console.log('sending', paramName, value)
               const newValue: any = await invoke<number>(
                 'parser_eval_expression',
                 {
@@ -340,7 +343,8 @@ function AsemicAppInner({
             // @ts-ignore
             groups: groups as any,
             scene: {
-              scrub: scrubValuesRef.current[focusedScene]?.scrub
+              scrub: scrubValuesRef.current[focusedScene]?.scrub,
+              fade: scrubValuesRef.current[focusedScene]?.fade
             } as any
           })
         })().then(() => {
@@ -552,17 +556,25 @@ function AsemicAppInner({
     const setupParamsListener = async () => {
       try {
         unlistenParams = await listen<string>('params', event => {
-          const { params, scene } = JSON.parse(event.payload)
+          const { params, scene, scrub } = JSON.parse(event.payload)
           const targetScene = scene ?? focusedScene
 
           setScrubValues(prev => {
             const newValues = [...prev]
             if (!newValues[targetScene]) {
-              newValues[targetScene] = { params: {}, sent: {}, scrub: 0 }
+              newValues[targetScene] = {
+                params: {},
+                sent: {},
+                scrub: 0,
+                fade: 0
+              }
             }
             newValues[targetScene].params = {
               ...newValues[targetScene].params,
               ...params
+            }
+            if (scrub !== undefined) {
+              newValues[targetScene].scrub = scrub
             }
 
             return newValues
@@ -656,25 +668,7 @@ function AsemicAppInner({
                 </span>
               </button>
             )}
-            <button
-              onClick={() => {
-                setScenesArray([
-                  {
-                    code: '',
-                    length: 0.1,
-                    offset: 0,
-                    params: {}
-                  }
-                ])
-                setScrubValues([{ params: {}, sent: {}, scrub: 0 }])
-                setGlobalSettings({ params: {}, presets: {} })
-                localStorage.removeItem('scenesArray')
-                localStorage.removeItem('globalSettings')
-              }}
-              title='New Document'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              <Plus {...lucideProps} size={16} />
-            </button>{' '}
+
             <JsonFileLoader
               sceneList={scenesArray}
               setSceneList={setScenesArray}
@@ -765,7 +759,7 @@ function AsemicAppInner({
             <div className='pointer-events-auto'>
               <GlobalSettingsEditor
                 settings={globalSettings}
-                onUpdate={setGlobalSettings}
+                setSettings={setGlobalSettings}
                 onClose={() => setShowGlobalSettings(false)}
                 sceneList={scenesArray}
                 setSceneList={setScenesArray}

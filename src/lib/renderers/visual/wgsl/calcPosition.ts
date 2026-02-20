@@ -116,7 +116,8 @@ export default function calcPosition(parser: WebGPUBrush) {
     let C = f32(curve);
     let N = curve_length;
     let T = time;
-    let S = scrub;
+    let S = scrub[0];
+    let F = scrub[1];
     ${
       parser.settings.a
         ? /*wgsl*/ `

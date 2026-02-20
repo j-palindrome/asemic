@@ -175,7 +175,7 @@ impl DrawingMixin for TextParser {
                         return Err("'..' requires target point and number of points".to_string());
                     }
 
-                    let num_points = self.expression_parser.expr(tokens[1])? as usize;
+                    let num_points = self.expression_parser.expr(tokens[1], None)? as usize;
                     let target_expr = tokens[2].to_string();
 
                     if num_points == 0 {
@@ -207,7 +207,7 @@ impl DrawingMixin for TextParser {
                         return Err("'>' requires at least progress and 2 points".to_string());
                     }
 
-                    let progress = self.expression_parser.expr(tokens[1])?;
+                    let progress = self.expression_parser.expr(tokens[1], None)?;
                     let mut fade = progress;
                     if fade >= 1.0 {
                         fade = 0.999;
@@ -252,11 +252,11 @@ impl DrawingMixin for TextParser {
                         return Err("'<' requires at least pointN".to_string());
                     }
 
-                    let progress = self.expression_parser.expr(tokens[1])?;
+                    let progress = self.expression_parser.expr(tokens[1], None)?;
 
                     // Determine which curve to use
                     let curve_idx = if tokens.len() > 2 {
-                        Some(self.expression_parser.expr(tokens[2])? as i32)
+                        Some(self.expression_parser.expr(tokens[2], None)? as i32)
                     } else {
                         None
                     };
@@ -480,7 +480,7 @@ impl DrawingMixin for TextParser {
 
     fn repeat(&mut self, count: &str, callback: &str) -> Result<(), String> {
         // Evaluate the count expression to determine number of iterations
-        let count_value = self.expression_parser.expr(count)?;
+        let count_value = self.expression_parser.expr(count, None)?;
         let num_iterations = count_value.max(0.0) as usize;
 
         // Save the current iteration state to restore later

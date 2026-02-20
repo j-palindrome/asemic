@@ -1,13 +1,15 @@
 import { GlobalSettings, SceneSettings } from './SceneSettingsPanel'
 import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { RotateCw } from 'lucide-react'
+import { Plus, RotateCw } from 'lucide-react'
 import Slider from './Slider'
 import { sortBy } from 'lodash'
+import { useAsemicStore } from '../store/asemicStore'
+import { confirm } from '@tauri-apps/plugin-dialog'
 
 interface GlobalSettingsEditorProps {
   settings: GlobalSettings
-  onUpdate: (settings: GlobalSettings) => void
+  setSettings: (settings: GlobalSettings) => void
   onClose: () => void
   sceneList: SceneSettings[]
   setSceneList: (sceneList: SceneSettings[]) => void
@@ -15,7 +17,7 @@ interface GlobalSettingsEditorProps {
 
 export default function GlobalSettingsEditor({
   settings,
-  onUpdate,
+  setSettings,
   onClose,
   sceneList,
   setSceneList
@@ -36,7 +38,7 @@ export default function GlobalSettingsEditor({
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
-      onUpdate({
+      setSettings({
         ...settings,
         params: {
           ...(settings.params || {}),
@@ -60,7 +62,7 @@ export default function GlobalSettingsEditor({
   const handleDeleteParam = (key: string) => {
     const newParams = { ...(settings.params || {}) }
     delete newParams[key]
-    onUpdate({ ...settings, params: newParams })
+    setSettings({ ...settings, params: newParams })
   }
 
   const handleRenameParam = (oldKey: string) => {
@@ -91,14 +93,14 @@ export default function GlobalSettingsEditor({
     }
     setSceneList(newSceneList)
 
-    onUpdate({ ...settings, params: newParams })
+    setSettings({ ...settings, params: newParams })
     setRenamingParam(null)
     setRenameValue('')
   }
 
   const handleAddSyncTarget = () => {
     if (newSyncTargetName.trim()) {
-      onUpdate({
+      setSettings({
         ...settings,
         sendTo: {
           ...(settings.sendTo || {}),
@@ -118,14 +120,14 @@ export default function GlobalSettingsEditor({
   const handleDeleteSyncTarget = (key: string) => {
     const newSendTo = { ...(settings.sendTo || {}) }
     delete newSendTo[key]
-    onUpdate({ ...settings, sendTo: newSendTo })
+    setSettings({ ...settings, sendTo: newSendTo })
   }
 
   const handleUpdateSyncTarget = (
     key: string,
     updates: { host?: string; port?: number }
   ) => {
-    onUpdate({
+    setSettings({
       ...settings,
       sendTo: {
         ...(settings.sendTo || {}),
@@ -136,6 +138,10 @@ export default function GlobalSettingsEditor({
       }
     })
   }
+
+  // const scrubValues = useAsemicStore(state => state.scrubValues)
+  const setScrubValues = useAsemicStore(state => state.setScrubValues)
+  const setScenesArray = useAsemicStore(state => state.setScenesArray)
 
   return (
     <div className='absolute bottom-0 left-0 w-full border-l border-t border-white/20 z-50 flex flex-col max-h-[calc(100vh-50px)] overflow-y-auto'>
@@ -299,6 +305,66 @@ export default function GlobalSettingsEditor({
           )}
         </div>
 
+        {/* Slide Toggle */}
+        <div className='border-b border-white/10 pb-3 flex items-center gap-4'>
+          <label className='text-white/70 text-sm font-semibold flex items-center gap-2 cursor-pointer'>
+            <input
+              type='checkbox'
+              checked={settings.fadeMode === 'single'}
+              onChange={e =>
+                setSettings({
+                  ...settings,
+                  fadeMode: e.target.checked ? 'single' : 'multiple'
+                })
+              }
+              className='w-4 h-4 bg-white/10 rounded cursor-pointer'
+            />
+            Slide
+          </label>
+          <button
+            onClick={() => {
+              setScrubValues(scrubValues =>
+                scrubValues.map(scene => ({
+                  ...scene,
+                  fade: 0,
+                  progress: 0
+                }))
+              )
+            }}
+            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded flex items-center gap-1'>
+            <RotateCw size={12} />
+          </button>
+          <button
+            onClick={() => {
+              confirm(
+                'Are you sure you want to create a new document? This will erase all current scenes and settings.'
+              ).then(confirmed => {
+                if (confirmed) {
+                  setScenesArray([
+                    {
+                      code: '',
+                      length: 0.1,
+                      offset: 0,
+                      params: {}
+                    }
+                  ])
+                  setScrubValues([{ params: {}, sent: {}, scrub: 0, fade: 0 }])
+                  setSettings({
+                    params: {},
+                    presets: {},
+                    fadeMode: 'single'
+                  })
+                  localStorage.removeItem('scenesArray')
+                  localStorage.removeItem('globalSettings')
+                }
+              })
+            }}
+            title='New Document'
+            className='p-1 hover:bg-white/10 rounded transition-colors'>
+            <Plus size={16} />
+          </button>{' '}
+        </div>
+
         <div className='border-b border-white/10 pb-3'>
           <div className='flex items-center gap-2 mb-3'>
             <label className='text-white/70 text-sm font-semibold'>
@@ -378,7 +444,7 @@ export default function GlobalSettingsEditor({
                         step='0.01'
                         value={paramConfig.min}
                         onChange={e =>
-                          onUpdate({
+                          setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
@@ -401,7 +467,7 @@ export default function GlobalSettingsEditor({
                         step='0.01'
                         value={paramConfig.max}
                         onChange={e =>
-                          onUpdate({
+                          setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
@@ -424,7 +490,7 @@ export default function GlobalSettingsEditor({
                         step='0.1'
                         value={paramConfig.exponent}
                         onChange={e =>
-                          onUpdate({
+                          setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
@@ -452,7 +518,7 @@ export default function GlobalSettingsEditor({
                             .split(',')
                             .map(s => s.trim())
                             .filter(s => s)
-                          onUpdate({
+                          setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
@@ -472,7 +538,7 @@ export default function GlobalSettingsEditor({
                           type='checkbox'
                           checked={paramConfig.snap || false}
                           onChange={e =>
-                            onUpdate({
+                            setSettings({
                               ...settings,
                               params: {
                                 ...(settings.params || {}),
@@ -508,7 +574,7 @@ export default function GlobalSettingsEditor({
                             currentValues.forEach((v, i) => {
                               if (i < newDim) newValues[i] = v
                             })
-                            onUpdate({
+                            setSettings({
                               ...settings,
                               params: {
                                 ...settings.params,
@@ -590,7 +656,7 @@ export default function GlobalSettingsEditor({
                         type='text'
                         value={paramConfig.oscPath || ''}
                         onChange={e =>
-                          onUpdate({
+                          setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
@@ -620,7 +686,7 @@ export default function GlobalSettingsEditor({
                                 ...(paramConfig.default || [])
                               ]
                               newDefault[idx] = parseFloat(e.target.value)
-                              onUpdate({
+                              setSettings({
                                 ...settings,
                                 params: {
                                   ...(settings.params || {}),

@@ -11,6 +11,7 @@ use std::net::UdpSocket;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneMetadata {
     pub scrub: f64,
+    pub fade: f64,
     pub params: HashMap<String, Vec<f64>>,
     pub width: f64,
     pub height: f64,
@@ -172,6 +173,7 @@ impl ExpressionParser {
             scene_metadata: SceneMetadata {
                 id: "0".to_string(),
                 scrub: 0.0,
+                fade: 0.0,
                 params: HashMap::new(),
                 width: 1080.0,
                 height: 1080.0,
@@ -180,17 +182,6 @@ impl ExpressionParser {
             cache_max_size: 10000, // Limit cache to 1000 entries
             transforms: vec![Transform::new()],
         }
-    }
-
-    pub fn set_local_progress(&mut self, curve: f64, letter: f64, point: f64) {
-        self.curve = curve;
-        self.letter = letter;
-        self.point = point;
-    }
-
-    pub fn set_indexes(&mut self, indexes: Vec<f64>, count_nums: Vec<f64>) {
-        self.indexes = indexes;
-        self.count_nums = count_nums;
     }
 
     pub fn set_scene_metadata(&mut self, scene_metadata: SceneMetadata) {

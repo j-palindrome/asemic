@@ -122,7 +122,7 @@ async fn parser_eval_expression(
     }
 
     // Evaluate expression
-    let result = parser.expression_parser.expr(&expr)?;
+    let result = parser.expression_parser.expr(&expr, None)?;
     // println!("Evaluated expression '{}' to {:?}", expr, result);
 
     // Send OSC message to all targets

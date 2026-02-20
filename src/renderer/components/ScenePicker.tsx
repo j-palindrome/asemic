@@ -18,8 +18,12 @@ export default function ScenePicker() {
         ref={scrollContainerRef}
         className='flex gap-1 overflow-x-auto scrollbar-hide'>
         {scenesArray.map((scene, index) => (
-          <div key={index} onClick={() => setFocusedScene(index)}>
-            <Scroller
+          <div
+            key={index}
+            className={`${index === focusedScene ? 'bg-blue-500 text-white' : ''} px-4 py-2 rounded cursor-pointer border border-white/10  transition-colors text-sm font-mono`}
+            onClick={() => setFocusedScene(index)}>
+            {index}
+            {/* <Scroller
               key={index}
               value={scrubValues[index]?.scrub ?? 0}
               onChange={newValue => {
@@ -32,7 +36,7 @@ export default function ScenePicker() {
                   return newScrubs
                 })
               }}
-            />
+            /> */}
           </div>
         ))}
       </div>

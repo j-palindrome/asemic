@@ -80,7 +80,7 @@ export default abstract class WebGPUBrush {
     var<uniform> time: f32;
 
     @group(0) @binding(6)
-    var<uniform> scrub: f32;
+    var<uniform> scrub: vec2<f32>;
 
     @group(0) @binding(7)
     var<storage, read> attrs: array<vec4<f32>>;
@@ -241,7 +241,7 @@ export default abstract class WebGPUBrush {
     })
 
     const scrubBuffer = this.device.createBuffer({
-      size: Float32Array.BYTES_PER_ELEMENT * 1,
+      size: Float32Array.BYTES_PER_ELEMENT * 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: 'scrub'
@@ -361,7 +361,7 @@ export default abstract class WebGPUBrush {
 
     this.dimensions = { buffer: dimensionsBuffer, size: 2 }
     this.time = { buffer: timeBuffer, size: 1 }
-    this.scrub = { buffer: scrubBuffer, size: 1 }
+    this.scrub = { buffer: scrubBuffer, size: 2 }
     this.widths = {
       buffer: widthsBuffer,
       size: sumBy(group.points, x => x.length * 2)
@@ -412,7 +412,7 @@ export default abstract class WebGPUBrush {
     this.device.queue.writeBuffer(
       this.scrub.buffer,
       0,
-      new Float32Array([scene.scrub])
+      new Float32Array([scene.scrub, scene.fade])
     )
 
     // These operations could all be done once during init

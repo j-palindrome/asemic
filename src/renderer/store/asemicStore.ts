@@ -26,7 +26,7 @@ export const useAsemicStore = create<AsemicStore>()(
           params: {}
         }
       ],
-      scrubValues: [{ params: {}, sent: {}, scrub: 0 }],
+      scrubValues: [{ params: {}, sent: {}, scrub: 0, fade: 0 }],
       focusedScene: 0,
       activeScenes: [],
       setScenesArray: scenes => {
@@ -37,7 +37,8 @@ export const useAsemicStore = create<AsemicStore>()(
             newScrubValues = new Array(scenes.length).fill(null).map(() => ({
               params: {},
               sent: {},
-              scrub: 0
+              scrub: 0,
+              fade: 0
             }))
             // Copy over what we can from existing scrubValues
             for (

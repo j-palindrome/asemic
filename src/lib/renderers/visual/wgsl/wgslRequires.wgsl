@@ -133,3 +133,7 @@ fn noise2(index: f32, value: vec2<f32>, phase: f32) -> f32 {
 fn sah(x: f32) -> f32 {
   return floor(x / 1);
 }
+
+fn alternate(input: f32, frequency: f32) -> f32 {
+  return select(1.0, 0.0, abs(input) % frequency < (frequency / 2.0));
+}

@@ -12,7 +12,7 @@ fn get_elapsed_seconds() -> f64 {
 
 pub trait ExpressionEval {
     /// Main expression evaluation function
-    fn expr(&mut self, expr: &str) -> Result<f64, String>;
+    fn expr(&mut self, expr: &str, dontSave: Option<bool>) -> Result<f64, String>;
 
     /// Evaluate a list of expressions separated by commas
     fn expr_list(&mut self, exprs: &str) -> Result<Vec<f64>, String>;
@@ -80,7 +80,7 @@ impl ExpressionEval for ExpressionParser {
                     current_expr.push(ch);
                 }
                 ',' if paren_count == 0 => {
-                    results.push(self.expr(current_expr.trim())?);
+                    results.push(self.expr(current_expr.trim(), None)?);
                     current_expr.clear();
                 }
                 _ => {
@@ -91,14 +91,13 @@ impl ExpressionEval for ExpressionParser {
 
         let trimmed = current_expr.trim();
         if !trimmed.is_empty() {
-            results.push(self.expr(trimmed.clone())?);
+            results.push(self.expr(trimmed.clone(), None)?);
         }
 
         Ok(results)
     }
 
-    fn expr(&mut self, expr: &str) -> Result<f64, String> {
-        let start = std::time::Instant::now();
+    fn expr(&mut self, expr: &str, dontSave: Option<bool>) -> Result<f64, String> {
         let expr = expr.trim();
 
         if expr.is_empty() {
@@ -135,10 +134,9 @@ impl ExpressionEval for ExpressionParser {
             if self.operator_split_cache.len() >= self.cache_max_size {
                 self.operator_split_cache.clear();
             }
+            // TODO: fix insertions
             self.operator_split_cache
                 .insert(expr.clone(), splits.clone());
-
-            println!("Splitting expression: {}", expr);
             splits
         };
 
@@ -221,6 +219,7 @@ impl ExpressionEval for ExpressionParser {
 
         match func_name {
             "S" => Ok(self.scene_metadata.scrub),
+            "F" => Ok(self.scene_metadata.fade),
             "C" => Ok(self.curve),
             "L" => Ok(self.letter),
             "P" => Ok(self.point),
@@ -228,7 +227,7 @@ impl ExpressionEval for ExpressionParser {
                 let index = if args.is_empty() {
                     0
                 } else {
-                    self.expr(args[0])? as usize
+                    self.expr(args[0], None)? as usize
                 };
                 if index >= self.count_nums.len() {
                     return Err(format!("N index {} out of range", index));
@@ -239,7 +238,7 @@ impl ExpressionEval for ExpressionParser {
                 let index = if args.is_empty() {
                     0
                 } else {
-                    self.expr(args[0])? as usize
+                    self.expr(args[0], None)? as usize
                 };
                 if index >= self.indexes.len() {
                     return Err(format!("I index {} out of range", index));
@@ -250,7 +249,7 @@ impl ExpressionEval for ExpressionParser {
                 let index = if args.is_empty() {
                     0
                 } else {
-                    self.expr(args[0])?.floor() as usize
+                    self.expr(args[0], None)?.floor() as usize
                 };
                 if index >= self.indexes.len() || index >= self.count_nums.len() {
                     return Err(format!("i index {} out of range", index));
@@ -266,14 +265,14 @@ impl ExpressionEval for ExpressionParser {
                 if args.is_empty() {
                     return Err("- requires an argument".to_string());
                 }
-                let val = self.expr(args[0])?;
+                let val = self.expr(args[0], None)?;
                 Ok(-val)
             }
             "T" => {
                 if args.is_empty() {
                     Ok(get_elapsed_seconds())
                 } else {
-                    let multiplier = self.expr(args[0])?;
+                    let multiplier = self.expr(args[0], None)?;
                     Ok(get_elapsed_seconds() * multiplier)
                 }
             }
@@ -281,31 +280,31 @@ impl ExpressionEval for ExpressionParser {
                 if args.is_empty() {
                     return Err("sin requires an argument".to_string());
                 }
-                let val = self.expr(args[0])?;
+                let val = self.expr(args[0], None)?;
                 Ok((val * std::f64::consts::PI * 2.0).sin())
             }
             "abs" => {
                 if args.is_empty() {
                     return Err("abs requires an argument".to_string());
                 }
-                let val = self.expr(args[0])?;
+                let val = self.expr(args[0], None)?;
                 Ok(val.abs())
             }
             "!" => {
                 if args.is_empty() {
                     return Err("! requires an argument".to_string());
                 }
-                let val = self.expr(args[0])?;
+                let val = self.expr(args[0], None)?;
                 Ok(if val != 0.0 { 0.0 } else { 1.0 })
             }
             "?" => {
                 if args.len() < 2 {
                     return Err("? requires at least 2 arguments".to_string());
                 }
-                let condition = self.expr(args[0])?;
-                let true_val = self.expr(args[1])?;
+                let condition = self.expr(args[0], None)?;
+                let true_val = self.expr(args[1], None)?;
                 let false_val = if args.len() > 2 {
-                    self.expr(args[2])?
+                    self.expr(args[2], None)?
                 } else {
                     0.0
                 };
@@ -315,7 +314,7 @@ impl ExpressionEval for ExpressionParser {
                 if args.len() < 2 {
                     return Err("> requires at least 2 arguments".to_string());
                 }
-                let mut fade = self.expr(args[0])?;
+                let mut fade = self.expr(args[0], None)?;
                 if fade >= 1.0 {
                     fade = 0.999;
                 } else if fade < 0.0 {
@@ -323,7 +322,7 @@ impl ExpressionEval for ExpressionParser {
                 }
 
                 let values: Result<Vec<f64>, String> =
-                    args[1..].iter().map(|arg| self.expr(arg)).collect();
+                    args[1..].iter().map(|arg| self.expr(arg, None)).collect();
                 let values = values?;
 
                 if values.len() < 2 {
@@ -340,11 +339,11 @@ impl ExpressionEval for ExpressionParser {
                 if args.len() < 2 {
                     return Err("choose requires at least 2 arguments".to_string());
                 }
-                let index = self.expr(args[0])?.floor() as usize;
+                let index = self.expr(args[0], None)?.floor() as usize;
                 if index >= args.len() - 1 {
                     return Err(format!("choose index {} out of range", index));
                 }
-                self.expr(args[index + 1])
+                self.expr(args[index + 1], None)
             }
             "mix" => {
                 if args.is_empty() {
@@ -352,7 +351,7 @@ impl ExpressionEval for ExpressionParser {
                 }
                 let sum: Result<f64, String> = args
                     .iter()
-                    .map(|arg| self.expr(arg))
+                    .map(|arg| self.expr(arg, None))
                     .try_fold(0.0, |acc, res| res.map(|v| acc + v));
                 Ok(sum? / args.len() as f64)
             }
@@ -360,7 +359,7 @@ impl ExpressionEval for ExpressionParser {
                 let exponent = if args.is_empty() {
                     1.0
                 } else {
-                    self.expr(args[0])?
+                    self.expr(args[0], None)?
                 };
                 Ok(1.6180339887_f64.powf(exponent))
             }
@@ -368,7 +367,7 @@ impl ExpressionEval for ExpressionParser {
                 if args.is_empty() {
                     return Err("fib requires an argument".to_string());
                 }
-                let n = self.expr(args[0])?.floor() as i32;
+                let n = self.expr(args[0], None)?.floor() as i32;
                 if n <= 0 {
                     return Ok(0.0);
                 }
@@ -388,7 +387,7 @@ impl ExpressionEval for ExpressionParser {
                 let seed = if args.is_empty() {
                     self.curve
                 } else {
-                    self.expr(args[0])?
+                    self.expr(args[0], None)?
                 };
                 let seed_offset = self.seeds.get((self.curve as usize) % 100).unwrap_or(&0.0);
                 let hash = (seed * (43758.5453123 + seed_offset)) % 1.0;
@@ -399,14 +398,14 @@ impl ExpressionEval for ExpressionParser {
                 if args.is_empty() {
                     return Err("<> requires at least 1 argument".to_string());
                 }
-                let progress = self.expr(args[0])?;
+                let progress = self.expr(args[0], None)?;
                 let spread = if args.len() > 1 {
-                    self.expr(args[1])?
+                    self.expr(args[1], None)?
                 } else {
                     1.0
                 };
                 let center = if args.len() > 2 {
-                    self.expr(args[2])?
+                    self.expr(args[2], None)?
                 } else {
                     0.0
                 };
@@ -421,7 +420,7 @@ impl ExpressionEval for ExpressionParser {
                 let key = format!("{}_acc_{}", self.scene_metadata.id, self.noise_index);
                 self.noise_index += 1;
 
-                let speed = self.expr(args[0])?;
+                let speed = self.expr(args[0], None)?;
 
                 let state = self.noise_table.entry(key.clone()).or_insert(
                     crate::parser::methods::expressions::NoiseState::Cycle { value: 0.0 },
@@ -441,8 +440,8 @@ impl ExpressionEval for ExpressionParser {
                 let key = format!("{}_sah_{}", self.scene_metadata.id, self.noise_index);
                 self.noise_index += 1;
 
-                let val1 = self.expr(args[0])?;
-                let val2 = self.expr(args[1])?;
+                let val1 = self.expr(args[0], None)?;
+                let val2 = self.expr(args[1], None)?;
 
                 let state = self.noise_table.entry(key.clone()).or_insert(
                     crate::parser::methods::expressions::NoiseState::SampleAndHold {
@@ -550,15 +549,15 @@ impl ExpressionEval for ExpressionParser {
                     }
                     1 => {
                         // 2D simplex noise: [T, x]
-                        let x = self.expr(args[0])?;
+                        let x = self.expr(args[0], None)?;
                         let noise_val =
                             noise_functions::Simplex.sample2([x as f32, current_time as f32]);
                         Ok(noise_val as f64)
                     }
                     2 => {
                         // 3D simplex noise: [T, x, y]
-                        let x = self.expr(args[0])?;
-                        let y = self.expr(args[1])?;
+                        let x = self.expr(args[0], None)?;
+                        let y = self.expr(args[1], None)?;
                         let noise_val = noise_functions::Simplex.sample3([
                             current_time as f32,
                             x as f32,
@@ -577,7 +576,7 @@ impl ExpressionEval for ExpressionParser {
                 let mut total = 0.0;
                 let len = args.len() as f64;
                 for arg in args {
-                    let noise_val = self.expr(arg)?;
+                    let noise_val = self.expr(arg, None)?;
                     total +=
                         (((noise_val * current_time) + self.hash(Some(self.curve))) * PI * 2.0)
                             .sin();
@@ -628,7 +627,7 @@ impl ExpressionEval for ExpressionParser {
                     }
                 }
 
-                let mut total_freq = self.expr(args[0])?;
+                let mut total_freq = self.expr(args[0], None)?;
 
                 // Use enumerate instead of manual idx
                 for (idx, arg) in args[1..].iter().enumerate() {
@@ -660,9 +659,9 @@ impl ExpressionEval for ExpressionParser {
                 if args.is_empty() {
                     return Err("bell requires at least 1 argument".to_string());
                 }
-                let x = self.expr(args[0])?;
+                let x = self.expr(args[0], None)?;
                 let hash = if args.len() > 1 {
-                    self.expr(args[1])?
+                    self.expr(args[1], None)?
                 } else {
                     self.eval_constant(&format!("# {}", args[0]))?
                 };
@@ -676,7 +675,7 @@ impl ExpressionEval for ExpressionParser {
                 if args.len() < 2 {
                     return Err("peaks requires at least 2 arguments".to_string());
                 }
-                let pos = self.expr(args[0])?;
+                let pos = self.expr(args[0], None)?;
 
                 for peak_str in &args[1..] {
                     let parts: Vec<&str> = peak_str.split(',').collect();
@@ -699,11 +698,11 @@ impl ExpressionEval for ExpressionParser {
             "H" => Ok(self.scene_metadata.height / self.scene_metadata.width
                 * args
                     .first()
-                    .map_or(1.0, |arg| self.expr(arg).unwrap_or(1.0))),
+                    .map_or(1.0, |arg| self.expr(arg, None).unwrap_or(1.0))),
             "px" => Ok(1.0 / self.scene_metadata.width
                 * args
                     .first()
-                    .map_or(1.0, |arg| self.expr(arg).unwrap_or(1.0))),
+                    .map_or(1.0, |arg| self.expr(arg, None).unwrap_or(1.0))),
             "table" => Err(
                 "table requires image data and is not fully implemented in Rust parser".to_string(),
             ),
@@ -714,14 +713,14 @@ impl ExpressionEval for ExpressionParser {
                         let values = self.expr_list(&value_str)?;
                         return Ok(values[0]);
                     } else {
-                        return self.expr(&value_str);
+                        return self.expr(&value_str, None);
                     }
                 } else if let Some((key, value)) = self.get_constant(expr) {
                     if value.contains(',') {
                         let values = self.expr_list(&value)?;
                         let index = expr[key.len()..].trim();
                         if !index.is_empty() {
-                            let idx = self.expr(index)? as usize;
+                            let idx = self.expr(index, None)? as usize;
                             let len = values.len();
                             return values.get(idx).copied().ok_or_else(|| {
                                 format!("Index {} out of range for {} (length {})", idx, key, len)
@@ -729,7 +728,7 @@ impl ExpressionEval for ExpressionParser {
                         }
                         return Ok(values[0]);
                     } else {
-                        return self.expr(&value);
+                        return self.expr(&value, None);
                     }
                 } else if expr.contains(',') {
                     let values = self.expr_list(expr)?;

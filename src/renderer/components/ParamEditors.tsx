@@ -31,7 +31,7 @@ export default function ParamEditors({
   const snapTimersRef = useRef<Record<string, number>>({})
   const scenesArray = useAsemicStore(state => state.scenesArray)
   const activeScene = useAsemicStore(state => state.focusedScene)
-  const scrubSettings = useAsemicStore(state => state.scrubValues[activeScene])
+  const scrubValues = useAsemicStore(state => state.scrubValues[activeScene])
   const setScrubValues = useAsemicStore(state => state.setScrubValues)
   const activeSceneSettings = scenesArray[activeScene]
 
@@ -114,8 +114,8 @@ export default function ParamEditors({
                       }
                     } else {
                       if (presetFromRef) {
-                        presetFromRef.current = scrubSettings.params
-                          ? { ...scrubSettings.params }
+                        presetFromRef.current = scrubValues.params
+                          ? { ...scrubValues.params }
                           : null
                       }
                       setSelectedPreset?.(presetName)
@@ -150,7 +150,7 @@ export default function ParamEditors({
             length: activeParamConfig.dimension
           }).map((_, i) => {
             const currentValue =
-              scrubSettings.params?.[activeParamKey]?.[i] ??
+              scrubValues.params?.[activeParamKey]?.[i] ??
               activeParamConfig.default?.[i] ??
               activeParamConfig.min
 
@@ -292,6 +292,123 @@ export default function ParamEditors({
             </span>
           </div>
         )}
+        <div className='relative h-full w-6'>
+          <Slider
+            className='w-full h-full select-none pointer-grab'
+            min={0}
+            max={1}
+            exponent={1}
+            values={{ x: 0, y: scrubValues.scrub ?? 0 }}
+            sliderStyle={({ y }) => ({
+              height: `${y * 100}%`,
+              left: '50%',
+              bottom: 0,
+              border: '1px solid white',
+              transform: 'translate(-50%, 0)',
+              width: '6px',
+              borderRadius: '2px',
+              backgroundColor: 'white',
+              position: 'absolute',
+              pointerEvents: 'none',
+              flex: 0
+            })}
+            onChange={({ y }) => {
+              setScrubValues(prev => {
+                const updated = [...prev]
+                updated[activeScene] = {
+                  ...updated[activeScene],
+                  scrub: y
+                }
+                return updated
+              })
+              for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+                invoke('emit_osc_event', {
+                  targetAddr: `${sendTo.host}:${sendTo.port}`,
+                  eventName: '/params',
+                  data: JSON.stringify({
+                    scrub: y,
+                    scene: activeScene
+                  })
+                })
+                  .catch(err => {
+                    console.error('Failed to emit OSC scene list:', err)
+                  })
+                  .then(res => {
+                    console.log('sent', res)
+                  })
+              }
+            }}
+          />
+        </div>
+        <div className='relative h-full w-6'>
+          <Slider
+            className='w-full h-full select-none pointer-grab'
+            min={0}
+            max={1}
+            exponent={1}
+            values={{ x: 0, y: scrubValues.fade ?? 0 }}
+            sliderStyle={({ y }) => ({
+              height: `${y * 100}%`,
+              left: '50%',
+              bottom: 0,
+              border: '1px solid white',
+              transform: 'translate(-50%, 0)',
+              width: '6px',
+              borderRadius: '2px',
+              backgroundColor: 'blue',
+              position: 'absolute',
+              pointerEvents: 'none',
+              flex: 0
+            })}
+            onChange={({ y }) => {
+              setScrubValues(prev => {
+                const updated = [...prev]
+                updated[activeScene] = {
+                  ...updated[activeScene],
+                  fade: y
+                }
+                if (
+                  updated[activeScene + 1] &&
+                  globalSettings.fadeMode === 'single'
+                ) {
+                  updated[activeScene + 1] = {
+                    ...updated[activeScene + 1],
+                    fade: 1 - y
+                  }
+                }
+                return updated
+              })
+              for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+                invoke('emit_osc_event', {
+                  targetAddr: `${sendTo.host}:${sendTo.port}`,
+                  eventName: '/params',
+                  data: JSON.stringify({
+                    fade: y,
+                    scene: activeScene
+                  })
+                })
+                  .catch(err => {
+                    console.error('Failed to emit OSC scene list:', err)
+                  })
+                  .then(res => {
+                    if (
+                      scrubValues[activeScene + 1] &&
+                      globalSettings.fadeMode === 'single'
+                    ) {
+                      invoke('emit_osc_event', {
+                        targetAddr: `${sendTo.host}:${sendTo.port}`,
+                        eventName: '/params',
+                        data: JSON.stringify({
+                          fade: 1 - y,
+                          scene: activeScene + 1
+                        })
+                      })
+                    }
+                  })
+              }
+            }}
+          />
+        </div>
       </div>
     </div>
   )

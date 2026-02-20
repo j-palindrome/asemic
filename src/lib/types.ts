@@ -47,6 +47,7 @@ export interface Scene {
   params?: Record<string, number[]>
   // Runtime-only properties (not persisted):
   scrub: number
+  fade: number
   [key: string]: any
   width: number
   height: number

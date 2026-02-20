@@ -180,6 +180,10 @@ impl TextParser {
             // Skip reset marker
             if token == "!" {
                 // Reset logic would go here if needed
+                self.fonts
+                    .get_mut(&self.current_font)
+                    .ok_or("No font")?
+                    .reset();
                 continue;
             }
 

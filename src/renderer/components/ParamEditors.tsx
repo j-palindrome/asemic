@@ -363,19 +363,21 @@ export default function ParamEditors({
             onChange={({ y }) => {
               setScrubValues(prev => {
                 const updated = [...prev]
+                if (globalSettings.fadeMode === 'single') {
+                  for (let i = 0; i < updated.length; i++) {
+                    if (updated[i].fade > 0 && i !== activeScene) {
+                      updated[i] = {
+                        ...updated[i],
+                        fade: 1 - y
+                      }
+                    }
+                  }
+                }
                 updated[activeScene] = {
                   ...updated[activeScene],
                   fade: y
                 }
-                if (
-                  updated[activeScene + 1] &&
-                  globalSettings.fadeMode === 'single'
-                ) {
-                  updated[activeScene + 1] = {
-                    ...updated[activeScene + 1],
-                    fade: 1 - y
-                  }
-                }
+
                 return updated
               })
               for (let sendTo of Object.values(globalSettings.sendTo || {})) {
@@ -390,19 +392,22 @@ export default function ParamEditors({
                   .catch(err => {
                     console.error('Failed to emit OSC scene list:', err)
                   })
-                  .then(res => {
-                    if (
-                      scrubValues[activeScene + 1] &&
-                      globalSettings.fadeMode === 'single'
-                    ) {
-                      invoke('emit_osc_event', {
-                        targetAddr: `${sendTo.host}:${sendTo.port}`,
-                        eventName: '/params',
-                        data: JSON.stringify({
-                          fade: 1 - y,
-                          scene: activeScene + 1
-                        })
-                      })
+                  .then(async res => {
+                    if (globalSettings.fadeMode === 'single') {
+                      for (let i = 0; i < scenesArray.length; i++) {
+                        if (i === activeScene) continue
+                        const scene = scrubValues[i]
+                        if (scene.fade > 0) {
+                          await invoke('emit_osc_event', {
+                            targetAddr: `${sendTo.host}:${sendTo.port}`,
+                            eventName: '/params',
+                            data: JSON.stringify({
+                              fade: 1 - y,
+                              scene: i
+                            })
+                          })
+                        }
+                      }
                     }
                   })
               }

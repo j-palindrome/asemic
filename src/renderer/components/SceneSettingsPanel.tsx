@@ -12,7 +12,7 @@ type ParamConfig = {
   exponent: number
   dimension: number
   default: number[]
-  labels?: string[]
+  labels?: string
   oscPath?: string
   snap?: boolean
 }
@@ -21,10 +21,16 @@ type SceneParamConfig = Omit<ParamConfig, 'dimension'> & {
   show?: boolean
 }
 
+export type SyncType = {
+  host: string
+  port: number
+  type: 'sync' | 'osc'
+  enabled: boolean
+}
 export interface GlobalSettings {
   params: Record<string, ParamConfig>
   presets: Record<string, { params: Record<string, number[]> }>
-  sendTo?: Record<string, { host: string; port: number }>
+  sendTo?: Record<string, SyncType>
   fadeMode: 'single' | 'multiple'
 }
 
@@ -130,7 +136,6 @@ export default function SceneSettingsPanel({
             exponent: 1,
             dimension: 1,
             default: [1],
-            labels: [],
             snap: false
           }
         }
@@ -444,67 +449,6 @@ export default function SceneSettingsPanel({
         )}
       </div>
 
-      {/* Basic Settings */}
-      <div className='grid grid-cols-3 gap-3 text-xs'>
-        <div>
-          <label className='text-white/70 block mb-1'>Length</label>
-          <input
-            type='number'
-            step='0.01'
-            value={sceneList[activeScene].length ?? 0.1}
-            onChange={e => {
-              if (document.activeElement !== e.target) return
-              onUpdate({
-                ...sceneList[activeScene],
-                length: parseFloat(e.target.value)
-              })
-            }}
-            className='w-full bg-white/10 text-white px-2 py-1 rounded'
-          />
-        </div>
-        {activeScene > 0 && (
-          <div>
-            <label className='text-white/70 block mb-1'>Offset</label>
-            <input
-              type='number'
-              step='0.01'
-              value={sceneList[activeScene].offset ?? 0}
-              onChange={e => {
-                console.log(e.target.value)
-
-                onUpdate({
-                  ...sceneList[activeScene],
-                  offset: parseFloat(e.target.value)
-                })
-              }}
-              className='w-full bg-white/10 text-white px-2 py-1 rounded'
-            />
-          </div>
-        )}
-        <div>
-          <label className='text-white/70 block mb-1'>Pause</label>
-          <input
-            type='number'
-            step='0.1'
-            value={
-              sceneList[activeScene].pause === false
-                ? -1
-                : (sceneList[activeScene].pause ?? 0)
-            }
-            onChange={e => {
-              const val = parseFloat(e.target.value)
-              document.activeElement !== e.target &&
-                onUpdate({
-                  ...sceneList[activeScene],
-                  pause: (val < 0 ? false : val) as number | false
-                })
-            }}
-            className='w-full bg-white/10 text-white px-2 py-1 rounded'
-          />
-          <span className='text-white/50 text-[10px]'>(-1 for false)</span>
-        </div>
-      </div>
-
       {/* Global Params Section */}
       {Object.keys(globalSettings.params).length > 0 && (
         <div className='mt-3 border-t border-white/10 pt-3'>
@@ -715,11 +659,6 @@ export default function SceneSettingsPanel({
                               paramConfig.min
                             ).toFixed(2)}
                           </span>
-                          {paramConfig.labels?.[dimIndex] && (
-                            <span className='text-white/50 text-xs truncate w-full text-center'>
-                              {paramConfig.labels[dimIndex]}
-                            </span>
-                          )}
                         </div>
                       )
                     )}
@@ -922,20 +861,17 @@ export default function SceneSettingsPanel({
                     <input
                       type='text'
                       placeholder='Comma-separated labels'
-                      value={(paramConfig.labels || []).join(', ')}
+                      value={paramConfig.labels}
                       onChange={e => {
                         const labelText = e.target.value
                         const labels = labelText
-                          .split(',')
-                          .map(s => s.trim())
-                          .filter(s => s)
                         onUpdate({
                           ...sceneList[activeScene],
                           params: {
                             ...sceneList[activeScene].params,
                             [key]: {
                               ...sceneList[activeScene].params[key],
-                              labels: labels.length > 0 ? labels : undefined
+                              labels: labels
                             }
                           }
                         })

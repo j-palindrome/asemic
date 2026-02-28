@@ -1,4 +1,4 @@
-import { GlobalSettings, SceneSettings } from './SceneSettingsPanel'
+import { GlobalSettings, SceneSettings, SyncType } from './SceneSettingsPanel'
 import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Plus, RotateCw } from 'lucide-react'
@@ -10,7 +10,6 @@ import { confirm } from '@tauri-apps/plugin-dialog'
 interface GlobalSettingsEditorProps {
   settings: GlobalSettings
   setSettings: (settings: GlobalSettings) => void
-  onClose: () => void
   sceneList: SceneSettings[]
   setSceneList: (sceneList: SceneSettings[]) => void
 }
@@ -18,7 +17,6 @@ interface GlobalSettingsEditorProps {
 export default function GlobalSettingsEditor({
   settings,
   setSettings,
-  onClose,
   sceneList,
   setSceneList
 }: GlobalSettingsEditorProps) {
@@ -35,6 +33,8 @@ export default function GlobalSettingsEditor({
   const [newSyncTargetName, setNewSyncTargetName] = useState('')
   const [newSyncTargetHost, setNewSyncTargetHost] = useState('localhost')
   const [newSyncTargetPort, setNewSyncTargetPort] = useState('57120')
+  const [newSyncTargetType, setNewSyncTargetType] =
+    useState<SyncType['type']>('sync')
 
   const handleAddParam = () => {
     if (newParamName.trim()) {
@@ -48,7 +48,7 @@ export default function GlobalSettingsEditor({
             exponent: 1,
             dimension: 1,
             default: [1],
-            labels: [],
+            labels: '',
             oscPath: '',
             snap: false
           }
@@ -106,13 +106,16 @@ export default function GlobalSettingsEditor({
           ...(settings.sendTo || {}),
           [newSyncTargetName.trim()]: {
             host: newSyncTargetHost,
-            port: parseInt(newSyncTargetPort) || 57120
+            port: parseInt(newSyncTargetPort) || 57120,
+            type: newSyncTargetType,
+            enabled: true
           }
         }
       })
       setNewSyncTargetName('')
       setNewSyncTargetHost('localhost')
       setNewSyncTargetPort('57120')
+      setNewSyncTargetType('sync')
       setShowAddSyncTarget(false)
     }
   }
@@ -123,10 +126,7 @@ export default function GlobalSettingsEditor({
     setSettings({ ...settings, sendTo: newSendTo })
   }
 
-  const handleUpdateSyncTarget = (
-    key: string,
-    updates: { host?: string; port?: number }
-  ) => {
+  const handleUpdateSyncTarget = (key: string, updates: Partial<SyncType>) => {
     setSettings({
       ...settings,
       sendTo: {
@@ -150,11 +150,6 @@ export default function GlobalSettingsEditor({
         <span className='text-white text-sm font-semibold'>
           Global Settings
         </span>
-        <button
-          onClick={onClose}
-          className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'>
-          ✕
-        </button>
       </div>
       {/* Settings Panel */}
       <div className='overflow-y-auto p-3 space-y-4 flex-1'>
@@ -162,7 +157,7 @@ export default function GlobalSettingsEditor({
         <div className='border-b border-white/10 pb-3'>
           <div className='flex items-center gap-2 mb-3'>
             <label className='text-white/70 text-sm font-semibold'>
-              Send To (Sync Targets)
+              Send To
             </label>
             <button
               onClick={e => {
@@ -224,6 +219,20 @@ export default function GlobalSettingsEditor({
                       onChange={e => setNewSyncTargetPort(e.target.value)}
                       className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
                     />
+                  </div>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Type
+                    </label>
+                    <select
+                      value={newSyncTargetType}
+                      onChange={e =>
+                        setNewSyncTargetType(e.target.value as SyncType['type'])
+                      }
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'>
+                      <option value='sync'>Sync</option>
+                      <option value='osc'>OSC</option>
+                    </select>
                   </div>
                 </div>
                 <div className='flex gap-2'>
@@ -287,6 +296,22 @@ export default function GlobalSettingsEditor({
                       }
                       className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
                     />
+                  </div>
+                  <div className='flex-1'>
+                    <label className='text-white/50 text-xs block mb-1'>
+                      Type
+                    </label>
+                    <select
+                      value={config.type}
+                      onChange={e =>
+                        handleUpdateSyncTarget(key, {
+                          type: e.target.value as SyncType['type']
+                        })
+                      }
+                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'>
+                      <option value='sync'>Sync</option>
+                      <option value='osc'>OSC</option>
+                    </select>
                   </div>
                   <button
                     onClick={() => handleDeleteSyncTarget(key)}
@@ -511,20 +536,17 @@ export default function GlobalSettingsEditor({
                       <input
                         type='text'
                         placeholder='Comma-separated labels'
-                        value={(paramConfig.labels || []).join(', ')}
+                        value={paramConfig.labels || ''}
                         onChange={e => {
                           const labelText = e.target.value
                           const labels = labelText
-                            .split(',')
-                            .map(s => s.trim())
-                            .filter(s => s)
                           setSettings({
                             ...settings,
                             params: {
                               ...(settings.params || {}),
                               [key]: {
                                 ...settings.params![key],
-                                labels: labels.length > 0 ? labels : undefined
+                                labels
                               }
                             }
                           })

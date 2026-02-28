@@ -39,11 +39,11 @@ export default function calcPosition(parser: WebGPUBrush) {
       start_at_point < curve_starts[curve] + curve_length - 3));
     if (start_at_point == curve_starts[curve]) {
       let direction = normalize(p1 - p0);
-      p0 = p0 - direction * (width0 / 2) / canvas_dimensions.x;
+      p0 = p0 - direction * width0 * 0.33;
     }
     if (start_at_point == curve_starts[curve] + curve_length - 3) {
       let direction = normalize(p1 - p2);
-      p2 = p2 - direction * (width2 / 2) / canvas_dimensions.x;
+      p2 = p2 - direction * width2 * 0.33;
     }
     
     var width = select(

@@ -6,14 +6,6 @@ import AsemicWorker from './asemic.worker.ts?worker'
 import { AsemicData } from './types'
 
 export default class Asemic {
-  static defaultSettings = {
-    debug: true as boolean,
-    h: 'window' as number | 'window' | 'auto',
-    perform: false as boolean,
-    scene: 0 as number,
-    fullscreen: false,
-    folder: '' as string
-  }
   worker: Worker
   offscreenCanvas: OffscreenCanvas
   ready = false

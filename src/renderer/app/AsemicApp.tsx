@@ -17,7 +17,8 @@ import {
   Wifi,
   WifiOff,
   Check,
-  Camera
+  Camera,
+  Play
 } from 'lucide-react'
 import {
   act,
@@ -74,14 +75,18 @@ function AsemicAppInner({
 
   const scrubValues = useAsemicStore(state => state.scrubValues)
   const setScrubValues = useAsemicStore(state => state.setScrubValues)
-  let activeScenes: number[] = []
-  for (let i = 0; i < scrubValues.length; i++) {
-    if (scrubValues[i]?.fade! > 0) {
-      activeScenes.push(i)
-    }
-  }
   let activeScenesRef = useRef<number[]>([])
-  activeScenesRef.current = activeScenes
+  useMemo(() => {
+    let activeScenes: number[] = []
+    for (let i = 0; i < scrubValues.length; i++) {
+      if (scrubValues[i]?.fade! > 0.01) {
+        activeScenes.push(i)
+      }
+    }
+    activeScenesRef.current = activeScenes
+    return activeScenes
+  }, [scrubValues])
+
   const [globalSettings, _setGlobalSettings] = useState<GlobalSettings>({
     params: {},
     presets: {},
@@ -119,13 +124,6 @@ function AsemicAppInner({
     _setGlobalSettings(newSettings)
     localStorage.setItem('globalSettings', JSON.stringify(newSettings))
   }
-
-  const [settings, setSettings] = useState(Asemic.defaultSettings)
-  const settingsRef = useRef(settings)
-  useEffect(() => {
-    settingsRef.current = settings
-  }, [settings])
-
   const canvas = useRef<HTMLCanvasElement>(null!)
 
   const useErrors = () => {
@@ -258,10 +256,13 @@ function AsemicAppInner({
 
         ;(async () => {
           const groups: any[] = []
+          if (activeScenesRef.current.length === 0) {
+            return
+          }
 
           const scenesToProcess = activeScenesRef.current.map(scene => {
             const currentSceneSettings = scenesArray[scene]
-            return {
+            const sceneSettings = {
               code: currentSceneSettings.code || '',
               length: currentSceneSettings.length,
               offset: currentSceneSettings.offset,
@@ -273,42 +274,43 @@ function AsemicAppInner({
               height,
               id: `${scene}` // Assign unique ID per scene
             }
+            return sceneSettings
           })
 
           const curves: any = await invoke('parse_asemic_source', {
             scene: scenesToProcess
           })
           groups.push(...curves.groups)
-          for (let scene of scenesToProcess) {
-            for (const sample of Object.entries(scene.params || {})) {
-              const paramName = sample[0]
+          const scene = scenesToProcess[0]
+          for (const sample of Object.entries(scene.params || {})) {
+            const paramName = sample[0]
 
-              // Skip if value hasn't changed from last sent value
-              const lastSentValue = sentValuesRef.current[paramName]
-              const value = sample[1]
+            // Skip if value hasn't changed from last sent value
+            const lastSentValue = sentValuesRef.current[paramName]
+            const value = sample[1]
+            const joinedValue = value.join(',')
 
-              if (isEqual(lastSentValue, value) || value === undefined) {
-                continue
-              }
-              // if (paramName === '<interf></interf>ere') debugger
-              console.log('sending', paramName, value)
-              const newValue: any = await invoke<number>(
-                'parser_eval_expression',
-                {
-                  expr: value.join(','),
-                  oscAddress:
-                    globalSettings.params[paramName]?.oscPath ??
-                    '/' + paramName,
-                  oscTargets: [
-                    { host: 'localhost', port: 57120 },
-                    { host: 'localhost', port: 57110 }
-                  ],
-                  sceneMetadata: scene
-                }
-              )
-
-              sentValuesRef.current[paramName] = [...newValue]
+            if (isEqual(lastSentValue, joinedValue) || value === undefined) {
+              continue
             }
+            // if (paramName === '<interf></interf>ere') debugger
+            console.log('sending', paramName, value)
+            const newValue: any = await invoke<number>(
+              'parser_eval_expression',
+              {
+                expr: joinedValue,
+                oscAddress:
+                  globalSettings.params[paramName]?.oscPath ?? '/' + paramName,
+                oscTargets: [
+                  { host: 'localhost', port: 57120 },
+                  { host: 'localhost', port: 57110 }
+                ],
+                sceneMetadata: scene
+              }
+            )
+
+            sentValuesRef.current[paramName] = joinedValue
+
             // for (const group of scene.oscGroups || []) {
             //   const oscTargets =
             //     (group.osc?.length || 0) > 0
@@ -455,8 +457,9 @@ function AsemicAppInner({
     setDeletedScene(null)
   }
 
-  const [perform, _setPerform] = useState(settings.perform)
-  const [display, setDisplay] = useState(false)
+  const [mode, setMode] = useState<
+    'settings' | 'globalSettings' | 'perform' | 'display'
+  >('perform')
   const [showGlobalSettings, _setShowGlobalSettings] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
   const [selectedPresetType, setSelectedPresetType] = useState<
@@ -465,15 +468,6 @@ function AsemicAppInner({
   const [presetInterpolation, setPresetInterpolation] = useState(0)
   const presetFromRef = useRef<Record<string, number[]> | null>(null)
   const [showWebRTC, setShowWebRTC] = useState(false)
-  const setPerform = (value: boolean) => {
-    if (!value && showGlobalSettings) {
-      _setShowGlobalSettings(false)
-    }
-    _setPerform(value)
-  }
-  useEffect(() => {
-    setPerform(settings.perform)
-  }, [settings.perform])
   const [showCanvas, setShowCanvas] = useState(true)
 
   // Interpolate between saved ref params and target preset
@@ -543,11 +537,6 @@ function AsemicAppInner({
       return newValues
     })
   }, [selectedPreset, selectedPresetType, presetInterpolation, focusedScene])
-
-  const setShowGlobalSettings = (value: boolean) => {
-    if (value && !perform) setPerform(true)
-    _setShowGlobalSettings(value)
-  }
 
   // Listen for params events from Tauri
   useEffect(() => {
@@ -627,17 +616,17 @@ function AsemicAppInner({
   }, [showCanvas, asemic])
 
   useEffect(() => {
-    if (display) {
+    if (mode === 'display') {
       setShowCanvas(true)
       window.addEventListener(
         'mousedown',
         () => {
-          setDisplay(false)
+          setMode('perform')
         },
         { once: true }
       )
     }
-  }, [display])
+  }, [mode])
 
   return (
     <div
@@ -653,7 +642,7 @@ function AsemicAppInner({
         height={1080}
         width={1080}></canvas>
 
-      {!display && (
+      {mode !== 'display' && (
         <div className='absolute top-0 left-0 h-full w-full flex-col flex !z-100 pointer-events-none select-none'>
           <div className='flex items-center px-0 py-1 z-100 pointer-events-auto'>
             <ScenePicker />
@@ -675,12 +664,23 @@ function AsemicAppInner({
               globalSettings={globalSettings}
               setGlobalSettings={setGlobalSettings}
             />
-            <button
-              onClick={() => setShowGlobalSettings(!showGlobalSettings)}
-              title='Global Settings'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              <Settings {...lucideProps} size={16} />
-            </button>
+            <div className='flex'>
+              <button
+                onClick={() => setMode('globalSettings')}
+                title='Global Settings'
+                className='p-1 hover:bg-white/10 rounded transition-colors'>
+                <Settings {...lucideProps} size={16} />
+              </button>
+              <button onClick={() => setMode('settings')}>
+                {<Ellipsis {...lucideProps} />}
+              </button>
+              <button onClick={() => setMode('perform')}>
+                {<Play {...lucideProps} />}
+              </button>
+              <button onClick={() => setMode('display')}>
+                {<Camera {...lucideProps} />}
+              </button>
+            </div>
             <button
               onClick={() => setShowWebRTC(!showWebRTC)}
               title='WebRTC Stream'
@@ -691,15 +691,16 @@ function AsemicAppInner({
                 <WifiOff {...lucideProps} size={16} />
               )}
             </button>
-            <button onClick={() => setPerform(!perform)}>
-              {<Ellipsis {...lucideProps} />}
-            </button>
-            <button onClick={() => setDisplay(true)}>
-              {<Camera {...lucideProps} />}
-            </button>
           </div>
-          {!perform && !display && (
+          {mode === 'settings' && (
             <>
+              {scenesArray[focusedScene]?.text && (
+                <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
+                  <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
+                    {scenesArray[focusedScene]?.text || ''}
+                  </div>
+                </div>
+              )}
               <div className='pointer-events-auto'>
                 <SceneSettingsPanel
                   sceneList={scenesArray}
@@ -731,14 +732,7 @@ function AsemicAppInner({
               </div>
             </>
           )}
-          {perform && scenesArray[focusedScene]?.text && (
-            <div className='pointer-events-auto w-full px-4 pb-4 mt-auto max-h-[75%]'>
-              <div className='relative bg-black/50 rounded-xl px-4 py-2 text-white text-left max-w-4xl mr-auto whitespace-pre-wrap w-fit font-mono text-base overflow-y-auto h-full'>
-                {scenesArray[focusedScene]?.text || ''}
-              </div>
-            </div>
-          )}
-          {perform && (
+          {mode === 'perform' && (
             <>
               <div className='pointer-events-auto w-full h-[calc(100%-60px)] px-4 pb-4 absolute top-[60px] right-0'>
                 <ParamEditors
@@ -755,12 +749,11 @@ function AsemicAppInner({
               </div>
             </>
           )}
-          {showGlobalSettings && (
+          {mode === 'globalSettings' && (
             <div className='pointer-events-auto'>
               <GlobalSettingsEditor
                 settings={globalSettings}
                 setSettings={setGlobalSettings}
-                onClose={() => setShowGlobalSettings(false)}
                 sceneList={scenesArray}
                 setSceneList={setScenesArray}
               />

@@ -3,20 +3,17 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { GlobalSettings, SceneSettings } from './SceneSettingsPanel'
-
-interface JsonLoaderProps {
-  sceneList: SceneSettings[]
-  setSceneList: (newList: SceneSettings[]) => void
-  globalSettings: GlobalSettings
-  setGlobalSettings: (newSettings: GlobalSettings) => void
-}
+import { useAsemicStore } from '../store/asemicStore'
 
 export function JsonFileLoader({
-  sceneList,
-  setSceneList,
   globalSettings,
   setGlobalSettings
-}: JsonLoaderProps) {
+}: {
+  globalSettings: GlobalSettings
+  setGlobalSettings: (settings: GlobalSettings) => void
+}) {
+  const sceneList = useAsemicStore(state => state.scenesArray)
+  const setSceneList = useAsemicStore(state => state.setScenesArray)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
@@ -81,7 +78,7 @@ export function JsonFileLoader({
       <div className='flex gap-2'>
         <label
           title='Load JSON file'
-          className='flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors cursor-pointer'>
+          className='flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors'>
           <Upload size={16} />
           <input
             type='file'

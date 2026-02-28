@@ -32,6 +32,7 @@ export interface GlobalSettings {
   presets: Record<string, { params: Record<string, number[]> }>
   sendTo?: Record<string, SyncType>
   fadeMode: 'single' | 'multiple'
+  webRTC: { host: string; port: number }
 }
 
 export interface SceneSettings {

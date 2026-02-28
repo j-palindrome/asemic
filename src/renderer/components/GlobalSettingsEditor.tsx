@@ -6,6 +6,8 @@ import Slider from './Slider'
 import { sortBy } from 'lodash'
 import { useAsemicStore } from '../store/asemicStore'
 import { confirm } from '@tauri-apps/plugin-dialog'
+import WebRTCStream from './WebRTCStream'
+import { JsonFileLoader } from './JsonFileLoader'
 
 interface GlobalSettingsEditorProps {
   settings: GlobalSettings
@@ -20,10 +22,6 @@ export default function GlobalSettingsEditor({
   sceneList,
   setSceneList
 }: GlobalSettingsEditorProps) {
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<
-    'idle' | 'connecting' | 'connected' | 'error'
-  >('idle')
   const [statusMessage, setStatusMessage] = useState('')
   const [showAddParam, setShowAddParam] = useState(false)
   const [newParamName, setNewParamName] = useState('')
@@ -144,15 +142,90 @@ export default function GlobalSettingsEditor({
   const setScenesArray = useAsemicStore(state => state.setScenesArray)
 
   return (
-    <div className='absolute bottom-0 left-0 w-full border-l border-t border-white/20 z-50 flex flex-col max-h-[calc(100vh-50px)] overflow-y-auto'>
+    <div className='absolute border-t border-white/20 z-50 flex flex-col bottom-0 left-0 right-0 h-[calc(100%-50px)] overflow-y-auto p-3'>
       {/* Header */}
       <div className='flex items-center justify-between p-3 border-b border-white/20'>
         <span className='text-white text-sm font-semibold'>
           Global Settings
         </span>
       </div>
+      {/* Slide Toggle */}
+      <div className='border-b border-white/10 pb-3 flex items-center gap-4 mt-4 mx-4'>
+        <label>
+          <input
+            className='display- text-white/70 text-sm font-semibold flex items-center gap-2 cursor-pointer'
+            type='checkbox'
+            checked={settings.fadeMode === 'single'}
+            onChange={e =>
+              setSettings({
+                ...settings,
+                fadeMode: e.target.checked ? 'single' : 'multiple'
+              })
+            }
+          />
+          Slide
+        </label>
+        <button
+          onClick={() => {
+            setScrubValues(scrubValues =>
+              scrubValues.map(scene => ({
+                ...scene,
+                fade: 0,
+                progress: 0
+              }))
+            )
+          }}
+          className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded flex items-center gap-1'>
+          <RotateCw size={12} />
+        </button>
+        <button
+          onClick={() => {
+            confirm(
+              'Are you sure you want to create a new document? This will erase all current scenes and settings.'
+            ).then(confirmed => {
+              if (confirmed) {
+                setScenesArray([
+                  {
+                    code: '',
+                    length: 0.1,
+                    offset: 0,
+                    params: {}
+                  }
+                ])
+                setScrubValues([{ params: {}, sent: {}, scrub: 0, fade: 0 }])
+                setSettings({
+                  params: {},
+                  presets: {},
+                  fadeMode: 'single',
+                  webRTC: settings.webRTC
+                })
+                localStorage.removeItem('scenesArray')
+                localStorage.removeItem('globalSettings')
+              }
+            })
+          }}
+          title='New Document'
+          className='p-1 hover:bg-white/10 rounded transition-colors'>
+          <Plus size={16} />
+        </button>{' '}
+        <JsonFileLoader
+          globalSettings={settings}
+          setGlobalSettings={setSettings}
+        />
+      </div>
+
       {/* Settings Panel */}
       <div className='overflow-y-auto p-3 space-y-4 flex-1'>
+        {/* WebRTC Settings */}
+        <div className='border-b border-white/10 pb-3'>
+          <div className='flex items-center gap-2 mb-3'>
+            <label className='text-white/70 text-sm font-semibold'>
+              WebRTC Stream
+            </label>
+          </div>
+
+          <WebRTCStream settings={settings} setSettings={setSettings} />
+        </div>
         {/* Send To Settings */}
         <div className='border-b border-white/10 pb-3'>
           <div className='flex items-center gap-2 mb-3'>
@@ -282,21 +355,23 @@ export default function GlobalSettingsEditor({
                       className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
                     />
                   </div>
-                  <div className='flex-1'>
-                    <label className='text-white/50 text-xs block mb-1'>
-                      Port
-                    </label>
-                    <input
-                      type='number'
-                      value={config.port}
-                      onChange={e =>
-                        handleUpdateSyncTarget(key, {
-                          port: parseInt(e.target.value)
-                        })
-                      }
-                      className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
-                    />
-                  </div>
+                  {config.type !== 'sync' && (
+                    <div className='flex-1'>
+                      <label className='text-white/50 text-xs block mb-1'>
+                        Port
+                      </label>
+                      <input
+                        type='number'
+                        value={config.port}
+                        onChange={e =>
+                          handleUpdateSyncTarget(key, {
+                            port: parseInt(e.target.value)
+                          })
+                        }
+                        className='w-full bg-white/10 text-white px-2 py-1 rounded text-xs'
+                      />
+                    </div>
+                  )}
                   <div className='flex-1'>
                     <label className='text-white/50 text-xs block mb-1'>
                       Type
@@ -328,66 +403,6 @@ export default function GlobalSettingsEditor({
               No sync targets configured
             </p>
           )}
-        </div>
-
-        {/* Slide Toggle */}
-        <div className='border-b border-white/10 pb-3 flex items-center gap-4'>
-          <label className='text-white/70 text-sm font-semibold flex items-center gap-2 cursor-pointer'>
-            <input
-              type='checkbox'
-              checked={settings.fadeMode === 'single'}
-              onChange={e =>
-                setSettings({
-                  ...settings,
-                  fadeMode: e.target.checked ? 'single' : 'multiple'
-                })
-              }
-              className='w-4 h-4 bg-white/10 rounded cursor-pointer'
-            />
-            Slide
-          </label>
-          <button
-            onClick={() => {
-              setScrubValues(scrubValues =>
-                scrubValues.map(scene => ({
-                  ...scene,
-                  fade: 0,
-                  progress: 0
-                }))
-              )
-            }}
-            className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded flex items-center gap-1'>
-            <RotateCw size={12} />
-          </button>
-          <button
-            onClick={() => {
-              confirm(
-                'Are you sure you want to create a new document? This will erase all current scenes and settings.'
-              ).then(confirmed => {
-                if (confirmed) {
-                  setScenesArray([
-                    {
-                      code: '',
-                      length: 0.1,
-                      offset: 0,
-                      params: {}
-                    }
-                  ])
-                  setScrubValues([{ params: {}, sent: {}, scrub: 0, fade: 0 }])
-                  setSettings({
-                    params: {},
-                    presets: {},
-                    fadeMode: 'single'
-                  })
-                  localStorage.removeItem('scenesArray')
-                  localStorage.removeItem('globalSettings')
-                }
-              })
-            }}
-            title='New Document'
-            className='p-1 hover:bg-white/10 rounded transition-colors'>
-            <Plus size={16} />
-          </button>{' '}
         </div>
 
         <div className='border-b border-white/10 pb-3'>

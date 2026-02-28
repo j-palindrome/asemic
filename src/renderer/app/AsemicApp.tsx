@@ -14,8 +14,6 @@ import {
   Undo,
   Upload,
   Settings,
-  Wifi,
-  WifiOff,
   Check,
   Camera,
   Play
@@ -45,7 +43,6 @@ import { listen } from '@tauri-apps/api/event'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
-import WebRTCStream from '../components/WebRTCStream'
 import ScenePicker from '../components/ScenePicker'
 import { useAsemicStore } from '../store/asemicStore'
 
@@ -302,8 +299,14 @@ function AsemicAppInner({
                 oscAddress:
                   globalSettings.params[paramName]?.oscPath ?? '/' + paramName,
                 oscTargets: [
-                  { host: 'localhost', port: 57120 },
-                  { host: 'localhost', port: 57110 }
+                  ...(globalSettings.sendTo
+                    ? Object.values(globalSettings.sendTo)
+                        .filter(t => t.type === 'osc')
+                        .map(t => ({
+                          host: t.host,
+                          port: t.port
+                        }))
+                    : [])
                 ],
                 sceneMetadata: scene
               }
@@ -467,7 +470,6 @@ function AsemicAppInner({
   >(null)
   const [presetInterpolation, setPresetInterpolation] = useState(0)
   const presetFromRef = useRef<Record<string, number[]> | null>(null)
-  const [showWebRTC, setShowWebRTC] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
 
   // Interpolate between saved ref params and target preset
@@ -523,9 +525,11 @@ function AsemicAppInner({
         ...currentScrub,
         params: { ...newValues[focusedScene].params, ...interpolatedParams }
       }
-      for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+      for (let sendTo of Object.values(globalSettings.sendTo || {}).filter(
+        t => t.type === 'sync'
+      )) {
         invoke('emit_osc_event', {
-          targetAddr: `${sendTo.host}:${9000}`,
+          targetAddr: `${sendTo.host}:9000`,
           eventName: '/params',
           data: JSON.stringify({
             params: interpolatedParams,
@@ -657,13 +661,6 @@ function AsemicAppInner({
                 </span>
               </button>
             )}
-
-            <JsonFileLoader
-              sceneList={scenesArray}
-              setSceneList={setScenesArray}
-              globalSettings={globalSettings}
-              setGlobalSettings={setGlobalSettings}
-            />
             <div className='flex'>
               <button
                 onClick={() => setMode('globalSettings')}
@@ -681,16 +678,6 @@ function AsemicAppInner({
                 {<Camera {...lucideProps} />}
               </button>
             </div>
-            <button
-              onClick={() => setShowWebRTC(!showWebRTC)}
-              title='WebRTC Stream'
-              className='p-1 hover:bg-white/10 rounded transition-colors'>
-              {showWebRTC ? (
-                <Wifi {...lucideProps} size={16} />
-              ) : (
-                <WifiOff {...lucideProps} size={16} />
-              )}
-            </button>
           </div>
           {mode === 'settings' && (
             <>
@@ -759,21 +746,6 @@ function AsemicAppInner({
               />
             </div>
           )}
-        </div>
-      )}
-      {showWebRTC && (
-        <div
-          id='tdSignaling'
-          className='fixed top-4 right-4 w-96 backdrop-blur border border-gray-700 rounded-lg shadow-lg p-4 z-100 max-h-[90vh] overflow-y-auto select-text'>
-          <button
-            onClick={() => setShowWebRTC(false)}
-            className='absolute top-2 right-2 p-1 hover:bg-white/10 rounded transition-colors'
-            title='Close'>
-            <span className='text-white text-lg opacity-70 hover:opacity-100'>
-              ×
-            </span>
-          </button>
-          <WebRTCStream roomId={null} />
         </div>
       )}
     </div>

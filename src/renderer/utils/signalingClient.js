@@ -8,20 +8,13 @@ class SignalingClient {
     this.connectedToServer = false
     this.clients = []
 
-    this.open(
-      address,
-      port,
-      reactSetWebsocketClientsHandler,
-      reactSetConnectedToServerHandler
-    )
-
     this.reactClientsHandler = reactSetWebsocketClientsHandler
     this.reactConnectedHandler = reactSetConnectedToServerHandler
 
     this.id = -1
   }
 
-  open(address, port, clientsHandler, connectedHandler) {
+  open(address, port) {
     this.webSocket = new WebSocket(address + ':' + port)
 
     this.webSocket.onopen = () => {
@@ -48,7 +41,7 @@ class SignalingClient {
   }
 
   close() {
-    this.webSocket.close()
+    this.webSocket?.close()
     // Make sur to call the react handler for proper state management
     this.reactConnectedHandler(false)
     this.reactClientsHandler([])

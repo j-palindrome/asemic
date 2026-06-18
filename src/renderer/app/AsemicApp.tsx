@@ -45,6 +45,7 @@ import ParamEditors from '../components/ParamEditors'
 import Scroller from '../components/Scrubber'
 import ScenePicker from '../components/ScenePicker'
 import { useAsemicStore } from '../store/asemicStore'
+import XYPad from '../components/XYPad'
 
 export type ScrubSettings = {
   params: Record<string, number[]>
@@ -291,7 +292,7 @@ function AsemicAppInner({
               continue
             }
             // if (paramName === '<interf></interf>ere') debugger
-            console.log('sending', paramName, value)
+            // console.log('sending', paramName, value)
             const newValue: any = await invoke<number>(
               'parser_eval_expression',
               {
@@ -722,7 +723,11 @@ function AsemicAppInner({
           {mode === 'perform' && (
             <>
               <div className='pointer-events-auto w-full h-[calc(100%-60px)] px-4 pb-4 absolute top-[60px] right-0'>
-                <ParamEditors
+                <XYPad
+                  globalSettings={globalSettings}
+                  setGlobalSettings={setGlobalSettings}
+                />
+                {/* <ParamEditors
                   globalSettings={globalSettings}
                   setGlobalSettings={setGlobalSettings}
                   selectedPreset={selectedPreset}
@@ -732,7 +737,7 @@ function AsemicAppInner({
                   setSelectedPresetType={setSelectedPresetType}
                   setPresetInterpolation={setPresetInterpolation}
                   presetFromRef={presetFromRef}
-                />
+                /> */}
               </div>
             </>
           )}

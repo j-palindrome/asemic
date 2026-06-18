@@ -205,9 +205,7 @@ async fn emit_osc_event(
 
     let socket =
         UdpSocket::bind("0.0.0.0:0").map_err(|e| format!("Failed to bind socket: {}", e))?;
-    socket
-        .send_to(&msg_buf, &format!("{}", target_addr))
-        .map_err(|e| format!("Failed to send OSC message: {}", e))?;
+    socket.send_to(&msg_buf, &format!("{}", target_addr));
 
     Ok(format!("Osc message {} {}", target_addr, event_name))
 }

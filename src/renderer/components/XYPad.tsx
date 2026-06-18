@@ -1,250 +1,261 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useAsemicStore } from '../store/asemicStore'
+import Slider from './Slider'
+import { GlobalSettings } from './SceneSettingsPanel'
+import { invoke } from '@tauri-apps/api/core'
+import { Y } from 'node_modules/react-router/dist/development/index-react-server-client-DRhjXpk2.mjs'
 
-export interface XYPadProps {
-  className?: string
-  innerClassName?: string
-  values: [number, number][]
-  onChange: (values: [number, number][], end?: boolean) => void
-  min: number
-  max: number
-  exponent?: number
-  color?: string
-}
-
-/**
- * XYPad is a multitouch-capable variation of Slider that handles
- * an array of [x, y] coordinates.
- */
 export default function XYPad({
-  className,
-  innerClassName,
-  values,
-  onChange,
-  min,
-  max,
-  exponent = 1,
-  color = '#F0F'
-}: XYPadProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const touchMap = useRef<Map<number, number>>(new Map())
-  const [, forceUpdate] = useState({}) // Used to trigger re-render for touch indicators
+  globalSettings,
+  setGlobalSettings
+}: {
+  globalSettings: GlobalSettings
+  setGlobalSettings: (settings: GlobalSettings) => void
+}) {
+  const focusedScene = useAsemicStore(state => state.focusedScene)
+  const scene = useAsemicStore(state => state.scenesArray[state.focusedScene])
+  const memoedPresets = useMemo(() => {
+    const presetLength = Object.keys(scene.presets || {}).length
+    let memoedPresets = {}
+    const presetKeys = Object.keys(scene.presets || {})
+    const angle = (1 / presetLength) * 2 * Math.PI
+    const radius = 0.5
 
-  const getRelativePosition = (clientX: number, clientY: number) => {
-    if (!containerRef.current) return { x: 0.5, y: 0.5 }
-    const rect = containerRef.current.getBoundingClientRect()
-    let x = (clientX - rect.left) / rect.width
-    let y = 1 - (clientY - rect.top) / rect.height
-    x = Math.max(0, Math.min(1, x))
-    y = Math.max(0, Math.min(1, y))
-    return { x, y }
-  }
-
-  const handleStart = (ev: React.TouchEvent | React.MouseEvent) => {
-    const newValues = values.map(v => [...v] as [number, number])
-    let changed = false
-
-    if ('changedTouches' in ev) {
-      const touchEv = ev as React.TouchEvent
-      const changedTouches = Array.from(touchEv.changedTouches)
-
-      changedTouches.forEach(touch => {
-        const pos = getRelativePosition(touch.clientX, touch.clientY)
-        const denormalized = [
-          exponent
-            ? pos.x ** exponent * (max - min) + min
-            : pos.x * (max - min) + min,
-          exponent
-            ? pos.y ** exponent * (max - min) + min
-            : pos.y * (max - min) + min
-        ] as [number, number]
-
-        // Find closest point to this touch to "claim" it
-        let closestIdx = -1
-        let minDistance = Infinity
-
-        values.forEach((v, idx) => {
-          // Check if this point is already being dragged by another touch
-          const isBeingDragged = Array.from(touchMap.current.values()).includes(
-            idx
-          )
-          if (isBeingDragged) return
-
-          const dist = Math.sqrt(
-            (v[0] - denormalized[0]) ** 2 + (v[1] - denormalized[1]) ** 2
-          )
-          if (dist < minDistance) {
-            minDistance = dist
-            closestIdx = idx
-          }
-        })
-
-        if (closestIdx !== -1) {
-          touchMap.current.set(touch.identifier, closestIdx)
-          newValues[closestIdx] = denormalized
-          changed = true
-        }
-      })
-    } else {
-      // Mouse support
-      const mouseEv = ev as React.MouseEvent
-      const pos = getRelativePosition(mouseEv.clientX, mouseEv.clientY)
-      const denormalized = [
-        exponent
-          ? pos.x ** exponent * (max - min) + min
-          : pos.x * (max - min) + min,
-        exponent
-          ? pos.y ** exponent * (max - min) + min
-          : pos.y * (max - min) + min
-      ] as [number, number]
-
-      let closestIdx = -1
-      let minDistance = Infinity
-      values.forEach((v, idx) => {
-        const dist = Math.sqrt(
-          (v[0] - denormalized[0]) ** 2 + (v[1] - denormalized[1]) ** 2
-        )
-        if (dist < minDistance) {
-          minDistance = dist
-          closestIdx = idx
-        }
-      })
-
-      if (closestIdx !== -1) {
-        touchMap.current.set(-1, closestIdx)
-        newValues[closestIdx] = denormalized
-        changed = true
+    const pointA: [number, number] = [1, 0.5]
+    const pointB: [number, number] = [
+      0.5 + radius * Math.cos(angle),
+      0.5 + radius * Math.sin(angle)
+    ]
+    const computedRadius =
+      Math.hypot(pointB[0] - pointA[0], pointB[1] - pointA[1]) / 2
+    for (let i = 0; i < presetKeys.length; i++) {
+      const key = presetKeys[i]
+      const angle = (i / presetLength) * 2 * Math.PI
+      const calcPosition = [
+        0.5 + radius * Math.cos(angle),
+        0.5 + radius * Math.sin(angle)
+      ]
+      memoedPresets[key] = {
+        ...scene.presets![key],
+        position: calcPosition,
+        radius: computedRadius
       }
     }
-
-    if (changed) {
-      onChange(newValues)
-      forceUpdate({})
-    }
-  }
-
-  const handleMove = useCallback(
-    (ev: TouchEvent | MouseEvent) => {
-      const newValues = values.map(v => [...v] as [number, number])
-      let changed = false
-
-      if (ev instanceof TouchEvent) {
-        Array.from(ev.touches).forEach(touch => {
-          const idx = touchMap.current.get(touch.identifier)
-          if (idx !== undefined) {
-            const pos = getRelativePosition(touch.clientX, touch.clientY)
-            newValues[idx] = [
-              exponent
-                ? pos.x ** exponent * (max - min) + min
-                : pos.x * (max - min) + min,
-              exponent
-                ? pos.y ** exponent * (max - min) + min
-                : pos.y * (max - min) + min
-            ] as [number, number]
-            changed = true
-          }
-        })
-      } else {
-        const idx = touchMap.current.get(-1)
-        if (idx !== undefined) {
-          const pos = getRelativePosition(ev.clientX, ev.clientY)
-          newValues[idx] = [
-            exponent
-              ? pos.x ** exponent * (max - min) + min
-              : pos.x * (max - min) + min,
-            exponent
-              ? pos.y ** exponent * (max - min) + min
-              : pos.y * (max - min) + min
-          ] as [number, number]
-          changed = true
-        }
-      }
-
-      if (changed) {
-        onChange(newValues)
-      }
-    },
-    [values, min, max, exponent, onChange]
+    return memoedPresets
+  }, [scene.presets])
+  const currentValues = useAsemicStore(
+    state => state.scrubValues[state.focusedScene]
   )
-
-  const handleEnd = useCallback(
-    (ev: TouchEvent | MouseEvent) => {
-      if (ev instanceof TouchEvent) {
-        Array.from(ev.changedTouches).forEach(touch => {
-          touchMap.current.delete(touch.identifier)
-        })
-      } else {
-        touchMap.current.delete(-1)
-      }
-      onChange(values, true)
-      forceUpdate({})
-    },
-    [values, onChange]
-  )
-
+  const currentValuesRef = useRef(currentValues)
   useEffect(() => {
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleEnd)
-    window.addEventListener('touchmove', handleMove, { passive: false })
-    window.addEventListener('touchend', handleEnd)
-    window.addEventListener('touchcancel', handleEnd)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleEnd)
-      window.removeEventListener('touchmove', handleMove)
-      window.removeEventListener('touchend', handleEnd)
-      window.removeEventListener('touchcancel', handleEnd)
+    currentValuesRef.current = currentValues
+  }, [currentValues])
+  const setScrubValues = useAsemicStore(state => state.setScrubValues)
+
+  const mostRecentSettings = useRef<Record<string, number[]>>(
+    currentValues.params
+  )
+  const mouseRef = useRef<HTMLDivElement>(null)
+  const lastFocusedPreset = useRef<string | null>(null)
+
+  const process = ({ x, y }: { x: number; y: number }) => {
+    let found: { preset: string; distance: number }[] = []
+
+    for (let [presetName, preset] of Object.entries(scene.presets || {})) {
+      const [px, py] = memoedPresets![presetName].position
+      const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2)
+      const distanceRatio = distance / memoedPresets![presetName].radius
+
+      if (distanceRatio < 1) {
+        found.push({ preset: presetName, distance: distanceRatio })
+      }
     }
-  }, [handleMove, handleEnd])
+    found.sort((a, b) => a.distance - b.distance)
 
-  const activeIndices = Array.from(touchMap.current.values())
+    const closest = found[0]
 
+    if (closest) {
+      if (closest.preset !== lastFocusedPreset.current) {
+        mostRecentSettings.current = currentValuesRef.current.params
+        lastFocusedPreset.current = closest.preset
+      }
+      const presetSettings = memoedPresets![closest.preset].params || {}
+
+      // Fade between mostRecentSettings and presetSettings
+      const fadedSettings: Record<string, number[]> = {}
+      const allKeys = new Set([
+        ...Object.keys(mostRecentSettings.current),
+        ...Object.keys(presetSettings)
+      ])
+
+      allKeys.forEach(key => {
+        const recent = mostRecentSettings.current[key]
+        if (!recent) return
+        const preset = presetSettings[key]
+        if (!preset) return
+        fadedSettings[key] = preset.map(
+          (x, i) => recent[i] + (x - recent[i]) * (1 - closest.distance)
+        )
+      })
+      setScrubValues(previous => {
+        const newPrevious = [...previous]
+        newPrevious[focusedScene] = {
+          ...newPrevious[focusedScene],
+          params: { ...newPrevious[focusedScene].params, ...fadedSettings }
+        }
+        return newPrevious
+      })
+    }
+  }
+
+  const processTouches = (e: React.TouchEvent) => {
+    const rect = (e.target as HTMLDivElement).getBoundingClientRect()
+    const x = (e.touches[0].clientX - rect.left) / rect.width
+    const y = (e.touches[0].clientY - rect.top) / rect.height
+    // console.log('mouse', x, y)
+    process({ x, y })
+  }
+  const processMouse = (e: React.MouseEvent) => {
+    if (e.buttons === 0) return
+    const rect = (e.target as HTMLDivElement).getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    process({ x, y })
+  }
   return (
     <div
-      ref={containerRef}
-      className={`relative bg-black/40 rounded-lg overflow-hidden select-none touch-none aspect-square border border-white/10 ${className}`}
-      onMouseDown={handleStart}
-      onTouchStart={handleStart}>
-      {/* Grid lines */}
-      <div className='absolute inset-0 grid grid-cols-4 grid-rows-4 pointer-events-none opacity-20'>
-        {[...Array(16)].map((_, i) => (
-          <div key={i} className='border-[0.5px] border-white/20' />
-        ))}
+      className='h-full w-full relative'
+      ref={mouseRef}
+      onMouseMove={processMouse}
+      onTouchMove={processTouches}
+      onMouseDown={() => {
+        mostRecentSettings.current = currentValues.params
+      }}>
+      <div className='absolute top-0 right-0 w-fit h-full flex gap-2'>
+        <Slider
+          className='w-6 h-full select-none'
+          min={0}
+          max={1}
+          exponent={1}
+          values={{ x: 0, y: currentValues.scrub ?? 0 }}
+          sliderStyle={({ y }) => ({
+            height: `${y * 100}%`,
+            left: '50%',
+            bottom: 0,
+            border: '1px solid white',
+            transform: 'translate(-50%, 0)',
+            width: '100%',
+            borderRadius: '2px',
+            backgroundColor: 'white',
+            position: 'absolute',
+            pointerEvents: 'none',
+            flex: 0
+          })}
+          onChange={({ y }) => {
+            setScrubValues(prev => {
+              const updated = [...prev]
+              updated[focusedScene] = {
+                ...updated[focusedScene],
+                scrub: y
+              }
+              return updated
+            })
+            for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+              try {
+                invoke('emit_osc_event', {
+                  targetAddr: `${sendTo.host}:${sendTo.port}`,
+                  eventName: '/params',
+                  data: JSON.stringify({
+                    scrub: y,
+                    scene: focusedScene
+                  })
+                })
+                  .catch(err => {
+                    console.error('Failed to emit OSC scene list:', err)
+                  })
+                  .then(res => {
+                    console.log('sent', res)
+                  })
+              } catch (err) {
+                console.error('Failed to emit OSC scene list:', err)
+              }
+            }
+          }}
+        />
+        <Slider
+          className='w-6 h-full select-none'
+          min={0}
+          max={1}
+          exponent={1}
+          values={{ x: 0, y: currentValues.fade ?? 0 }}
+          sliderStyle={({ y }) => ({
+            height: `${y * 100}%`,
+            left: '50%',
+            bottom: 0,
+            border: '1px solid white',
+            transform: 'translate(-50%, 0)',
+            width: '100%',
+            borderRadius: '2px',
+            backgroundColor: 'blue',
+            position: 'absolute',
+            pointerEvents: 'none',
+            flex: 0
+          })}
+          onChange={({ y }) => {
+            setScrubValues(prev => {
+              const updated = [...prev]
+              if (globalSettings.fadeMode === 'single') {
+                for (let i = 0; i < updated.length; i++) {
+                  if (updated[i].fade > 0 && i !== focusedScene) {
+                    updated[i] = {
+                      ...updated[i],
+                      fade: 1 - y
+                    }
+                  }
+                }
+              }
+              updated[focusedScene] = {
+                ...updated[focusedScene],
+                fade: y
+              }
+
+              return updated
+            })
+            for (let sendTo of Object.values(globalSettings.sendTo || {})) {
+              invoke('emit_osc_event', {
+                targetAddr: `${sendTo.host}:${sendTo.port}`,
+                eventName: '/params',
+                data: JSON.stringify({
+                  fade: y,
+                  scene: focusedScene
+                })
+              })
+                .catch(err => {
+                  console.error('Failed to emit OSC scene list:', err)
+                })
+                .then(async res => {
+                  const scrubValues = useAsemicStore.getState().scrubValues
+                  if (globalSettings.fadeMode === 'single') {
+                    for (let i = 0; i < scrubValues.length; i++) {
+                      if (i === focusedScene) continue
+                      const scene = scrubValues[i]
+                      if (scene.fade > 0) {
+                        await invoke('emit_osc_event', {
+                          targetAddr: `${sendTo.host}:${sendTo.port}`,
+                          eventName: '/params',
+                          data: JSON.stringify({
+                            fade: 1 - y,
+                            scene: i
+                          })
+                        })
+                      }
+                    }
+                  }
+                })
+            }
+          }}
+        />
       </div>
-
-      {values.map((v, i) => {
-        const nx = exponent
-          ? Math.max(
-              0,
-              Math.min(1, ((v[0] - min) / (max - min)) ** (1 / exponent))
-            )
-          : Math.max(0, Math.min(1, (v[0] - min) / (max - min)))
-        const ny = exponent
-          ? Math.max(
-              0,
-              Math.min(1, ((v[1] - min) / (max - min)) ** (1 / exponent))
-            )
-          : Math.max(0, Math.min(1, (v[1] - min) / (max - min)))
-
-        const isActive = activeIndices.includes(i)
-
-        return (
-          <div
-            key={i}
-            className={`absolute w-8 h-8 -ml-4 -mb-4 rounded-full border border-white shadow-xl pointer-events-none flex items-center justify-center transition-transform ${innerClassName}`}
-            style={{
-              left: `${nx * 100}%`,
-              bottom: `${ny * 100}%`,
-              backgroundColor: color,
-              transform: isActive ? 'scale(1.3)' : 'scale(1)',
-              zIndex: isActive ? 10 : 1,
-              opacity: isActive ? 1 : 0.8
-            }}>
-            <span className='text-[12px] text-white font-mono font-bold drop-shadow-md'>
-              {i}
-            </span>
-          </div>
-        )
-      })}
     </div>
   )
 }

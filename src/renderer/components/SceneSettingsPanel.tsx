@@ -43,7 +43,14 @@ export interface SceneSettings {
   pause?: number | false
   params: Record<string, ParamConfig>
   globalParams?: Record<string, SceneParamConfig>
-  presets?: Record<string, { params: Record<string, number[]> }>
+  presets?: Record<
+    string,
+    {
+      params: Record<string, number[]>
+      position: [number, number]
+      radius: number
+    }
+  >
   oscGroups?: Array<{
     osc?: Array<{
       name: string
@@ -113,6 +120,12 @@ export default function SceneSettingsPanel({
     string | null
   >(null)
   const [renameGlobalPresetValue, setRenameGlobalPresetValue] = useState('')
+  const [editingPresetPosition, setEditingPresetPosition] = useState<
+    string | null
+  >(null)
+  const [editingPresetPositionX, setEditingPresetPositionX] = useState(0)
+  const [editingPresetPositionY, setEditingPresetPositionY] = useState(0)
+  const [editingPresetRadius, setEditingPresetRadius] = useState(0)
   const editorRef = useRef<AsemicEditorRef | null>(null)
   const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -188,7 +201,11 @@ export default function SceneSettingsPanel({
       ...sceneList[activeScene],
       presets: {
         ...(sceneList[activeScene].presets || {}),
-        [presetName]: { params: currentParams }
+        [presetName]: {
+          params: currentParams,
+          position: [0.5, 0.5],
+          radius: 0.5
+        }
       }
     })
     setNewPresetName('')
@@ -214,6 +231,25 @@ export default function SceneSettingsPanel({
       ...sceneList[activeScene],
       presets: newPresets
     })
+  }
+
+  const handleUpdatePresetPosition = (presetName: string) => {
+    const newPresets = { ...sceneList[activeScene].presets }
+    if (newPresets[presetName]) {
+      newPresets[presetName] = {
+        ...newPresets[presetName],
+        position: [editingPresetPositionX, editingPresetPositionY],
+        radius: editingPresetRadius
+      }
+      onUpdate({
+        ...sceneList[activeScene],
+        presets: newPresets
+      })
+    }
+    setEditingPresetPosition(null)
+    setEditingPresetPositionX(0)
+    setEditingPresetPositionY(0)
+    setEditingPresetRadius(0)
   }
 
   const handleRenamePreset = (oldName: string) => {
@@ -1291,6 +1327,26 @@ export default function SceneSettingsPanel({
                       Rename
                     </button>
                     <button
+                      onClick={() => {
+                        setEditingPresetPosition(presetName)
+                        setEditingPresetPositionX(
+                          sceneList[activeScene].presets?.[presetName]
+                            ?.position?.[0] ?? 0.5
+                        )
+                        setEditingPresetPositionY(
+                          sceneList[activeScene].presets?.[presetName]
+                            ?.position?.[1] ?? 0.5
+                        )
+                        setEditingPresetRadius(
+                          sceneList[activeScene].presets?.[presetName]
+                            ?.radius ?? 0.5
+                        )
+                      }}
+                      className='text-white/50 hover:text-white text-xs px-2 py-0.5 bg-white/10 rounded'
+                      title='Edit this preset position and radius'>
+                      Edit Settings
+                    </button>
+                    <button
                       onClick={() => handleDeletePreset(presetName)}
                       className='text-white/50 hover:text-red-400 text-xs px-2 py-0.5 bg-white/10 rounded'
                       title='Delete this preset'>
@@ -1333,6 +1389,80 @@ export default function SceneSettingsPanel({
                         className='text-white/50 hover:text-white text-xs'>
                         ✕
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Position Dialog */}
+                {editingPresetPosition === presetName && (
+                  <div className='mt-2 p-2 bg-white/10 rounded border border-white/30'>
+                    <div className='space-y-2'>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          Position X:
+                        </span>
+                        <input
+                          type='number'
+                          placeholder='X position'
+                          value={editingPresetPositionX}
+                          onChange={e =>
+                            setEditingPresetPositionX(
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          step='0.01'
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>
+                          Position Y:
+                        </span>
+                        <input
+                          type='number'
+                          placeholder='Y position'
+                          value={editingPresetPositionY}
+                          onChange={e =>
+                            setEditingPresetPositionY(
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          step='0.01'
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-white/70 text-xs'>Radius:</span>
+                        <input
+                          type='number'
+                          placeholder='Radius'
+                          value={editingPresetRadius}
+                          onChange={e =>
+                            setEditingPresetRadius(
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          step='0.01'
+                          className='flex-1 bg-white/10 text-white px-2 py-1 rounded text-xs border border-white/20'
+                        />
+                      </div>
+                      <div className='flex items-center gap-2 justify-end'>
+                        <button
+                          onClick={() => handleUpdatePresetPosition(presetName)}
+                          className='text-white bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded text-xs'>
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingPresetPosition(null)
+                            setEditingPresetPositionX(0)
+                            setEditingPresetPositionY(0)
+                            setEditingPresetRadius(0)
+                          }}
+                          className='text-white/50 hover:text-white text-xs'>
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

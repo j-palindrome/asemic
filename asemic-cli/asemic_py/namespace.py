@@ -491,11 +491,11 @@ class Repl:
                 tgt = resolve_path(self.label, target or "voice").replace("/", "_")
                 # Default property mapping if not explicitly provided
                 prop_map = map or {"pitch": "notePitch", "dur": "noteDur"}
-                set_args = ", ".join(f"\\{sc_ctrl}, note[\\{attr}]" for attr, sc_ctrl in prop_map.items())
-                default_onset = f"{{ |note| Ndef(\\{tgt}).set({set_args}, \\trig, 1) }}"
+                set_args = ", ".join(f"\\\\{sc_ctrl}, note[\\\\{attr}]" for attr, sc_ctrl in prop_map.items())
+                default_onset = f"{{ |note| Ndef(\\\\{tgt}).set({set_args}, \\\\t_trig, 1, \\\\trig, 1) }}"
                 onset_str = onset if onset else default_onset
                 offset_str = f"{{ |note| {offset} }}" if offset else "nil"
-                code = f"(target: \\{tgt}, onset: {onset_str}, offset: {offset_str})"
+                code = f"(target: \\\\{tgt}, onset: {onset_str}, offset: {offset_str})"
 
             params = dict(p or {})
             if input is not None and "buf" not in params:
@@ -518,44 +518,50 @@ class Repl:
                         else:
                             self.c.put("asemic/out/supercollider/nset", [name, k, v])
 
-            # If input is provided, auto-subscribe to the gen multiarray and forward updates
+            # If input is provided, define frame handler for forwarding multiarray updates
             gen_sub = None
-            if input is not None:
-                src_key = resolve_path(self.label, input)
-                gen_key = f"asemic/gen/{src_key}"
-                CHUNK_SIZE = 50
-                def on_gen_frame(k: str, b: bytes):
-                    try:
-                        from asemic_py.points import decode_points
-                        pts = decode_points(b)
-                        lines = pts.lines()
-                        if lines:
-                            flat_pts = lines[0]
-                            # Chunk pdef to stay well under UDP MTU (9216 bytes on macOS)
-                            total_chunks = (len(flat_pts) + CHUNK_SIZE - 1) // CHUNK_SIZE
-                            if total_chunks <= 1:
+            src_key = resolve_path(self.label, input) if input is not None else None
+            gen_key = f"asemic/gen/{src_key}" if src_key is not None else None
+            CHUNK_SIZE = 50
+
+            def on_gen_frame(k: str, b: bytes):
+                try:
+                    from asemic_py.points import decode_points
+                    pts = decode_points(b)
+                    lines = pts.lines()
+                    if lines:
+                        flat_pts = lines[0]
+                        # Chunk pdef to stay well under UDP MTU (9216 bytes on macOS)
+                        total_chunks = (len(flat_pts) + CHUNK_SIZE - 1) // CHUNK_SIZE
+                        if total_chunks <= 1:
+                            if str(type).lower() == "tdef":
+                                self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(flat_pts), 0, 1])
+                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", to_sc(flat_pts)])
+                        else:
+                            for c_idx in range(total_chunks):
+                                chunk = flat_pts[c_idx * CHUNK_SIZE : (c_idx + 1) * CHUNK_SIZE]
                                 if str(type).lower() == "tdef":
-                                    self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(flat_pts), 0, 1])
-                                self.c.put("asemic/out/supercollider/bdef", [name, "buf", to_sc(flat_pts)])
-                            else:
-                                for c_idx in range(total_chunks):
-                                    chunk = flat_pts[c_idx * CHUNK_SIZE : (c_idx + 1) * CHUNK_SIZE]
-                                    if str(type).lower() == "tdef":
-                                        self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(chunk), c_idx, total_chunks])
-                    except Exception:
-                        pass
-                gen_sub = self.c.subscribe_raw(gen_key, on_gen_frame)
+                                    self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(chunk), c_idx, total_chunks])
+                except Exception:
+                    pass
 
             def send_free():
+                nonlocal gen_sub
                 if gen_sub is not None:
                     try:
                         gen_sub.undeclare()
                     except Exception:
                         pass
+                    gen_sub = None
                 self.c.put("asemic/out/supercollider/free", [name])
 
-            self._guard_row(key, send_def, send_free)
-            send_def()
+            def start_row():
+                nonlocal gen_sub
+                send_def()
+                if gen_key is not None and gen_sub is None:
+                    gen_sub = self.c.subscribe_raw(gen_key, on_gen_frame)
+
+            self._guard_row(key, start_row, send_free)
 
         self.ns.update(
             embed=embed, block=block, client=self.c, orca=orca, proc=proc, affinity=affinity, sc=sc,

@@ -45,53 +45,47 @@ s.waitForBoot {
             if(fn.isNil) { brain.sendMsg("/error", msg[1], "tdef code did not compile") } {
                 var wrapped = { |ev|
                     var id = msg[1].asSymbol;
+                    var pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
                     var stream, note, target;
                     // Event dictionary with hook points: onset, offset, note
                     if(fn.isKindOf(Dictionary)) {
-                        loop {
-                            var pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
-                            if(pts.isEmpty) {
-                                0.05.wait;
-                            } {
-                                stream = Pseq(pts, 1).asStream;
-                                target = fn[\target];
-                                while { (note = stream.next(())).notNil } {
-                                    if(fn[\onset].notNil) {
-                                        fn[\onset].value(note);
-                                    } {
-                                        if(target.notNil) {
-                                            Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \trig, 1);
-                                        };
+                        target = fn[\target];
+                        if(pts.notEmpty) {
+                            stream = Pseq(pts, 1).asStream;
+                            while { (note = stream.next(())).notNil } {
+                                if(fn[\onset].notNil) {
+                                    fn[\onset].value(note);
+                                } {
+                                    if(target.notNil) {
+                                        Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \trig, 1);
                                     };
-                                    (note[\dur] ? 0.25).wait;
-                                    if(fn[\offset].notNil) {
-                                        fn[\offset].value(note);
-                                    };
+                                };
+                                (note[\dur] ? 0.25).wait;
+                                if(fn[\offset].notNil) {
+                                    fn[\offset].value(note);
                                 };
                             };
                         };
                     } {
                         // Function style: single arg = per-note callback, multi arg = raw stream
                         if(fn.def.argNames.size == 1) {
-                            loop {
-                                var pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
-                                if(pts.isEmpty) {
-                                    0.05.wait;
-                                } {
-                                    stream = Pseq(pts, 1).asStream;
-                                    while { (note = stream.next(())).notNil } {
-                                        fn.value(note);
-                                        (note[\dur] ? 0.25).wait;
-                                    };
+                            if(pts.notEmpty) {
+                                stream = Pseq(pts, 1).asStream;
+                                while { (note = stream.next(())).notNil } {
+                                    fn.value(note);
+                                    (note[\dur] ? 0.25).wait;
                                 };
                             };
                         } {
-                            fn.value(~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [], ev);
+                            fn.value(pts, ev);
                         };
                     };
                 };
-                Tdef(msg[1].asSymbol, wrapped).play;
-                brain.sendMsg("/playing", msg[1]);
+                Tdef(msg[1].asSymbol, wrapped);
+                if((~asemic_points[msg[1].asSymbol] ? ~asemic_points[(msg[1].asString ++ "_buf").asSymbol] ? []).notEmpty) {
+                    Tdef(msg[1].asSymbol).play;
+                    brain.sendMsg("/playing", msg[1]);
+                };
             }
         }
         { path == "/pdef" } {
@@ -127,6 +121,11 @@ s.waitForBoot {
                 ~asemic_points[fullKey] = pts;
                 ~asemic_points[key] = pts;
                 brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
+                // Trigger/restart Tdef on newly populated sequence points
+                if(Tdef(id).notNil and: { pts.notEmpty }) {
+                    Tdef(id).play;
+                    brain.sendMsg("/playing", msg[1]);
+                };
             };
         }
         { path == "/bdef" } {

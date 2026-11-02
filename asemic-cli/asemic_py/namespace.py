@@ -489,13 +489,13 @@ class Repl:
             # Build zero-code / hook-driven Tdef dictionary when code is omitted
             if code is None and str(type).lower() == "tdef":
                 tgt = resolve_path(self.label, target or "voice").replace("/", "_")
-                # Default property mapping if not explicitly provided
+                # Default property mapping if not explicitly provided (using single quotes for SC symbols)
                 prop_map = map or {"pitch": "notePitch", "dur": "noteDur"}
-                set_args = ", ".join(f"\\\\{sc_ctrl}, note[\\\\{attr}]" for attr, sc_ctrl in prop_map.items())
-                default_onset = f"{{ |note| Ndef(\\\\{tgt}).set({set_args}, \\\\t_trig, 1, \\\\trig, 1) }}"
+                set_args = ", ".join(f"'{sc_ctrl}', note['{attr}']" for attr, sc_ctrl in prop_map.items())
+                default_onset = f"{{ |note| Ndef('{tgt}').set({set_args}, 't_trig', 1, 'trig', 1) }}"
                 onset_str = onset if onset else default_onset
                 offset_str = f"{{ |note| {offset} }}" if offset else "nil"
-                code = f"(target: \\\\{tgt}, onset: {onset_str}, offset: {offset_str})"
+                code = f"(target: '{tgt}', onset: {onset_str}, offset: {offset_str})"
 
             params = dict(p or {})
             if input is not None and "buf" not in params:

@@ -1635,15 +1635,17 @@ class AsemicApp(TreeNavApp):
         self.client.put(ids.block_timestretch(label), value)
 
         try:
-            # starting an unevaluated block = run it; else just re-apply the scope value
-            if value != 0.0 and label not in self.repl.ran:
+            # starting an unevaluated block or playing = run subtree so child blocks mount & play
+            if value != 0.0:
                 out = self.repl.run_tree(doc, p)
                 if out.strip():
                     self.log_line(out.rstrip())
+                # Step the block and all child blocks recursively so initial frames cook
+                for sub_p, _ in doc.walk(p):
+                    if doc.is_nest(sub_p):
+                        self.client.put(ids.block_step(doc.label(sub_p)), {})
             else:
                 self.repl.pause_nest(doc, p)
-            if value != 0.0:
-                self.client.put(ids.block_step(label), {})
         except Exception as e:
             self.doc.run_errors[p] = f"timestretch: {e}"  # error view under the row
             self.doc._touch()

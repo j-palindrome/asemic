@@ -560,6 +560,13 @@ class Repl:
                 send_def()
                 if gen_key is not None and gen_sub is None:
                     gen_sub = self.c.subscribe_raw(gen_key, on_gen_frame)
+                    # Pull and deliver the current frame immediately so playback doesn't wait for next cook
+                    try:
+                        cur = self.c.get(gen_key, timeout=0.5)
+                        if cur and cur[0][1]:
+                            on_gen_frame(gen_key, cur[0][1])
+                    except Exception:
+                        pass
 
             self._guard_row(key, start_row, send_free)
 

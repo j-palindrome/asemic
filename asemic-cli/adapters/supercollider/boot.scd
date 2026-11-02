@@ -2,10 +2,7 @@
 (
 var brain = NetAddr("127.0.0.1", 57130);
 s.waitForBoot {
-    // Compiled SynthDef (filtered saw, cutoff tracks freq) replaces the bare SinOsc oscillator;
-    // the running Synth's own .set keeps the existing `/set/<name>` OSC router (freq/amp + new
-    // cutoff/res) working unchanged.
-    var voice;
+    // Compile SynthDef for legacy /set/<name> control; do not run an un-gated Synth on boot
     SynthDef(\asemicVoice, { |freq = 220, amp = 0.1, cutoff = 1200, res = 0.3, out = 0|
         var sig = Saw.ar(freq.lag(0.05));
         sig = RLPF.ar(sig, cutoff.lag(0.05).clip(20, 18000), res.clip(0.05, 1.0));
@@ -13,7 +10,6 @@ s.waitForBoot {
     }).add;
 
     s.sync;
-    voice = Synth(\asemicVoice);
 
     // Buffer registry for multiarray data: ~asemic_buffers[bufKey] = Buffer
     ~asemic_buffers = Dictionary.new;
@@ -39,7 +35,10 @@ s.waitForBoot {
     thisProcess.addOSCRecvFunc({ |msg|
         var path = msg[0].asString, fn;
         case
-        { path.beginsWith("/set/") } { voice.set(path.drop(5).asSymbol, msg[1]) }
+        { path.beginsWith("/set/") } {
+            if(~asemic_voice.isNil) { ~asemic_voice = Synth(\asemicVoice) };
+            ~asemic_voice.set(path.drop(5).asSymbol, msg[1]);
+        }
         { path == "/status" } {
             s.serverRunning.if({
                 brain.sendMsg("/status_reply", s.numSynths, s.numGroups, s.avgCPU, Ndef.all.size);

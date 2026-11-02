@@ -555,6 +555,7 @@ class Repl:
                 self.c.put("asemic/out/supercollider/free", [name])
 
             self._guard_row(key, send_def, send_free)
+            send_def()
 
         self.ns.update(
             embed=embed, block=block, client=self.c, orca=orca, proc=proc, affinity=affinity, sc=sc,

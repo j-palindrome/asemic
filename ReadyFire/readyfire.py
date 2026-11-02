@@ -3,7 +3,7 @@
 # current document (saved in this folder); score.json is written here.
 
 
-with block("readyfire", loop="loop", timestretch="1.0"):
+with block("readyfire", loop="loop", timestretch="0.0"):
     # 1. Input motif seed row: 12-tone melodic/rhythmic birdcall motif (pitch_offset, dur_seconds)
     def bird_motif(p):
         # Rapid, chirping birdcall gestures modeled after SuperCollider call patch
@@ -29,9 +29,9 @@ with block("readyfire", loop="loop", timestretch="1.0"):
 
     # 1.1.2.1 SuperCollider Ndef: audio rate synth voice
     sc("voice", """
-{ |trig = 0, notePitch = 60, noteDur = 0.5, amp = 0.2|
-    var t = trig.max(0);
-    var env = EnvGen.kr(Env.perc(0.01, (noteDur * 0.8).clip(0.05, 4.0)), t);
+{ |t_trig = 0, trig = 0, notePitch = 60, noteDur = 0.5, amp = 0.2|
+    var tr = t_trig + trig;
+    var env = EnvGen.kr(Env.perc(0.01, (noteDur * 0.8).clip(0.05, 4.0)), tr);
     var freq = notePitch.midicps;
     var sig = VarSaw.ar(freq, 0, 0.3) * env;
     sig = MoogFF.ar(sig, (freq * 3).clip(100, 12000), 1.5);

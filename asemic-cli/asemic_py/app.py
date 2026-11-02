@@ -1632,20 +1632,24 @@ class AsemicApp(TreeNavApp):
 
         doc.set_timestretch(p, value)
         label = doc.label(p)
-        self.client.put(ids.block_timestretch(label), value)
 
         try:
-            # starting an unevaluated block or playing = run subtree so child blocks mount & play
+            # 1. First, when starting/playing: load and mount the entire recursive block tree
             if value != 0.0:
                 out = self.repl.run_tree(doc, p)
                 if out.strip():
                     self.log_line(out.rstrip())
+            else:
+                self.repl.pause_nest(doc, p)
+
+            # 2. THEN, once all recursive blocks are fully loaded & registered, set timestretch & trigger processing
+            self.client.put(ids.block_timestretch(label), value)
+
+            if value != 0.0:
                 # Step the block and all child blocks recursively so initial frames cook
                 for sub_p, _ in doc.walk(p):
                     if doc.is_nest(sub_p):
                         self.client.put(ids.block_step(doc.label(sub_p)), {})
-            else:
-                self.repl.pause_nest(doc, p)
         except Exception as e:
             self.doc.run_errors[p] = f"timestretch: {e}"  # error view under the row
             self.doc._touch()

@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "asemic-cli/crates/*",
+    "asemic-cli/adapters/*/crate",
+]
+default-members = [
+    "asemic-cli/crates/schema",
+    "asemic-cli/crates/brain",
+    "asemic-cli/crates/draw",
+    "asemic-cli/crates/font",
+    "asemic-cli/adapters/*/crate",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+zenoh = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+schemars = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

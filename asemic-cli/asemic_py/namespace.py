@@ -523,6 +523,7 @@ class Repl:
             if input is not None:
                 src_key = resolve_path(self.label, input)
                 gen_key = f"asemic/gen/{src_key}"
+                CHUNK_SIZE = 50
                 def on_gen_frame(k: str, b: bytes):
                     try:
                         from asemic_py.points import decode_points
@@ -530,9 +531,17 @@ class Repl:
                         lines = pts.lines()
                         if lines:
                             flat_pts = lines[0]
-                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", to_sc(flat_pts)])
-                            if str(type).lower() == "tdef":
-                                self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(flat_pts)])
+                            # Chunk pdef to stay well under UDP MTU (9216 bytes on macOS)
+                            total_chunks = (len(flat_pts) + CHUNK_SIZE - 1) // CHUNK_SIZE
+                            if total_chunks <= 1:
+                                if str(type).lower() == "tdef":
+                                    self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(flat_pts), 0, 1])
+                                self.c.put("asemic/out/supercollider/bdef", [name, "buf", to_sc(flat_pts)])
+                            else:
+                                for c_idx in range(total_chunks):
+                                    chunk = flat_pts[c_idx * CHUNK_SIZE : (c_idx + 1) * CHUNK_SIZE]
+                                    if str(type).lower() == "tdef":
+                                        self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(chunk), c_idx, total_chunks])
                     except Exception:
                         pass
                 gen_sub = self.c.subscribe_raw(gen_key, on_gen_frame)

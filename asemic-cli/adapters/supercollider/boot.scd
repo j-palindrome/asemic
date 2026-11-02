@@ -19,13 +19,15 @@ s.waitForBoot {
     ~asemic_buffers = Dictionary.new;
     // Multiarray points registry: ~asemic_points[key] = Array of dictionaries / points
     ~asemic_points = Dictionary.new;
+    // Multiarray chunk assembly staging
+    ~asemic_chunks = Dictionary.new;
 
     // asemic/out/supercollider/set/<name> = value
     // sc() rows (asemic_py/namespace.py):
     //   /def [id, code] = Ndef(id, code.interpret)
     //   /tdef [id, code] = Tdef(id, code.interpret).play
     //   /bdef [id, key, flat_data_json_or_array] = allocate / update Buffer
-    //   /pdef [id, key, flat_data_json_or_array] = set sequence points array
+    //   /pdef [id, key, flat_data_json_or_array, chunk_idx, total_chunks] = set sequence points array
     //   /map [dst_id, param, src_id] = Ndef(dst_id).map(param, Ndef(src_id))
     //   /nset [id, param, value]; free [id]
     thisProcess.addOSCRecvFunc({ |msg|
@@ -45,45 +47,49 @@ s.waitForBoot {
             if(fn.isNil) { brain.sendMsg("/error", msg[1], "tdef code did not compile") } {
                 var wrapped = { |ev|
                     var id = msg[1].asSymbol;
-                    var pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
-                    var stream, note, target;
-                    // Event dictionary with hook points: onset, offset, note
-                    if(fn.isKindOf(Dictionary)) {
-                        target = fn[\target];
+                    var stream, note, target, pts, idx;
+                    // Continuously play sequence while block is active
+                    while {
+                        pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
                         if(pts.notEmpty) {
-                            stream = Pseq(pts, 1).asStream;
-                            while { (note = stream.next(())).notNil } {
-                                if(fn[\onset].notNil) {
-                                    fn[\onset].value(note);
+                            idx = 0;
+                            while { idx < pts.size } {
+                                note = pts[idx];
+                                if(fn.isKindOf(Dictionary)) {
+                                    target = fn[\target];
+                                    if(fn[\onset].notNil) {
+                                        fn[\onset].value(note);
+                                    } {
+                                        if(target.notNil) {
+                                            Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \trig, 1);
+                                        };
+                                    };
+                                    (note[\dur] ? 0.25).wait;
+                                    if(fn[\offset].notNil) {
+                                        fn[\offset].value(note);
+                                    };
                                 } {
-                                    if(target.notNil) {
-                                        Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \trig, 1);
+                                    if(fn.def.argNames.size == 1) {
+                                        fn.value(note);
+                                        (note[\dur] ? 0.25).wait;
+                                    } {
+                                        fn.value(pts, ev);
+                                        idx = pts.size; // done for raw stream
                                     };
                                 };
-                                (note[\dur] ? 0.25).wait;
-                                if(fn[\offset].notNil) {
-                                    fn[\offset].value(note);
-                                };
+                                idx = idx + 1;
+                                // Re-check pts in case updated mid-sequence
+                                pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? pts;
                             };
                         };
-                    } {
-                        // Function style: single arg = per-note callback, multi arg = raw stream
-                        if(fn.def.argNames.size == 1) {
-                            if(pts.notEmpty) {
-                                stream = Pseq(pts, 1).asStream;
-                                while { (note = stream.next(())).notNil } {
-                                    fn.value(note);
-                                    (note[\dur] ? 0.25).wait;
-                                };
-                            };
-                        } {
-                            fn.value(pts, ev);
-                        };
+                        true;
                     };
                 };
                 Tdef(msg[1].asSymbol, wrapped);
                 if((~asemic_points[msg[1].asSymbol] ? ~asemic_points[(msg[1].asString ++ "_buf").asSymbol] ? []).notEmpty) {
-                    Tdef(msg[1].asSymbol).play;
+                    if(Tdef(msg[1].asSymbol).isPlaying.not) {
+                        Tdef(msg[1].asSymbol).play;
+                    };
                     brain.sendMsg("/playing", msg[1]);
                 };
             }
@@ -93,6 +99,8 @@ s.waitForBoot {
             var key = msg[2].asSymbol;
             var fullKey = (id ++ "_" ++ key).asSymbol;
             var raw = msg[3].asString;
+            var chunkIdx = if(msg.size > 4) { msg[4].asInteger } { 0 };
+            var totalChunks = if(msg.size > 5) { msg[5].asInteger } { 1 };
             var data = raw.interpret;
             if(data.isNil) {
                 data = raw.split($,).collect({ |s| s.stripWhiteSpace.asFloat });
@@ -118,13 +126,30 @@ s.waitForBoot {
                         };
                     };
                 };
-                ~asemic_points[fullKey] = pts;
-                ~asemic_points[key] = pts;
-                brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
-                // Trigger/restart Tdef on newly populated sequence points
-                if(Tdef(id).notNil and: { pts.notEmpty }) {
-                    Tdef(id).play;
-                    brain.sendMsg("/playing", msg[1]);
+                if(totalChunks > 1) {
+                    var chunkList = ~asemic_chunks[fullKey] ? Array.newClear(totalChunks);
+                    chunkList[chunkIdx] = pts;
+                    ~asemic_chunks[fullKey] = chunkList;
+                    // If all chunks assembled, commit to ~asemic_points
+                    if(chunkList.every({ |c| c.notNil })) {
+                        pts = chunkList.flat;
+                        ~asemic_chunks[fullKey] = nil;
+                        ~asemic_points[fullKey] = pts;
+                        ~asemic_points[key] = pts;
+                        brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
+                        if(Tdef(id).notNil and: { pts.notEmpty and: { Tdef(id).isPlaying.not } }) {
+                            Tdef(id).play;
+                            brain.sendMsg("/playing", msg[1]);
+                        };
+                    };
+                } {
+                    ~asemic_points[fullKey] = pts;
+                    ~asemic_points[key] = pts;
+                    brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
+                    if(Tdef(id).notNil and: { pts.notEmpty and: { Tdef(id).isPlaying.not } }) {
+                        Tdef(id).play;
+                        brain.sendMsg("/playing", msg[1]);
+                    };
                 };
             };
         }

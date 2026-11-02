@@ -20,6 +20,23 @@ s.waitForBoot {
     // Conditions for waiting Tdefs
     ~asemic_conds = Dictionary.new;
 
+    ~updateBuffer = { |fullKey, id, key, flat, msg1, msg2|
+        var buf = ~asemic_buffers[fullKey];
+        if(buf.isNil or: { buf.numFrames != flat.size }) {
+            buf.free;
+            buf = Buffer.loadCollection(s, flat, action: { |b|
+                ~asemic_buffers[fullKey] = b;
+                Ndef(id).set(key, b.bufnum);
+                brain.sendMsg("/buf_ready", msg1, msg2, b.bufnum);
+            });
+        } {
+            buf.sendCollection(flat, action: { |b|
+                Ndef(id).set(key, b.bufnum);
+                brain.sendMsg("/buf_ready", msg1, msg2, b.bufnum);
+            });
+        };
+    };
+
     // asemic/out/supercollider/set/<name> = value
     // sc() rows (asemic_py/namespace.py):
     //   /def [id, code] = Ndef(id, code.interpret)
@@ -45,6 +62,39 @@ s.waitForBoot {
             }, {
                 brain.sendMsg("/status_reply", 0, 0, 0.0, 0);
             });
+        }
+        { path == "/inspect_bus" } {
+            var id = msg[1].asSymbol;
+            var ndef = Ndef(id);
+            if(ndef.notNil and: { ndef.bus.notNil }) {
+                var bus = ndef.bus;
+                var rate = ndef.rate;
+                var isMon = ndef.isMonitoring;
+                var ch = ndef.numChannels;
+                if(rate == \control) {
+                    bus.getn(bus.numChannels, { |vals|
+                        brain.sendMsg("/bus_reply", msg[1], rate.asString, ch, isMon.asInteger, vals.asString);
+                    });
+                } {
+                    // Audio rate bus: capture 64 audio samples to a temporary buffer and read back float values
+                    var sampleBuf = Buffer.alloc(s, 64, 1, { |b|
+                        var synth = {
+                            RecordBuf.ar(In.ar(bus.index, 1), b, loop: 0, doneAction: 2);
+                        }.play(target: RootNode(s), addAction: \addToTail);
+                        SystemClock.sched(0.05, {
+                            b.loadToFloatArray(count: 64, action: { |arr|
+                                var peak = arr.abs.maxItem;
+                                var sampleStr = arr.keep(8).round(0.0001).asString;
+                                brain.sendMsg("/bus_reply", msg[1], rate.asString, ch, isMon.asInteger, ("peak:" ++ peak.round(0.0001) ++ "; samples:" ++ sampleStr).asString);
+                                b.free;
+                            });
+                            nil;
+                        });
+                    });
+                };
+            } {
+                brain.sendMsg("/bus_reply", msg[1], "nil", 0, 0, "not found");
+            };
         }
         { path == "/dump_tree" } {
             var ndefList = Ndef.all.keys.asArray.asString;
@@ -74,8 +124,12 @@ s.waitForBoot {
         { path == "/def" } {
             fn = msg[2].asString.interpret;
             if(fn.isNil) { brain.sendMsg("/error", msg[1], "code did not compile") } {
-                Ndef(msg[1].asSymbol).fadeTime_(0.5);
-                Ndef(msg[1].asSymbol, fn).play;
+                var sym = msg[1].asSymbol;
+                Ndef(sym).fadeTime_(0.5);
+                Ndef(sym, fn);
+                if(Ndef(sym).isMonitoring.not) {
+                    Ndef(sym).play;
+                };
                 brain.sendMsg("/playing", msg[1]);
             }
         }
@@ -95,11 +149,15 @@ s.waitForBoot {
                             while { (note = stream.next(())).notNil } {
                                 if(fn.isKindOf(Dictionary)) {
                                     target = fn[\target];
+                                    if(target.notNil and: { Ndef(target).isMonitoring.not }) {
+                                        Ndef(target).play;
+                                    };
                                     if(fn[\onset].notNil) {
                                         fn[\onset].value(note);
                                     } {
                                         if(target.notNil) {
-                                            Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \t_trig, 1, \trig, 1);
+                                            ~step = (~step ? 0) + 1;
+                                            Ndef(target).set(\notePitch, note[\pitch], \noteDur, note[\dur], \trig, ~step);
                                         };
                                     };
                                     (note[\dur] ? 0.25).wait;
@@ -201,6 +259,8 @@ s.waitForBoot {
             var key = msg[2].asSymbol;
             var fullKey = (id ++ "_" ++ key).asSymbol;
             var raw = msg[3].asString;
+            var chunkIdx = if(msg.size > 4) { msg[4].asInteger } { 0 };
+            var totalChunks = if(msg.size > 5) { msg[5].asInteger } { 1 };
             var data = raw.interpret;
             if(data.isNil) {
                 // Try parsing numbers if space/comma separated
@@ -208,20 +268,17 @@ s.waitForBoot {
             };
             if(data.notNil and: { data.isArray }) {
                 var flat = data.flat.as(FloatArray);
-                var buf = ~asemic_buffers[fullKey];
-                if(buf.isNil or: { buf.numFrames != flat.size }) {
-                    buf.free;
-                    buf = Buffer.loadCollection(s, flat, action: { |b|
-                        ~asemic_buffers[fullKey] = b;
-                        // auto-set control on Ndef if it exists
-                        Ndef(id).set(key, b.bufnum);
-                        brain.sendMsg("/buf_ready", msg[1], msg[2], b.bufnum);
-                    });
+                if(totalChunks > 1) {
+                    var bufChunks = ~asemic_chunks[(fullKey ++ "_b").asSymbol] ? Array.newClear(totalChunks);
+                    bufChunks[chunkIdx] = flat;
+                    ~asemic_chunks[(fullKey ++ "_b").asSymbol] = bufChunks;
+                    if(bufChunks.every({ |c| c.notNil })) {
+                        flat = bufChunks.flat.as(FloatArray);
+                        ~asemic_chunks[(fullKey ++ "_b").asSymbol] = nil;
+                        ~updateBuffer.value(fullKey, id, key, flat, msg[1], msg[2]);
+                    };
                 } {
-                    buf.sendCollection(flat, action: { |b|
-                        Ndef(id).set(key, b.bufnum);
-                        brain.sendMsg("/buf_ready", msg[1], msg[2], b.bufnum);
-                    });
+                    ~updateBuffer.value(fullKey, id, key, flat, msg[1], msg[2]);
                 };
             };
         }

@@ -489,10 +489,10 @@ class Repl:
             # Build zero-code / hook-driven Tdef dictionary when code is omitted
             if code is None and str(type).lower() == "tdef":
                 tgt = resolve_path(self.label, target or "voice").replace("/", "_")
-                # Default property mapping if not explicitly provided (using single quotes for SC symbols)
+                # Default property mapping if not explicitly provided
                 prop_map = map or {"pitch": "notePitch", "dur": "noteDur"}
-                set_args = ", ".join(f"'{sc_ctrl}', note['{attr}']" for attr, sc_ctrl in prop_map.items())
-                default_onset = f"{{ |note| Ndef('{tgt}').set({set_args}, 't_trig', 1, 'trig', 1) }}"
+                set_args = ", ".join(f"'{sc_ctrl}', note['{attr}'.asSymbol]" for attr, sc_ctrl in prop_map.items())
+                default_onset = f"{{ |note| ~step = (~step ? 0) + 1; Ndef('{tgt}').set({set_args}, 'trig', ~step) }}"
                 onset_str = onset if onset else default_onset
                 offset_str = f"{{ |note| {offset} }}" if offset else "nil"
                 code = f"(target: '{tgt}', onset: {onset_str}, offset: {offset_str})"
@@ -531,17 +531,13 @@ class Repl:
                     lines = pts.lines()
                     if lines:
                         flat_pts = lines[0]
-                        # Chunk pdef to stay well under UDP MTU (9216 bytes on macOS)
                         total_chunks = (len(flat_pts) + CHUNK_SIZE - 1) // CHUNK_SIZE
-                        if total_chunks <= 1:
+                        for c_idx in range(total_chunks):
+                            chunk = flat_pts[c_idx * CHUNK_SIZE : (c_idx + 1) * CHUNK_SIZE]
+                            sc_chunk = to_sc(chunk)
                             if str(type).lower() == "tdef":
-                                self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(flat_pts), 0, 1])
-                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", to_sc(flat_pts)])
-                        else:
-                            for c_idx in range(total_chunks):
-                                chunk = flat_pts[c_idx * CHUNK_SIZE : (c_idx + 1) * CHUNK_SIZE]
-                                if str(type).lower() == "tdef":
-                                    self.c.put("asemic/out/supercollider/pdef", [name, "buf", to_sc(chunk), c_idx, total_chunks])
+                                self.c.put("asemic/out/supercollider/pdef", [name, "buf", sc_chunk, c_idx, total_chunks])
+                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", sc_chunk, c_idx, total_chunks])
                 except Exception:
                     pass
 

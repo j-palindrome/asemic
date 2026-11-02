@@ -1428,6 +1428,12 @@ class AsemicApp(TreeNavApp):
                 self._attrs[ident] = v if isinstance(v, dict) else None
             elif space == "preview_kind":
                 self._looks_dirty.add(ident)
+            elif space == "block_timestretch":
+                # Brain block timestretch changed -> update live block panel
+                if isinstance(v, (int, float)):
+                    for bp in self.query(BlockPanel):
+                        if bp.label == ident and bp.box is not None and not bp.box.has_focus:
+                            bp.box.value = float(v)
             elif space == "block_time":
                 if isinstance(v, (int, float)):
                     self._block_times[ident] = float(v)

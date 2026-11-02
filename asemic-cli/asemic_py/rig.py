@@ -97,11 +97,19 @@ def ensure_router() -> None:
 
 
 def _procs(name: str | None = None, cmd: str | None = None) -> list[psutil.Process]:
-    """Processes by exact name (pgrep -x) or cmdline regex (pgrep -f)."""
-    return [p for p in psutil.process_iter(["name", "cmdline"])
-            if p.pid != os.getpid()
-            and (name is None or p.info["name"] == name)
-            and (cmd is None or re.search(cmd, " ".join(p.info["cmdline"] or [])))]
+    """Processes by exact name (pgrep -x) or cmdline regex (pgrep -f). Excludes zombies."""
+    res = []
+    for p in psutil.process_iter(["name", "cmdline", "status"]):
+        if p.pid == os.getpid():
+            continue
+        try:
+            if p.status() == psutil.STATUS_ZOMBIE:
+                continue
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if (name is None or p.info["name"] == name) and (cmd is None or re.search(cmd, " ".join(p.info["cmdline"] or []))):
+            res.append(p)
+    return res
 
 
 def _signal(procs: list[psutil.Process], sig: str = "terminate") -> None:
@@ -136,18 +144,23 @@ def _watching() -> bool:
 
 def kill_brain() -> None:
     """cargo watch first (else it respawns one), then its brain; returns once the token drops."""
-    c = Client()
     try:
-        up = _brain_ready(c)
+        c = Client()
+    except Exception:
+        c = None
+    try:
+        up = _brain_ready(c) if c is not None else None
         gone = threading.Event()
-        c._subs.append(c.session.liveliness().declare_subscriber(
-            BRAIN_READY, lambda s: s.kind == zenoh.SampleKind.DELETE and gone.set()))
+        if c is not None:
+            c._subs.append(c.session.liveliness().declare_subscriber(
+                BRAIN_READY, lambda s: s.kind == zenoh.SampleKind.DELETE and gone.set()))
         _signal(_procs(cmd="cargo-watch.*asemic-brain"))
         _signal(_procs(cmd=f"target/{BRAIN.parent.name}/asemic-brain"))
-        if up.is_set():
-            gone.wait()
+        if up is not None and up.is_set():
+            gone.wait(5.0)
     finally:
-        c.close()
+        if c is not None:
+            c.close()
 
 
 def ensure_brain() -> None:

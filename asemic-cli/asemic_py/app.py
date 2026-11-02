@@ -1309,12 +1309,17 @@ class AsemicApp(TreeNavApp):
         # (post_message, !call_from_thread: the "cleared" message lands mid-eval, while this thread awaits a reply)
         self.client.subscribe_raw("asemic/err/*/**", cast(Any, lambda k, b: self.post_message(
             self.RowError(*k.split("/", 3)[2:4], b.decode()))))
-        # Keep LAST_FRAME warm globally across all preview streams (affinity/output/tex),
-        # so when the user enters/drills into a block, newly mounted BufferViews seed immediately.
+        # Keep LAST_FRAME warm globally across all preview & point streams (affinity/output/tex/procs),
+        # so when the user enters/drills into a block or cooks, newly mounted BufferViews seed immediately.
         def _cache_preview(k: str, b: bytes) -> None:
             ident = k.removeprefix(ids.PREVIEW_PREFIX)
             LAST_FRAME[ident] = b
         self.client.subscribe_raw("asemic/preview/**", _cache_preview)
+
+        def _cache_gen(k: str, b: bytes) -> None:
+            ident = k.removeprefix(ids.GEN_PREFIX)
+            LAST_FRAME[ident] = b
+        self.client.subscribe_raw("asemic/gen/**", _cache_gen)
         self._kick()  # drain what on_mount's initial gets queued
         self.query_one("#cols", BlockColumns).line.focus()
         self.log_line(

@@ -857,6 +857,11 @@ class BufferView(Vertical):
             w, h = max(1, self.size.width - 2), max(1, self.size.height - 2)
             self.client.put(
                 ids.preview_size(self.stream), {"cols": w, "rows": h})
+        # If a frame was already received or seeded from LAST_FRAME before layout settled size,
+        # redraw it at the newly-allocated content dimensions.
+        if (raw := LAST_FRAME.get(self.stream)) is not None:
+            self.latest = raw
+            self._draw()
 
     class Frame(Message):
         pass

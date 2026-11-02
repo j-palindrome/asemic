@@ -1642,6 +1642,8 @@ class AsemicApp(TreeNavApp):
                     self.log_line(out.rstrip())
             else:
                 self.repl.pause_nest(doc, p)
+            if value != 0.0:
+                self.client.put(ids.block_step(label), {})
         except Exception as e:
             self.doc.run_errors[p] = f"timestretch: {e}"  # error view under the row
             self.doc._touch()

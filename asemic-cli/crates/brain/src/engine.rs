@@ -395,8 +395,16 @@ impl Engine {
 
     /// Advance one frame.
     pub fn set_timestretch(&mut self, label: &str, ts: f64) {
-        self.timestretch.insert(label.into(), ts);
+        let prev = self.timestretch.insert(label.into(), ts).unwrap_or(0.0);
         self.blocks.entry(label.into()).or_default(); // ensure a playhead exists for this block
+        if prev == 0.0 && ts != 0.0 {
+            // Unfreezing block: trigger immediate rerun of child procs so generator output is fresh
+            for (id, slot) in self.procs.iter_mut() {
+                if Self::under(label)(id) {
+                    slot.source.rerun();
+                }
+            }
+        }
     }
 
     /// Play `label` for exactly one frame (COOK).
@@ -689,7 +697,7 @@ mod tests {
         let mut e = Engine::default();
         e.set_timestretch("main", 1.0);
         e.put_component(comp(
-            r#"{"id":"zp/lfo","type":"noise","gen":"lfo","freq":2}"#,
+            r#"{"id":"zp/lfo","type":"proc","proc":"lfo","params":{"freq":2}}"#,
         ));
         e.put_component(comp(r#"{"id":"zp/g","type":"param","min":0,"max":1,"anim":{"source":"zp/lfo","mode":"replace","depth":1}}"#));
         let g = |e: &mut Engine| puts(&e.step(0.05)).get("asemic/value/zp/g.value").cloned();
@@ -705,7 +713,7 @@ mod tests {
     fn step_block_plays_exactly_one_frame() {
         let mut e = Engine::default();
         e.put_component(comp(
-            r#"{"id":"zp/lfo","type":"noise","gen":"lfo","freq":2}"#,
+            r#"{"id":"zp/lfo","type":"proc","proc":"lfo","params":{"freq":2}}"#,
         ));
         e.put_component(comp(r#"{"id":"zp/g","type":"param","min":0,"max":1,"anim":{"source":"zp/lfo","mode":"replace","depth":1}}"#));
         let g = |e: &mut Engine| puts(&e.step(0.05)).get("asemic/value/zp/g.value").cloned();

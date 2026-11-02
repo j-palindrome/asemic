@@ -3,7 +3,7 @@
 # current document (saved in this folder); score.json is written here.
 
 
-with block("readyfire", loop="loop", timestretch="1.0"):
+with block("readyfire", loop="loop", timestretch="0.0"):
     # 1. Input motif seed row: 12-tone melodic/rhythmic birdcall motif (pitch_offset, dur_seconds)
     def bird_motif(p):
         # Rapid, chirping birdcall gestures modeled after SuperCollider call patch

@@ -1,0 +1,39 @@
+[package]
+name = "asemic-brain"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "asemic-brain"
+path = "src/main.rs"
+
+[dependencies]
+asemic-schema = { path = "../schema" }
+zenoh.workspace = true
+flume = "0.11"
+serde.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+noise = "0.9"
+asemic-font = { path = "../font" }
+rapier2d = "0.36"
+rustfft = "6"
+schroidnger_equation = "0.1"
+asemic-draw = { version = "0.1.0", path = "../draw" }
+rosc = "0.11.4"
+midir = "0.11.0"
+wmidi = "4.0.11"
+symbios = "1.5"
+symbios-turtle-3d = "0.6"
+skrifa = "0.48"
+fontc = "1"
+norad = "0.19"
+kurbo = "0.13.1"
+
+[lints.rust]
+# ld64 note on the debug binary's >16MB __eh_frame (compact unwind fallback; harmless, not our code)
+linker_messages = "allow"

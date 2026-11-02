@@ -1,0 +1,14 @@
+[adapter]
+name = "supercollider"
+kind = "process"
+description = "sclang boots scsynth; asemic/out/supercollider/set/<name> -> Synth(\\asemicVoice).set; /def /nset /free -> Ndef rows from sc(); asemic/io/supercollider/* <- OSC"
+
+[lifecycle]
+start = "/Applications/SuperCollider.app/Contents/MacOS/sclang boot.scd"
+# No [lifecycle] stop: the brain's adapter host starts every process in its own process group and
+# signals that whole group on stop (crates/brain/src/adapters.rs), so sclang's own child (scsynth)
+# dies with it too — scoped to this adapter, unlike a machine-wide `pkill -x sclang/scsynth`.
+
+[osc]
+listen = 57130          # sclang -> brain (asemic/io/supercollider/*)
+send = "127.0.0.1:57120" # brain -> sclang

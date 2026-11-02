@@ -1,0 +1,61 @@
+[project]
+name = "asemic-py"
+version = "0.1.0"
+description = "asemic-cli Python side: livecode REPL + adapter extension SDK over zenoh"
+requires-python = ">=3.12"
+dependencies = [
+    "eclipse-zenoh>=1.10,<2",
+    "textual[syntax]>=8",
+    "coloraide",
+    "python-osc",
+    "mido",
+    "python-rtmidi",
+    "ascii-magic>=2.7.5",
+    "pillow>=12.3.0",
+    "libcst>=1.9.0",
+    "textual-autocomplete>=4.0.6",
+    "pyte>=0.8.2",
+    "textual-vim-textarea>=1.2.0",
+    "pynvim>=0.6.0",
+    "textual-image>=0.12.0",
+    "chafa.py>=1.2.0",
+    "docstring-parser>=0.18.0",
+    "psutil>=7.2.2",
+    "pyright>=1.1.414",
+    "pydantic-settings>=2.16.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-textual-snapshot>=1.0.0",
+]
+
+[project.scripts]
+asemic = "asemic_py.app:main"
+
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+# Rust id resolver (crates/ids-py) -> asemic_py._ids; the pure-Python package ships alongside.
+manifest-path = "crates/ids-py/Cargo.toml"
+module-name = "asemic_py._ids"
+python-packages = ["asemic_py"]
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "surfaces: opt-in debug-surface screenshots (tests/test_debug_surfaces.py); run with -m surfaces or ASEMIC_SURFACES=1",
+]
+
+[dependency-groups]
+dev = [
+    "jack-client>=0.5.7",
+    # embedded-nvim row-editor completion (asemic_py/nvim/init.lua -> pylsp; types from asemic_py/_api.pyi)
+    "python-lsp-server>=1.15.0",
+]

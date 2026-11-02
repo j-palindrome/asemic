@@ -1,0 +1,1752 @@
+{
+  "literals": {
+    "AdapterKind": [
+      "process",
+      "app",
+      "python",
+      "bridge",
+      "cli"
+    ],
+    "AnimMode": [
+      "add",
+      "drift",
+      "replace"
+    ],
+    "BrushKind": [
+      "line",
+      "curve",
+      "dot",
+      "mesh"
+    ],
+    "Combine": [
+      "replace",
+      "add",
+      "multiply"
+    ],
+    "Curve": [
+      "linear",
+      "exp",
+      "log",
+      "quad"
+    ],
+    "ImageKind": [
+      "halfcell",
+      "tgp",
+      "sixel",
+      "unicode",
+      "auto",
+      "quad"
+    ],
+    "IoDir": [
+      "in",
+      "out"
+    ],
+    "IoType": [
+      "points",
+      "video",
+      "audio",
+      "midi",
+      "control"
+    ],
+    "LoopMode": [
+      "loop",
+      "off",
+      "pingpong"
+    ],
+    "OutputKind": [
+      "syphon",
+      "jack"
+    ],
+    "PostKind": [
+      "none",
+      "feedback"
+    ],
+    "PreviewKind": [
+      "dots",
+      "image",
+      "ascii"
+    ],
+    "ProcKind": [
+      "perlin",
+      "simplex",
+      "lfo",
+      "random-walk",
+      "physics",
+      "wave",
+      "spectrum",
+      "glyph",
+      "lsys",
+      "text",
+      "melody",
+      "variations",
+      "py",
+      "chaos",
+      "white",
+      "gauss"
+    ],
+    "ScoreLayer": [
+      "heads",
+      "stems",
+      "lines",
+      "accidentals",
+      "names"
+    ],
+    "ScoreNames": [
+      "pitchclass",
+      "midi",
+      "hz",
+      "notename",
+      "note"
+    ],
+    "TexKind": [
+      "in",
+      "draw",
+      "shader",
+      "compute",
+      "feedback",
+      "ascii"
+    ]
+  },
+  "verbs": {
+    "param": {
+      "name": "param",
+      "args": [
+        "id",
+        "min",
+        "max",
+        "default"
+      ],
+      "kwargs": [
+        "id",
+        "min",
+        "max",
+        "default",
+        "step",
+        "curve",
+        "label",
+        "anim",
+        "mode",
+        "depth",
+        "channel"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "min": {
+          "type": "Any",
+          "choices": []
+        },
+        "max": {
+          "type": "Any",
+          "choices": []
+        },
+        "default": {
+          "type": "Any",
+          "choices": []
+        },
+        "step": {
+          "type": "Any",
+          "choices": []
+        },
+        "curve": {
+          "type": "Curve",
+          "choices": [
+            "exp",
+            "linear",
+            "log",
+            "quad"
+          ]
+        },
+        "label": {
+          "type": "Any",
+          "choices": []
+        },
+        "anim": {
+          "type": "Any",
+          "choices": []
+        },
+        "mode": {
+          "type": "AnimMode",
+          "choices": [
+            "add",
+            "drift",
+            "replace"
+          ]
+        },
+        "depth": {
+          "type": "Any",
+          "choices": []
+        },
+        "channel": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Slider -> asemic/value/<id>.value. kw: step curve label anim mode depth channel",
+      "doc": "Slider -> asemic/value/<id>.value. kw: step curve label anim mode depth channel"
+    },
+    "multi": {
+      "name": "multi",
+      "args": [
+        "id",
+        "min",
+        "max",
+        "default",
+        "n"
+      ],
+      "kwargs": [
+        "id",
+        "min",
+        "max",
+        "default",
+        "n",
+        "step",
+        "curve",
+        "label"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "min": {
+          "type": "Any",
+          "choices": []
+        },
+        "max": {
+          "type": "Any",
+          "choices": []
+        },
+        "default": {
+          "type": "Any",
+          "choices": []
+        },
+        "n": {
+          "type": "Any",
+          "choices": []
+        },
+        "step": {
+          "type": "Any",
+          "choices": []
+        },
+        "curve": {
+          "type": "Curve",
+          "choices": [
+            "exp",
+            "linear",
+            "log",
+            "quad"
+          ]
+        },
+        "label": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Multislider (param array) -> asemic/value/<id>.<i>, i = 0..n (default 8, max 64); each index routable as '<id>.<i>'. kw: step curve label",
+      "doc": "Multislider (param array) -> asemic/value/<id>.<i>, i = 0..n (default 8, max 64); each index routable as '<id>.<i>'. kw: step curve label"
+    },
+    "xy": {
+      "name": "xy",
+      "args": [
+        "id",
+        "x",
+        "y",
+        "default"
+      ],
+      "kwargs": [
+        "id",
+        "x",
+        "y",
+        "default",
+        "label",
+        "anim",
+        "modedrift",
+        "depth",
+        "channel"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "x": {
+          "type": "Any",
+          "choices": []
+        },
+        "y": {
+          "type": "Any",
+          "choices": []
+        },
+        "default": {
+          "type": "Any",
+          "choices": []
+        },
+        "label": {
+          "type": "Any",
+          "choices": []
+        },
+        "anim": {
+          "type": "Any",
+          "choices": []
+        },
+        "modedrift": {
+          "type": "Any",
+          "choices": []
+        },
+        "depth": {
+          "type": "Any",
+          "choices": []
+        },
+        "channel": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "XY pad -> asemic/value/<id>.{x,y}. kw: label anim mode(drift) depth channel",
+      "doc": "XY pad -> asemic/value/<id>.{x,y}. kw: label anim mode(drift) depth channel"
+    },
+    "proc": {
+      "name": "proc",
+      "args": [
+        "id",
+        "proc",
+        "input",
+        "seed",
+        "text",
+        "axiom",
+        "rules",
+        "scale_by",
+        "path",
+        "attrs"
+      ],
+      "kwargs": [
+        "id",
+        "proc",
+        "input",
+        "seed",
+        "text",
+        "axiom",
+        "rules",
+        "scale_by",
+        "path",
+        "attrs"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "proc": {
+          "type": "ProcKind",
+          "choices": [
+            "chaos",
+            "gauss",
+            "glyph",
+            "lfo",
+            "lsys",
+            "melody",
+            "perlin",
+            "physics",
+            "py",
+            "random-walk",
+            "simplex",
+            "spectrum",
+            "text",
+            "variations",
+            "wave",
+            "white"
+          ]
+        },
+        "input": {
+          "type": "str",
+          "choices": []
+        },
+        "seed": {
+          "type": "Any",
+          "choices": []
+        },
+        "text": {
+          "type": "Any",
+          "choices": []
+        },
+        "axiom": {
+          "type": "Any",
+          "choices": []
+        },
+        "rules": {
+          "type": "Any",
+          "choices": []
+        },
+        "scale_by": {
+          "type": "Any",
+          "choices": []
+        },
+        "path": {
+          "type": "Any",
+          "choices": []
+        },
+        "attrs": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Processor / signal generator -> asemic/value/<id>.<channel> + asemic/gen/<id> (point multiarray). proc: physics wave spectrum glyph (text=...) melody (voices base beats step slow; dims pitch dur) variations py (fn in the REPL via @proc(id, 'py'); brain sends params + input gen on change, caches reply) lsys (axiom=, rules='0.5: F -> F[+F]F; ...', n angle step growth; input=<gen id> roots a tree per point, stride, scale, scale_by=<attr>) text (text=, path=<font file, hot reload>, x y size + axis tags e.g. wght as params) chaos perlin simplex lfo random-walk white gauss; input = key (io stream / 'chaos:x' / 'gain'); other kw = params",
+      "doc": "Processor / signal generator -> asemic/value/<id>.<channel> + asemic/gen/<id> (point multiarray). proc: physics wave spectrum glyph (text=...) melody (voices base beats step slow; dims pitch dur) variations py (fn in the REPL via @proc(id, 'py'); brain sends params + input gen on change, caches reply) lsys (axiom=, rules='0.5: F -> F[+F]F; ...', n angle step growth; input=<gen id> roots a tree per point, stride, scale, scale_by=<attr>) text (text=, path=<font file, hot reload>, x y size + axis tags e.g. wght as params) chaos perlin simplex lfo random-walk white gauss; input = key (io stream / 'chaos:x' / 'gain'); other kw = params"
+    },
+    "vfont": {
+      "name": "vfont",
+      "args": [
+        "name",
+        "masters",
+        "chars",
+        "dir",
+        "live",
+        "hz"
+      ],
+      "kwargs": [
+        "name",
+        "masters",
+        "chars",
+        "dir",
+        "live",
+        "hz"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        },
+        "masters": {
+          "type": "Any",
+          "choices": []
+        },
+        "chars": {
+          "type": "Any",
+          "choices": []
+        },
+        "dir": {
+          "type": "Any",
+          "choices": []
+        },
+        "live": {
+          "type": "Any",
+          "choices": []
+        },
+        "hz": {
+          "type": "float",
+          "choices": []
+        }
+      },
+      "synopsis": "live=True: rebuild on master component/param changes (debounced, <= hz/s, default 10, latest only; block owns it). Variable font from glyph procs: masters = >= 2 glyph proc ids (seed + params; param stroke = outline width, font units, 60), chars (default 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; asemic font has no lowercase), dir ('fonts'); writes UFOs + designspace (norad), compiles <dir>/<name>.ttf (fontc), axis ASMC 0..n-1; announces asemic/state/vfont/<name>; returns path. proc('t', 'text', path=..) hot-reloads it, ASMC routable",
+      "doc": "live=True: rebuild on master component/param changes (debounced, <= hz/s, default 10, latest only; block owns it). Variable font from glyph procs: masters = >= 2 glyph proc ids (seed + params; param stroke = outline width, font units, 60), chars (default 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; asemic font has no lowercase), dir ('fonts'); writes UFOs + designspace (norad), compiles <dir>/<name>.ttf (fontc), axis ASMC 0..n-1; announces asemic/state/vfont/<name>; returns path. proc('t', 'text', path=..) hot-reloads it, ASMC routable"
+    },
+    "set": {
+      "name": "set",
+      "args": [
+        "comp",
+        "key_or_value",
+        "value"
+      ],
+      "kwargs": [
+        "comp",
+        "key_or_value",
+        "value"
+      ],
+      "kwarg_meta": {
+        "comp": {
+          "type": "Any",
+          "choices": []
+        },
+        "key_or_value": {
+          "type": "Any",
+          "choices": []
+        },
+        "value": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "set('gain', .5) / set('arena', 'x', .2) / set('arena.x', .2); paths relative to the block: 'm.n', '../m.n', '/t/m.n'",
+      "doc": "set('gain', .5) / set('arena', 'x', .2) / set('arena.x', .2); paths relative to the block: 'm.n', '../m.n', '/t/m.n'"
+    },
+    "route": {
+      "name": "route",
+      "args": [
+        "src",
+        "dst",
+        "id"
+      ],
+      "kwargs": [
+        "src",
+        "dst",
+        "id",
+        "combinereplaceaddmultiply",
+        "plugtype",
+        "vs",
+        "dsts",
+        "current",
+        "value"
+      ],
+      "kwarg_meta": {
+        "src": {
+          "type": "str",
+          "choices": []
+        },
+        "dst": {
+          "type": "str",
+          "choices": []
+        },
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "combinereplaceaddmultiply": {
+          "type": "Any",
+          "choices": []
+        },
+        "plugtype": {
+          "type": "Any",
+          "choices": []
+        },
+        "vs": {
+          "type": "Any",
+          "choices": []
+        },
+        "dsts": {
+          "type": "Any",
+          "choices": []
+        },
+        "current": {
+          "type": "Any",
+          "choices": []
+        },
+        "value": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "route('gain', 'supercollider.set.freq', frm=(0,1), to=(40,2000)); src 'chaos:vx' = noise channel. kw: combine='replace'|'add'|'multiply' (plugtype vs dst's current value)",
+      "doc": "route('gain', 'supercollider.set.freq', frm=(0,1), to=(40,2000)); src 'chaos:vx' = noise channel. kw: combine='replace'|'add'|'multiply' (plugtype vs dst's current value)"
+    },
+    "delete": {
+      "name": "delete",
+      "args": [
+        "id"
+      ],
+      "kwargs": [
+        "id"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Delete a component",
+      "doc": "Delete a component"
+    },
+    "tempo": {
+      "name": "tempo",
+      "args": [
+        "bpm",
+        "ppq",
+        "beats_per_bar"
+      ],
+      "kwargs": [
+        "bpm",
+        "ppq",
+        "beats_per_bar"
+      ],
+      "kwarg_meta": {
+        "bpm": {
+          "type": "float",
+          "choices": []
+        },
+        "ppq": {
+          "type": "Any",
+          "choices": []
+        },
+        "beats_per_bar": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Set clock",
+      "doc": "Set clock"
+    },
+    "ui": {
+      "name": "ui",
+      "args": [],
+      "kwargs": [],
+      "kwarg_meta": {},
+      "synopsis": "UI/perf settings (asemic_schema::UiSettings -> asemic/state/ui): image=auto|quad|halfcell|tgp|sixel|unicode hz=20 clock=True; no kw = return current",
+      "doc": "UI/perf settings (asemic_schema::UiSettings -> asemic/state/ui): image=auto|quad|halfcell|tgp|sixel|unicode hz=20 clock=True; no kw = return current"
+    },
+    "cue": {
+      "name": "cue",
+      "args": [
+        "id",
+        "values",
+        "fade"
+      ],
+      "kwargs": [
+        "id",
+        "values",
+        "fade"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "values": {
+          "type": "Any",
+          "choices": []
+        },
+        "fade": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "cue('drop', {'intensity': 2, 'arena.x': .3})",
+      "doc": "cue('drop', {'intensity': 2, 'arena.x': .3})"
+    },
+    "go": {
+      "name": "go",
+      "args": [
+        "id"
+      ],
+      "kwargs": [
+        "id"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Fire a cue",
+      "doc": "Fire a cue"
+    },
+    "drop": {
+      "name": "drop",
+      "args": [
+        "label"
+      ],
+      "kwargs": [
+        "label"
+      ],
+      "kwarg_meta": {
+        "label": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Remove everything a block label created",
+      "doc": "Remove everything a block label created"
+    },
+    "stop": {
+      "name": "stop",
+      "args": [
+        "name"
+      ],
+      "kwargs": [
+        "name"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Stop adapter",
+      "doc": "Stop adapter"
+    },
+    "build": {
+      "name": "build",
+      "args": [
+        "name"
+      ],
+      "kwargs": [
+        "name"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Build adapter",
+      "doc": "Build adapter"
+    },
+    "status": {
+      "name": "status",
+      "args": [
+        "name"
+      ],
+      "kwargs": [
+        "name"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Adapter status",
+      "doc": "Adapter status"
+    },
+    "adapters": {
+      "name": "adapters",
+      "args": [],
+      "kwargs": [],
+      "kwarg_meta": {},
+      "synopsis": "Adapter manifests",
+      "doc": "Adapter manifests"
+    },
+    "output": {
+      "name": "output",
+      "args": [
+        "name",
+        "kind",
+        "w",
+        "h",
+        "src",
+        "post",
+        "brush",
+        "width",
+        "alpha",
+        "brightness",
+        "position",
+        "hz",
+        "node"
+      ],
+      "kwargs": [
+        "name",
+        "kind",
+        "w",
+        "h",
+        "src",
+        "post",
+        "brush",
+        "width",
+        "alpha",
+        "brightness",
+        "position",
+        "hz",
+        "node"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        },
+        "kind": {
+          "type": "OutputKind",
+          "choices": [
+            "jack",
+            "syphon"
+          ]
+        },
+        "w": {
+          "type": "int",
+          "choices": []
+        },
+        "h": {
+          "type": "int",
+          "choices": []
+        },
+        "src": {
+          "type": "str",
+          "choices": []
+        },
+        "post": {
+          "type": "PostKind",
+          "choices": [
+            "feedback",
+            "none"
+          ]
+        },
+        "brush": {
+          "type": "BrushKind",
+          "choices": [
+            "curve",
+            "dot",
+            "line",
+            "mesh"
+          ]
+        },
+        "width": {
+          "type": "Any",
+          "choices": []
+        },
+        "alpha": {
+          "type": "Any",
+          "choices": []
+        },
+        "brightness": {
+          "type": "Any",
+          "choices": []
+        },
+        "position": {
+          "type": "Any",
+          "choices": []
+        },
+        "hz": {
+          "type": "float",
+          "choices": []
+        },
+        "node": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Open output (request/response; block owns it): kind syphon -> Syphon server asemic:<name> (w x h), draws src gen ids (str/list) with the asemic-repl line brush; post = none / feedback (asemic-repl main.wgsl); brush = line/curve/dot; width/alpha/brightness/position = WGSL modifier bodies (info: ModifierInfo); jack + src = x/y oscilloscope audio (out_1 x, out_2 y), drawing traced hz times/s (60); failed reopen keeps the old output; syphon outputs stream asemic/preview/<name> (~10 fps, <=160x90) only while subscribed (view(name, kind='frame')); kind jack -> JACK client asemic-<name>, w = channels; outputs() reports clients + visible; node = publish a texture node (tex) instead of src",
+      "doc": "Open output (request/response; block owns it): kind syphon -> Syphon server asemic:<name> (w x h), draws src gen ids (str/list) with the asemic-repl line brush; post = none / feedback (asemic-repl main.wgsl); brush = line/curve/dot; width/alpha/brightness/position = WGSL modifier bodies (info: ModifierInfo); jack + src = x/y oscilloscope audio (out_1 x, out_2 y), drawing traced hz times/s (60); failed reopen keeps the old output; syphon outputs stream asemic/preview/<name> (~10 fps, <=160x90) only while subscribed (view(name, kind='frame')); kind jack -> JACK client asemic-<name>, w = channels; outputs() reports clients + visible; node = publish a texture node (tex) instead of src"
+    },
+    "tex": {
+      "name": "tex",
+      "args": [
+        "id",
+        "kind",
+        "inputs",
+        "attrs",
+        "src",
+        "adapter",
+        "wesl",
+        "w",
+        "h",
+        "brush",
+        "width",
+        "alpha",
+        "brightness",
+        "position",
+        "points",
+        "count",
+        "instances",
+        "pingpong",
+        "smooth",
+        "params",
+        "text",
+        "publish",
+        "server",
+        "ramp",
+        "font",
+        "atlas",
+        "axes"
+      ],
+      "kwargs": [
+        "id",
+        "kind",
+        "inputs",
+        "attrs",
+        "src",
+        "adapter",
+        "wesl",
+        "w",
+        "h",
+        "brush",
+        "width",
+        "alpha",
+        "brightness",
+        "position",
+        "points",
+        "count",
+        "instances",
+        "pingpong",
+        "smooth",
+        "params",
+        "text",
+        "publish",
+        "server",
+        "ramp",
+        "font",
+        "atlas",
+        "axes"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "kind": {
+          "type": "TexKind",
+          "choices": [
+            "ascii",
+            "compute",
+            "draw",
+            "feedback",
+            "in",
+            "shader"
+          ]
+        },
+        "inputs": {
+          "type": "Any",
+          "choices": []
+        },
+        "attrs": {
+          "type": "Any",
+          "choices": []
+        },
+        "src": {
+          "type": "str",
+          "choices": []
+        },
+        "adapter": {
+          "type": "Any",
+          "choices": []
+        },
+        "wesl": {
+          "type": "Any",
+          "choices": []
+        },
+        "w": {
+          "type": "int",
+          "choices": []
+        },
+        "h": {
+          "type": "int",
+          "choices": []
+        },
+        "brush": {
+          "type": "BrushKind",
+          "choices": [
+            "curve",
+            "dot",
+            "line",
+            "mesh"
+          ]
+        },
+        "width": {
+          "type": "Any",
+          "choices": []
+        },
+        "alpha": {
+          "type": "Any",
+          "choices": []
+        },
+        "brightness": {
+          "type": "Any",
+          "choices": []
+        },
+        "position": {
+          "type": "Any",
+          "choices": []
+        },
+        "points": {
+          "type": "Any",
+          "choices": []
+        },
+        "count": {
+          "type": "Any",
+          "choices": []
+        },
+        "instances": {
+          "type": "Any",
+          "choices": []
+        },
+        "pingpong": {
+          "type": "Any",
+          "choices": []
+        },
+        "smooth": {
+          "type": "Any",
+          "choices": []
+        },
+        "params": {
+          "type": "Any",
+          "choices": []
+        },
+        "text": {
+          "type": "Any",
+          "choices": []
+        },
+        "publish": {
+          "type": "Any",
+          "choices": []
+        },
+        "server": {
+          "type": "Any",
+          "choices": []
+        },
+        "ramp": {
+          "type": "Any",
+          "choices": []
+        },
+        "font": {
+          "type": "Any",
+          "choices": []
+        },
+        "atlas": {
+          "type": "Any",
+          "choices": []
+        },
+        "axes": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Texture node (request/response; block owns it), any node id usable as input/output node: kind in (adapter = '<adapter>:<name>', e.g. 'syphon:TouchDesigner'; legacy kind syphon + server) / draw (src gen ids or points = compute node id (count, instances for line/curve), brush look; inputs sampled as tex0(uv)..tex3(uv) in modifiers) / shader (wesl defines fn shade(uv: vec2f) -> vec4f, may import lygia::\u2026; in0(uv)..in7(uv) sample inputs, info.time, info.size, param(i)) / compute (wesl fn compute(p: vec2u) -> vec4f and/or fn point(i: u32) -> Point with count; Point = struct over dims, DIM_<name> consts, src_point(i)/attr(i,k) read src gens; prev(i) -> Point needs pingpong; attrs={name: default} appends dims; brush modifiers read attr(info, DIM_<name>)) / feedback (1 input, asemic-repl trails) / ascii (1 input; luma per cell -> glyph of ramp (dark -> light), font ascii|asemic atlas, or atlas='text:<font path>' = font outlines filled at axes={tag: v} (routable via texparam / asemic/tex/<id>.param.<tag>; rebuilt on change + font hot-reload), ramp sorted by glyph coverage; params [columns, colour]); pingpong = keep last frame (self-inputs, cycles, smooth 0..1); params = up to 16 floats (texparam / asemic/tex/<id>.param.<i>); text = compute node: preview its sampled output values as a text grid (numbers) instead of the raster canvas; publish = sink addresses ('syphon' -> asemic:<id>); w h = 1280 720",
+      "doc": "Texture node (request/response; block owns it), any node id usable as input/output node: kind in (adapter = '<adapter>:<name>', e.g. 'syphon:TouchDesigner'; legacy kind syphon + server) / draw (src gen ids or points = compute node id (count, instances for line/curve), brush look; inputs sampled as tex0(uv)..tex3(uv) in modifiers) / shader (wesl defines fn shade(uv: vec2f) -> vec4f, may import lygia::\u2026; in0(uv)..in7(uv) sample inputs, info.time, info.size, param(i)) / compute (wesl fn compute(p: vec2u) -> vec4f and/or fn point(i: u32) -> Point with count; Point = struct over dims, DIM_<name> consts, src_point(i)/attr(i,k) read src gens; prev(i) -> Point needs pingpong; attrs={name: default} appends dims; brush modifiers read attr(info, DIM_<name>)) / feedback (1 input, asemic-repl trails) / ascii (1 input; luma per cell -> glyph of ramp (dark -> light), font ascii|asemic atlas, or atlas='text:<font path>' = font outlines filled at axes={tag: v} (routable via texparam / asemic/tex/<id>.param.<tag>; rebuilt on change + font hot-reload), ramp sorted by glyph coverage; params [columns, colour]); pingpong = keep last frame (self-inputs, cycles, smooth 0..1); params = up to 16 floats (texparam / asemic/tex/<id>.param.<i>); text = compute node: preview its sampled output values as a text grid (numbers) instead of the raster canvas; publish = sink addresses ('syphon' -> asemic:<id>); w h = 1280 720"
+    },
+    "texparam": {
+      "name": "texparam",
+      "args": [
+        "id",
+        "i",
+        "v"
+      ],
+      "kwargs": [
+        "id",
+        "i",
+        "v"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "i": {
+          "type": "Any",
+          "choices": []
+        },
+        "v": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Set texture node uniform param(i), or i = axis tag of an ascii text atlas (also Zenoh put asemic/tex/<id>.param.<i|tag>, JSON number; routable)",
+      "doc": "Set texture node uniform param(i), or i = axis tag of an ascii text atlas (also Zenoh put asemic/tex/<id>.param.<i|tag>, JSON number; routable)"
+    },
+    "untex": {
+      "name": "untex",
+      "args": [
+        "id"
+      ],
+      "kwargs": [
+        "id"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Close a texture node",
+      "doc": "Close a texture node"
+    },
+    "texs": {
+      "name": "texs",
+      "args": [],
+      "kwargs": [],
+      "kwarg_meta": {},
+      "synopsis": "List texture nodes (+ dims = live point dims of draw/compute nodes)",
+      "doc": "List texture nodes (+ dims = live point dims of draw/compute nodes)"
+    },
+    "procs": {
+      "name": "procs",
+      "args": [],
+      "kwargs": [],
+      "kwarg_meta": {},
+      "synopsis": "List procs: declared attrs {name: default} + live dims (point layout of asemic/gen/<id>)",
+      "doc": "List procs: declared attrs {name: default} + live dims (point layout of asemic/gen/<id>)"
+    },
+    "close": {
+      "name": "close",
+      "args": [
+        "name"
+      ],
+      "kwargs": [
+        "name"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Close an output",
+      "doc": "Close an output"
+    },
+    "outputs": {
+      "name": "outputs",
+      "args": [],
+      "kwargs": [],
+      "kwarg_meta": {},
+      "synopsis": "List open outputs + client counts",
+      "doc": "List open outputs + client counts"
+    },
+    "block": {
+      "name": "block",
+      "args": [
+        "name",
+        "timestretch",
+        "loop",
+        "length"
+      ],
+      "kwargs": [
+        "name",
+        "timestretch",
+        "loop",
+        "length"
+      ],
+      "kwarg_meta": {
+        "name": {
+          "type": "str",
+          "choices": []
+        },
+        "timestretch": {
+          "type": "float",
+          "choices": []
+        },
+        "loop": {
+          "type": "LoopMode",
+          "choices": [
+            "loop",
+            "off",
+            "pingpong"
+          ]
+        },
+        "length": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "No-op nest marker; `with block(\"name\", timestretch=1.0):` scopes everything inside.",
+      "doc": "No-op nest marker; `with block(\"name\", timestretch=1.0):` scopes everything inside.\ntimestretch: 1.0 real-time, 0.0 frozen (default), >1 faster, <0 reverse.\nloop: loop (default), off, pingpong."
+    },
+    "embed": {
+      "name": "embed",
+      "args": [
+        "id",
+        "preview"
+      ],
+      "kwargs": [
+        "id",
+        "preview"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "preview": {
+          "type": "PreviewKind",
+          "choices": [
+            "ascii",
+            "dots",
+            "image"
+          ]
+        }
+      },
+      "synopsis": "Link row to node `id` (click = jump to its row) + that node's own built-in preview.",
+      "doc": "Link row to node `id` (click = jump to its row) + that node's own built-in preview.\npreview: dots|image|ascii."
+    },
+    "affinity": {
+      "name": "affinity",
+      "args": [
+        "id",
+        "input",
+        "preview",
+        "page",
+        "on",
+        "x",
+        "y",
+        "settings",
+        "notes",
+        "names"
+      ],
+      "kwargs": [
+        "id",
+        "input",
+        "preview",
+        "page",
+        "on",
+        "x",
+        "y",
+        "settings",
+        "notes",
+        "names"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "input": {
+          "type": "str",
+          "choices": []
+        },
+        "preview": {
+          "type": "PreviewKind",
+          "choices": [
+            "ascii",
+            "dots",
+            "image"
+          ]
+        },
+        "page": {
+          "type": "int",
+          "choices": []
+        },
+        "on": {
+          "type": "str",
+          "choices": []
+        },
+        "x": {
+          "type": "Any",
+          "choices": []
+        },
+        "y": {
+          "type": "Any",
+          "choices": []
+        },
+        "settings": {
+          "type": "ScoreSettings",
+          "choices": [
+            "{'spacing': 0.5}",
+            "{'spacing': 1.0, 'quarter_in': 0.25}",
+            "{'spacing': 2.0}"
+          ]
+        },
+        "notes": {
+          "type": "ScoreLayer | tuple[ScoreLayer, ...]",
+          "choices": [
+            "accidentals",
+            "heads",
+            "lines",
+            "names",
+            "stems"
+          ]
+        },
+        "names": {
+          "type": "ScoreNames",
+          "choices": [
+            "hz",
+            "midi",
+            "note",
+            "notename",
+            "pitchclass"
+          ]
+        }
+      },
+      "synopsis": "Renderer row: draws gen on input in Affinity Designer document.",
+      "doc": "Renderer row: draws gen on input in Affinity Designer document.\npreview: image|dots|ascii.\nnotes: tuple of layers ('heads', 'stems', 'lines', 'accidentals', 'names'), or preset 'notes'.\nnames: 'pitchclass'|'midi'|'hz'|'notename'|'note'.\nsettings: layout knobs {'spacing': 1.0, 'quarter_in': 0.25}."
+    },
+    "sc": {
+      "name": "sc",
+      "args": [
+        "id",
+        "code"
+      ],
+      "kwargs": [
+        "id",
+        "code"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "code": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "SuperCollider synth row: evaluated as Ndef(<id>).",
+      "doc": "SuperCollider synth row: evaluated as Ndef(<id>).\nparams passed as keyword arguments."
+    },
+    "orca": {
+      "name": "orca",
+      "args": [
+        "grid",
+        "bpm"
+      ],
+      "kwargs": [
+        "grid",
+        "bpm"
+      ],
+      "kwarg_meta": {
+        "grid": {
+          "type": "Any",
+          "choices": []
+        },
+        "bpm": {
+          "type": "float",
+          "choices": []
+        }
+      },
+      "synopsis": "No-op marker: an Orca grid literal; the orca adapter process owns the grid.",
+      "doc": "No-op marker: an Orca grid literal; the orca adapter process owns the grid."
+    },
+    "physics": {
+      "name": "physics",
+      "args": [
+        "id",
+        "n",
+        "gravity",
+        "restitution",
+        "radius",
+        "kick",
+        "damping",
+        "angular_damping",
+        "seed"
+      ],
+      "kwargs": [
+        "id",
+        "n",
+        "gravity",
+        "restitution",
+        "radius",
+        "kick",
+        "damping",
+        "angular_damping",
+        "seed"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "n": {
+          "type": "Any",
+          "choices": []
+        },
+        "gravity": {
+          "type": "Any",
+          "choices": []
+        },
+        "restitution": {
+          "type": "Any",
+          "choices": []
+        },
+        "radius": {
+          "type": "Any",
+          "choices": []
+        },
+        "kick": {
+          "type": "Any",
+          "choices": []
+        },
+        "damping": {
+          "type": "Any",
+          "choices": []
+        },
+        "angular_damping": {
+          "type": "Any",
+          "choices": []
+        },
+        "seed": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Rapier2d balls in a unit box (processor -> asemic/value/<id>.<channel> + asemic/gen/<id>).",
+      "doc": "Rapier2d balls in a unit box (processor -> asemic/value/<id>.<channel> + asemic/gen/<id>).\nn: ball count (default 8.0). gravity: (default 1.0). restitution: (default 0.9). radius: (default 0.04).\nkick: (default 0.0). damping: (default 0.0). angular_damping: (default 0.0)."
+    },
+    "wave": {
+      "name": "wave",
+      "args": [
+        "id",
+        "energy",
+        "k",
+        "mass",
+        "span"
+      ],
+      "kwargs": [
+        "id",
+        "energy",
+        "k",
+        "mass",
+        "span"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "energy": {
+          "type": "Any",
+          "choices": []
+        },
+        "k": {
+          "type": "Any",
+          "choices": []
+        },
+        "mass": {
+          "type": "Any",
+          "choices": []
+        },
+        "span": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "1D stationary Schr\u00f6dinger (schrodinger_equation, Numerov) solver.",
+      "doc": "1D stationary Schr\u00f6dinger (schrodinger_equation, Numerov) solver.\nenergy: (default 0.5). k: (default 1.0). mass: (default 1.0). span: (default 5.0)."
+    },
+    "spectrum": {
+      "name": "spectrum",
+      "args": [
+        "id",
+        "input",
+        "gain"
+      ],
+      "kwargs": [
+        "id",
+        "input",
+        "gain"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "input": {
+          "type": "str",
+          "choices": []
+        },
+        "gain": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "FFT bands of input stream (processor -> asemic/value/<id>.<channel> + asemic/gen/<id>).",
+      "doc": "FFT bands of input stream (processor -> asemic/value/<id>.<channel> + asemic/gen/<id>).\ninput: key (io stream e.g. 'asemic/io/mic/in' / 'chaos:x'). gain: (default 1.0)."
+    },
+    "glyph": {
+      "name": "glyph",
+      "args": [
+        "id",
+        "text",
+        "size",
+        "rotate",
+        "spacing",
+        "wobble",
+        "speed",
+        "scan",
+        "x",
+        "y",
+        "attrs",
+        "seed"
+      ],
+      "kwargs": [
+        "id",
+        "text",
+        "size",
+        "rotate",
+        "spacing",
+        "wobble",
+        "speed",
+        "scan",
+        "x",
+        "y",
+        "attrs",
+        "seed"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "text": {
+          "type": "Any",
+          "choices": []
+        },
+        "size": {
+          "type": "Any",
+          "choices": []
+        },
+        "rotate": {
+          "type": "Any",
+          "choices": []
+        },
+        "spacing": {
+          "type": "Any",
+          "choices": []
+        },
+        "wobble": {
+          "type": "Any",
+          "choices": []
+        },
+        "speed": {
+          "type": "Any",
+          "choices": []
+        },
+        "scan": {
+          "type": "Any",
+          "choices": []
+        },
+        "x": {
+          "type": "Any",
+          "choices": []
+        },
+        "y": {
+          "type": "Any",
+          "choices": []
+        },
+        "attrs": {
+          "type": "Any",
+          "choices": []
+        },
+        "seed": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Text as asemic font paths, scanned/wobbled by params.",
+      "doc": "Text as asemic font paths, scanned/wobbled by params.\ntext: glyph text string. size: (default 0.08). rotate: (default 0.0). spacing: (default 0.15).\nwobble: (default 0.0). speed: (default 1.0). scan: (default 0.0). x: (default 0.5). y: (default 0.5)."
+    },
+    "lsys": {
+      "name": "lsys",
+      "args": [
+        "id",
+        "axiom",
+        "rules",
+        "n",
+        "angle",
+        "step",
+        "growth",
+        "width",
+        "x",
+        "y",
+        "turn",
+        "input",
+        "stride",
+        "scale",
+        "scale_by",
+        "seed"
+      ],
+      "kwargs": [
+        "id",
+        "axiom",
+        "rules",
+        "n",
+        "angle",
+        "step",
+        "growth",
+        "width",
+        "x",
+        "y",
+        "turn",
+        "input",
+        "stride",
+        "scale",
+        "scale_by",
+        "seed"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "axiom": {
+          "type": "Any",
+          "choices": []
+        },
+        "rules": {
+          "type": "Any",
+          "choices": []
+        },
+        "n": {
+          "type": "Any",
+          "choices": []
+        },
+        "angle": {
+          "type": "Any",
+          "choices": []
+        },
+        "step": {
+          "type": "Any",
+          "choices": []
+        },
+        "growth": {
+          "type": "Any",
+          "choices": []
+        },
+        "width": {
+          "type": "Any",
+          "choices": []
+        },
+        "x": {
+          "type": "Any",
+          "choices": []
+        },
+        "y": {
+          "type": "Any",
+          "choices": []
+        },
+        "turn": {
+          "type": "Any",
+          "choices": []
+        },
+        "input": {
+          "type": "str",
+          "choices": []
+        },
+        "stride": {
+          "type": "Any",
+          "choices": []
+        },
+        "scale": {
+          "type": "Any",
+          "choices": []
+        },
+        "scale_by": {
+          "type": "Any",
+          "choices": []
+        },
+        "seed": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "L-system (symbios derivation + turtle), optionally rooted on input gen points.",
+      "doc": "L-system (symbios derivation + turtle), optionally rooted on input gen points.\naxiom: starting string (default 'F'). rules: string e.g. '0.5: F -> F[+F]F; ...'.\nn: iterations (default 4.0). angle: turning angle (default 25.0). step: (default 0.02).\ngrowth: (default 1.0). width: (default 1.0). stride: (default 1.0). scale: (default 1.0)."
+    },
+    "text": {
+      "name": "text",
+      "args": [
+        "id",
+        "path",
+        "text",
+        "size",
+        "tol",
+        "x",
+        "y"
+      ],
+      "kwargs": [
+        "id",
+        "path",
+        "text",
+        "size",
+        "tol",
+        "x",
+        "y"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "path": {
+          "type": "Any",
+          "choices": []
+        },
+        "text": {
+          "type": "Any",
+          "choices": []
+        },
+        "size": {
+          "type": "Any",
+          "choices": []
+        },
+        "tol": {
+          "type": "Any",
+          "choices": []
+        },
+        "x": {
+          "type": "Any",
+          "choices": []
+        },
+        "y": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Text shaped (harfbuzz) in font path, outlines (skrifa) at axis params, flattened (lyon).",
+      "doc": "Text shaped (harfbuzz) in font path, outlines (skrifa) at axis params, flattened (lyon).\npath: font file path (hot reload). text: string. size: (default 0.2). tol: (default 0.001).\nx: (default 0.1). y: (default 0.6)."
+    },
+    "melody": {
+      "name": "melody",
+      "args": [
+        "id",
+        "voices",
+        "base",
+        "beats",
+        "step",
+        "slow",
+        "seed"
+      ],
+      "kwargs": [
+        "id",
+        "voices",
+        "base",
+        "beats",
+        "step",
+        "slow",
+        "seed"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "voices": {
+          "type": "Any",
+          "choices": []
+        },
+        "base": {
+          "type": "Any",
+          "choices": []
+        },
+        "beats": {
+          "type": "Any",
+          "choices": []
+        },
+        "step": {
+          "type": "Any",
+          "choices": []
+        },
+        "slow": {
+          "type": "Any",
+          "choices": []
+        },
+        "seed": {
+          "type": "Any",
+          "choices": []
+        }
+      },
+      "synopsis": "Seeded pentatonic walk: 1 line per voice, 1 point per note, dims pitch (MIDI) + dur (beats).",
+      "doc": "Seeded pentatonic walk: 1 line per voice, 1 point per note, dims pitch (MIDI) + dur (beats).\nvoices: (default 2.0). base: MIDI note (default 72.0). beats: length (default 32.0).\nstep: max degree steps per move (default 2.0). slow: octave step multiplier (default 2.0)."
+    },
+    "py": {
+      "name": "py",
+      "args": [
+        "id",
+        "fn",
+        "p",
+        "input"
+      ],
+      "kwargs": [
+        "id",
+        "fn",
+        "p",
+        "input"
+      ],
+      "kwarg_meta": {
+        "id": {
+          "type": "str",
+          "choices": []
+        },
+        "fn": {
+          "type": "str",
+          "choices": []
+        },
+        "p": {
+          "type": "Any",
+          "choices": []
+        },
+        "input": {
+          "type": "str",
+          "choices": []
+        }
+      },
+      "synopsis": "Python proc evaluated in REPL: `py(id, fn=\"./fn\", p={...}, input=<gen>)` where block-scoped stringpath `fn` returns points.",
+      "doc": "Python proc evaluated in REPL: `py(id, fn=\"./fn\", p={...}, input=<gen>)` where block-scoped stringpath `fn` returns points.\nBrain queries params + input gen on change, caches reply."
+    }
+  }
+}

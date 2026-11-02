@@ -1,0 +1,6 @@
+// asemic node (brain, REPL, adapters) — Zenoh Book: Client Mode, explicit router endpoint
+{
+  mode: "client",  // peers behind one router didn't get routed (gossip direct-connect fails); client = router brokers all
+  connect: { endpoints: ["tcp/127.0.0.1:7447"] },
+  scouting: { multicast: { enabled: false } },
+}

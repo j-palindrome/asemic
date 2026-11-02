@@ -1,0 +1,33 @@
+[package]
+name = "asemic-draw"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+arc-swap = "1"
+asemic-schema = { path = "../schema" }
+schemars.workspace = true
+asemic-font = { path = "../font", features = ["gpu"] }
+anyhow.workspace = true
+core-foundation = "0.10.1"
+pollster = "1.0.1"
+syphon-wgpu = { version = "0.4", optional = true }
+wgpu = "30"
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["sync"] }
+jack = { version = "0.13.5", optional = true }
+nokhwa = { version = "0.10", features = ["input-native", "output-threaded"], optional = true }
+wesl = "0.6"
+font8x8 = "0.3"
+lyon = "1"
+bytemuck = { version = "1", features = ["derive"] }
+tracing.workspace = true
+image = { version = "0.25", default-features = false }
+
+[features]
+default = ["syphon", "jack"]
+jack = ["dep:jack"]
+syphon = ["dep:syphon-wgpu"]
+# webcam texture source (nokhwa, AVFoundation on macOS); own wgpu upload (nokhwa's
+# output-wgpu feature pins wgpu ^27, which conflicts with this crate's wgpu 30)
+camera = ["dep:nokhwa"]

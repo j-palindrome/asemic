@@ -1,0 +1,11 @@
+# Asemic project-level gitignore
+target/
+.venv/
+node_modules/
+build/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+.env*.local

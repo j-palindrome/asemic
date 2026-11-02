@@ -1,0 +1,33 @@
+[adapter]
+name = "orca"
+kind = "process"
+description = "Orca-c livecoding (tmux pane or inline pty); its OSC (: operator) -> asemic/io/orca/*, MIDI (: operator) -> asemic/io/orca/midi/*"
+
+[lifecycle]
+# --portmidi: `:` operator needs a real MIDI output device (the brain's virtual "asemic-orca"
+# port, below) to send through; brew portmidi required (scripts/build_orca.sh mirrors this).
+build = "test -x orca-c/build/orca || { test -d orca-c || git clone --depth 1 https://github.com/hundredrabbits/Orca-c orca-c; cd orca-c && if brew list portmidi >/dev/null 2>&1; then ./tool build --portmidi orca; else ./tool build --no-portmidi orca; fi; }"
+# OSC port + MIDI device are set in conf/orca.conf (Orca-c has no CLI flag); tmux pane: tmux attach -t asemic-orca
+start = "tmux new-session -d -s asemic-orca \"XDG_CONFIG_HOME=$PWD/conf orca-c/build/orca asemic.orca; tmux wait-for -S asemic-orca-exit\" && tmux wait-for asemic-orca-exit"
+# orca (ncurses) survives the pane's SIGHUP -> TERM it by its own cmdline after the session goes
+stop = "tmux kill-session -t asemic-orca 2>/dev/null; pkill -TERM -f '^orca-c/build/orca asemic.orca' || true"
+
+[osc]
+listen = 49162
+
+# Brain opens a virtual MIDI port named "asemic-orca" (mirrors Syphon's asemic:<adapter>/<name>
+# naming) before Orca starts; conf/orca.conf's portmidi_output_device must match it exactly
+# (Orca-c does an exact-length name compare against PortMidi's device list, tui_main.c
+# portmidi_find_device_id_by_name). `prefix` nests MIDI under its own path so it can't collide
+# with this adapter's OSC addresses (which share the same `asemic/io/orca/*` namespace):
+# In -> asemic/io/orca/midi/{note,cc}/<ch>/<n> (0..1); asemic/out/orca/midi/** -> Out.
+[midi]
+port = "asemic-orca"
+prefix = "midi/"
+
+# Inline Python row view (asemic_py/columns.py) attaches to this tmux session instead of
+# hard-coding it; it never starts/stops orca itself (feedback-adapter-viewers).
+[view]
+attach = "tmux attach -t asemic-orca"
+session = "asemic-orca"
+seed = "asemic.orca"

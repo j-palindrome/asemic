@@ -1,0 +1,7 @@
+[adapter]
+name = "midi"
+kind = "bridge"
+description = "Virtual MIDI port pair 'asemic-midi': cc/note <-> asemic/{io,out}/midi/{cc,note}/<ch>/<n> (0..1)"
+
+[midi]
+port = "asemic-midi"

@@ -1,0 +1,34 @@
+// asemic rig backbone — Zenoh Book: Router Mode (router = plugin host)
+// run: ZENOH_BACKEND_FS_ROOT=$PWD/state zenohd -c config/router.json5
+{
+  mode: "router",
+  metadata: { name: "asemic-router" },
+  listen: { endpoints: ["tcp/127.0.0.1:7447"] },
+  // Book: Multicast Scouting > disable for explicit endpoints
+  scouting: { multicast: { enabled: false } },
+  plugins_loading: { enabled: true },
+  plugins: {
+    // Book: Storages — persistence w/ location transparency (fs backend = human-readable files)
+    storage_manager: {
+      volumes: { fs: {} },
+      storages: {
+        asemic_state: {
+          key_expr: "asemic/state/**",
+          strip_prefix: "asemic/state",
+          volume: { id: "fs", dir: "asemic" },
+        },
+        // REPL open-file registry (asemic_py/jump.py): puts aren't queryable without a storage
+        asemic_repl: { key_expr: "asemic/repl/open/**", volume: "memory" },
+        // adapter row configs (`affinity(...)` etc.): a (re)started adapter -- or router -- gets
+        // its rows back; fs = survives restarts, human-readable under <zenoh fs root>/rows/
+        asemic_rows: {
+          key_expr: "asemic/in/*/row/**",
+          strip_prefix: "asemic/in",
+          volume: { id: "fs", dir: "rows" },
+        },
+      },
+    },
+    // HTTP door for TouchDesigner / Max / curl / future asemic MCP
+    rest: { http_port: "127.0.0.1:8447" },
+  },
+}

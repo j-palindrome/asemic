@@ -1,0 +1,31 @@
+[adapter]
+name = "hue"
+kind = "python"
+description = "Philips Hue output: lamps lit by a vortex (xy component) + chaos noise, hue-inferno flame kernel"
+
+[lifecycle]
+# kind = "python": the brain resolves the interpreter itself (ASEMIC_PYTHON env, else
+# <repo root>/.venv/bin/python) and prepends it — write the bare script here, no interpreter.
+start = "adapter.py"
+
+[lifecycle.env]
+HUE_ARENA = "arena"          # xy component = vortex position
+HUE_CHAOS = "chaos"          # chaos noise component (lx, ly, angle, speed)
+HUE_INTENSITY = "intensity"  # param component
+HUE_PALETTE = "inferno"
+
+[[param]]
+key = "intensity"
+label = "INT"
+min = 0.1
+max = 2.5
+default = 1.0
+
+[[io]]
+name = "lamps"
+type = "control"
+dir = "out"
+
+[zenoh]
+subscribes = ["asemic/value/arena.$*", "asemic/value/intensity.value", "asemic/value/chaos.$*", "asemic/state/hue/lamps"]
+publishes = ["asemic/out/hue/lamp/*"]

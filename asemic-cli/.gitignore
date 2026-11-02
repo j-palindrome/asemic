@@ -1,0 +1,11 @@
+target/
+.venv/
+state/
+__pycache__/
+adapters/orca/orca-c/
+tests/artifacts/
+snapshot_report.html
+build/
+fonts/t_*
+.debug/
+asemic_py/_ids*.so

@@ -1,0 +1,12 @@
+[package]
+name = "asemic-ids-py"
+edition.workspace = true
+version.workspace = true
+
+[lib]
+name = "_ids"
+crate-type = ["cdylib"]
+
+[dependencies]
+asemic-schema = { path = "../schema" }
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py311"] }

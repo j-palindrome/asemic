@@ -1,0 +1,27 @@
+[adapter]
+name = "affinity"
+kind = "process"
+ready = true    # start returns once asemic/adapter/affinity/ready is up
+description = "Affinity backend for `affinity(id, input)` rows: gen multiarray -> score/line ops -> drawn in Affinity via its MCP server (Rust crate in this folder)"
+
+[lifecycle]
+# cwd = this folder; Rust crate = crate/ beside this manifest — a member via the adapters/*/crate workspace glob
+build = "cargo build -p asemic-affinity"
+# exec the prebuilt binary directly — !`cargo run`: it re-runs a cargo build that contends with
+# the repo-level cargo watch (asemic_py/rig.py) for the package-cache + build-dir locks, printing
+# "Blocking waiting for file lock on package cache" and hanging startup. The watch builds the
+# whole workspace (incl. this crate) in the brain's profile first, so the binary is already
+# fresh; `exec` keeps the process-group leader = the binary for clean group-wide `stop`.
+start = "exec ../../target/${ASEMIC_PROFILE:-debug}/asemic-affinity"
+
+[lifecycle.env]
+RUST_LOG = "info,zenoh=warn"  # row/gen/draw events -> state/brain.log
+
+[[io]]
+name = "doc"
+type = "control"
+dir = "out"
+
+[zenoh]
+subscribes = ["asemic/in/affinity/row/**", "asemic/gen/**"]
+publishes = ["asemic/preview/**", "asemic/out/affinity/**"]

@@ -1,0 +1,25 @@
+[adapter]
+name = "infinite-researcher"
+kind = "cli"
+description = "Infinite Researcher CLI: searches the web and synthesizes a grounded answer (Ollama) per query"
+
+[lifecycle]
+# kind = "cli": no long-lived process. The brain execs this argv template (never `sh -c`) once
+# per `put` on the "query" [[io]] plug below, with `{query}` filled from the request payload's
+# `query` field (or, for a bare string payload, the payload itself). Stdout streams line by line
+# to the "answer" [[io]] plug, then a final `.../answer/done` carries `{code}`.
+run = 'uv run --directory "${HOME}/jVault/Projects/Infinite Researcher/server" python -m infinite_researcher.cli research {query}'
+
+[[io]]
+name = "query"
+type = "control"
+dir = "in"
+
+[[io]]
+name = "answer"
+type = "control"
+dir = "out"
+
+[zenoh]
+subscribes = ["asemic/io/infinite-researcher/query"]
+publishes = ["asemic/out/infinite-researcher/answer", "asemic/out/infinite-researcher/answer/done"]

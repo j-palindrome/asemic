@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+# members = globs: `crates/*` core, `adapters/*/crate` = scan over the adapters dir — every
+# adapters/<n>/crate/ joins the build automatically, no members line to edit per adapter;
+# adapter dirs without a crate/ (manifest-only/python/external binaries) simply don't match
+members = ["crates/*", "adapters/*/crate"]
+# ids-py = Python extension (links libpython at import): built by maturin (`uv pip install -e .`), !plain cargo build
+default-members = ["crates/schema", "crates/brain", "crates/draw", "crates/font", "adapters/*/crate"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+zenoh = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+schemars = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

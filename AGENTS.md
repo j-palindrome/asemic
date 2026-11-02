@@ -1,0 +1,81 @@
+# AGENTS.md — Asemic
+
+- 1 Scope
+  - 1.1 This file = agent map for this repo; README.md + per-project READMEs = source of truth (build/test)
+  - 1.2 Adds agent view: structure, debug procedure, workspace skills
+- 2 Repo structure
+  - 2.1 `asemic-cli/` = *ACTIVE runtime (Rust + Python); most work here
+  - 2.2 `ReadyFire/` = content project built ON TOP of `asemic-cli` (≠ separate runtime)
+  - 2.3 `legacy/` = archived (`asemic-site`, `ipad-drawing`, `rust-controls`, `Wave Collapse`); !! start new work here | reviving
+  - 2.4 `workspace.json` = intentionally empty/unused → ignore
+  - 2.5 `.agents/skills/` = workspace skills (canonical; `.claude/skills` symlinks)
+- 3 asemic-cli layout
+  - 3.1 `asemic_py/` = Python REPL, client, Textual UI, canvas/points codec
+    - 3.1.1 `app.py` TUI, `columns.py` block-column editor + slash cmds, `namespace.py` verbs, `state.py` mirrored brain state
+    - 3.1.2 `nvim_view.py` + `nvim_server.py` + `nvim/init.lua` = embedded Neovim row editor
+  - 3.2 `crates/brain` = `asemic-brain` binary: verbs, engine, adapters host, clock = *source of truth
+  - 3.3 `crates/draw` = GPU draw host (wgpu; optional Syphon/JACK/camera)
+  - 3.4 `crates/font` = variable-font builder + outline utils
+  - 3.5 `crates/schema` = shared schema, IDs, wire format (Zenoh keyspaces)
+  - 3.6 `crates/ids-py` = Rust ID resolver as Python ext (`_ids`); built by maturin; ≠ default workspace member
+  - 3.7 `adapters/` = one folder/adapter: `adapter.toml` + backend; Rust backend = `crate/` subfolder (auto member via `adapters/*/crate` glob)
+  - 3.8 `examples/` = REPL examples (`asemic <name>`); `tests/` = pytest + snapshot; `config/` = Zenoh JSON5
+  - 3.9 `scripts/` = `gen_api.py`, `gen_types.sh`, `debug.sh` (agent debug harness), `surfaces.sh`
+  - 3.10 `help/` = *doc index (architecture, verbs, adapters, livecode, repl-tui, troubleshooting, development)
+- 4 Read `help/` before any verb/row/adapter
+  - 4.1 old `asemic.md` spec → migrated into `help/` (2026-10-27)
+  - 4.2 key pages: `architecture.md` (Zenoh keyspace, block scoping), `adapters.md` (manifest/lifecycle), `livecode.md` (verbs), `verbs.md` (ref), `development.md` (build/test/codegen), `troubleshooting.md` (failures)
+- 5 Build & test (asemic-cli)
+  - 5.1 `uv sync` then `uv pip install -e .` (builds `_ids` via maturin) then `cargo build --release`
+  - 5.2 `asemic` = REPL (auto-spawns zenohd + brain); `asemic plant` = example
+  - 5.3 `uv` Python / `cargo` Rust; !! mix `pip` into venv
+  - 5.4 `uv run pytest` = unit + live (fixtures auto zenohd + brain); `-m surfaces` = opt-in screenshots
+  - 5.5 `cargo test -p asemic-schema|asemic-brain|asemic-draw` = Rust unit
+  - 5.6 diagnostics: `cargo run --bin asemic-brain -- --verbs` (verb table) / `-- --schema` (schema bundle)
+- 6 Generated files (!! hand-edit)
+  - 6.1 `asemic_py/_schema.json` + `_keys.py` < `UPDATE_WIRE=1 cargo test -p asemic-schema`
+  - 6.2 `asemic_py/_types.py` < `bash scripts/gen_types.sh`
+  - 6.3 `asemic_py/_api.pyi` < `python scripts/gen_api.py`
+  - 6.4 UI ↔ brain disagree > regenerate §6.1–6.3 before debugging
+- 7 Diagnose & debug
+  - 7.1 Reproduce (Textual UI): `scripts/debug.sh -d` = tmux + devtools console tee'd to log
+    - 7.1.1 session `asemic-debug` (win `app` / `console`); log `.debug/textual-console.log`
+    - 7.1.2 inspect: `tmux capture-pane -pt asemic-debug:app` / send: `tmux send-keys -t asemic-debug:app '<keys>' C-m` / tear: `tmux kill-session -t asemic-debug`
+  - 7.2 Inspect embedded Neovim row editor
+    - 7.2.1 = *detached headless nvim server, 1/script file: `nvim --headless --listen <sock> -u asemic_py/nvim/init.lua <file>` ([[nvim_server.py]])
+    - 7.2.2 socket = `/tmp/asemic-nvim-<sha1(abspath)[:10]>.sock`; survives REPL exit (re-attach = reuse)
+    - 7.2.3 find: `ls /tmp/asemic-nvim-*.sock` / hash via `sha1(path.resolve())[:10]`
+    - 7.2.4 inspect via pynvim (attach socket, !! spawn new server): `n=pynvim.attach('socket', path=sock)` → `n.current.buffer[:]` (row text), `n.vars.get('asemic_chans')`, `n.eval('getline(1,"$")')`
+    - 7.2.5 / nvim remote API: `nvim --server <sock> --remote-expr 'getline(1,"$")'` / `--remote-send '<Esc>'`
+    - 7.2.6 arch (debug notes): Python sends keys via `nvim_input` (!! direct buffer/file edit); scratch buffer + hidden prelude (`_api` import), `nvim_view.py` offsets rows; completion = `AsemicOmni` omnifunc + pylsp
+  - 7.3 Debug brain: `RUST_LOG=debug cargo run --bin asemic-brain -- --config config/peer.json5`; logs also → `state/brain.log`
+  - 7.4 Adapter debug
+    - 7.4.1 `pgrep -fl asemic-<n>` = only brain-spawned (ppid = brain) should run; stray hand-run lingers
+    - 7.4.2 ENTER/COOK reaches row = brain log `cook` then adapter `start`
+    - 7.4.3 row failures invisible unless published → `asemic/err/<n>/<id>`
+- 8 Common failures (full table: `help/troubleshooting.md`)
+  - 8.1 `another asemic-brain is already running` → kill other / `asemic --restart` (1 brain/machine owns Syphon)
+  - 8.2 `brain not answering` → zenohd down / brain crashed → `asemic --restart` / `zenohd -c config/router.json5`
+  - 8.3 blank preview → demand-gated → focus row / `embed(id)`
+  - 8.4 block frozen → `timestretch` = 0.0 default → set 1.0 / Space
+  - 8.5 type errors / missing completions → `_api.pyi`/`_types.py` stale → §6
+  - 8.6 Rust edit (brain/draw/schema) → `cargo build --bin asemic-brain` *and restart brain (`rig.ensure_brain()`); `asemic --restart` ≠ rebuild
+- 9 Workspace-scoped skills
+  - 9.1 skills live `.agents/skills/` (canonical) symlinked `.claude/skills/`
+  - 9.2 `add-adapter` = use on `/add-adapter <name>` / add adapter · renderer row · external-app backend; scaffolds row verb + adapter pair; spec = `add-adapter/SKILL.md`
+  - 9.3 task matches skill > load before writing; new skill → `.agents/skills/<name>/SKILL.md`
+- 10 Conventions
+  - 10.1 per-project READMEs + `help/` = build/test specifics; top README = map only
+  - 10.2 !! pip into venv (§5.3)
+  - 10.3 no top-level license; each project gets own; `legacy/asemic-site/LICENSE` = that template only
+- 11 Pre-Alpha Architectural Refactor: Procs & Multiarrays (Replacing Noise & Randomizer)
+  - 11.1 PRE-ALPHA stance: *!! deprecate; replace noise & randomizer completely with procs
+  - 11.2 Single Universal Signal Type = Multiarray (`Multi` in `crates/schema/src/multi.rs`)
+    - 11.2.1 All number-processing nodes (formerly noise, randomizer, and existing procs) are `Proc`s
+    - 11.2.2 ALL numeric outputs conform to `Multi` spec; scalars wrap as 1 line × 1 point × 1 dim (e.g. `attrs: ["value"]`)
+    - 11.2.3 Cross-multiplying, batching, and modulation operate universally via Multiarray pairing, dimension-matching, and wrapping/broadcasting across different sizes
+  - 11.3 Taxonomy & Schema collapse:
+    - 11.3.1 `NoiseKind` and `RandomizerKind` merge into `ProcKind`
+    - 11.3.2 `ComponentKind::Noise` and `ComponentKind::Randomizer` removed; unified into `ComponentKind::Proc`
+    - 11.3.3 Brain engine routes all signal generation through `proc` execution pipeline; noisegens & randomizers live under `crates/brain/src/proc/`
+

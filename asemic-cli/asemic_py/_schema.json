@@ -1,0 +1,1350 @@
+{
+  "$defs": {
+    "AdapterInfo": {
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AdapterKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ready": {
+          "default": false,
+          "description": "Declares liveliness token `asemic/adapter/<name>/ready` once subscribed; `start` awaits it,\nso a COOK that starts the adapter is rendered by it.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "AdapterKind": {
+      "oneOf": [
+        {
+          "const": "process",
+          "description": "Long-running child process owned by the brain.",
+          "type": "string"
+        },
+        {
+          "const": "app",
+          "description": "External GUI app launched/quit by commands (TouchDesigner, Max, Affinity).",
+          "type": "string"
+        },
+        {
+          "const": "python",
+          "description": "Python extension using `asemic_py` (runs as a process). `lifecycle.start`/`build`/`stop`\nare the bare script (e.g. `\"adapter.py\"`), never an interpreter: the brain's adapter host\nresolves one itself (`ASEMIC_PYTHON` env, else `<repo root>/.venv/bin/python`) and\nprepends it, so every python adapter shares the one repo venv without repeating its path.",
+          "type": "string"
+        },
+        {
+          "const": "bridge",
+          "description": "No process: brain-owned transports only (`[osc]` / `[midi]`).",
+          "type": "string"
+        },
+        {
+          "const": "cli",
+          "description": "No long-lived process: `lifecycle.run` is a one-shot argv template the brain execs per\nrequest (never a long-running child). A `put` on an \"in\" `[[io]]` plug's\n`asemic/io/<adapter>/<name>` key runs it; stdout lines stream to\n`asemic/out/<adapter>/<name>` (the first \"out\" plug) as they arrive, then a final\n`asemic/out/<adapter>/<name>/done` carries `{code}`. A new request while one is still\nrunning cancels (kills) it first; adapter `stop` kills any in-flight run too.",
+          "type": "string"
+        }
+      ]
+    },
+    "AdapterManifest": {
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/AdapterInfo"
+        },
+        "io": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/IoSpec"
+          },
+          "type": "array"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/Lifecycle",
+          "default": {
+            "build": null,
+            "env": {},
+            "run": null,
+            "start": null,
+            "stop": null
+          }
+        },
+        "midi": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Brain-owned virtual MIDI port pair (midir): cc/note <-> `asemic/{io,out}/<adapter>/<prefix>{cc,note}/<ch 1-16>/<n>` (0..1)."
+        },
+        "osc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OscSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Brain-owned OSC bridge (rosc): in -> `asemic/io/<adapter>/<path>`, `asemic/out/<adapter>/<path>` -> out."
+        },
+        "param": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ParamSpec"
+          },
+          "type": "array"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ViewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Inline viewer facts (e.g. the Python orca row view): how to attach to the ONE process\n`[lifecycle] start` already launched (feedback-adapter-viewers — viewers attach, never\nspawn). Served over Zenoh with the rest of the manifest (`schema`/`adapters` verb), so a\nviewer reads it from the brain instead of hard-coding adapter-specific constants."
+        },
+        "zenoh": {
+          "$ref": "#/$defs/ZenohKeys",
+          "default": {
+            "publishes": [],
+            "subscribes": []
+          }
+        }
+      },
+      "required": [
+        "adapter"
+      ],
+      "title": "AdapterManifest",
+      "type": "object"
+    },
+    "Anim": {
+      "description": "Declares a component animated by a noisegen.",
+      "properties": {
+        "channel": {
+          "description": "Noise channel; default `value` for param, `x`/`y` (Add/Replace) or `vx`/`vy` (Drift) for xy.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depth": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "mode": {
+          "$ref": "#/$defs/AnimMode",
+          "default": "add"
+        },
+        "source": {
+          "description": "Noise component id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
+    "AnimMode": {
+      "oneOf": [
+        {
+          "const": "add",
+          "description": "value = base + noise * depth * span.",
+          "type": "string"
+        },
+        {
+          "const": "drift",
+          "description": "Integrate noise as velocity; wrap toroidally (hue-inferno arena).",
+          "type": "string"
+        },
+        {
+          "const": "replace",
+          "description": "value = noise mapped into range.",
+          "type": "string"
+        }
+      ]
+    },
+    "BrushKind": {
+      "description": "Brush look for draw nodes (`tex(..., brush=...)` or `output(..., brush=...)`).",
+      "enum": [
+        "line",
+        "curve",
+        "dot",
+        "mesh"
+      ],
+      "title": "BrushKind",
+      "type": "string"
+    },
+    "Combine": {
+      "oneOf": [
+        {
+          "const": "replace",
+          "description": "Overwrite dst (today's behavior).",
+          "type": "string"
+        },
+        {
+          "const": "add",
+          "description": "dst = current(dst) + mapped.",
+          "type": "string"
+        },
+        {
+          "const": "multiply",
+          "description": "dst = current(dst) * mapped.",
+          "type": "string"
+        }
+      ]
+    },
+    "Component": {
+      "oneOf": [
+        {
+          "description": "Single slider → `asemic/value/<id>.value`.",
+          "properties": {
+            "anim": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Anim"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "curve": {
+              "$ref": "#/$defs/Curve",
+              "default": "linear"
+            },
+            "default": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max": {
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "format": "double",
+              "type": "number"
+            },
+            "step": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "param",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "min",
+            "max"
+          ],
+          "title": "ParamComponent",
+          "type": "object"
+        },
+        {
+          "description": "Multislider: `n` sliders sharing one range → `asemic/value/<id>.<i>` (i = 0..n);\neach index is its own param (`<id>.<i>` routable, `set('<id>', '<i>', v)`).",
+          "properties": {
+            "curve": {
+              "$ref": "#/$defs/Curve",
+              "default": "linear"
+            },
+            "default": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max": {
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "format": "double",
+              "type": "number"
+            },
+            "n": {
+              "default": 8,
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "multi",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "min",
+            "max"
+          ],
+          "title": "MultiComponent",
+          "type": "object"
+        },
+        {
+          "description": "XY pad → `asemic/value/<id>.{x,y}`.",
+          "properties": {
+            "anim": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Anim"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "const": "xy",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/Range",
+              "default": {
+                "curve": "linear",
+                "default": 0.0,
+                "max": 1.0,
+                "min": -1.0
+              }
+            },
+            "y": {
+              "$ref": "#/$defs/Range",
+              "default": {
+                "curve": "linear",
+                "default": 0.0,
+                "max": 1.0,
+                "min": -1.0
+              }
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "XyComponent",
+          "type": "object"
+        },
+        {
+          "description": "Intra-brain processor (physics / quantum / harmonics / noise / randomizer) → `asemic/value/<id>.<ch>` channels\nand `asemic/gen/<id>` points (multiarray). `input` = key it reads (`asemic/io/..` f32 stream, or a\nvalue/proc key sampled per frame; `key#field` picks a JSON field).",
+          "properties": {
+            "attrs": {
+              "additionalProperties": {
+                "format": "double",
+                "type": "number"
+              },
+              "description": "Declared point dims {name: default}: appended to the output multiarray when absent;\nparam `attr.<name>` (route dst `<id>.attr.<name>`) offsets the dim.",
+              "type": "object"
+            },
+            "axiom": {
+              "description": "lsys: axiom + ABOP rules (symbios syntax; `0.5: F -> F[+F]` = stochastic).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "input": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "params": {
+              "additionalProperties": {
+                "format": "double",
+                "type": "number"
+              },
+              "default": {},
+              "type": "object"
+            },
+            "path": {
+              "description": "text: font file (.ttf/.otf, variable ok); hot-reloaded on change.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "proc": {
+              "$ref": "#/$defs/ProcKind"
+            },
+            "rules": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "seed": {
+              "default": 0,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "text": {
+              "description": "glyph: string drawn with the asemic-repl font.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "proc",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "proc"
+          ],
+          "title": "ProcComponent",
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speed": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Curve": {
+      "enum": [
+        "linear",
+        "exp",
+        "log",
+        "quad"
+      ],
+      "type": "string"
+    },
+    "ImageKind": {
+      "description": "Frontend preview renderer (`textual_image` widget classes).",
+      "oneOf": [
+        {
+          "enum": [
+            "halfcell",
+            "tgp",
+            "sixel",
+            "unicode"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "auto",
+          "description": "kitty TGP on Ghostty/kitty, sixel elsewhere, else quarter-blocks (textual_image detection)",
+          "type": "string"
+        },
+        {
+          "const": "quad",
+          "description": "2x2 quarter-blocks via libchafa (`asemic_py/quad.py`)",
+          "type": "string"
+        }
+      ]
+    },
+    "IoDir": {
+      "enum": [
+        "in",
+        "out"
+      ],
+      "type": "string"
+    },
+    "IoSpec": {
+      "description": "A plug: named in/out socket. Brain owns transport per type, adapters never pick it:\nvideo = Syphon server `asemic:<adapter>/<name>`, audio = Loopback device,\npoints/control = Zenoh `asemic/io/<adapter>/<name>`, midi = virtual port.",
+      "properties": {
+        "channels": {
+          "description": "Audio channel count / video size hint; informational.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "dir": {
+          "$ref": "#/$defs/IoDir"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/IoType"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "dir"
+      ],
+      "type": "object"
+    },
+    "IoType": {
+      "enum": [
+        "points",
+        "video",
+        "audio",
+        "midi",
+        "control"
+      ],
+      "type": "string"
+    },
+    "Lifecycle": {
+      "description": "Shell commands run with `sh -c` in the adapter directory (except `run`, see below).",
+      "properties": {
+        "build": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "run": {
+          "description": "`kind = \"cli\"` only: one-shot argv template, e.g. `\"uv run --directory {dir} python -m\npkg.cli research {query}\"`. Whitespace-split (double-quoted segments kept as one token);\na token containing `{name}` has that placeholder replaced by the string value of the\nrequest payload's `name` field (or, for a scalar/non-object payload, by the payload\nitself when the plug has exactly one placeholder) and is then passed as a single argv\nelement — exec'd directly (`tokio::process::Command`, never `sh -c`), so a value can\nnever inject a second shell command.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stop": {
+          "description": "Absent (the common case) = the brain signals the whole process group it started `start`\nin (SIGTERM then SIGKILL), taking down any children the adapter forked too. Only needed\nfor a process the brain doesn't itself own (an already-running app, a wrapper that\ndetaches, ...).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "LoopMode": {
+      "description": "Block looping behavior (`block(..., loop=...)`).",
+      "enum": [
+        "loop",
+        "off",
+        "pingpong"
+      ],
+      "title": "LoopMode",
+      "type": "string"
+    },
+    "MidiSpec": {
+      "properties": {
+        "port": {
+          "description": "Virtual port name (default `asemic-<adapter>`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prefix": {
+          "description": "Extra key segment between `<adapter>` and `{cc,note}` (e.g. `\"midi/\"`), for adapters that\nalso bridge another transport (OSC) under the same name and would otherwise collide.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "NodeInfo": {
+      "description": "Brush + asemic-repl shader modifiers (WGSL bodies, e.g. `return 2.0;`; see brush.rs\n`build_shader_module` for `info: ModifierInfo`). None = upstream default.",
+      "properties": {
+        "adapter": {
+          "default": "",
+          "description": "in: `<adapter>:<name>`",
+          "type": "string"
+        },
+        "alpha": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "atlas": {
+          "default": "",
+          "description": "ascii: `text:<font path>` = ramp glyphs filled from the font's outlines (overrides\n`font`); ramp re-sorted by per-glyph coverage; rebuilt on `axes` / file change",
+          "type": "string"
+        },
+        "attrs": {
+          "additionalProperties": {
+            "format": "float",
+            "type": "number"
+          },
+          "default": {},
+          "description": "draw / compute: declared point dims {name: default}, appended to the incoming layout\n(gens / compute src) when absent; modifiers read any dim as `attr(info, DIM_<name>)`.",
+          "type": "object"
+        },
+        "axes": {
+          "additionalProperties": {
+            "format": "float",
+            "type": "number"
+          },
+          "default": {},
+          "description": "ascii text atlas: variable-font axis location {tag: value}; routable as\n`asemic/tex/<id>.param.<tag>` (`texparam(id, tag, v)`)",
+          "type": "object"
+        },
+        "brightness": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "brush": {
+          "default": "",
+          "description": "line / curve / dot (asemic-repl brushes); empty = line",
+          "type": "string"
+        },
+        "count": {
+          "default": 0,
+          "description": "compute: number of points (`point(i)`); draw: points drawn (0 = all)",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dims": {
+          "description": "live point dims (draw: gens layout; compute: `Point` fields)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "font": {
+          "default": "",
+          "description": "ascii: atlas `ascii` (bitmap chars) | `asemic` (asemic-repl glyphs)",
+          "type": "string"
+        },
+        "h": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hz": {
+          "default": null,
+          "description": "jack: whole drawing traced hz times/s as x/y audio (oscilloscope); None = 60",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "inputs": {
+          "default": [],
+          "description": "node ids sampled by shader/compute (`in0(uv)`..) / draw (`tex0(uv)`..) / feedback (first)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "instances": {
+          "default": 0,
+          "description": "draw from GPU points, line/curve brushes: samples along the path (0 = count * 8).\nUpstream `to_curves` uses path length / width, which needs CPU points.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "default": "",
+          "type": "string"
+        },
+        "live": {
+          "description": "in: connected; others: true",
+          "type": "boolean"
+        },
+        "node": {
+          "default": null,
+          "description": "syphon: publish this texture node (graph.rs) instead of drawing src",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "params": {
+          "default": [],
+          "description": "uniform `param(i)` (<= 16); ascii: [columns, colour]",
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "pingpong": {
+          "default": false,
+          "description": "keep last frame: self-inputs, cycles, `smooth`, compute `prev(i)`",
+          "type": "boolean"
+        },
+        "points": {
+          "default": null,
+          "description": "draw: compute node id whose points feed the brush",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "position": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "publish": {
+          "default": [],
+          "description": "sink addresses `<adapter>:<name>` (empty name -> `asemic:<id>`)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ramp": {
+          "default": "",
+          "description": "ascii: glyphs dark -> light (empty = ascii.rs `RAMP`)",
+          "type": "string"
+        },
+        "server": {
+          "default": "",
+          "description": "legacy kind syphon: server display name (-> kind in, adapter `syphon:<server>`)",
+          "type": "string"
+        },
+        "sinks": {
+          "description": "(sink name, clients)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "smooth": {
+          "default": 0.0,
+          "description": "pingpong: 0 = raw each frame, -> 1 = slower blend with last frame",
+          "format": "float",
+          "type": "number"
+        },
+        "src": {
+          "default": [],
+          "description": "draw: gen ids",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "default": false,
+          "description": "compute: preview as a text dump of sampled output values (AST1, `compute_text`) instead\nof the raster canvas (ASF1) -- numeric debugging of a field shader (`tex(..., text=true)`)",
+          "type": "boolean"
+        },
+        "w": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wesl": {
+          "default": "",
+          "description": "shader / compute: WESL source",
+          "type": "string"
+        },
+        "width": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "live",
+        "sinks",
+        "dims"
+      ],
+      "title": "NodeInfo",
+      "type": "object"
+    },
+    "NoiseFrame": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Latest channel values of a noise/proc slot (published per channel as `asemic/value/<id>.<ch>`) (`value`, `x`, `vx`, ...).",
+      "title": "NoiseFrame",
+      "type": "object"
+    },
+    "OscSpec": {
+      "properties": {
+        "listen": {
+          "description": "UDP port the brain listens on for the adapter's OSC.",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "send": {
+          "description": "`host:port` the brain sends OSC to.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "OutputKind": {
+      "description": "Output node kind (`output(..., kind=...)`).",
+      "enum": [
+        "syphon",
+        "jack"
+      ],
+      "title": "OutputKind",
+      "type": "string"
+    },
+    "ParamSpec": {
+      "properties": {
+        "address": {
+          "description": "Native address inside the target (OSC path, MIDI CC, TD par name).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "curve": {
+          "$ref": "#/$defs/Curve",
+          "default": "linear"
+        },
+        "default": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max": {
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "format": "double",
+          "type": "number"
+        },
+        "step": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "min",
+        "max"
+      ],
+      "type": "object"
+    },
+    "PostKind": {
+      "description": "Post-processing look for outputs (`output(..., post=...)`).",
+      "enum": [
+        "none",
+        "feedback"
+      ],
+      "title": "PostKind",
+      "type": "string"
+    },
+    "PreviewKind": {
+      "description": "Preview renderer kind (`embed(..., preview=...)` or `affinity(..., preview=...)`).",
+      "enum": [
+        "dots",
+        "image",
+        "ascii"
+      ],
+      "title": "PreviewKind",
+      "type": "string"
+    },
+    "ProcAttrs": {
+      "description": "`asemic/meta/<id>.attrs`: a proc's live point dims + its declared `attrs` defaults.",
+      "properties": {
+        "declared": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "dims": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "dims",
+        "declared"
+      ],
+      "title": "ProcAttrs",
+      "type": "object"
+    },
+    "ProcKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "perlin",
+            "simplex",
+            "lfo",
+            "random-walk"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "physics",
+          "description": "rapier2d balls in a unit box.",
+          "type": "string"
+        },
+        {
+          "const": "wave",
+          "description": "1D stationary Schrödinger (schroidnger_equation, Numerov).",
+          "type": "string"
+        },
+        {
+          "const": "spectrum",
+          "description": "FFT bands of `input`.",
+          "type": "string"
+        },
+        {
+          "const": "glyph",
+          "description": "`text` as asemic-repl font paths (asemic-font), scanned/wobbled by params.",
+          "type": "string"
+        },
+        {
+          "const": "lsys",
+          "description": "L-system (symbios derivation + symbios-turtle-3d), optionally rooted on `input` gen points.",
+          "type": "string"
+        },
+        {
+          "const": "text",
+          "description": "`text` shaped (harfrust) in font `path`, outlines (skrifa) at axis params, flattened (lyon).",
+          "type": "string"
+        },
+        {
+          "const": "melody",
+          "description": "Seeded pentatonic walk: 1 line per voice, 1 point per note, dims pitch (MIDI) + dur (beats).",
+          "type": "string"
+        },
+        {
+          "const": "variations",
+          "description": "12-tone variations (transpositions, inversions, retrogrades) of input motif points/multiarray modulated by smooth noise.",
+          "type": "string"
+        },
+        {
+          "const": "py",
+          "description": "Python fn in the REPL frontend: the brain queries `asemic/py/<id>` {params, seed, input}\nwhen those change (or on COOK); the frontend's queryable replies ASP1, cached and\npublished every frame: no per-frame round trip.",
+          "type": "string"
+        },
+        {
+          "const": "chaos",
+          "description": "Lorenz attractor (hue-inferno `update_lorenz_ml`).",
+          "type": "string"
+        },
+        {
+          "const": "white",
+          "description": "Uniform iid jitter per cook.",
+          "type": "string"
+        },
+        {
+          "const": "gauss",
+          "description": "Gaussian iid jitter per cook (Box-Muller).",
+          "type": "string"
+        }
+      ]
+    },
+    "Range": {
+      "properties": {
+        "curve": {
+          "$ref": "#/$defs/Curve",
+          "default": "linear"
+        },
+        "default": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "format": "double",
+          "type": "number"
+        },
+        "step": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "type": "object"
+    },
+    "Route": {
+      "description": "Mixer route: brain subscribes `src`, maps the number, puts to `dst` (plan §8.1.1).",
+      "properties": {
+        "combine": {
+          "$ref": "#/$defs/Combine",
+          "default": "replace",
+          "description": "How the mapped value is applied to `dst`'s current value (plugtype)."
+        },
+        "curve": {
+          "$ref": "#/$defs/Curve",
+          "default": "linear"
+        },
+        "dst": {
+          "description": "Concrete destination key, e.g. `asemic/out/hue/intensity`.",
+          "type": "string"
+        },
+        "field": {
+          "description": "Field to read when `src` carries a JSON object (noise channels).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "default": [
+            0.0,
+            1.0
+          ],
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "src": {
+          "description": "Concrete key, e.g. `asemic/value/arena.x` or `asemic/value/chaos.vx`.",
+          "type": "string"
+        },
+        "to": {
+          "default": [
+            0.0,
+            1.0
+          ],
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "src",
+        "dst"
+      ],
+      "title": "Route",
+      "type": "object"
+    },
+    "ScoreLayer": {
+      "description": "Score event drawing layers (for renderer rows e.g. `affinity`).",
+      "oneOf": [
+        {
+          "const": "heads",
+          "description": "Notehead + ledger lines",
+          "type": "string"
+        },
+        {
+          "const": "stems",
+          "description": "Stem (< 4 beats; up on top half of staff)",
+          "type": "string"
+        },
+        {
+          "const": "lines",
+          "description": "Headless duration bar, thickness = dynamics",
+          "type": "string"
+        },
+        {
+          "const": "accidentals",
+          "description": "Motion-spelled accidental glyph (down = flat)",
+          "type": "string"
+        },
+        {
+          "const": "names",
+          "description": "Pitch label beside notehead",
+          "type": "string"
+        }
+      ],
+      "title": "ScoreLayer"
+    },
+    "ScoreNames": {
+      "description": "Score note naming formats (`names` parameter for renderer rows e.g. `affinity`).",
+      "oneOf": [
+        {
+          "const": "pitchclass",
+          "description": "12-tone row pitch class numbers: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, t, e",
+          "type": "string"
+        },
+        {
+          "const": "midi",
+          "description": "Raw integer MIDI note number (e.g. 60)",
+          "type": "string"
+        },
+        {
+          "const": "hz",
+          "description": "Pitch frequency in Hertz rounded (e.g. 440Hz)",
+          "type": "string"
+        },
+        {
+          "const": "notename",
+          "description": "Note name with octave number (e.g. A5, C4)",
+          "type": "string"
+        },
+        {
+          "const": "note",
+          "description": "Note name without octave number (e.g. A, C# / Db)",
+          "type": "string"
+        }
+      ],
+      "title": "ScoreNames"
+    },
+    "ScoreSettings": {
+      "description": "Score layout knobs (`settings` dict for renderer rows e.g. `affinity`).",
+      "properties": {
+        "quarter_in": {
+          "default": 0.25,
+          "description": "Physical width of a quarter note in inches (default 0.25 = 1/4 inch so notes never overlap)",
+          "format": "double",
+          "type": "number"
+        },
+        "spacing": {
+          "default": 1.0,
+          "description": "Kerning-style spacing multiplier over default quarter-note width (1 = default, 2 = double spacing, 0.5 = half spacing)",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "title": "ScoreSettings",
+      "type": "object"
+    },
+    "TexKind": {
+      "description": "Texture node kind (`tex(..., kind=...)`).",
+      "enum": [
+        "in",
+        "draw",
+        "shader",
+        "compute",
+        "feedback",
+        "ascii"
+      ],
+      "title": "TexKind",
+      "type": "string"
+    },
+    "UiSettings": {
+      "additionalProperties": false,
+      "description": "UI/perf settings (`ui(...)` verb -> `keys::UI_STATE`); frontends render from this.",
+      "properties": {
+        "clock": {
+          "default": true,
+          "description": "redraw on every `asemic/clock` tick (false = tempo ticks don't wake the UI)",
+          "type": "boolean"
+        },
+        "hz": {
+          "default": 20.0,
+          "description": "max UI redraws/s",
+          "format": "double",
+          "type": "number"
+        },
+        "image": {
+          "$ref": "#/$defs/ImageKind",
+          "default": "auto",
+          "description": "frame preview renderer"
+        }
+      },
+      "title": "UiSettings",
+      "type": "object"
+    },
+    "ViewSpec": {
+      "properties": {
+        "attach": {
+          "description": "Shell argv/command string to attach a viewer to the running process, e.g.\n`\"tmux attach -t asemic-orca\"`.",
+          "type": "string"
+        },
+        "seed": {
+          "description": "Seed file for the process' content, relative to the adapter's own directory.",
+          "type": "string"
+        },
+        "session": {
+          "description": "tmux session name the process runs in (viewer samples it with `capture-pane`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attach",
+        "session",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "ZenohKeys": {
+      "properties": {
+        "publishes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "subscribes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "adapter": {
+      "$ref": "#/$defs/AdapterManifest"
+    },
+    "attrs": {
+      "$ref": "#/$defs/ProcAttrs"
+    },
+    "brush_kind": {
+      "$ref": "#/$defs/BrushKind"
+    },
+    "component": {
+      "$ref": "#/$defs/Component"
+    },
+    "loop_mode": {
+      "$ref": "#/$defs/LoopMode"
+    },
+    "noise": {
+      "$ref": "#/$defs/NoiseFrame"
+    },
+    "output_kind": {
+      "$ref": "#/$defs/OutputKind"
+    },
+    "post_kind": {
+      "$ref": "#/$defs/PostKind"
+    },
+    "preview_kind": {
+      "$ref": "#/$defs/PreviewKind"
+    },
+    "route": {
+      "$ref": "#/$defs/Route"
+    },
+    "score_layer": {
+      "$ref": "#/$defs/ScoreLayer"
+    },
+    "score_names": {
+      "$ref": "#/$defs/ScoreNames"
+    },
+    "score_settings": {
+      "$ref": "#/$defs/ScoreSettings"
+    },
+    "tex": {
+      "$ref": "#/$defs/NodeInfo"
+    },
+    "tex_kind": {
+      "$ref": "#/$defs/TexKind"
+    },
+    "ui": {
+      "$ref": "#/$defs/UiSettings"
+    }
+  },
+  "title": "Schemas",
+  "type": "object"
+}

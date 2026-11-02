@@ -1,0 +1,15 @@
+[submodule "asemic-cli/vendor/lygia"]
+	path = asemic-cli/vendor/lygia
+	url = https://github.com/patriciogonzalezvivo/lygia.git
+[submodule "legacy/ipad-drawing"]
+	path = legacy/ipad-drawing
+	url = git@github.com:j-palindrome/ipad-drawing.git
+[submodule "legacy/rust-controls"]
+	path = legacy/rust-controls
+	url = git@github.com:j-palindrome/rust-controls.git
+[submodule "legacy/Wave Collapse/wave-collapse-standalone"]
+	path = legacy/Wave Collapse/wave-collapse-standalone
+	url = git@github.com:j-palindrome/wave-collapse-standalone.git
+[submodule "legacy/Wave Collapse/wave-collapse-web-export"]
+	path = legacy/Wave Collapse/wave-collapse-web-export
+	url = git@github.com:j-palindrome/wave-collapse-web-export.git

@@ -1310,15 +1310,23 @@ class AsemicApp(TreeNavApp):
         self.client.subscribe_raw("asemic/err/*/**", cast(Any, lambda k, b: self.post_message(
             self.RowError(*k.split("/", 3)[2:4], b.decode()))))
         # Keep LAST_FRAME warm globally across all preview & point streams (affinity/output/tex/procs),
-        # so when the user enters/drills into a block or cooks, newly mounted BufferViews seed immediately.
+        # throttled to <=1 Hz for background/non-visible nodes so high-frequency streams don't churn cache.
+        _last_cached: dict[str, float] = {}
+
         def _cache_preview(k: str, b: bytes) -> None:
             ident = k.removeprefix(ids.PREVIEW_PREFIX)
-            LAST_FRAME[ident] = b
+            now = time.monotonic()
+            if now - _last_cached.get(ident, 0.0) >= 1.0:
+                _last_cached[ident] = now
+                LAST_FRAME[ident] = b
         self.client.subscribe_raw("asemic/preview/**", _cache_preview)
 
         def _cache_gen(k: str, b: bytes) -> None:
             ident = k.removeprefix(ids.GEN_PREFIX)
-            LAST_FRAME[ident] = b
+            now = time.monotonic()
+            if now - _last_cached.get(ident, 0.0) >= 1.0:
+                _last_cached[ident] = now
+                LAST_FRAME[ident] = b
         self.client.subscribe_raw("asemic/gen/**", _cache_gen)
         self._kick()  # drain what on_mount's initial gets queued
         self.query_one("#cols", BlockColumns).line.focus()

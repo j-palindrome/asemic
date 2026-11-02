@@ -569,6 +569,9 @@ class Repl:
                         pass
 
             self._guard_row(key, start_row, send_free)
+            # Define synth graph immediately so proxy is compiled and ready;
+            # audio trigger / notes wait until block unfreezes (ts > 0.0)
+            send_def()
 
         self.ns.update(
             embed=embed, block=block, client=self.c, orca=orca, proc=proc, affinity=affinity, sc=sc,

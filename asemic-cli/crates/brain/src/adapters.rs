@@ -114,6 +114,9 @@ impl Adapter {
                 .await
                 .map_err(anyhow::Error::msg)?;
             let mut child = self.command(&script).kill_on_drop(true).process_group(0).spawn()?;
+            if let Some(pid) = child.id() {
+                tracing::info!("adapter {} started with pid {} (pgid {})", self.manifest.adapter.name, pid, pid);
+            }
             if self.manifest.adapter.ready {
                 tokio::select! {
                     _ = ready.recv_async() => {}
@@ -139,6 +142,7 @@ impl Adapter {
             // first, so children it forked (e.g. sclang's scsynth) exit too, then SIGKILL the
             // group leader itself via the normal tokio path.
             if let Some(pid) = child.id() {
+                tracing::info!("adapter {} stopping pid {} (signaling process group -{})", self.manifest.adapter.name, pid, pid);
                 let _ = Command::new("kill").arg("-TERM").arg(format!("-{pid}")).status().await;
             }
             child.kill().await.ok();

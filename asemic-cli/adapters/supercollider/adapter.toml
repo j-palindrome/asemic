@@ -5,9 +5,9 @@ description = "sclang boots scsynth; asemic/out/supercollider/set/<name> -> Synt
 
 [lifecycle]
 start = "/Applications/SuperCollider.app/Contents/MacOS/sclang boot.scd"
-# No [lifecycle] stop: the brain's adapter host starts every process in its own process group and
-# signals that whole group on stop (crates/brain/src/adapters.rs), so sclang's own child (scsynth)
-# dies with it too — scoped to this adapter, unlike a machine-wide `pkill -x sclang/scsynth`.
+stop = "pkill -9 -P $PPID sclang scsynth 2>/dev/null || pkill -9 -x scsynth sclang 2>/dev/null || true"
+# Brain's adapter host starts every process in its own process group and signals that group on stop.
+# An explicit stop script ensures no detached scsynth or orphan sclang workers linger.
 
 [osc]
 listen = 57130          # sclang -> brain (asemic/io/supercollider/*)

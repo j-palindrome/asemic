@@ -1964,6 +1964,6 @@ def main(argv: list[str] | None = None) -> None:
     else:
         path = ROOT / "examples" / "startup.py"
     code = path.read_text() if path and path.exists() else ""
-    run_on_start = a.run or (a.file is None)
+    run_on_start = a.run
     AsemicApp(Client(a.config), code=code, path=path, run=run_on_start, label=a.label, nvim=True,
               autosave=not a.no_autosave).run()

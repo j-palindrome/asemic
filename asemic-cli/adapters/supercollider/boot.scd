@@ -2,7 +2,8 @@
 (
 var brain = NetAddr("127.0.0.1", 57130);
 s.options.numInputBusChannels = 0;
-s.waitForBoot {
+
+s.waitForBoot({
     // Compile SynthDef for legacy /set/<name> control; do not run an un-gated Synth on boot
     SynthDef(\asemicVoice, { |freq = 220, amp = 0.1, cutoff = 1200, res = 0.3, out = 0|
         var sig = Saw.ar(freq.lag(0.05));
@@ -349,5 +350,8 @@ s.waitForBoot {
         };
     });
     brain.sendMsg("/ready", 1);
-};
+}, limit: 50, onFailure: {
+    "SuperCollider: audio server (scsynth) failed to boot".error;
+    brain.sendMsg("/error", "boot", "audio server (scsynth) failed to boot: check audio device / sample rate");
+});
 )

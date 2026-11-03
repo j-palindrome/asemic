@@ -1,6 +1,7 @@
 // asemic supercollider stub: brain sends OSC to sclang (57120), sclang replies to brain (57130).
 (
 var brain = NetAddr("127.0.0.1", 57130);
+s.options.numInputBusChannels = 0;
 s.waitForBoot {
     // Compile SynthDef for legacy /set/<name> control; do not run an un-gated Synth on boot
     SynthDef(\asemicVoice, { |freq = 220, amp = 0.1, cutoff = 1200, res = 0.3, out = 0|

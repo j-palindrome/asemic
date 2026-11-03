@@ -57,7 +57,9 @@ s.waitForBoot({
     ~playNdef = { |sym, idStr|
         var cond = ~getNodeCond.value(sym);
         Ndef(sym).fadeTime_(0.0);
-        Ndef(sym).resume;
+        if(Ndef(sym).paused) {
+            Ndef(sym).resume;
+        };
         if(Ndef(sym).isMonitoring.not) {
             Ndef(sym).play;
         };

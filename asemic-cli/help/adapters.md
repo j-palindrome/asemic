@@ -47,6 +47,15 @@ route("arena.x", "supercollider.set.freq", frm=(-1, 1), to=(40, 2000))
 
 writes to `asemic/out/supercollider/set/freq`, which the SuperCollider adapter forwards via OSC.
 
+## Brain OSC Transport & Message Sizing
+
+Brain-owned OSC bridges (`crates/brain/src/bridges.rs`) translate Zenoh keys `asemic/out/<adapter>/**` to UDP OSC packets sent to `<adapter>.send`.
+
+- **Maximum Safe Datagram**: `MAX_OSC_DATAGRAM_BYTES = 1400` bytes (guarantees packets fit within standard Ethernet MTU without fragmentation or host drops).
+- **Enforcement**:
+  - The brain measures every encoded OSC packet against `MAX_OSC_DATAGRAM_BYTES`. Packets exceeding the limit are dropped before transmission and logged to `asemic/err/<adapter>/osc` rather than crashing the destination audio host (such as `sclang` throwing `std::runtime_error: Bad OSC message size`).
+  - Producers transmitting multiarrays or sequences (e.g. `sc()` in `asemic_py/namespace.py`) dynamically chunk points into payload blocks under `MAX_OSC_CHUNK_BYTES = 900` bytes. Each chunk contains a measured subset of points based on dimension count, and the destination adapter reassembles them before committing to server buffers or sequence playback.
+
 ## Inline viewer (`view` field)
 
 The optional `[view]` section tells the TUI how to attach an inline viewer to a running process without hard-coding adapter details. It has three fields:

@@ -4,7 +4,7 @@ kind = "process"
 description = "sclang boots scsynth; asemic/out/supercollider/set/<name> -> Synth(\\asemicVoice).set; /def /nset /free -> Ndef rows from sc(); asemic/io/supercollider/* <- OSC"
 
 [lifecycle]
-start = "/Applications/SuperCollider.app/Contents/MacOS/sclang boot.scd"
+start = "/Applications/SuperCollider.app/Contents/MacOS/sclang -u 57120 boot.scd"
 # Scoped process management: the brain's adapter host logs the started pid, spawns it
 # in its own process group (`process_group(0)`), and cleanly signals `-<pid>` on stop.
 # Never run machine-wide `pkill -x` so other SuperCollider processes are never disturbed.

@@ -42,6 +42,14 @@ Common problems and how to fix them.
 
 **Fix:** check `adapters/<name>/adapter.toml`, ensure the external app is installed, and run `:build <name>` first or use the adapters panel.
 
+## SuperCollider / OSC Crash: Bad OSC message size
+
+**Symptom:** SuperCollider audio stops or `sclang` crashes with `libc++abi: terminating due to uncaught exception of type std::runtime_error: Bad OSC message size`.
+
+**Cause:** Multiarray or audio buffer data sent over OSC exceeded SuperCollider's UDP buffer limits (~1,472–4,096 B).
+
+**Fix:** The brain enforces `MAX_OSC_DATAGRAM_BYTES = 1400` in `crates/brain/src/bridges.rs`, and multiarray point streams in `asemic_py/namespace.py` are dynamically chunked under `MAX_OSC_CHUNK_BYTES = 900` B. If an oversized packet is constructed, the brain drops it and publishes an error to `asemic/err/<adapter>/osc` instead of allowing the receiver to crash.
+
 ## Type errors in REPL / missing completions
 
 **Symptom:** editor complains about unknown verbs or wrong signatures.

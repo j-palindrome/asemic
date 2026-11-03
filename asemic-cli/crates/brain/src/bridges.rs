@@ -32,6 +32,10 @@ impl Drop for Bridges {
     }
 }
 
+/// Maximum safe UDP OSC datagram size (RFC 791 / Ethernet MTU - IP/UDP headers).
+/// Guarantees packets are never dropped or rejected by sclang / external OSC hosts with "Bad OSC message size".
+pub const MAX_OSC_DATAGRAM_BYTES: usize = 1400;
+
 pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
     let name = m.adapter.name.clone();
     let mut b = Bridges::default();
@@ -41,13 +45,23 @@ pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
             b.tasks.push(tokio::spawn(osc_in(session.clone(), name.clone(), sock.clone())));
         }
         if let Some(to) = osc.send.clone() {
-            let (sub, name) = (subscribe(session, &name).await?, name.clone());
+            let (sub, name, s_out) = (subscribe(session, &name).await?, name.clone(), session.clone());
             b.tasks.push(tokio::spawn(async move {
                 while let Ok(s) = sub.recv_async().await {
                     let addr = format!("/{}", rest(s.key_expr().as_str(), &name));
                     let msg = OscPacket::Message(OscMessage { addr, args: to_osc(&parse(&s.payload().to_bytes())) });
                     if let Ok(buf) = encoder::encode(&msg) {
-                        let _ = sock.send_to(&buf, &to).await;
+                        if buf.len() > MAX_OSC_DATAGRAM_BYTES {
+                            tracing::error!(
+                                "OSC packet size ({} B) exceeds MAX_OSC_DATAGRAM_BYTES ({} B) for adapter '{}'; packet dropped to prevent host crash",
+                                buf.len(), MAX_OSC_DATAGRAM_BYTES, name
+                            );
+                            let err_key = format!("asemic/err/{name}/osc");
+                            let err_msg = format!("OSC packet size ({} B) exceeds limit ({} B)", buf.len(), MAX_OSC_DATAGRAM_BYTES);
+                            let _ = s_out.put(err_key, err_msg).await;
+                        } else {
+                            let _ = sock.send_to(&buf, &to).await;
+                        }
                     }
                 }
             }));

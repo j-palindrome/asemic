@@ -38,8 +38,15 @@ def wait(cond, timeout: float):
     return False
 
 
-def gone(*names: str) -> bool:
-    return all(subprocess.run(["pgrep", "-x", n], capture_output=True).returncode == 1 for n in names)
+def pid_gone(pid: int | None) -> bool:
+    if pid is None:
+        return True
+    try:
+        import os
+        os.kill(pid, 0)
+        return False
+    except OSError:
+        return True
 
 
 def collect(c: Client, key: str) -> list:
@@ -51,13 +58,16 @@ def collect(c: Client, key: str) -> list:
 @pytest.mark.skipif(not SCLANG.exists(), reason="SuperCollider.app not installed")
 def test_supercollider_boots_and_reports(client):
     got = collect(client, "asemic/io/supercollider/**")
+    sc_pid = None
     try:
-        assert verb(client, "supercollider", "start")["running"]
+        st = verb(client, "supercollider", "start")
+        assert st["running"]
+        sc_pid = st.get("pid")
         assert wait(lambda: ("asemic/io/supercollider/ready", 1) in got, 60), got
         client.session.put("asemic/out/supercollider/set/freq", "330")
     finally:
         assert not verb(client, "supercollider", "stop")["running"]
-    assert wait(lambda: gone("sclang", "scsynth"), 10)
+    assert wait(lambda: pid_gone(sc_pid), 10)
 
 
 @pytest.mark.skipif(not SCLANG.exists(), reason="SuperCollider.app not installed")
@@ -128,6 +138,76 @@ def test_supercollider_sc_buffer_and_wiring(client):
         assert wait(lambda: any(k == "asemic/io/supercollider/playing" and v == f"{label}_src" for k, v in got), 5), got
         assert wait(lambda: any(k == "asemic/io/supercollider/playing" and v == f"{label}_dst" for k, v in got), 5), got
         assert wait(lambda: any(k == "asemic/io/supercollider/buf_ready" and v[0] == f"{label}_dst" for k, v in got), 5), got
+    finally:
+        if repl is not None:
+            repl.drop(label)
+        clear_test_state(client, prefix)
+        assert not verb(client, "supercollider", "stop")["running"]
+
+
+@pytest.mark.skipif(not SCLANG.exists(), reason="SuperCollider.app not installed")
+def test_supercollider_node_readiness_and_first_play(client):
+    """Test node readiness publishing and immediate audio continuity on first play.
+    Dependent Tdef gates note triggering until target Ndef is verified ready on the server,
+    preventing dropped first notes and initial silence."""
+    from asemic_py.namespace import Repl
+    from conftest import clear_test_state, fresh_prefix
+
+    got = collect(client, "asemic/io/supercollider/**")
+    prefix = fresh_prefix()
+    label = f"{prefix}first_play"
+    repl = None
+    try:
+        assert verb(client, "supercollider", "start")["running"]
+        assert wait(lambda: ("asemic/io/supercollider/ready", 1) in got, 60), got
+
+        repl = Repl(Client())
+        code = f'''with block("{label}", timestretch="0.0"):
+    sc("voice", """{{ |trig = 0, notePitch = 60, noteDur = 0.5, amp = 0.2|
+        var tr = Changed.kr(trig);
+        var env = EnvGen.ar(Env.perc(0.005, (noteDur * 0.8).clip(0.05, 4.0)), tr);
+        var freq = notePitch.midicps;
+        var sig = VarSaw.ar(freq, 0, 0.3) * env;
+        Pan2.ar(sig * amp, 0.0)
+    }}""", type="ndef")
+    sc("seq", type="tdef", target="voice", p={{"buf": [[0.0, 0.5, 64.0, 0.1], [0.1, 0.5, 67.0, 0.1]]}})
+'''
+        out = repl.run_block(label, code)
+        assert out == "", out
+
+        # Frozen at eval -> no playing message yet
+        time.sleep(0.2)
+        assert not any(k == "asemic/io/supercollider/playing" for k, _ in got), got
+
+        # First play: unfreeze block
+        client.put(f"asemic/state/block/{label}.timestretch", 1.0)
+
+        # 1. Target Ndef node must signal readiness (is_playing=1, is_monitoring=1)
+        assert wait(lambda: any(k == "asemic/io/supercollider/node_ready" and v[0] == f"{label}_voice" and v[1] == 1 and v[2] == 1 for k, v in got), 5), got
+        # 2. Both voice and seq must report playing
+        assert wait(lambda: any(k == "asemic/io/supercollider/playing" and v == f"{label}_voice" for k, v in got), 5), got
+        assert wait(lambda: any(k == "asemic/io/supercollider/playing" and v == f"{label}_seq" for k, v in got), 5), got
+
+        # 3. Immediate audio continuity: inspect audio bus during first phrase (within 400ms of unfreeze)
+        time.sleep(0.05)
+        bus_replies = []
+        client.subscribe_raw("asemic/io/supercollider/bus_reply", lambda k, b: bus_replies.append(json.loads(b)))
+        for _ in range(6):
+            client.put("asemic/out/supercollider/inspect_bus", [f"{label}_voice"])
+            time.sleep(0.06)
+
+        assert wait(lambda: len(bus_replies) > 0, 3), "No bus reply received"
+        peaks = []
+        for r in bus_replies:
+            if len(r) >= 5:
+                if isinstance(r[4], (int, float)):
+                    peaks.append(float(r[4]))
+                elif "peak:" in str(r[4]):
+                    peaks.append(float(str(r[4]).split("peak:")[1].split(";")[0]))
+
+        # Assert non-zero audio peak on first play!
+        assert any(p > 0.0001 for p in peaks), f"First play was silent! Bus peaks: {peaks}"
+
     finally:
         if repl is not None:
             repl.drop(label)

@@ -19,6 +19,10 @@ s.waitForBoot {
     ~asemic_chunks = Dictionary.new;
     // Conditions for waiting Tdefs
     ~asemic_conds = Dictionary.new;
+    // Node readiness tracking: ~asemic_node_ready[id] = Boolean
+    ~asemic_node_ready = Dictionary.new;
+    // Conditions for nodes waiting to become ready: ~asemic_node_conds[id] = Condition
+    ~asemic_node_conds = Dictionary.new;
 
     ~updateBuffer = { |fullKey, id, key, flat, msg1, msg2|
         var buf = ~asemic_buffers[fullKey];
@@ -34,6 +38,47 @@ s.waitForBoot {
                 Ndef(id).set(key, b.bufnum);
                 brain.sendMsg("/buf_ready", msg1, msg2, b.bufnum);
             });
+        };
+    };
+
+    ~getNodeCond = { |sym|
+        var cond = ~asemic_node_conds[sym];
+        if(cond.isNil) {
+            cond = Condition({ ~asemic_node_ready[sym] == true });
+            ~asemic_node_conds[sym] = cond;
+        } {
+            cond.test = { ~asemic_node_ready[sym] == true };
+        };
+        cond;
+    };
+
+    ~playNdef = { |sym, idStr|
+        var cond = ~getNodeCond.value(sym);
+        Ndef(sym).fadeTime_(0.0);
+        Ndef(sym).resume;
+        if(Ndef(sym).isMonitoring.not) {
+            Ndef(sym).play;
+        };
+        fork {
+            s.sync;
+            ~asemic_node_ready[sym] = true;
+            cond.signal;
+            brain.sendMsg("/node_ready", idStr ? sym.asString, Ndef(sym).isPlaying.asInteger, Ndef(sym).isMonitoring.asInteger);
+            brain.sendMsg("/playing", idStr ? sym.asString);
+        };
+    };
+
+    ~commitPoints = { |fullKey, id, key, pts, msg1, msg2|
+        ~asemic_points[fullKey] = pts;
+        ~asemic_points[id] = pts;
+        brain.sendMsg("/pts_ready", msg1, msg2, pts.size);
+        if(~asemic_conds[id].notNil) {
+            ~asemic_conds[id].unhang;
+        };
+        if(Tdef(id).notNil and: { pts.notEmpty and: { Tdef(id).isPlaying.not } }) {
+            Tdef(id).quant = 0;
+            Tdef(id).play(quant: 0);
+            brain.sendMsg("/playing", msg1);
         };
     };
 
@@ -83,9 +128,9 @@ s.waitForBoot {
                         }.play(target: RootNode(s), addAction: \addToTail);
                         SystemClock.sched(0.05, {
                             b.loadToFloatArray(count: 64, action: { |arr|
-                                var peak = arr.abs.maxItem;
+                                var peak = arr.abs.maxItem.round(0.0001);
                                 var sampleStr = arr.keep(8).round(0.0001).asString;
-                                brain.sendMsg("/bus_reply", msg[1], rate.asString, ch, isMon.asInteger, ("peak:" ++ peak.round(0.0001) ++ "; samples:" ++ sampleStr).asString);
+                                brain.sendMsg("/bus_reply", msg[1], rate.asString, ch, isMon.asInteger, peak, sampleStr);
                                 b.free;
                             });
                             nil;
@@ -125,12 +170,9 @@ s.waitForBoot {
             fn = msg[2].asString.interpret;
             if(fn.isNil) { brain.sendMsg("/error", msg[1], "code did not compile") } {
                 var sym = msg[1].asSymbol;
-                Ndef(sym).fadeTime_(0.5);
+                ~asemic_node_ready[sym] = false;
                 Ndef(sym, fn);
-                if(Ndef(sym).isMonitoring.not) {
-                    Ndef(sym).play;
-                };
-                brain.sendMsg("/playing", msg[1]);
+                ~playNdef.value(sym, msg[1].asString);
             }
         }
         { path == "/tdef" } {
@@ -145,13 +187,23 @@ s.waitForBoot {
                     loop {
                         pts = ~asemic_points[id] ? ~asemic_points[(id ++ "_buf").asSymbol] ? [];
                         if(pts.notEmpty) {
+                            if(fn.isKindOf(Dictionary)) {
+                                target = fn[\target];
+                                if(target.notNil) {
+                                    var tgtSym = target.asSymbol;
+                                    var nodeCond = ~getNodeCond.value(tgtSym);
+                                    if(Ndef(tgtSym).isMonitoring.not or: { ~asemic_node_ready[tgtSym] != true }) {
+                                        if(Ndef(tgtSym).isMonitoring.not) {
+                                            ~playNdef.value(tgtSym);
+                                        };
+                                        nodeCond.wait;
+                                    };
+                                };
+                            };
                             stream = Pseq(pts, 1).asStream;
                             while { (note = stream.next(())).notNil } {
                                 if(fn.isKindOf(Dictionary)) {
                                     target = fn[\target];
-                                    if(target.notNil and: { Ndef(target).isMonitoring.not }) {
-                                        Ndef(target).play;
-                                    };
                                     if(fn[\onset].notNil) {
                                         fn[\onset].value(note);
                                     } {
@@ -225,32 +277,10 @@ s.waitForBoot {
                     if(chunkList.every({ |c| c.notNil })) {
                         pts = chunkList.flat;
                         ~asemic_chunks[fullKey] = nil;
-                        ~asemic_points[fullKey] = pts;
-                        ~asemic_points[key] = pts;
-                        ~asemic_points[id] = pts;
-                        brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
-                        if(~asemic_conds[id].notNil) {
-                            ~asemic_conds[id].unhang;
-                        };
-                        if(Tdef(id).notNil and: { pts.notEmpty and: { Tdef(id).isPlaying.not } }) {
-                            Tdef(id).quant = 0;
-                            Tdef(id).play(quant: 0);
-                            brain.sendMsg("/playing", msg[1]);
-                        };
+                        ~commitPoints.value(fullKey, id, key, pts, msg[1], msg[2]);
                     };
                 } {
-                    ~asemic_points[fullKey] = pts;
-                    ~asemic_points[key] = pts;
-                    ~asemic_points[id] = pts;
-                    brain.sendMsg("/pts_ready", msg[1], msg[2], pts.size);
-                    if(~asemic_conds[id].notNil) {
-                        ~asemic_conds[id].unhang;
-                    };
-                    if(Tdef(id).notNil and: { pts.notEmpty and: { Tdef(id).isPlaying.not } }) {
-                        Tdef(id).quant = 0;
-                        Tdef(id).play(quant: 0);
-                        brain.sendMsg("/playing", msg[1]);
-                    };
+                    ~commitPoints.value(fullKey, id, key, pts, msg[1], msg[2]);
                 };
             };
         }
@@ -289,9 +319,32 @@ s.waitForBoot {
             Ndef(dst).map(param, Ndef(src));
         }
         { path == "/nset" } { Ndef(msg[1].asSymbol).set(msg[2].asSymbol, msg[3]) }
+        { path == "/play" } {
+            var sym = msg[1].asSymbol;
+            var isTdef = Tdef.all.at(sym).notNil and: { Tdef.all.at(sym).source.notNil };
+            if(isTdef) {
+                Tdef(sym).quant = 0;
+                Tdef(sym).play(quant: 0);
+                brain.sendMsg("/playing", msg[1]);
+            } {
+                ~playNdef.value(sym, msg[1].asString);
+            };
+        }
+        { path == "/stop" } {
+            var sym = msg[1].asSymbol;
+            var isTdef = Tdef.all.at(sym).notNil and: { Tdef.all.at(sym).source.notNil };
+            if(isTdef) {
+                Tdef(sym).stop;
+            } {
+                Ndef(sym).pause;
+            };
+        }
         { path == "/free" } {
-            Ndef(msg[1].asSymbol).end(0.5);
-            Tdef(msg[1].asSymbol).stop;
+            var sym = msg[1].asSymbol;
+            ~asemic_node_ready[sym] = false;
+            Ndef(sym).end(0.0);
+            Tdef(sym).stop;
+            brain.sendMsg("/node_ready", msg[1], 0, 0);
         };
     });
     brain.sendMsg("/ready", 1);

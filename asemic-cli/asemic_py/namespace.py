@@ -16,6 +16,7 @@ import contextlib
 import inspect
 import io
 import json
+from hashlib import sha256
 from pathlib import Path
 import traceback
 from typing import Any, Callable
@@ -25,6 +26,7 @@ from .client import Client, QueryError
 from . import ids
 from .columns import resolve_path
 from .points import Points, decode_points, encode_points
+from .sc_literal import to_sc
 
 
 @contextlib.contextmanager
@@ -480,8 +482,6 @@ class Repl:
             `p` sets parameters, wires inputs, or supplies multiarrays as SuperCollider server buffers.
             `input` specifies a source gen/proc whose multiarray is bound to the buffer/points.
             Starts the adapter."""
-            from asemic_py.sc_literal import to_sc
-
             key = resolve_path(self.label, id)
             name = key.replace("/", "_")  # Ndef/Tdef names: no slashes
             self.c.get("asemic/adapter/supercollider/start", timeout=30)
@@ -501,9 +501,14 @@ class Repl:
             if input is not None and "buf" not in params:
                 params["buf"] = f"~{input}"
 
+            is_defined = False
+            last_points_hash = None
+
             def send_def():
+                nonlocal is_defined
                 cmd = "tdef" if str(type).lower() == "tdef" else "def"
                 self.c.put(f"asemic/out/supercollider/{cmd}", [name, code or ""])
+                is_defined = True
                 if params:
                     for k, v in params.items():
                         # Multiarray / list / array-like -> Server buffer via /bdef or points via /pdef
@@ -525,8 +530,12 @@ class Repl:
             CHUNK_SIZE = 50
 
             def on_gen_frame(k: str, b: bytes):
+                nonlocal last_points_hash
                 try:
-                    from asemic_py.points import decode_points
+                    h = sha256(b).digest()
+                    if h == last_points_hash:
+                        return
+                    last_points_hash = h
                     pts = decode_points(b)
                     lines = pts.lines()
                     if lines:
@@ -541,7 +550,7 @@ class Repl:
                 except Exception:
                     pass
 
-            def send_free():
+            def stop_row():
                 nonlocal gen_sub
                 if gen_sub is not None:
                     try:
@@ -549,12 +558,17 @@ class Repl:
                     except Exception:
                         pass
                     gen_sub = None
-                self.c.put("asemic/out/supercollider/free", [name])
+                self.c.put("asemic/out/supercollider/stop", [name])
 
             def start_row():
-                nonlocal gen_sub
-                send_def()
+                nonlocal gen_sub, last_points_hash
+                if not is_defined:
+                    send_def()
+                else:
+                    self.c.put("asemic/out/supercollider/play", [name])
+
                 if gen_key is not None and gen_sub is None:
+                    last_points_hash = None
                     gen_sub = self.c.subscribe_raw(gen_key, on_gen_frame)
                     # Pull and deliver the current frame immediately so playback doesn't wait for next cook
                     try:
@@ -564,10 +578,9 @@ class Repl:
                     except Exception:
                         pass
 
-            self._guard_row(key, start_row, send_free)
-            # Define synth graph immediately so proxy is compiled and ready;
-            # audio trigger / notes wait until block unfreezes (ts > 0.0)
-            send_def()
+            self._guard_row(key, start_row, stop_row)
+            if not self.label:
+                send_def()
 
         self.ns.update(
             embed=embed, block=block, client=self.c, orca=orca, proc=proc, affinity=affinity, sc=sc,

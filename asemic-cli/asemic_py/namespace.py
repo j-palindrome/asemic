@@ -527,27 +527,6 @@ class Repl:
             gen_sub = None
             src_key = resolve_path(self.label, input) if input is not None else None
             gen_key = f"asemic/gen/{src_key}" if src_key is not None else None
-            # Target maximum OSC string payload size: kept strictly below MAX_OSC_DATAGRAM_BYTES (1,400 B)
-            # including OSC path and argument overheads so UDP packets are never rejected.
-            MAX_OSC_CHUNK_BYTES = 900
-
-            def chunk_points(points):
-                chunks = []
-                curr = []
-                curr_len = 2  # for brackets []
-                for pt in points:
-                    s = to_sc(pt)
-                    added = len(s) + 2
-                    if curr and (curr_len + added > MAX_OSC_CHUNK_BYTES):
-                        chunks.append(curr)
-                        curr = [pt]
-                        curr_len = 2 + len(s)
-                    else:
-                        curr.append(pt)
-                        curr_len += added
-                if curr:
-                    chunks.append(curr)
-                return chunks
 
             def on_gen_frame(k: str, b: bytes):
                 nonlocal last_points_hash
@@ -560,13 +539,10 @@ class Repl:
                     lines = pts.lines()
                     if lines:
                         flat_pts = lines[0]
-                        chunks = chunk_points(flat_pts)
-                        total_chunks = len(chunks)
-                        for c_idx, chunk in enumerate(chunks):
-                            sc_chunk = to_sc(chunk)
-                            if str(type).lower() == "tdef":
-                                self.c.put("asemic/out/supercollider/pdef", [name, "buf", sc_chunk, c_idx, total_chunks])
-                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", sc_chunk, c_idx, total_chunks])
+                        sc_pts = to_sc(flat_pts)
+                        if str(type).lower() == "tdef":
+                            self.c.put("asemic/out/supercollider/pdef", [name, "buf", sc_pts])
+                        self.c.put("asemic/out/supercollider/bdef", [name, "buf", sc_pts])
                 except Exception:
                     pass
 

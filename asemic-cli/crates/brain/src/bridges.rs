@@ -36,6 +36,82 @@ impl Drop for Bridges {
 /// Guarantees packets are never dropped or rejected by sclang / external OSC hosts with "Bad OSC message size".
 pub const MAX_OSC_DATAGRAM_BYTES: usize = 1400;
 
+/// Splits an outgoing OSC message into multiple indexed chunk messages if serialized size exceeds `MAX_OSC_DATAGRAM_BYTES`.
+/// Standard chunk format supported by receivers: `[addr, id, key, chunk_data_str, chunk_idx, total_chunks]`
+pub fn chunk_osc_messages(addr: &str, args: &[OscType]) -> Vec<OscMessage> {
+    let msg = OscMessage { addr: addr.to_string(), args: args.to_vec() };
+    if let Ok(buf) = encoder::encode(&OscPacket::Message(msg.clone())) {
+        if buf.len() <= MAX_OSC_DATAGRAM_BYTES {
+            return vec![msg];
+        }
+    }
+
+    // Attempt automatic chunking if message carries an array-like or sequence string payload (e.g. /pdef or /bdef [id, key, data])
+    if args.len() >= 3 {
+        if let OscType::String(ref s) = args[2] {
+            let id = match &args[0] {
+                OscType::String(v) => v.clone(),
+                other => format!("{other:?}"),
+            };
+            let key = match &args[1] {
+                OscType::String(v) => v.clone(),
+                other => format!("{other:?}"),
+            };
+            let trimmed = s.trim();
+            if (trimmed.starts_with('[') && trimmed.ends_with(']')) || trimmed.contains(',') {
+                let inner = if trimmed.starts_with('[') && trimmed.ends_with(']') {
+                    &trimmed[1..trimmed.len().saturating_sub(1)]
+                } else {
+                    trimmed
+                };
+                let tokens: Vec<&str> = inner.split(',').collect();
+                if tokens.len() > 1 {
+                    let mut chunks = Vec::new();
+                    let mut curr_chunk = Vec::new();
+                    let mut curr_len = 2; // for brackets "[]"
+                    for tok in tokens {
+                        let t = tok.trim();
+                        let added = t.len() + 2; // ", "
+                        if !curr_chunk.is_empty() && (curr_len + added > 900) {
+                            chunks.push(format!("[{}]", curr_chunk.join(", ")));
+                            curr_chunk.clear();
+                            curr_chunk.push(t);
+                            curr_len = 2 + t.len();
+                        } else {
+                            curr_chunk.push(t);
+                            curr_len += added;
+                        }
+                    }
+                    if !curr_chunk.is_empty() {
+                        chunks.push(format!("[{}]", curr_chunk.join(", ")));
+                    }
+
+                    let total = chunks.len() as i32;
+                    if total > 1 {
+                        return chunks
+                            .into_iter()
+                            .enumerate()
+                            .map(|(idx, ch)| OscMessage {
+                                addr: addr.to_string(),
+                                args: vec![
+                                    OscType::String(id.clone()),
+                                    OscType::String(key.clone()),
+                                    OscType::String(ch),
+                                    OscType::Int(idx as i32),
+                                    OscType::Int(total),
+                                ],
+                            })
+                            .collect();
+                    }
+                }
+            }
+        }
+    }
+
+    // If message is not chunkable, return original message (which will be safely dropped if over MTU)
+    vec![msg]
+}
+
 pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
     let name = m.adapter.name.clone();
     let mut b = Bridges::default();
@@ -49,18 +125,21 @@ pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
             b.tasks.push(tokio::spawn(async move {
                 while let Ok(s) = sub.recv_async().await {
                     let addr = format!("/{}", rest(s.key_expr().as_str(), &name));
-                    let msg = OscPacket::Message(OscMessage { addr, args: to_osc(&parse(&s.payload().to_bytes())) });
-                    if let Ok(buf) = encoder::encode(&msg) {
-                        if buf.len() > MAX_OSC_DATAGRAM_BYTES {
-                            tracing::error!(
-                                "OSC packet size ({} B) exceeds MAX_OSC_DATAGRAM_BYTES ({} B) for adapter '{}'; packet dropped to prevent host crash",
-                                buf.len(), MAX_OSC_DATAGRAM_BYTES, name
-                            );
-                            let err_key = format!("asemic/err/{name}/osc");
-                            let err_msg = format!("OSC packet size ({} B) exceeds limit ({} B)", buf.len(), MAX_OSC_DATAGRAM_BYTES);
-                            let _ = s_out.put(err_key, err_msg).await;
-                        } else {
-                            let _ = sock.send_to(&buf, &to).await;
+                    let raw_args = to_osc(&parse(&s.payload().to_bytes()));
+                    let messages = chunk_osc_messages(&addr, &raw_args);
+                    for msg in messages {
+                        if let Ok(buf) = encoder::encode(&OscPacket::Message(msg)) {
+                            if buf.len() > MAX_OSC_DATAGRAM_BYTES {
+                                tracing::error!(
+                                    "OSC packet size ({} B) exceeds MAX_OSC_DATAGRAM_BYTES ({} B) for adapter '{}'; packet dropped to prevent host crash",
+                                    buf.len(), MAX_OSC_DATAGRAM_BYTES, name
+                                );
+                                let err_key = format!("asemic/err/{name}/osc");
+                                let err_msg = format!("OSC packet size ({} B) exceeds limit ({} B)", buf.len(), MAX_OSC_DATAGRAM_BYTES);
+                                let _ = s_out.put(err_key, err_msg).await;
+                            } else {
+                                let _ = sock.send_to(&buf, &to).await;
+                            }
                         }
                     }
                 }

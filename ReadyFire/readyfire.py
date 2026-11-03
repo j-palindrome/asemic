@@ -27,14 +27,13 @@ with block("readyfire", loop="loop", timestretch="0.0"):
     # 1.1.1 Affinity score renderer: draws `chorus` multiarray in Affinity
     affinity("score", input="chorus", x=[1, 0], y=[1, 0], settings={"spacing": 1.0}, notes=("lines", "names"), preview="image", file="./score.af")
     
-    <!-- agent: 2026-11-03 Antigravity
-    prompt:
-      # whenever I hear this I do not hear ANYTHING.
-    summary:
-      - Diagnosed block timestretch freeze: `timestretch="0.0"` intentionally halts row lifecycle guards and proc generation.
-      - Verified SuperCollider audio engine, Ndef synth voice, and Tdef sequencing pipeline operate cleanly when block is unpaused (`timestretch="1.0"` or Space in TUI).
-      - Re-silenced test synth nodes and documented live playback requirement.
-    -->
+    # agent: 2026-11-03 Antigravity
+    # prompt:
+    #   # whenever I hear this I do not hear ANYTHING.
+    # summary:
+    #   - Diagnosed block timestretch freeze: `timestretch="0.0"` intentionally halts row lifecycle guards and proc generation.
+    #   - Verified SuperCollider audio engine, Ndef synth voice, and Tdef sequencing pipeline operate cleanly when block is unpaused (`timestretch="1.0"` or Space in TUI).
+    #   - Re-silenced test synth nodes and documented live playback requirement.
     # 1.1.2.1 SuperCollider Ndef: audio rate synth voice
     sc("voice", """
 { |trig = 0, notePitch = 60, noteDur = 0.5, amp = 0.2|

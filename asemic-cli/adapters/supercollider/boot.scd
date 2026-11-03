@@ -29,7 +29,9 @@ s.waitForBoot({
     ~updateBuffer = { |fullKey, id, key, flat, msg1, msg2|
         var buf = ~asemic_buffers[fullKey];
         if(buf.isNil or: { buf.numFrames != flat.size }) {
-            buf.free;
+            if(buf.notNil and: { buf.bufnum.notNil }) {
+                buf.free;
+            };
             buf = Buffer.loadCollection(s, flat, action: { |b|
                 ~asemic_buffers[fullKey] = b;
                 Ndef(id).set(key, b.bufnum);

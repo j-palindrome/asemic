@@ -542,7 +542,8 @@ class Repl:
                         sc_pts = to_sc(flat_pts)
                         if str(type).lower() == "tdef":
                             self.c.put("asemic/out/supercollider/pdef", [name, "buf", sc_pts])
-                        self.c.put("asemic/out/supercollider/bdef", [name, "buf", sc_pts])
+                        else:
+                            self.c.put("asemic/out/supercollider/bdef", [name, "buf", sc_pts])
                 except Exception:
                     pass
 

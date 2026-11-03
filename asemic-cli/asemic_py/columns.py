@@ -192,7 +192,7 @@ def _highlight(query: str, text: str) -> Content:
 # panel right after this row's own widget, instead of a separate side panel. `embed(...)` creates no
 # brain state but still gets an anchor (its `EmbedView` mounts the same way).
 _ANCHOR_VERBS = {
-    "param", "multi", "xy", "proc", "tex", "embed", "affinity", "output",
+    "param", "multi", "xy", "proc", "tex", "embed", "affinity", "output", "sc",
     "physics", "wave", "spectrum", "glyph", "lsys", "text", "melody", "py",
 }
 
@@ -239,7 +239,7 @@ def row_anchor(src: str, label: str | None = None) -> str | None:
     if c is None or not c[1] or c[1][0] is None:
         return None
     verb, ident = c[0], c[1][0]
-    if label and label != "main" and verb in {"param", "multi", "xy", "proc", "tex", "embed", "affinity", "output", "physics", "wave", "spectrum", "glyph", "lsys", "text", "melody", "py"}:
+    if label and label != "main" and verb in {"param", "multi", "xy", "proc", "tex", "embed", "affinity", "output", "sc", "physics", "wave", "spectrum", "glyph", "lsys", "text", "melody", "py"}:
         ident = resolve_path(label, ident)
     return anchor_id(verb, ident)
 

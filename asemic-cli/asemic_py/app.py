@@ -496,6 +496,13 @@ class BlockPanel(Vertical):
     def compose(self) -> ComposeResult:
         sid = "-".join(map(str, self.path))
         yield Static(self._title(), classes="title")
+        p_tup = tuple(self.path)
+        sub_errs = [err for p, err in self.rapp.doc.run_errors.items() if p[:len(p_tup)] == p_tup and err]
+        err_text = ""
+        if sub_errs:
+            lines = sub_errs[0].rstrip().splitlines()[-4:]
+            err_text = "\n".join(f"[red]✗ {escape(line)}[/red]" for line in lines)
+        yield Static(err_text, classes="block-error", markup=True)
         self.box = NumberBox(
             id=f"ts-{sid}",
             label="TIMESTRETCH", value=float(self.row.timestretch or 0.0),
@@ -539,6 +546,14 @@ class BlockPanel(Vertical):
         self.row = row
         if (titles := self.query(".title")):
             titles.first(Static).update(self._title())
+        p_tup = tuple(self.path)
+        sub_errs = [err for p, err in self.rapp.doc.run_errors.items() if p[:len(p_tup)] == p_tup and err]
+        err_text = ""
+        if sub_errs:
+            lines = sub_errs[0].rstrip().splitlines()[-4:]
+            err_text = "\n".join(f"[red]✗ {escape(line)}[/red]" for line in lines)
+        if (err_widgets := self.query(".block-error")):
+            err_widgets.first(Static).update(err_text)
         if self.box is not None and not self.box.has_focus:
             self.box.value = float(row.timestretch or 0.0)
         if self.length_box is not None and not self.length_box.has_focus:
@@ -1310,7 +1325,7 @@ class AsemicApp(TreeNavApp):
             self.client.put(f"{OPEN_PREFIX}/{os.getpid()}",
                             {"file": str(self.path.resolve())})
         self.client.subscribe(JUMP_KEY, self._on_jump)
-        # draw-graph runtime errors (relink/draw failures after a clean eval) -> the tex's row
+        # draw-graph runtime errors, proc errors, and adapter errors (asemic/err/<kind>/<ident>)
         # (post_message, !call_from_thread: the "cleared" message lands mid-eval, while this thread awaits a reply)
         self.client.subscribe_raw("asemic/err/*/**", cast(Any, lambda k, b: self.post_message(
             self.RowError(*k.split("/", 3)[2:4], b.decode()))))
@@ -1762,6 +1777,22 @@ class AsemicApp(TreeNavApp):
         kind, tid, msg = ev.kind, ev.ident, ev.msg
         cols = self.query_one("#cols", BlockColumns)
         p = cols.comp_row(kind, tid)
+        if p is None:
+            # Check aliases (e.g. kind 'supercollider' maps to 'sc')
+            aliases = {"supercollider": ["sc"]}
+            for alias in aliases.get(kind, []):
+                p = cols.comp_row(alias, tid)
+                if p is not None:
+                    break
+        if p is None:
+            # Fall back to the first row belonging to this adapter/kind in the doc
+            adapter_verbs = {"supercollider": ["sc", "supercollider"], "affinity": ["affinity"]}
+            target_verbs = set(adapter_verbs.get(kind, [kind]))
+            for walk_p, src in self.doc.walk():
+                call = bare_call(src, target_verbs)
+                if call is not None:
+                    p = walk_p
+                    break
         if p is None or self.doc.run_errors.get(p) == (msg or None):
             return
         if msg:
@@ -1771,6 +1802,9 @@ class AsemicApp(TreeNavApp):
             self.doc.run_errors.pop(p, None)
         self.doc._touch()
         cols.refresh_rows()
+        cols.refresh_crumb()
+        for bp in self.query(BlockPanel):
+            bp.sync(bp.row)
 
     def on_block_columns_deleted(self, ev: BlockColumns.Deleted) -> None:
         for label in ev.labels:

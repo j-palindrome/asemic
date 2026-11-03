@@ -107,7 +107,20 @@ async fn osc_in(session: Session, name: String, sock: Arc<UdpSocket>) {
         for m in flatten(pkt) {
             let args: Vec<Value> = m.args.iter().map(from_osc).collect();
             let v = if args.len() == 1 { args[0].clone() } else { json!(args) };
-            let key = format!("asemic/io/{name}/{}", m.addr.trim_start_matches('/'));
+            let addr = m.addr.trim_start_matches('/');
+            if addr == "error" {
+                // Unified error keyspace: asemic/err/<adapter>/<id>
+                let (ident, msg) = if let Some(arr) = v.as_array() {
+                    let id = arr.first().and_then(|v| v.as_str()).unwrap_or(&name);
+                    let m = arr.get(1).and_then(|v| v.as_str()).unwrap_or("");
+                    (id.replace('_', "/"), m.to_string())
+                } else {
+                    (name.clone(), v.as_str().unwrap_or("").to_string())
+                };
+                let err_key = format!("asemic/err/{name}/{ident}");
+                let _ = session.put(err_key, msg).await;
+            }
+            let key = format!("asemic/io/{name}/{addr}");
             let _ = session.put(key, v.to_string()).await;
         }
     }

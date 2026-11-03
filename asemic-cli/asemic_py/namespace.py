@@ -525,8 +525,19 @@ class Repl:
 
             # If input is provided, define frame handler for forwarding multiarray updates
             gen_sub = None
+            ack_sub = None
             src_key = resolve_path(self.label, input) if input is not None else None
             gen_key = f"asemic/gen/{src_key}" if src_key is not None else None
+
+            def on_ack(_k: str, _b: bytes):
+                # Brain reports value is unchanged downstream; drop active subscription until next cook
+                nonlocal gen_sub
+                if gen_sub is not None:
+                    try:
+                        gen_sub.undeclare()
+                    except Exception:
+                        pass
+                    gen_sub = None
 
             def on_gen_frame(k: str, b: bytes):
                 nonlocal last_points_hash
@@ -548,21 +559,31 @@ class Repl:
                     pass
 
             def stop_row():
-                nonlocal gen_sub
+                nonlocal gen_sub, ack_sub
                 if gen_sub is not None:
                     try:
                         gen_sub.undeclare()
                     except Exception:
                         pass
                     gen_sub = None
+                if ack_sub is not None:
+                    try:
+                        ack_sub.undeclare()
+                    except Exception:
+                        pass
+                    ack_sub = None
                 self.c.put("asemic/out/supercollider/stop", [name])
 
             def start_row():
-                nonlocal gen_sub, last_points_hash
+                nonlocal gen_sub, ack_sub, last_points_hash
                 if not is_defined:
                     send_def()
                 else:
                     self.c.put("asemic/out/supercollider/play", [name])
+
+                if ack_sub is None:
+                    ack_key = f"asemic/ack/supercollider/**"
+                    ack_sub = self.c.subscribe_raw(ack_key, on_ack)
 
                 if gen_key is not None and gen_sub is None:
                     last_points_hash = None

@@ -59,8 +59,9 @@ pub fn chunk_osc_messages(addr: &str, args: &[OscType]) -> Vec<OscMessage> {
             };
             let trimmed = s.trim();
             if (trimmed.starts_with('[') && trimmed.ends_with(']')) || trimmed.contains(',') {
-                // If nested array of points `[[x, y, ...], [x, y, ...]]`, extract bracketed point items
-                let items: Vec<String> = if trimmed.starts_with("[[") {
+                // If nested array of points (e.g. `[ [ x, y, ... ], [ x, y, ... ] ]`), extract bracketed point items
+                let is_nested = trimmed.contains("[") && trimmed.find('[').map(|first| trimmed[first + 1..].contains('[')).unwrap_or(false);
+                let items: Vec<String> = if is_nested {
                     let mut res = Vec::new();
                     let mut start = None;
                     let mut depth = 0;
@@ -147,9 +148,24 @@ pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
         if let Some(to) = osc.send.clone() {
             let (sub, name, s_out) = (subscribe(session, &name).await?, name.clone(), session.clone());
             b.tasks.push(tokio::spawn(async move {
+                let mut last_payloads: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
                 while let Ok(s) = sub.recv_async().await {
-                    let addr = format!("/{}", rest(s.key_expr().as_str(), &name));
-                    let raw_args = to_osc(&parse(&s.payload().to_bytes()));
+                    let key = s.key_expr().as_str().to_string();
+                    let payload_bytes = s.payload().to_bytes().to_vec();
+
+                    // Strip duplicate messages across same sub-path
+                    if let Some(prev) = last_payloads.get(&key) {
+                        if prev == &payload_bytes {
+                            // Inform block/client that value is unchanged & unneeded
+                            let ack_key = format!("asemic/ack/{name}/{}", rest(&key, &name));
+                            let _ = s_out.put(ack_key, "unchanged").await;
+                            continue;
+                        }
+                    }
+                    last_payloads.insert(key.clone(), payload_bytes.clone());
+
+                    let addr = format!("/{}", rest(&key, &name));
+                    let raw_args = to_osc(&parse(&payload_bytes));
                     let messages = chunk_osc_messages(&addr, &raw_args);
                     for msg in messages {
                         if let Ok(buf) = encoder::encode(&OscPacket::Message(msg)) {

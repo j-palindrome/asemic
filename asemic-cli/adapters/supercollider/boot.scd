@@ -1,6 +1,12 @@
 // asemic supercollider stub: brain sends OSC to sclang (57120), sclang replies to brain (57130).
 (
 var brain = NetAddr("127.0.0.1", 57130);
+var expectedPort = 57120;
+if(NetAddr.langPort != expectedPort) {
+    var err = "SuperCollider port collision: sclang bound to UDP % instead of % (another sclang instance is holding %)".format(NetAddr.langPort, expectedPort, expectedPort);
+    err.error;
+    brain.sendMsg("/error", "boot", err);
+};
 s.options.numInputBusChannels = 0;
 
 s.waitForBoot({

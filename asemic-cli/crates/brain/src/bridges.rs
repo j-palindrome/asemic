@@ -59,26 +59,50 @@ pub fn chunk_osc_messages(addr: &str, args: &[OscType]) -> Vec<OscMessage> {
             };
             let trimmed = s.trim();
             if (trimmed.starts_with('[') && trimmed.ends_with(']')) || trimmed.contains(',') {
-                let inner = if trimmed.starts_with('[') && trimmed.ends_with(']') {
-                    &trimmed[1..trimmed.len().saturating_sub(1)]
+                // If nested array of points `[[x, y, ...], [x, y, ...]]`, extract bracketed point items
+                let items: Vec<String> = if trimmed.starts_with("[[") {
+                    let mut res = Vec::new();
+                    let mut start = None;
+                    let mut depth = 0;
+                    for (i, c) in trimmed.char_indices() {
+                        if c == '[' {
+                            depth += 1;
+                            if depth == 2 {
+                                start = Some(i);
+                            }
+                        } else if c == ']' {
+                            if depth == 2 {
+                                if let Some(st) = start {
+                                    res.push(trimmed[st..=i].trim().to_string());
+                                }
+                                start = None;
+                            }
+                            depth -= 1;
+                        }
+                    }
+                    res
                 } else {
-                    trimmed
+                    let inner = if trimmed.starts_with('[') && trimmed.ends_with(']') {
+                        &trimmed[1..trimmed.len().saturating_sub(1)]
+                    } else {
+                        trimmed
+                    };
+                    inner.split(',').map(|tok| tok.trim().to_string()).collect()
                 };
-                let tokens: Vec<&str> = inner.split(',').collect();
-                if tokens.len() > 1 {
+
+                if items.len() > 1 {
                     let mut chunks = Vec::new();
                     let mut curr_chunk = Vec::new();
-                    let mut curr_len = 2; // for brackets "[]"
-                    for tok in tokens {
-                        let t = tok.trim();
-                        let added = t.len() + 2; // ", "
+                    let mut curr_len = 2; // for outer brackets "[]"
+                    for item in items {
+                        let added = item.len() + 2; // ", "
                         if !curr_chunk.is_empty() && (curr_len + added > 900) {
                             chunks.push(format!("[{}]", curr_chunk.join(", ")));
                             curr_chunk.clear();
-                            curr_chunk.push(t);
-                            curr_len = 2 + t.len();
+                            curr_chunk.push(item);
+                            curr_len = 2 + added;
                         } else {
-                            curr_chunk.push(t);
+                            curr_chunk.push(item);
                             curr_len += added;
                         }
                     }

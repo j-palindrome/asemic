@@ -2043,7 +2043,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--no-autosave", action="store_true",
                     help="commits apply in-memory only; ctrl+s / :w flushes to disk")
     a = ap.parse_args(argv)
-    if os.environ.get("ASEMIC_TS_DEBUG"):  # every key event + when it arrived
+    if os.environ.get("ASEMIC_TS_DEBUG", "1"):  # every key event + when it arrived
         from textual import events
         _orig_on_event = App.on_event
 

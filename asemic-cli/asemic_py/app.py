@@ -1009,13 +1009,8 @@ class TreeNavApp(App):
     def action_toggle_play_row(self) -> None:
         """Space on a block row: toggle play/pause (timestretch 0 <-> its last nonzero value,
         default 1.0) -- same frozen/playing state `action_set_timestretch`'s NumberBox drives."""
-        import os as _os, time as _time, traceback as _tb  # DEBUG-TS (temporary)
         cols = self.query_one("#cols", BlockColumns)
         p = cols.path
-        if _os.environ.get("ASEMIC_TS_DEBUG", "1") != "0":
-            with open("/tmp/asemic_ts.log", "a") as _f:
-                _f.write(f"\n>>> {_time.strftime('%H:%M:%S')}.{int(_time.time()*1000)%1000:03d} toggle_play_row path={p}\n")
-                _tb.print_stack(file=_f)
         if p is None or not self.doc.is_nest(p):
             return
         ts = self.doc.effective_timestretch(p)
@@ -1688,12 +1683,6 @@ class AsemicApp(TreeNavApp):
         p, doc = tuple(path), self.doc
         if not doc.is_nest(p):
             return
-
-        import os as _os, time as _time, traceback as _tb  # DEBUG-TS (temporary)
-        if _os.environ.get("ASEMIC_TS_DEBUG", "1") != "0":
-            with open("/tmp/asemic_ts.log", "a") as _f:
-                _f.write(f"\n=== {_time.strftime('%H:%M:%S')}.{int(_time.time()*1000)%1000:03d} set_timestretch path={p} value={value}\n")
-                _tb.print_stack(file=_f)
 
         doc.set_timestretch(p, value)
         label = doc.label(p)

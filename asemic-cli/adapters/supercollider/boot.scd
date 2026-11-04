@@ -11,6 +11,7 @@ if(NetAddr.langPort != expectedPort) {
     // Exiting makes the adapter start fail loudly instead (`exited before ready`).
     0.exit;
 };
+
 s.options.numInputBusChannels = 0;
 
 s.waitForBoot({

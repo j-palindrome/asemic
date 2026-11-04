@@ -2043,6 +2043,20 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--no-autosave", action="store_true",
                     help="commits apply in-memory only; ctrl+s / :w flushes to disk")
     a = ap.parse_args(argv)
+    if os.environ.get("ASEMIC_TS_DEBUG"):  # every key event + when it arrived
+        from textual import events
+        _orig_on_event = App.on_event
+
+        async def _traced_on_event(self, event):
+            if isinstance(event, events.Key):
+                try:
+                    with open("/tmp/asemic-keys.log", "a") as f:
+                        f.write(f"{time.monotonic():.3f} key={event.key!r} char={event.character!r}\n")
+                except Exception:
+                    pass
+            return await _orig_on_event(self, event)
+
+        App.on_event = _traced_on_event
     from . import rig
     rig.ensure(restart=a.restart)
     from .client import ROOT

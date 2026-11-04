@@ -1695,10 +1695,10 @@ class AsemicApp(TreeNavApp):
         if not doc.is_nest(p):
             return
 
-        if os.environ.get("ASEMIC_TS_DEBUG"):
+        if os.environ.get("ASEMIC_TS_DEBUG", "1"):
             import traceback
             with open("/tmp/asemic-ts-debug.log", "a") as f:
-                f.write(f"\n=== timestretch {value} {p} ===\n")
+                f.write(f"\n=== {time.time():.3f} timestretch {value} {p} ===\n")
                 f.write("".join(traceback.format_stack()))
 
         doc.set_timestretch(p, value)
@@ -2051,7 +2051,7 @@ def main(argv: list[str] | None = None) -> None:
             if isinstance(event, events.Key):
                 try:
                     with open("/tmp/asemic-keys.log", "a") as f:
-                        f.write(f"{time.monotonic():.3f} key={event.key!r} char={event.character!r}\n")
+                        f.write(f"{time.time():.3f} key={event.key!r} char={event.character!r}\n")
                 except Exception:
                     pass
             return await _orig_on_event(self, event)

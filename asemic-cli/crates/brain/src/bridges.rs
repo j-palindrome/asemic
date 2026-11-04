@@ -39,9 +39,11 @@ pub const MAX_OSC_DATAGRAM_BYTES: usize = 1400;
 /// Out paths that are commands, not streamed values: they must reach the adapter on every
 /// publish even when the payload repeats, because repeating them is the point (`/play` after a
 /// `/stop` is a state change, not a redundant frame). Everything else keeps its dedup, so
-/// high-rate cooked frames and `set/<param>` streams still cost one message per real change.
+/// high-rate cooked frames, `set/<param>` streams and repeated `/pdef` `/bdef` payloads still
+/// cost one message per real change (a fresh adapter start clears the table, so a restarted
+/// sclang always gets its definitions resent).
 const ALWAYS_FORWARD: &[&str] = &[
-    "play", "stop", "free", "def", "tdef", "pdef", "bdef", "map", "nset",
+    "play", "stop", "free", "def", "tdef", "map", "nset",
     "status", "dump_tree", "debug_state", "inspect_bus", "inspect_buffer", "inspect_points",
 ];
 

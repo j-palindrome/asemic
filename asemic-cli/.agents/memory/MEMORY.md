@@ -1,0 +1,2 @@
+- [Push every message](feedback-push-every-message.md) — commit and push immediately, never hold local
+- [ReadyFire play cutoff](project-readyfire-play-cutoff.md) — 1s silence traced to the SC Tdef, not the TUI

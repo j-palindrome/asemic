@@ -160,6 +160,19 @@ s.waitForBoot({
             var bufCount = ~asemic_buffers.size;
             brain.sendMsg("/tree_reply", ndefList, tdefList, ptsCount, bufCount);
         }
+        { path == "/debug_state" } {
+            var id = msg[1].asSymbol, tgt = msg[2].asSymbol;
+            var t = Tdef.all.at(id), n = Ndef.all.at(tgt);
+            brain.sendMsg("/debug_reply", id.asString,
+                format("tdef=% playing=% ndef=% mon=% run=% ready=% keys=%",
+                    t.notNil,
+                    if(t.notNil) { t.isPlaying } { false },
+                    n.notNil,
+                    if(n.notNil) { n.isMonitoring } { false },
+                    if(n.notNil) { n.isRunning } { false },
+                    ~asemic_node_ready[tgt] == true,
+                    Ndef.all.keys.asArray.asString));
+        }
         { path == "/inspect_buffer" } {
             var key = msg[1].asSymbol;
             var buf = ~asemic_buffers[key];

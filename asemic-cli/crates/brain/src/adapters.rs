@@ -49,6 +49,10 @@ impl Adapter {
             && let Ok(Some(code)) = child.try_wait() {
                 exit = Some(code.code());
                 self.child = None;
+                // A process adapter whose child is gone is not running: drop the bridges with it,
+                // so the next `start` cold-starts the child (and clears the out-bridge's payload
+                // dedup table, which would otherwise suppress a restarted server's definitions).
+                self.bridges = None;
             }
         json!({
             "name": self.manifest.adapter.name,

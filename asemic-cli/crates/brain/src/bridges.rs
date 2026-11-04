@@ -36,6 +36,15 @@ impl Drop for Bridges {
 /// Guarantees packets are never dropped or rejected by sclang / external OSC hosts with "Bad OSC message size".
 pub const MAX_OSC_DATAGRAM_BYTES: usize = 1400;
 
+/// Out paths that are commands, not streamed values: they must reach the adapter on every
+/// publish even when the payload repeats, because repeating them is the point (`/play` after a
+/// `/stop` is a state change, not a redundant frame). Everything else keeps its dedup, so
+/// high-rate cooked frames and `set/<param>` streams still cost one message per real change.
+const ALWAYS_FORWARD: &[&str] = &[
+    "play", "stop", "free", "def", "tdef", "pdef", "bdef", "map", "nset",
+    "status", "dump_tree", "debug_state", "inspect_bus", "inspect_buffer", "inspect_points",
+];
+
 /// Splits an outgoing OSC message into multiple indexed chunk messages if serialized size exceeds `MAX_OSC_DATAGRAM_BYTES`.
 /// Standard chunk format supported by receivers: `[addr, id, key, chunk_data_str, chunk_idx, total_chunks]`
 pub fn chunk_osc_messages(addr: &str, args: &[OscType]) -> Vec<OscMessage> {
@@ -143,28 +152,47 @@ pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
     if let Some(osc) = &m.osc {
         let sock = Arc::new(UdpSocket::bind(("127.0.0.1", osc.listen.unwrap_or(0))).await?);
         if osc.listen.is_some() {
-            b.tasks.push(tokio::spawn(osc_in(session.clone(), name.clone(), sock.clone())));
+            let ready = m.adapter.ready;
+            b.tasks.push(tokio::spawn(osc_in(session.clone(), name.clone(), sock.clone(), ready)));
         }
         if let Some(to) = osc.send.clone() {
-            let (sub, name, s_out) = (subscribe(session, &name).await?, name.clone(), session.clone());
+            // The subscriber is re-declared if its channel ever closes: a bridge that dies
+            // silently leaves the adapter alive but deaf (blocks stop responding with no
+            // error anywhere), so it must heal itself instead of ending the task.
+            let (session, name, s_out) = (session.clone(), name.clone(), session.clone());
             b.tasks.push(tokio::spawn(async move {
                 let mut last_payloads: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
+                loop {
+                let sub = match subscribe(&session, &name).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!("bridge {name}: out subscribe failed: {e}; retrying");
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+                tracing::info!("bridge {name}: out subscriber live -> {to}");
                 while let Ok(s) = sub.recv_async().await {
                     let key = s.key_expr().as_str().to_string();
                     let payload_bytes = s.payload().to_bytes().to_vec();
+                    let verb = rest(&key, &name);
 
-                    // Strip duplicate messages across same sub-path
-                    if let Some(prev) = last_payloads.get(&key) {
-                        if prev == &payload_bytes {
-                            // Inform block/client that value is unchanged & unneeded
-                            let ack_key = format!("asemic/ack/{name}/{}", rest(&key, &name));
-                            let _ = s_out.put(ack_key, "unchanged").await;
-                            continue;
+                    // Strip duplicate streaming values (cooked frames, `set/<param>`) across the
+                    // same sub-path. Verbs are never deduplicated: `/play` right after a `/stop`
+                    // is a state change even when its payload is byte-identical.
+                    if !ALWAYS_FORWARD.contains(&verb) {
+                        if let Some(prev) = last_payloads.get(&key) {
+                            if prev == &payload_bytes {
+                                // Inform block/client that value is unchanged & unneeded
+                                let ack_key = format!("asemic/ack/{name}/{verb}");
+                                let _ = s_out.put(ack_key, "unchanged").await;
+                                continue;
+                            }
                         }
                     }
                     last_payloads.insert(key.clone(), payload_bytes.clone());
 
-                    let addr = format!("/{}", rest(&key, &name));
+                    let addr = format!("/{verb}");
                     let raw_args = to_osc(&parse(&payload_bytes));
                     let messages = chunk_osc_messages(&addr, &raw_args);
                     for msg in messages {
@@ -178,10 +206,15 @@ pub async fn start(session: &Session, m: &AdapterManifest) -> Result<Bridges> {
                                 let err_msg = format!("OSC packet size ({} B) exceeds limit ({} B)", buf.len(), MAX_OSC_DATAGRAM_BYTES);
                                 let _ = s_out.put(err_key, err_msg).await;
                             } else {
-                                let _ = sock.send_to(&buf, &to).await;
+                                if let Err(e) = sock.send_to(&buf, &to).await {
+                                    tracing::error!("bridge {name}: OSC send {addr} to {to} failed: {e}");
+                                }
                             }
                         }
                     }
+                }
+                tracing::warn!("bridge {name}: out subscriber ended; re-subscribing");
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                 }
             }));
         }
@@ -233,14 +266,28 @@ fn parse(b: &[u8]) -> Value {
     serde_json::from_slice(b).unwrap_or_else(|_| json!(String::from_utf8_lossy(b)))
 }
 
-async fn osc_in(session: Session, name: String, sock: Arc<UdpSocket>) {
+async fn osc_in(session: Session, name: String, sock: Arc<UdpSocket>, ready: bool) {
     let mut buf = vec![0u8; rosc::decoder::MTU];
+    // Token dies with this task (Bridges::drop aborts it), so adapter stop un-readies it.
+    let mut ready_token: Option<zenoh::liveliness::LivelinessToken> = None;
     while let Ok((n, _)) = sock.recv_from(&mut buf).await {
         let Ok((_, pkt)) = decoder::decode_udp(&buf[..n]) else { continue };
         for m in flatten(pkt) {
             let args: Vec<Value> = m.args.iter().map(from_osc).collect();
             let v = if args.len() == 1 { args[0].clone() } else { json!(args) };
             let addr = m.addr.trim_start_matches('/');
+            // A non-zenoh OSC host can't declare liveliness: its /ready announcement
+            // bridges to the token `adapters.rs start()` awaits.
+            if ready && addr == "ready" && ready_token.is_none() {
+                match session
+                    .liveliness()
+                    .declare_token(format!("asemic/adapter/{name}/ready"))
+                    .await
+                {
+                    Ok(t) => ready_token = Some(t),
+                    Err(e) => tracing::error!("adapter {name}: ready token: {e}"),
+                }
+            }
             if addr == "error" {
                 // Unified error keyspace: asemic/err/<adapter>/<id>
                 let (ident, msg) = if let Some(arr) = v.as_array() {
@@ -325,6 +372,40 @@ mod tests {
             assert_eq!(from_midi(&m), Some((p.to_string(), v)));
         }
         assert!(to_midi("cc/0/1", 0.5).is_none());
+    }
+
+    /// A repeated verb must reach the adapter every time; a repeated stream value must not.
+    /// `/play` with the same payload right after `/stop` is a state change, not a duplicate.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn repeated_verb_forwarded_repeated_value_deduped() -> Result<()> {
+        let session = zenoh::open(zenoh::Config::default()).await.map_err(anyhow::Error::msg)?;
+        let peer = UdpSocket::bind("127.0.0.1:0").await?;
+        let listen = { let s = std::net::UdpSocket::bind("127.0.0.1:0")?; s.local_addr()?.port() };
+        let m = AdapterManifest::from_toml(&format!(
+            "[adapter]\nname='osct2'\nkind='bridge'\n[osc]\nlisten={listen}\nsend='{}'\n",
+            peer.local_addr()?
+        ))?;
+        let _b = start(&session, &m).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        for _ in 0..2 {
+            session.put("asemic/out/osct2/play", "[\"voice\"]").await.map_err(anyhow::Error::msg)?;
+            assert_eq!(recv_addr(&peer).await?, "/play");
+        }
+        session.put("asemic/out/osct2/set/amp", "[1, 0.5]").await.map_err(anyhow::Error::msg)?;
+        assert_eq!(recv_addr(&peer).await?, "/set/amp");
+        session.put("asemic/out/osct2/set/amp", "[1, 0.5]").await.map_err(anyhow::Error::msg)?;
+        let mut buf = [0u8; 512];
+        let quiet = tokio::time::timeout(std::time::Duration::from_millis(500), peer.recv_from(&mut buf)).await;
+        assert!(quiet.is_err(), "repeated stream value should be deduplicated");
+        Ok(())
+    }
+
+    /// Next OSC message address arriving at `peer` (test helper).
+    async fn recv_addr(peer: &UdpSocket) -> Result<String> {
+        let mut buf = [0u8; 512];
+        let (n, _) = tokio::time::timeout(std::time::Duration::from_secs(2), peer.recv_from(&mut buf)).await??;
+        let OscPacket::Message(m) = decoder::decode_udp(&buf[..n])?.1 else { panic!() };
+        Ok(m.addr)
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -1,10 +1,11 @@
 [adapter]
 name = "supercollider"
 kind = "process"
+ready = true  # sclang announces OSC /ready from boot.scd; brain bridges it to this token
 description = "sclang boots scsynth; asemic/out/supercollider/set/<name> -> Synth(\\asemicVoice).set; /def /nset /free -> Ndef rows from sc(); asemic/io/supercollider/* <- OSC"
 
 [lifecycle]
-start = "/Applications/SuperCollider.app/Contents/MacOS/sclang -u 57120 boot.scd"
+start = "sh start.sh"  # reaps a stale sclang still holding 57120, then execs sclang -u 57120 boot.scd
 # Scoped process management: the brain's adapter host logs the started pid, spawns it
 # in its own process group (`process_group(0)`), and cleanly signals `-<pid>` on stop.
 # Never run machine-wide `pkill -x` so other SuperCollider processes are never disturbed.

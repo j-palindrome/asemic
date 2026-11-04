@@ -6,6 +6,10 @@ if(NetAddr.langPort != expectedPort) {
     var err = "SuperCollider port collision: sclang bound to UDP % instead of % (another sclang instance is holding %)".format(NetAddr.langPort, expectedPort, expectedPort);
     err.error;
     brain.sendMsg("/error", "boot", err);
+    // Limbing on the wrong port is worse than dying: the brain keeps sending OSC to `expectedPort`,
+    // where a zombie sclang with no scsynth answers, and every block goes silent with no error.
+    // Exiting makes the adapter start fail loudly instead (`exited before ready`).
+    0.exit;
 };
 s.options.numInputBusChannels = 0;
 

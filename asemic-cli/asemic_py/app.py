@@ -1013,7 +1013,12 @@ class TreeNavApp(App):
         p = cols.path
         if p is None or not self.doc.is_nest(p):
             return
-        ts = self.doc.effective_timestretch(p)
+        # Decide from the brain's live state, not the code: a commit / external edit re-runs the
+        # block and `pause_nest` republishes the declared `timestretch="0.0"`, freezing it while
+        # `doc` may still say 1.0 -- toggling off the doc then wrote 0.0 again ("it doesn't
+        # restart"). `_block_ts` is fed by every `asemic/state/block/<label>.timestretch` sample,
+        # our own publishes included; the doc is only the fallback before the first sample.
+        ts = self._block_ts.get(self.doc.label(p), self.doc.effective_timestretch(p))
         self.action_set_timestretch(list(p), 0.0 if ts != 0.0 else (self._last_timestretch.get(p) or 1.0))
         if ts != 0.0:
             self._last_timestretch[p] = ts
@@ -1300,6 +1305,11 @@ class AsemicApp(TreeNavApp):
         self._block_times: dict[str, float] = {}
         # row path -> timestretch to restore on space-toggle resume (`action_toggle_play_row`)
         self._last_timestretch: dict[RowPath, float] = {}
+        # block label -> live timestretch (`asemic/state/block/<label>.timestretch`): the brain's
+        # actual play state, which can diverge from the code's declared value (a commit or an
+        # external edit re-runs the block, `pause_nest` republishes the declared ts -> frozen).
+        # Space-toggle decides from THIS, so a press always un-freezes a stopped block.
+        self._block_ts: dict[str, float] = {}
 
     # ------------------------------------------------------------ layout
     def compose(self) -> ComposeResult:
@@ -1450,6 +1460,7 @@ class AsemicApp(TreeNavApp):
                 self._looks_dirty.add(ident)
             elif space == "block_timestretch":
                 if isinstance(v, (int, float)):
+                    self._block_ts[ident] = float(v)
                     for bp in self.query(BlockPanel):
                         if bp.label == ident and bp.box is not None and not bp.box.has_focus:
                             bp.box.value = float(v)
@@ -1684,6 +1695,12 @@ class AsemicApp(TreeNavApp):
         if not doc.is_nest(p):
             return
 
+        if os.environ.get("ASEMIC_TS_DEBUG"):
+            import traceback
+            with open("/tmp/asemic-ts-debug.log", "a") as f:
+                f.write(f"\n=== timestretch {value} {p} ===\n")
+                f.write("".join(traceback.format_stack()))
+
         doc.set_timestretch(p, value)
         label = doc.label(p)
 
@@ -1698,6 +1715,7 @@ class AsemicApp(TreeNavApp):
 
             # 2. THEN, once all recursive blocks are fully loaded & registered, set timestretch & trigger processing
             self.client.put(ids.block_timestretch(label), value)
+            self._block_ts[label] = float(value)  # optimistic: the state sample follows
 
             if value != 0.0:
                 # Step the block and all child blocks recursively so initial frames cook

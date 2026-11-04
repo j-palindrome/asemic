@@ -167,6 +167,12 @@ class Repl:
             self.timestretch_scope(doc.label(path), ts)
 
     def timestretch_scope(self, label: str, ts: float | None) -> None:
+        import os
+        if os.environ.get("ASEMIC_TS_DEBUG"):
+            import traceback
+            with open("/tmp/asemic-ts-debug.log", "a") as f:
+                f.write(f"\n=== scope {label} <- {ts} ===\n")
+                f.write("".join(traceback.format_stack()))
         key = ids.block_timestretch(label)
         if ts is None:
             self.c.delete(key)
